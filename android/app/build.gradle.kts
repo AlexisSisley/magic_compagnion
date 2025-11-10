@@ -33,12 +33,7 @@ android {
     buildTypes {
         getByName("release") {
             // Votre CI utilise la signature de debug, ce qui est parfait
-            signingConfig = signingConfigs.getByName("debug") 
-            
-            // Activez la minification
-            minifyEnabled = true
-            shrinkResources = true 
-
+            signingConfig = signingConfigs.getByName("debug")    
             // Indique les fichiers de règles (celui que vous venez de corriger)
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
