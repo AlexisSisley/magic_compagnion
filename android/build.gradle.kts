@@ -18,18 +18,15 @@ subprojects {
 subprojects {
     project.evaluationDependsOn(":app")
 
-    // --- CORRECTION ---
-    // Cette logique est exécutée après l'évaluation des projets.
+    // --- CORRECTION FINALE ---
     afterEvaluate {
-        // Cible uniquement les sous-projets qui sont des modules Android
         if (project.plugins.hasPlugin("com.android.application") || project.plugins.hasPlugin("com.android.library")) {
             
-            // Nous utilisons le nom complet de la classe 'CommonExtension'
-            // pour éviter les problèmes d'import sur le script racine.
-            // 'CommonExtension' est l'interface partagée pour 'application' et 'library'.
-            project.extensions.findByType<com.android.build.api.dsl.CommonExtension>()?.apply {
+            // On doit fournir les 6 arguments génériques (ici, des wildcards *)
+            // pour que Kotlin puisse résoudre le type 'CommonExtension'.
+            project.extensions.findByType<com.android.build.api.dsl.CommonExtension<*, *, *, *, *, *>>()?.apply {
                 
-                // Force le compileSdk pour ce module
+                // 'compileSdk' sera maintenant résolu correctement.
                 compileSdk = 34
             }
         }
