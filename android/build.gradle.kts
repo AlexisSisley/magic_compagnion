@@ -1,4 +1,3 @@
-import com.android.build.api.dsl.BaseExtension
 allprojects {
     repositories {
         google()
@@ -18,15 +17,24 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
-    // Force tous les sous-projets (y compris les plugins défaillants)
-    // à utiliser une version de compileSdk qui inclut 'lStar'.
+
+    // --- CORRECTION ---
+    // Cette logique est exécutée après l'évaluation des projets.
     afterEvaluate {
+        // Cible uniquement les sous-projets qui sont des modules Android
         if (project.plugins.hasPlugin("com.android.application") || project.plugins.hasPlugin("com.android.library")) {
-            project.extensions.findByType<com.android.build.api.dsl.BaseExtension>()?.apply {
-                compileSdk = 34 // Force 34 pour tout le monde
+            
+            // Nous utilisons le nom complet de la classe 'CommonExtension'
+            // pour éviter les problèmes d'import sur le script racine.
+            // 'CommonExtension' est l'interface partagée pour 'application' et 'library'.
+            project.extensions.findByType<com.android.build.api.dsl.CommonExtension>()?.apply {
+                
+                // Force le compileSdk pour ce module
+                compileSdk = 34
             }
         }
     }
+    // --- FIN DE LA CORRECTION ---
 }
 
 tasks.register<Delete>("clean") {
