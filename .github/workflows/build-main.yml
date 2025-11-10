@@ -1,0 +1,87 @@
+# Nom du workflow
+name: Build APK on Main
+
+# Déclencheur : s'exécute uniquement lors d'un push sur la branche 'main'
+on:
+  push:
+    branches:
+      - main
+
+# Évite les exécutions en double si on push plusieurs fois rapidement
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job unique pour compiler l'APK
+  build-apk:
+    name: Build Release APK
+    # Utilise la dernière image Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+      # Étape 1 : Récupérer le code de votre dépôt
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Nécessaire pour obtenir le hash du commit
+
+      # Étape 2 : Configurer Java (nécessaire pour Gradle et Flutter)
+      # Utilise Java 17, qui est compatible avec votre configuration
+      - name: Setup Java (JDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # Étape 3 : Configurer Flutter (avec cache)
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable' # ou 'beta' si vous préférez
+          cache: true
+
+      # Étape 4 : Mettre en cache les dépendances Gradle
+      # Accélère les builds futurs en réutilisant les téléchargements de Gradle
+      - name: Cache Gradle Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # Étape 5 : Installer les dépendances Flutter
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Étape 6 : Lancer le build de l'APK en mode release
+      # C'est la commande principale que vous vouliez
+      # Elle fonctionnera car "signingConfig" est sur "debug"
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      # Étape 7 : Préparer les artefacts pour le téléchargement
+      - name: Prepare Artifacts
+        run: |
+          mkdir -p artifacts
+          # On récupère le hash court du commit pour un nom de fichier unique
+          SHA=$(git rev-parse --short HEAD)
+          echo "SHA=$SHA" >> $GITHUB_ENV
+          
+          # Renomme et déplace l'APK
+          mv build/app/outputs/flutter-apk/app-release.apk artifacts/magic-companion-main-$SHA.apk
+          
+          echo "APK renommé :"
+          ls -l artifacts
+
+      # Étape 8 : Uploader l'APK en tant qu'artefact
+      # Vous pourrez télécharger cet APK depuis la page "Actions" de votre dépôt
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk-${{ env.SHA }}
+          path: artifacts/
+          retention-days: 7 # Garde l'artefact pendant 7 jours

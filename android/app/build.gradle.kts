@@ -33,9 +33,7 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
-            // --- VÉRIFIEZ QUE CES LIGNES SONT LÀ ---
-            isminifyEnabled = true
-            isshrinkResources = true
+          
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro" // Cette ligne charge le fichier que vous venez de créer
