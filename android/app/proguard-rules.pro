@@ -5,8 +5,10 @@
 -keep class com.google.android.gms.internal.mlkit_vision_text.** { *; }
 -keepclassmembers class com.google.android.gms.internal.mlkit_vision_text.** { *; }
 
-# Garde spécifiquement les modèles de langue que R8 supprime
--keep class com.google.mlkit.vision.text.chinese.** { *; }
--keep class com.google.mlkit.vision.text.devanagari.** { *; }
--keep class com.google.mlkit.vision.text.japanese.** { *; }
--keep class com.google.mlkit.vision.text.korean.** { *; }
+# --- CORRECTION ---
+# Indique à R8 d'ignorer les avertissements pour les packs de 
+# langues optionnels que nous n'utilisons pas.
+-dontwarn com.google.mlkit.vision.text.chinese.**
+-dontwarn com.google.mlkit.vision.text.devanagari.**
+-dontwarn com.google.mlkit.vision.text.japanese.**
+-dontwarn com.google.mlkit.vision.text.korean.**
