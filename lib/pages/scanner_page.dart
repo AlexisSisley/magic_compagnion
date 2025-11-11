@@ -2,7 +2,7 @@
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:magic_companion/pages/recognition_result_page.dart';
+import 'package:magic_companion/pages/card_detail_page.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class ScannerPage extends StatefulWidget {

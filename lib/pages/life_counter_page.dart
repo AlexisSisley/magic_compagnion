@@ -1,29 +1,15 @@
 // Fichier : lib/pages/life_counter_page.dart
 // VERSION FINALE (Avec Compteur Commander)
 
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/player_model.dart';
+import '../widgets/life_counter/player_zone.dart';
 
-// --- MODÈLE MIS À JOUR ---
-class Player {
-  final int id;
-  int life;
-  // NOUVEAU: Stocke les dégâts reçus, ex: { 1: 5, 2: 10 }
-  // (signifie 5 dégâts du Cdt du Joueur 1, 10 du Cdt du Joueur 2)
-  Map<int, int> commanderDamageReceived;
-
-  Player({
-    required this.id,
-    required this.life,
-    required this.commanderDamageReceived,
-  });
-
-  // NOUVEAU: Calcule le total des dégâts de Cdt reçus
-  int get totalCommanderDamage {
-    return commanderDamageReceived.values.fold(0, (sum, damage) => sum + damage);
-  }
-}
 
 // --- PAGE PRINCIPALE ---
 class LifeCounterPage extends StatefulWidget {
@@ -362,7 +348,44 @@ _startingLife = 40;
     );
   }
 
+  void _rollDice() {
+    final int result = Random().nextInt(20) + 1; // Un D20
+    
+    // --- Logique de l'Easter Egg ---
+    String title = 'Jet de D20';
+    String content = '$result';
+    Color contentColor = Colors.yellow.shade700;
 
+    if (result == 1) {
+      title = 'POUR FRODON !';
+      content = '$result ⚔️'; // Une petite épée
+      contentColor = Colors.red.shade400;
+    }
+    // ---
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text(title, style: GoogleFonts.cinzel(color: Colors.white)), // Utilise le titre variable
+        content: Text(
+          content, // Utilise le contenu variable
+          textAlign: TextAlign.center,
+          style: GoogleFonts.cinzel(
+            color: contentColor, // Utilise la couleur variable
+            fontSize: 80,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK', style: GoogleFonts.cinzel(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
   // --- CONSTRUCTION DE L'UI ---
 
   @override
@@ -378,204 +401,119 @@ _startingLife = 40;
     return Stack(
       children: [
         _buildLayout(),
-        Align(
-          alignment: Alignment.center,
-          child: IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white, size: 30),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.black.withOpacity(0.5),
-              shape: const CircleBorder(),
-            ),
-            onPressed: _resetGame,
-          ),
-        ),
+        
         Positioned(
           bottom: 16,
           right: 16,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: SpeedDial(
+            icon: Icons.menu, // Icône principale
+            activeIcon: Icons.close, // Icône quand le menu est ouvert
+            backgroundColor: Colors.black.withOpacity(0.8),
+            foregroundColor: Colors.white,
+            overlayColor: Colors.black, // Couleur du fond estompé
+            overlayOpacity: 0.4,
+            spacing: 12, // Espace entre les boutons
+            childrenButtonSize: const Size(56.0, 56.0),
+            
             children: [
-              FloatingActionButton.small(
-                heroTag: 'fab_players',
-                onPressed: _showPlayerSelector,
-                backgroundColor: Colors.black.withOpacity(0.8),
-                foregroundColor: Colors.white,
-                child: const Icon(Icons.people_alt),
-              ),
-              const SizedBox(height: 10),
-              FloatingActionButton.small(
-                heroTag: 'fab_format',
-                onPressed: _showFormatSelector,
-                backgroundColor: Colors.black.withOpacity(0.8),
-                foregroundColor: Colors.white,
+              SpeedDialChild(
                 child: const Icon(Icons.favorite),
+                label: 'Format',
+                backgroundColor: Colors.black.withOpacity(0.8),
+                foregroundColor: Colors.white,
+                onTap: _showFormatSelector,
+              ),
+              SpeedDialChild(
+                child: const Icon(Icons.people_alt),
+                label: 'Joueurs',
+                backgroundColor: Colors.black.withOpacity(0.8),
+                foregroundColor: Colors.white,
+                onTap: _showPlayerSelector,
+              ),
+              SpeedDialChild(
+                child: const Icon(Icons.casino_outlined),
+                label: 'Jet de Dé',
+                backgroundColor: Colors.black.withOpacity(0.8),
+                foregroundColor: Colors.white,
+                onTap: _rollDice,
+              ),
+              SpeedDialChild(
+                child: const Icon(Icons.refresh),
+                label: 'Reset',
+                backgroundColor: Colors.black.withOpacity(0.8),
+                foregroundColor: Colors.white,
+                onTap: _resetGame,
               ),
             ],
           ),
         ),
+        // --- Fin de la correction ---
       ],
     );
   }
 
   // NOUVELLE Fonction pour construire le layout (MISE À JOUR)
   Widget _buildLayout() {
-    // Si on a 2 ou 3 joueurs, on garde une Colonne (1v1, 1v1v1)
+    // 1-3 joueurs : Colonne (inchangée, sauf la callback)
     if (_playerCount <= 3) {
       return Column(
         children: _players.map((player) {
           bool isRotated = player.id == 0;
           return Expanded(
             child: PlayerZone(
-              player: player, // <-- MODIFIÉ: Passe l'objet Player
+              player: player,
               backgroundColor: _playerColors[player.id],
               isRotated: isRotated,
-              isCommander: _startingLife == 40, // <-- NOUVEAU
-              onDecrement: () => _updateLife(player.id, -1),
-              onIncrement: () => _updateLife(player.id, 1),
-              onShowCommanderDamage: () => _showCommanderDamageSelector(player), // <-- NOUVEAU
+              isCommander: _startingLife == 40,
+              onLifeChanged: (change) => _updateLife(player.id, change), // <-- MODIFIÉ
+              onShowCommanderDamage: () => _showCommanderDamageSelector(player),
             ),
           );
         }).toList(),
       );
     }
     
-    // Si on a 4, 5, ou 6 joueurs, on utilise une Grille (2x2, 2x3)
+    // 4-6 joueurs : Grille (MODIFIÉE)
     else {
+      // --- CORRECTION DU LAYOUT ---
+      final mediaQuery = MediaQuery.of(context);
+      // Hauteur réelle de l'écran (sans encoche/barre de statut)
+      final safeHeight = mediaQuery.size.height - mediaQuery.padding.top - mediaQuery.padding.bottom;
+      final screenWidth = mediaQuery.size.width;
+      
+      // Calcule le nombre de rangées
+      final rowCount = (_playerCount / 2).ceil(); // 4->2, 5->3, 6->3
+      
+      // Calcule la hauteur d'une cellule (en enlevant la barre de nav ~80px)
+      // (kBottomNavigationBarHeight est ~56, mais 80 donne de la marge)
+      final cellHeight = (safeHeight - 80) / rowCount; 
+      final cellWidth = screenWidth / 2;
+      
+      // Calcule le ratio dynamique
+      final aspectRatio = (cellHeight > 0) ? cellWidth / cellHeight : 1.0;
+      // ---
+
       return GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
         itemCount: _playerCount,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 1.4,
+          childAspectRatio: aspectRatio, // <-- MODIFIÉ
         ),
         itemBuilder: (context, index) {
           final player = _players[index];
-          bool isRotated = index < 2;
+          bool isRotated = index < 2; // Seuls les 2 joueurs du haut sont tournés
 
           return PlayerZone(
-            player: player, // <-- MODIFIÉ: Passe l'objet Player
+            player: player,
             backgroundColor: _playerColors[player.id],
             isRotated: isRotated,
-            isCommander: _startingLife == 40, // <-- NOUVEAU
-            onDecrement: () => _updateLife(player.id, -1),
-            onIncrement: () => _updateLife(player.id, 1),
-            onShowCommanderDamage: () => _showCommanderDamageSelector(player), // <-- NOUVEAU
+            isCommander: _startingLife == 40,
+            onLifeChanged: (change) => _updateLife(player.id, change), // <-- MODIFIÉ
+            onShowCommanderDamage: () => _showCommanderDamageSelector(player),
           );
         },
       );
     }
-  }
-}
-
-// --- WIDGET ZONE JOUEUR (FORTEMENT MODIFIÉ) ---
-class PlayerZone extends StatelessWidget {
-  const PlayerZone({
-    super.key,
-    required this.player, // <-- MODIFIÉ
-    required this.backgroundColor,
-    required this.onDecrement,
-    required this.onIncrement,
-    required this.onShowCommanderDamage, // <-- NOUVEAU
-    this.isRotated = false,
-    this.isCommander = false, // <-- NOUVEAU
-  });
-
-  final Player player; // <-- MODIFIÉ
-  final Color backgroundColor;
-  final bool isRotated;
-  final bool isCommander; // <-- NOUVEAU
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
-  final VoidCallback onShowCommanderDamage; // <-- NOUVEAU
-
-  @override
-  Widget build(BuildContext context) {
-    Widget content = Stack(
-      children: [
-        Container(color: backgroundColor),
-        // --- Bouton Moins (inchangé) ---
-        Align(
-          alignment: Alignment.centerLeft,
-          child: GestureDetector(
-            onTap: onDecrement,
-            child: Container(
-              width: 120,
-              height: double.infinity,
-              color: Colors.transparent,
-              child: const Icon(Icons.remove, size: 60, color: Colors.white70),
-            ),
-          ),
-        ),
-        // --- Bouton Plus (inchangé) ---
-        Align(
-          alignment: Alignment.centerRight,
-          child: GestureDetector(
-            onTap: onIncrement,
-            child: Container(
-              width: 120,
-              height: double.infinity,
-              color: Colors.transparent,
-              child: const Icon(Icons.add, size: 60, color: Colors.white70),
-            ),
-          ),
-        ),
-        // --- Affichage Principal (Vie) ---
-        Center(
-          child: Text(
-            '${player.life}',
-            style: GoogleFonts.cinzel(
-              fontSize: 104,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              shadows: [
-                Shadow(
-                  blurRadius: 10.0,
-                  color: Colors.black.withOpacity(0.5),
-                  offset: const Offset(2.0, 2.0),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        // --- NOUVEAU: Affichage et bouton des dégâts de Cdt ---
-        if (isCommander)
-          Positioned(
-            // Position en haut (ou en bas si tourné)
-            top: 10,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: GestureDetector(
-                onTap: onShowCommanderDamage, // Ouvre le menu
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    // Affiche le total des dégâts de Cdt
-                    'CDT : ${player.totalCommanderDamage}',
-                    style: GoogleFonts.cinzel(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-
-    if (isRotated) {
-      return Transform.rotate(
-        angle: 3.14159, // 180 degrés
-        child: content,
-      );
-    }
-    return content;
   }
 }

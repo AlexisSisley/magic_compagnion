@@ -1,5 +1,5 @@
-// Fichier : lib/pages/recognition_result_page.dart
-// CORRECTION : Ajout du padding pour la barre de navigation
+// Fichier : lib/pages/card_detail_page.dart
+// VERSION MISE À JOUR (Avec "Ajouter au Deck")
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -9,67 +9,17 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:magic_companion/models/scryfall_card_model.dart';
+import 'package:magic_companion/widgets/decks/deck_picker_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/deck_service.dart';
 import '../data/glossary_data.dart';
 import '../data/glossary_data_en.dart';
 import 'glossary_detail_page.dart';
 
-// ... (Le modèle ScryfallCard et l'enum sont inchangés) ...
+// ... (L'enum est inchangé) ...
 enum ResultPageState { loading, success, error }
 
-class ScryfallCard {
-  final String name;
-  final String? manaCost;
-  final String imageUrl;
-  final String rulesText;
-  final String typeLine;
-  final Map<String, String> legalities;
-  final Map<String, dynamic> prices;
-  final String lang;
-
-  ScryfallCard({
-    required this.name,
-    this.manaCost,
-    required this.imageUrl,
-    required this.rulesText,
-    required this.typeLine,
-    required this.legalities,
-    required this.prices,
-    required this.lang,
-  });
-
-  factory ScryfallCard.fromJson(Map<String, dynamic> json) {
-    String imageUrl = '';
-    String rulesText = '';
-    String? manaCost;
-
-    if (json['card_faces'] != null &&
-        json['card_faces'][0]['image_uris'] != null) {
-      final face = json['card_faces'][0];
-      imageUrl = face['image_uris']['normal'];
-      rulesText = face['printed_text'] ?? face['oracle_text'] ?? '';
-      manaCost = face['mana_cost'];
-    } else {
-      if (json['image_uris'] != null) {
-        imageUrl = json['image_uris']['normal'];
-      }
-      rulesText = json['printed_text'] ?? json['oracle_text'] ?? '';
-      manaCost = json['mana_cost'];
-    }
-
-    return ScryfallCard(
-      name: json['name'],
-      manaCost: manaCost,
-      imageUrl: imageUrl,
-      rulesText: rulesText,
-      typeLine: json['type_line'],
-      legalities: Map<String, String>.from(json['legalities']),
-      prices: Map<String, dynamic>.from(json['prices']),
-      lang: json['lang'] ?? 'en',
-    );
-  }
-}
-// ...
 
 class RecognitionResultPage extends StatefulWidget {
   final String? imagePath;
@@ -92,11 +42,17 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
 
   final RegExp _manaSymbolRegex = RegExp(r'(\{.*?\})');
 
+  // --- NOUVEAU : Instance du DeckService ---
+  final DeckService _deckService = DeckService();
+
+
   @override
   void initState() {
     super.initState();
     _initializeAndSearch();
   }
+
+  // ... (Toutes les fonctions _initializeAndSearch, dispose, _startAutomaticProcess, _searchScryfall restent INCHANGÉES) ...
 
   Future<void> _initializeAndSearch() async {
     final prefs = await SharedPreferences.getInstance();
@@ -219,6 +175,7 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       });
     }
   }
+  // ---
 
   @override
   Widget build(BuildContext context) {
@@ -231,14 +188,56 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
         ),
         backgroundColor: Colors.black,
       ),
-      body: _buildBody(), // Appel de la méthode modifiée
+      body: _buildBody(), 
+      
+      // --- NOUVEAU : Floating Action Button ---
+      floatingActionButton: _pageState == ResultPageState.success
+          ? FloatingActionButton(
+              onPressed: _showDeckPicker,
+              backgroundColor: Colors.yellow.shade800,
+              foregroundColor: Colors.white,
+              child: const Icon(Icons.add_to_photos_outlined),
+            )
+          : null, // N'affiche pas le bouton si échec ou chargement
+    );
+  }
+  
+  // --- NOUVELLE FONCTION : Afficher le sélecteur de deck ---
+  
+  Future<void> _showDeckPicker() async {
+    if (_foundCard == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true, // Important pour le clavier
+      builder: (modalContext) {
+        // --- NOUVEAU : On délègue toute la logique au widget _DeckPickerModal ---
+        return DeckPickerModal(
+          deckService: _deckService,
+          cardToAdd: _foundCard!,
+          // On passe le ScaffoldMessenger du contexte principal
+          onCardAdded: (deckName, cardName) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '"$cardName" ajouté à "$deckName"',
+                  style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold),
+                ),
+                backgroundColor: Colors.yellow.shade700,
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
-  // --- WIDGETS D'AFFICHAGE ---
+
+  // --- WIDGETS D'AFFICHAGE (Inchangés, sauf le _buildBody) ---
 
   Widget _buildBody() {
-    // --- CORRECTION : On récupère le MediaQuery ici ---
     final mediaQuery = MediaQuery.of(context);
     
     switch (_pageState) {
@@ -260,25 +259,25 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
 
       case ResultPageState.success:
         return SingleChildScrollView(
-          // --- CORRECTION : On modifie le padding ---
           padding: EdgeInsets.fromLTRB(
-            8.0, // left
-            8.0, // top
-            8.0, // right
-            8.0 + mediaQuery.padding.bottom, // bottom (padding de 8 + zone de nav)
+            8.0, 
+            8.0, 
+            8.0, 
+            // --- MODIFIÉ : Ajout d'espace pour le FAB ---
+            8.0 + mediaQuery.padding.bottom + 80.0, // 80.0 pour le FAB
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // ... (Le reste des Cards reste inchangé) ...
               Card(
-                color: Colors.black.withOpacity(0.4),
+                color: Colors.black.withAlpha((0.4 * 255).round()),
                 elevation: 2.0,
                 margin: const EdgeInsets.symmetric(vertical: 5.0),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10.0),
                   side: BorderSide(
-                    color: Colors.yellow.shade800.withOpacity(0.6),
+                    color:Colors.yellow.shade800.withAlpha((0.6 * 255).round()),
                     width: 1,
                   ),
                 ),
@@ -330,9 +329,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
                 title: 'Texte des règles',
                 child: _buildClickableRulesText(_foundCard!.rulesText, _foundCard!.lang),
               ),
-              
-              // On n'a plus besoin du SizedBox en bas,
-              // le padding s'en charge.
             ],
           ),
         );
@@ -359,7 +355,7 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
                       GoogleFonts.cinzel(color: Colors.white54, fontSize: 16),
                   prefixIcon: const Icon(Icons.search, color: Colors.white70),
                   filled: true,
-                  fillColor: Colors.black.withOpacity(0.5),
+                  fillColor: Colors.black.withAlpha((0.5 * 255).round()),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
@@ -376,7 +372,7 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
               ElevatedButton(
                 onPressed: _searchScryfall,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.yellow.shade800.withOpacity(0.8),
+                  backgroundColor: Colors.yellow.shade800.withAlpha((0.8 * 255).round()),
                   foregroundColor: Colors.white,
                 ),
                 child: Text(
@@ -395,14 +391,14 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   
   Widget _buildInfoCard({required String title, required Widget child}) {
     return Card(
-      color: Colors.black.withOpacity(0.4),
+      color: Colors.black.withAlpha((0.4 * 255).round()),
       elevation: 2.0,
       margin: const EdgeInsets.symmetric(
           vertical: 6.0),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10.0),
         side: BorderSide(
-          color: Colors.yellow.shade800.withOpacity(0.6),
+          color: Colors.yellow.shade800.withAlpha((0.6 * 255).round()),
           width: 1,
         ),
       ),
@@ -423,7 +419,7 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
           ),
           Container(
             height: 1,
-            color: Colors.yellow.shade800.withOpacity(0.6),
+            color: Colors.yellow.shade800.withAlpha((0.6 * 255).round()),
           ),
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -561,12 +557,11 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   }
 
   Keyword? _findKeyword(String word) {
-    if (_foundCard!.lang != _userLang) {
-      return null;
-    }
+    // La condition (if (_foundCard!.lang != _userLang)) A ÉTÉ SUPPRIMÉE.
     
     final normalizedWord = word.toLowerCase().replaceAll(RegExp(r'[,\.]'), '');
     
+    // Boucle directement dans le dictionnaire actif (FR ou EN selon _userLang)
     for (final keyword in _activeGlossary) {
       if (keyword.term.toLowerCase() == normalizedWord) {
         return keyword;

@@ -6,8 +6,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:magic_companion/models/search_filters.dart';
+import 'package:magic_companion/widgets/search/search_filter_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // <-- AJOUTÉ
-import 'recognition_result_page.dart';
+import 'card_detail_page.dart';
 
 class CardSearchPage extends StatefulWidget {
   const CardSearchPage({super.key});
@@ -18,17 +20,47 @@ class CardSearchPage extends StatefulWidget {
 
 class _CardSearchPageState extends State<CardSearchPage> {
   final TextEditingController _searchController = TextEditingController();
+  SearchFilters _activeFilters = SearchFilters();
   List<dynamic> _searchResults = [];
   bool _isLoading = false;
   String _statusMessage = 'Entrez un nom de carte pour commencer.';
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _searchCards() async {
     final String query = _searchController.text.trim();
-    if (query.isEmpty) return;
+    
+    List<String> queryParts = [];
+    
+    if (query.isNotEmpty) {
+      queryParts.add(query);
+    }
+    if (_activeFilters.setCode != null) {
+      queryParts.add('e:${_activeFilters.setCode}');
+    }
+    if (_activeFilters.colors.isNotEmpty) {
+      queryParts.add('c:${_activeFilters.colors.join()}');
+    }
+    if (_activeFilters.cardType != null) {
+      queryParts.add('t:${_activeFilters.cardType}'); 
+    }
 
-    // --- Vérification de connexion (inchangée) ---
+    if (queryParts.isEmpty) {
+      setState(() {
+        _statusMessage = "Veuillez entrer au moins un critère de recherche.";
+      });
+      return;
+    }
+    
+    final String finalQuery = queryParts.join(' ');
+    // ---
+
     final connectivityResult = await (Connectivity().checkConnectivity());
-    if (connectivityResult == ConnectivityResult.none) {
+    if (connectivityResult.contains(ConnectivityResult.none)) { // Corrigé
       setState(() {
         _isLoading = false;
         _searchResults = [];
@@ -37,21 +69,20 @@ class _CardSearchPageState extends State<CardSearchPage> {
       return;
     }
     
-    // --- NOUVEAU : Charger la langue préférée ---
     final prefs = await SharedPreferences.getInstance();
     final String lang = prefs.getString('glossaryLang') ?? 'fr';
-    // ---
 
     setState(() {
       _isLoading = true;
       _searchResults = [];
-      _statusMessage = 'Recherche de "$query"...';
+      _statusMessage = 'Recherche de "$finalQuery"...';
     });
 
     try {
-      // --- MODIFIÉ : Utilisation de la variable 'lang' ---
+      // --- MODIFIÉ : Utilise finalQuery encodé ---
+      final encodedQuery = Uri.encodeComponent(finalQuery);
       final response = await http.get(Uri.parse(
-          'https://api.scryfall.com/cards/search?q=$query&lang=$lang'));
+          'https://api.scryfall.com/cards/search?q=$encodedQuery&lang=$lang'));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data =
@@ -60,7 +91,7 @@ class _CardSearchPageState extends State<CardSearchPage> {
           _isLoading = false;
           _searchResults = data['data'] ?? [];
           if (_searchResults.isEmpty) {
-            _statusMessage = 'Aucune carte trouvée pour "$query".';
+            _statusMessage = 'Aucune carte trouvée pour "$finalQuery".';
           }
         });
       } else {
@@ -77,9 +108,28 @@ class _CardSearchPageState extends State<CardSearchPage> {
     }
   }
 
+
+ Future<void> _openFilterModal() async {
+    // Affiche la modale et ATTEND son retour
+    final newFilters = await showModalBottomSheet<SearchFilters>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return SearchFilterModal(initialFilters: _activeFilters);
+      },
+    );
+
+    // Si l'utilisateur a cliqué sur "Appliquer"
+    if (newFilters != null) {
+      setState(() {
+        _activeFilters = newFilters;
+      });
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
-    // Le reste du build est inchangé...
     return Column(
       children: [
         Padding(
@@ -88,27 +138,41 @@ class _CardSearchPageState extends State<CardSearchPage> {
             controller: _searchController,
             style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16),
             decoration: InputDecoration(
-              hintText: 'Rechercher une carte...', // Gardé simple
+              hintText: 'Nom de la carte...',
               hintStyle: GoogleFonts.cinzel(color: Colors.white54, fontSize: 16),
-              prefixIcon: const Icon(Icons.search, color: Colors.white70),
+              
+              // --- MODIFIÉ : Bouton Filtre ---
+              prefixIcon: IconButton(
+                icon: Icon(
+                  Icons.filter_list,
+                  color: _activeFilters.colors.isNotEmpty || 
+                         _activeFilters.cardType != null ||
+                         _activeFilters.setCode != null
+                      ? Colors.yellow.shade700 // Icône en surbrillance si filtres actifs
+                      : Colors.white70,
+                ),
+                onPressed: _openFilterModal,
+              ),
+              // ---
+              
+              // --- MODIFIÉ : Bouton Envoyer ---
               suffixIcon: IconButton(
                 icon: const Icon(Icons.send, color: Colors.white70),
-                onPressed: _searchCards,
+                onPressed: _searchCards, // Le bouton "Envoyer" lance la recherche
               ),
+              // ---
+              
               filled: true,
-              fillColor: Colors.black54,
+              fillColor: Colors.black.withAlpha(140),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Colors.white70, width: 1),
               ),
             ),
             onSubmitted: (value) => _searchCards(),
           ),
         ),
+        
         Expanded(
           child: _buildResultsList(),
         ),
@@ -117,7 +181,6 @@ class _CardSearchPageState extends State<CardSearchPage> {
   }
 
   Widget _buildResultsList() {
-    // ... (inchangé)
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }

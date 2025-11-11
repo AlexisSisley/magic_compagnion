@@ -3,8 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:magic_companion/pages/card_search_page.dart';
 import 'package:magic_companion/pages/scanner_page.dart';
-import 'pages/life_counter_page.dart'; // Importer notre page compteur
-import 'pages/glossary_page.dart'; // Importer notre page glossaire
+import 'pages/life_counter_page.dart'; 
+import 'pages/glossary_page.dart'; 
+import 'pages/deck_list_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +24,7 @@ class MagicCompanionApp extends StatelessWidget {
         // Thème global
         scaffoldBackgroundColor: Colors.transparent,
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
-          backgroundColor: Colors.black.withOpacity(0.8),
+          backgroundColor: Colors.black.withAlpha((0.8 * 255).round()),
           selectedItemColor: Colors.white,
           unselectedItemColor: Colors.white54,
         ),
@@ -51,6 +52,7 @@ class _AppShellState extends State<AppShell> {
     GlossaryPage(),
     CardSearchPage(),
     ScannerPage(),
+    DeckListPage(),
   ];
 
   void _onItemTapped(int index) {
@@ -91,18 +93,22 @@ class _AppShellState extends State<AppShell> {
                 label: 'Glossaire',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.search), // <-- NOUVEL ITEM
+                icon: Icon(Icons.search), 
                 label: 'Recherche',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.camera_alt), // <-- Nouvel icône
-                label: 'Scanner',             // <-- Nouveau label
+                icon: Icon(Icons.camera_alt), 
+                label: 'Scanner',             
+              ),
+              BottomNavigationBarItem( 
+                icon: Icon(Icons.style_outlined), 
+                label: 'Decks',
               ),
             ],
             currentIndex: _selectedIndex,
             onTap: _onItemTapped,
             type: BottomNavigationBarType.fixed, // Important pour 4+ items
-            backgroundColor: Colors.black.withOpacity(0.8), // Assurez-vous que c'est là
+            backgroundColor: Colors.black.withAlpha((0.8 * 255).round()),
             selectedItemColor: Colors.white,
             unselectedItemColor: Colors.white54,
           ),
