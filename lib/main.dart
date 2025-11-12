@@ -69,7 +69,7 @@ class _AppShellState extends State<AppShell> {
         Container(
           decoration: const BoxDecoration(
             image: DecorationImage(
-              image: AssetImage('assets/images/background_texture.jpg'),
+              image: AssetImage('assets/images/background_texture_black.png'),
               fit: BoxFit.cover,
             ),
           ),

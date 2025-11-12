@@ -91,6 +91,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/background_texture.jpg
+    - assets/images/background_texture_black.png
     - assets/icone.png
     - assets/icone_rb.png
     

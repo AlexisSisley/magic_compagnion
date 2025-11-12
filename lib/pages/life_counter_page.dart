@@ -126,7 +126,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     _saveGame();
   }
 
-  // NOUVEAU: Mettre à jour les dégâts de Commandant
+  // Mettre à jour les dégâts de Commandant
   void _updateCommanderDamage(int playerId, int opponentId, int change) {
     setState(() {
       final player = _players.firstWhere((p) => p.id == playerId);
@@ -138,7 +138,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   }
 
 
-  // --- MENUS (Mis à jour) ---
+  // --- MENUS ---
 
   void _showFormatSelector() {
     showModalBottomSheet(
@@ -262,8 +262,8 @@ _startingLife = 40;
     );
   }
 
-  // NOUVEAU: Menu pour choisir les dégâts de Cdt
-  void _showCommanderDamageSelector(Player player) {
+  // Menu pour choisir les dégâts de Cdt
+  void _showCommanderDamageSelector(Player attacker) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -283,7 +283,7 @@ _startingLife = 40;
               children: <Widget>[
                 ListTile(
                   title: Text(
-                    'Dégâts de Commandant (Joueur ${player.id + 1})',
+                    'Infliger des dégâts (Cmdt ${attacker.id + 1})', // Nouveau titre
                     style: GoogleFonts.cinzel(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -291,20 +291,21 @@ _startingLife = 40;
                     ),
                   ),
                   subtitle: Text(
-                    'Total reçus : ${player.totalCommanderDamage}',
+                    'Sélectionnez une cible :', // Nouveau sous-titre
                     style: GoogleFonts.cinzel(color: Colors.white70),
                   ),
                 ),
-                // Lister tous les adversaires
+                // Lister tous les adversaires (en tant que CIBLES)
                 ..._players
-                  .where((opponent) => opponent.id != player.id)
+                  .where((opponent) => opponent.id != attacker.id) // 'opponent' est la CIBLE
                   .map((opponent) {
-                    final damage = player.commanderDamageReceived[opponent.id] ?? 0;
+                    // On cherche les dégâts que 'opponent' a REÇUS de 'attacker'
+                    final damage = opponent.commanderDamageReceived[attacker.id] ?? 0;
                     return ListTile(
                       leading: Icon(Icons.shield, color: _playerColors[opponent.id]),
-                      title: Text('Du Joueur ${opponent.id + 1}',
+                      title: Text('Au Joueur ${opponent.id + 1}', // Cible
                           style: const TextStyle(color: Colors.white)),
-                      // Affiche les dégâts actuels de cet adversaire
+                      
                       trailing: SizedBox(
                         width: 150, // Largeur fixe
                         child: Row(
@@ -313,10 +314,13 @@ _startingLife = 40;
                             IconButton(
                               icon: const Icon(Icons.remove, color: Colors.white70),
                               onPressed: () {
-                                _updateCommanderDamage(player.id, opponent.id, -1);
+                                // Met à jour la CIBLE ('opponent.id')
+                                // avec les dégâts de L'ATTAQUANT ('attacker.id')
+                                _updateCommanderDamage(opponent.id, attacker.id, -1);
+                                
                                 // On reconstruit le BottomSheet pour rafraîchir
                                 Navigator.pop(context);
-                                _showCommanderDamageSelector(player);
+                                _showCommanderDamageSelector(attacker);
                               },
                             ),
                             Text(
@@ -330,9 +334,9 @@ _startingLife = 40;
                             IconButton(
                               icon: const Icon(Icons.add, color: Colors.white70),
                               onPressed: () {
-                                _updateCommanderDamage(player.id, opponent.id, 1);
+                                _updateCommanderDamage(opponent.id, attacker.id, 1);
                                 Navigator.pop(context);
-                                _showCommanderDamageSelector(player);
+                                _showCommanderDamageSelector(attacker);
                               },
                             ),
                           ],
@@ -454,66 +458,68 @@ _startingLife = 40;
 
   // NOUVELLE Fonction pour construire le layout (MISE À JOUR)
   Widget _buildLayout() {
-    // 1-3 joueurs : Colonne (inchangée, sauf la callback)
-    if (_playerCount <= 3) {
-      return Column(
-        children: _players.map((player) {
-          bool isRotated = player.id == 0;
-          return Expanded(
-            child: PlayerZone(
-              player: player,
-              backgroundColor: _playerColors[player.id],
-              isRotated: isRotated,
-              isCommander: _startingLife == 40,
-              onLifeChanged: (change) => _updateLife(player.id, change), // <-- MODIFIÉ
-              onShowCommanderDamage: () => _showCommanderDamageSelector(player),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        
+        // constraints.maxHeight = Hauteur réelle disponible
+        // constraints.maxWidth = Largeur réelle disponible
+
+        // 1-3 joueurs : Colonne
+        if (_playerCount <= 3) {
+          return Column(
+            children: _players.map((player) {
+              bool isRotated = player.id == 0;
+              return Expanded(
+                child: PlayerZone(
+                  player: player,
+                  backgroundColor: _playerColors[player.id],
+                  isRotated: isRotated,
+                  isCommander: _startingLife == 40,
+                  isVertical: false, 
+                  onLifeChanged: (change) => _updateLife(player.id, change),
+                  onShowCommanderDamage: () => _showCommanderDamageSelector(player),
+                ),
+              );
+            }).toList(),
+          );
+        }
+        
+        // 4-6 joueurs : Grille
+        else {
+          
+          final rowCount = (_playerCount / 2).ceil(); // 5 joueurs -> 3 rangées
+          
+          // On utilise les contraintes pour calculer la taille de la cellule
+          final cellHeight = constraints.maxHeight / rowCount;
+          final cellWidth = constraints.maxWidth / 2;
+          
+          // Calcule le ratio dynamique
+          final aspectRatio = (cellHeight > 0) ? cellWidth / cellHeight : 1.0;
+
+          return GridView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _playerCount,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: aspectRatio, // Utilise le ratio corrigé
             ),
-          );
-        }).toList(),
-      );
-    }
-    
-    // 4-6 joueurs : Grille (MODIFIÉE)
-    else {
-      // --- CORRECTION DU LAYOUT ---
-      final mediaQuery = MediaQuery.of(context);
-      // Hauteur réelle de l'écran (sans encoche/barre de statut)
-      final safeHeight = mediaQuery.size.height - mediaQuery.padding.top - mediaQuery.padding.bottom;
-      final screenWidth = mediaQuery.size.width;
-      
-      // Calcule le nombre de rangées
-      final rowCount = (_playerCount / 2).ceil(); // 4->2, 5->3, 6->3
-      
-      // Calcule la hauteur d'une cellule (en enlevant la barre de nav ~80px)
-      // (kBottomNavigationBarHeight est ~56, mais 80 donne de la marge)
-      final cellHeight = (safeHeight - 80) / rowCount; 
-      final cellWidth = screenWidth / 2;
-      
-      // Calcule le ratio dynamique
-      final aspectRatio = (cellHeight > 0) ? cellWidth / cellHeight : 1.0;
-      // ---
+            itemBuilder: (context, index) {
+              final player = _players[index];
+              bool isRotated = index < 2; 
 
-      return GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: _playerCount,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: aspectRatio, // <-- MODIFIÉ
-        ),
-        itemBuilder: (context, index) {
-          final player = _players[index];
-          bool isRotated = index < 2; // Seuls les 2 joueurs du haut sont tournés
-
-          return PlayerZone(
-            player: player,
-            backgroundColor: _playerColors[player.id],
-            isRotated: isRotated,
-            isCommander: _startingLife == 40,
-            onLifeChanged: (change) => _updateLife(player.id, change), // <-- MODIFIÉ
-            onShowCommanderDamage: () => _showCommanderDamageSelector(player),
+              return PlayerZone(
+                player: player,
+                backgroundColor: _playerColors[player.id],
+                isRotated: isRotated,
+                isCommander: _startingLife == 40,
+                isVertical: true,
+                onLifeChanged: (change) => _updateLife(player.id, change),
+                onShowCommanderDamage: () => _showCommanderDamageSelector(player),
+              );
+            },
           );
-        },
-      );
-    }
+        }
+      },
+    );
   }
 }

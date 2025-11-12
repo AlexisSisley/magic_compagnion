@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/pages/deck_detail_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/deck_model.dart';
 import '../services/deck_service.dart';
 
@@ -258,11 +259,11 @@ class _DeckListPageState extends State<DeckListPage> {
   Future<void> _importDeck(String deckName, String decklistText) async {
     setState(() { _isImporting = true; _isLoading = true; });
 
-    // 1. Parser le texte (logique inchangée)
+    // 1. Parser le texte
     List<Map<String, dynamic>> parsedMainboard = [];
     List<Map<String, dynamic>> parsedSideboard = [];
     String? parsedCommanderName;
-    List<Map<String, String>> scryfallIdentifiers = [];
+    List<String> scryfallIdentifiers = []; // Devient List<String>
     String currentSection = 'mainboard';
     final lines = decklistText.split('\n');
 
@@ -281,10 +282,17 @@ class _DeckListPageState extends State<DeckListPage> {
       final match = _decklistRegex.firstMatch(trimmedLine);
       if (match != null) {
         final int quantity = int.tryParse(match.group(1)!) ?? 0;
-        final String cardName = match.group(2)!.trim();
+        String cardName = match.group(2)!.trim();
+        
+        // Nettoie le nom s'il s'agit d'une carte split
+        if (cardName.contains('//')) {
+          cardName = cardName.split('//')[0].trim();
+        }
+
         if (quantity > 0 && cardName.isNotEmpty) {
-          if (!scryfallIdentifiers.any((id) => id['name'] == cardName)) {
-             scryfallIdentifiers.add({'name': cardName});
+          // On utilise le nom nettoyé 'cardName' partout
+          if (!scryfallIdentifiers.contains(cardName)) {
+             scryfallIdentifiers.add(cardName); // Ajoute juste le nom
           }
           if (currentSection == 'commander') {
             parsedCommanderName = cardName;
@@ -303,32 +311,47 @@ class _DeckListPageState extends State<DeckListPage> {
       return;
     }
 
-    // 2. Appel API (on garde la logique de "chunking")
+    // 2. Appel API (Logique MODIFIÉE pour /search)
     log('Début de l\'importation de ${scryfallIdentifiers.length} cartes uniques...');
     List<ScryfallCard> scryfallCardData = [];
-    List<Map<String, String>> remainingIdentifiers = List.from(scryfallIdentifiers);
-    const int chunkSize = 75;
+    List<String> remainingIdentifiers = List.from(scryfallIdentifiers);
+    
+    // On chunk par 20 noms pour éviter une URL trop longue
+    const int chunkSize = 20; 
     int callCount = 1;
 
+    // Récupère la langue de l'utilisateur (FR par défaut)
+    final prefs = await SharedPreferences.getInstance();
+    final String lang = prefs.getString('glossaryLang') ?? 'fr';
+    log('Importation en langue: $lang');
+
     while (remainingIdentifiers.isNotEmpty) {
-      final List<Map<String, String>> chunk = remainingIdentifiers.take(chunkSize).toList();
+      final List<String> chunk = remainingIdentifiers.take(chunkSize).toList();
       remainingIdentifiers.removeRange(0, chunk.length);
       log('Appel API n°$callCount: ${chunk.length} cartes...');
       callCount++;
+      
       try {
-        final requestBody = json.encode({'identifiers': chunk});
-        final response = await http.post(
-          Uri.parse('https://api.scryfall.com/cards/collection'),
+        // Construit une requête Scryfall
+        // ex: !"Forêt" OR !"Anneau solaire" OR !"Gwaihir, le plus grand des aigles"
+        // Le '!' force la recherche exacte du nom
+        final String query = chunk.map((name) => '!${json.encode(name)}').join(' OR ');
+        final encodedQuery = Uri.encodeComponent(query);
+
+        final response = await http.get(
+          Uri.parse('https://api.scryfall.com/cards/search?q=$encodedQuery&lang=$lang&unique=cards'),
           headers: {'Content-Type': 'application/json'},
-          body: requestBody,
         );
+        
         if (response.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
           scryfallCardData.addAll((data['data'] as List)
               .map((cardJson) => ScryfallCard.fromJson(cardJson)));
         } else {
+          log('Erreur API (chunk ${callCount-1}): ${response.statusCode} - ${response.body}');
           throw Exception('Erreur API: ${response.statusCode}');
         }
+        // Petite pause pour respecter l'API Scryfall
         if (remainingIdentifiers.isNotEmpty) {
           await Future.delayed(const Duration(milliseconds: 100));
         }
@@ -344,15 +367,19 @@ class _DeckListPageState extends State<DeckListPage> {
     final decks = await _deckService.loadDecks();
     Deck newDeck = decks.firstWhere((d) => d.name == deckName);
 
-    // 4. Remplir le deck (LOGIQUE DE MATCHING CORRIGÉE)
+    // 4. Remplir le deck (Logique de matching inchangée, mais maintenant elle marche !)
     List<DeckCard> mainboardCards = [];
     for (final parsedCard in parsedMainboard) {
       try {
         final parsedNameLower = parsedCard['name'].toLowerCase();
+        
+        // 'scryfallCardData' contient maintenant les objets en FRANÇAIS
+        // 'sc.name' sera "Forêt", 'parsedNameLower' sera "forêt"
         final scryfallCard = scryfallCardData.firstWhere(
           (sc) => sc.name.toLowerCase() == parsedNameLower ||
                  (sc.printedName != null && sc.printedName!.toLowerCase() == parsedNameLower)
         );
+        
         mainboardCards.add(DeckCard(
           scryfallId: scryfallCard.id,
           name: scryfallCard.name,
@@ -387,13 +414,17 @@ class _DeckListPageState extends State<DeckListPage> {
                  (sc.printedName != null && sc.printedName!.toLowerCase() == parsedNameLower)
         );
         newDeck.commanderScryfallId = scryfallCard.id;
-        if (!newDeck.mainboard.any((c) => c.scryfallId == scryfallCard.id)) {
+        
+        // Gère le cas où le commandant n'était pas listé dans le mainboard
+        final bool commanderInMain = newDeck.mainboard.any((c) => c.scryfallId == scryfallCard.id);
+        if (!commanderInMain) {
            newDeck.mainboard.add(DeckCard(
              scryfallId: scryfallCard.id,
              name: scryfallCard.name,
              quantity: 1
            ));
         }
+
       } catch (e) { log('Commandant non trouvé: $parsedCommanderName'); }
     }
     
@@ -419,7 +450,7 @@ class _DeckListPageState extends State<DeckListPage> {
               Text(
                 'Mes Decks',
                 style: GoogleFonts.cinzel(
-                  color: Colors.black87,
+                  color: Colors.white,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
@@ -428,7 +459,7 @@ class _DeckListPageState extends State<DeckListPage> {
               IconButton(
                 icon: const Icon(Icons.file_upload_outlined),
                 tooltip: 'Importer un deck',
-                color: Colors.black87,
+                color: Colors.white,
                 onPressed: _showImportDeckDialog,
               ),
             ],
