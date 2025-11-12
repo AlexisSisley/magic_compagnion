@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:magic_companion/pages/turn_guide_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/player_model.dart';
 import '../widgets/life_counter/player_zone.dart';
@@ -440,6 +441,18 @@ _startingLife = 40;
                 backgroundColor: Colors.black.withOpacity(0.8),
                 foregroundColor: Colors.white,
                 onTap: _rollDice,
+              ),
+              SpeedDialChild(
+                child: const Icon(Icons.checklist_rtl_outlined),
+                label: 'Phases du Tour',
+                backgroundColor: Colors.black.withOpacity(0.8),
+                foregroundColor: Colors.white,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const TurnGuidePage()),
+                  );
+                },
               ),
               SpeedDialChild(
                 child: const Icon(Icons.refresh),

@@ -1,5 +1,5 @@
 // Fichier : lib/pages/card_search_page.dart
-// VERSION MISE À JOUR (Connectée à la Collection)
+// VERSION MISE À JOUR (avec bouton Collection ET Wishlist)
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -10,7 +10,8 @@ import 'package:magic_companion/models/search_filters.dart';
 import 'package:magic_companion/widgets/search/search_filter_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'card_detail_page.dart';
-import '../services/collection_service.dart'; // <-- 1. AJOUT DE L'IMPORT
+import '../services/collection_service.dart'; // Service Collection
+import '../services/wishlist_service.dart'; // <-- 1. AJOUT DE L'IMPORT
 
 class CardSearchPage extends StatefulWidget {
   const CardSearchPage({super.key});
@@ -26,8 +27,9 @@ class _CardSearchPageState extends State<CardSearchPage> {
   bool _isLoading = false;
   String _statusMessage = 'Entrez un nom de carte pour commencer.';
 
-  // <-- 2. INSTANCE DU SERVICE
+  // <-- 2. INSTANCE DES DEUX SERVICES -->
   final CollectionService _collectionService = CollectionService();
+  final WishlistService _wishlistService = WishlistService();
 
   @override
   void dispose() {
@@ -35,102 +37,56 @@ class _CardSearchPageState extends State<CardSearchPage> {
     super.dispose();
   }
 
+  // --- (Fonctions _searchCards et _openFilterModal inchangées) ---
   Future<void> _searchCards() async {
     final String query = _searchController.text.trim();
-    
     List<String> queryParts = [];
-    
-    if (query.isNotEmpty) {
-      queryParts.add(query);
-    }
-    if (_activeFilters.setCode != null) {
-      queryParts.add('e:${_activeFilters.setCode}');
-    }
-    if (_activeFilters.colors.isNotEmpty) {
-      queryParts.add('c:${_activeFilters.colors.join()}');
-    }
-    if (_activeFilters.cardType != null) {
-      queryParts.add('t:${_activeFilters.cardType}'); 
-    }
-
+    if (query.isNotEmpty) { queryParts.add(query); }
+    if (_activeFilters.setCode != null) { queryParts.add('e:${_activeFilters.setCode}'); }
+    if (_activeFilters.colors.isNotEmpty) { queryParts.add('c:${_activeFilters.colors.join()}'); }
+    if (_activeFilters.cardType != null) { queryParts.add('t:${_activeFilters.cardType}'); }
     if (queryParts.isEmpty) {
-      setState(() {
-        _statusMessage = "Veuillez entrer au moins un critère de recherche.";
-      });
+      setState(() { _statusMessage = "Veuillez entrer au moins un critère de recherche."; });
       return;
     }
-    
     final String finalQuery = queryParts.join(' ');
-    // ---
-
     final connectivityResult = await (Connectivity().checkConnectivity());
     if (connectivityResult.contains(ConnectivityResult.none)) { 
-      setState(() {
-        _isLoading = false;
-        _searchResults = [];
-        _statusMessage = "Erreur : Pas de connexion internet.";
-      });
+      setState(() { _isLoading = false; _searchResults = []; _statusMessage = "Erreur : Pas de connexion internet."; });
       return;
     }
-    
     final prefs = await SharedPreferences.getInstance();
     final String lang = prefs.getString('glossaryLang') ?? 'fr';
-
-    setState(() {
-      _isLoading = true;
-      _searchResults = [];
-      _statusMessage = 'Recherche de "$finalQuery"...';
-    });
-
+    setState(() { _isLoading = true; _searchResults = []; _statusMessage = 'Recherche de "$finalQuery"...'; });
     try {
       final encodedQuery = Uri.encodeComponent(finalQuery);
-      final response = await http.get(Uri.parse(
-          'https://api.scryfall.com/cards/search?q=$encodedQuery&lang=$lang'));
-
+      final response = await http.get(Uri.parse('https://api.scryfall.com/cards/search?q=$encodedQuery&lang=$lang'));
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data =
-            json.decode(utf8.decode(response.bodyBytes));
+        final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         setState(() {
           _isLoading = false;
           _searchResults = data['data'] ?? [];
-          if (_searchResults.isEmpty) {
-            _statusMessage = 'Aucune carte trouvée pour "$finalQuery".';
-          }
+          if (_searchResults.isEmpty) { _statusMessage = 'Aucune carte trouvée pour "$finalQuery".'; }
         });
       } else {
-        setState(() {
-          _isLoading = false;
-          _statusMessage = 'Erreur: ${response.statusCode}. Veuillez réessayer.';
-        });
+        setState(() { _isLoading = false; _statusMessage = 'Erreur: ${response.statusCode}. Veuillez réessayer.'; });
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _statusMessage = 'Erreur réseau: $e';
-      });
+      setState(() { _isLoading = false; _statusMessage = 'Erreur réseau: $e'; });
     }
   }
-
-
- Future<void> _openFilterModal() async {
+  Future<void> _openFilterModal() async {
     final newFilters = await showModalBottomSheet<SearchFilters>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return SearchFilterModal(initialFilters: _activeFilters);
-      },
+      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      builder: (context) { return SearchFilterModal(initialFilters: _activeFilters); },
     );
-
-    if (newFilters != null) {
-      setState(() {
-        _activeFilters = newFilters;
-      });
-    }
+    if (newFilters != null) { setState(() { _activeFilters = newFilters; }); }
   }
+  // --- (Fin des fonctions inchangées) ---
   
   @override
   Widget build(BuildContext context) {
+    // ... (Build du TextField inchangé) ...
     return Column(
       children: [
         Padding(
@@ -141,35 +97,25 @@ class _CardSearchPageState extends State<CardSearchPage> {
             decoration: InputDecoration(
               hintText: 'Nom de la carte...',
               hintStyle: GoogleFonts.cinzel(color: Colors.white54, fontSize: 16),
-              
               prefixIcon: IconButton(
                 icon: Icon(
                   Icons.filter_list,
-                  color: _activeFilters.colors.isNotEmpty || 
-                         _activeFilters.cardType != null ||
-                         _activeFilters.setCode != null
-                      ? Colors.yellow.shade700 
-                      : Colors.white70,
+                  color: _activeFilters.colors.isNotEmpty || _activeFilters.cardType != null || _activeFilters.setCode != null
+                      ? Colors.yellow.shade700 : Colors.white70,
                 ),
                 onPressed: _openFilterModal,
               ),
-              
               suffixIcon: IconButton(
                 icon: const Icon(Icons.send, color: Colors.white70),
                 onPressed: _searchCards,
               ),
-              
               filled: true,
               fillColor: Colors.black.withAlpha(140),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none,
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
             ),
             onSubmitted: (value) => _searchCards(),
           ),
         ),
-        
         Expanded(
           child: _buildResultsList(),
         ),
@@ -178,19 +124,12 @@ class _CardSearchPageState extends State<CardSearchPage> {
   }
 
   Widget _buildResultsList() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
+    if (_isLoading) { return const Center(child: CircularProgressIndicator()); }
     if (_searchResults.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Text(
-            _statusMessage,
-            style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
+          child: Text(_statusMessage, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16), textAlign: TextAlign.center),
         ),
       );
     }
@@ -216,77 +155,78 @@ class _CardSearchPageState extends State<CardSearchPage> {
           margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10.0),
-            side: BorderSide(
-              color: Colors.yellow.shade800.withAlpha(153),
-              width: 1,
-            ),
+            side: BorderSide(color: Colors.yellow.shade800.withAlpha(153), width: 1),
           ),
           clipBehavior: Clip.antiAlias,
           child: ListTile(
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(4.0),
               child: imageUrl != null
-                  ? Image.network(imageUrl,
-                      width: 50, height: 70, fit: BoxFit.cover)
-                  : Container(
-                      width: 50,
-                      height: 70,
-                      color: Colors.grey.shade800,
-                      child: const Icon(Icons.image, color: Colors.white30)),
+                  ? Image.network(imageUrl, width: 50, height: 70, fit: BoxFit.cover)
+                  : Container(width: 50, height: 70, color: Colors.grey.shade800, child: const Icon(Icons.image, color: Colors.white30)),
             ),
-            title: Text(
-              cardName,
-              style: GoogleFonts.cinzel(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            subtitle: Text(
-              cardType,
-              style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14),
-            ),
+            title: Text(cardName, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+            subtitle: Text(cardType, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14)),
             
             // --- 3. MODIFICATION DU TRAILING ---
-            trailing: IconButton(
-              icon: Icon(Icons.add_circle_outline, color: Colors.white54),
-              tooltip: 'Ajouter à la collection',
-              onPressed: () {
-                if (scryfallId.isEmpty) return; // Sécurité
-                
-                // Appel au service
-                _collectionService.upsertCardInCollection(
-                  scryfallId: scryfallId, 
-                  cardName: cardName, 
-                  quantityToAdd: 1
-                );
-                
-                // Feedback utilisateur
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('"$cardName" ajouté à la collection', 
-                    style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)
+            trailing: SizedBox(
+              width: 80, // Assez de place pour deux icônes
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Bouton Wishlist
+                  IconButton(
+                    icon: const Icon(Icons.star_border_outlined, color: Colors.white54),
+                    tooltip: 'Ajouter à la Wishlist',
+                    onPressed: () {
+                      if (scryfallId.isEmpty) return;
+                      _wishlistService.upsertCardInWishlist(
+                        scryfallId: scryfallId, 
+                        cardName: cardName, 
+                        quantityToAdd: 1
+                      );
+                      _showFeedback(context, '"$cardName" ajouté à la Wishlist', Colors.blue.shade700);
+                    },
                   ),
-                  backgroundColor: Colors.green.shade700,
-                  duration: const Duration(seconds: 1),
-                ));
-              },
+                  // Bouton Collection
+                  IconButton(
+                    icon: const Icon(Icons.inventory_2_outlined, color: Colors.white54),
+                    tooltip: 'Ajouter à la collection',
+                    onPressed: () {
+                      if (scryfallId.isEmpty) return;
+                      _collectionService.upsertCardInCollection(
+                        scryfallId: scryfallId, 
+                        cardName: cardName, 
+                        quantityToAdd: 1
+                      );
+                      _showFeedback(context, '"$cardName" ajouté à la collection', Colors.green.shade700);
+                    },
+                  ),
+                ],
+              ),
             ),
             // --- FIN MODIFICATION ---
             
             splashColor: Colors.yellow.withAlpha(26),
             onTap: () {
-              // Navigation vers la page de détail (inchangé)
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      RecognitionResultPage(cardName: cardName),
-                ),
+                MaterialPageRoute(builder: (context) => RecognitionResultPage(cardName: cardName)),
               );
             },
           ),
         );
       },
     );
+  }
+
+  // Helper pour afficher les notifications
+  void _showFeedback(BuildContext context, String message, Color color) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Cache l'ancienne
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message, style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)),
+      backgroundColor: color,
+      duration: const Duration(seconds: 1),
+    ));
   }
 }

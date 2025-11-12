@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/pages/card_detail_page.dart'; // <-- AJOUTÉ POUR LA NAVIGATION
+import 'package:magic_companion/widgets/decks/deck_stats_tab.dart';
 import 'package:magic_companion/widgets/decks/draw_test_simulator.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:convert';
@@ -44,13 +45,13 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
   bool _isLoading = true;
   List<ScryfallCard> _fullCardData = [];
 
-  final RegExp _manaPipRegex = RegExp(r'\{([WUBRG])\}');
+  final RegExp _manaPipRegex = RegExp(r'\{([WUBRGCTPXYZS0-9/]+)\}');
   
   @override
   void initState() {
     super.initState();
     _currentDeck = widget.deck;
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadFullCardData();
   }
   @override
@@ -673,6 +674,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
           tabs: [
             Tab(text: 'Mainboard (${_getCardCount(_currentDeck.mainboard)})'),
             Tab(text: 'Sideboard (${_getCardCount(_currentDeck.sideboard)})'),
+            Tab(text: 'Stats'), // <-- Onglet ajouté
           ],
         ),
         actions: [
@@ -703,8 +705,18 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
           : TabBarView(
               controller: _tabController,
               children: [
+                // Onglet 1: Mainboard (inchangé)
                 _buildGroupedCardListView(_currentDeck.mainboard),
+                
+                // Onglet 2: Sideboard (inchangé)
                 _buildGroupedCardListView(_currentDeck.sideboard),
+
+                // Onglet 3: Stats (Nouveau)
+                // On lui passe les données nécessaires
+                DeckStatsTab(
+                  mainboard: _currentDeck.mainboard,
+                  cardData: _fullCardData,
+                ),
               ],
             ),
       

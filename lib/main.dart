@@ -1,6 +1,8 @@
 // Fichier : lib/main.dart
+// VERSION CORRIGÉE (avec initialisation de intl)
 
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart' ;
 import 'package:magic_companion/pages/card_search_page.dart';
 import 'package:magic_companion/pages/collection_page.dart';
 import 'package:magic_companion/pages/scanner_page.dart';
@@ -8,8 +10,14 @@ import 'pages/life_counter_page.dart';
 import 'pages/glossary_page.dart'; 
 import 'pages/deck_list_page.dart';
 
+// --- Imports pour la localisation (maintenant valides) ---
+import 'package:flutter_localizations/flutter_localizations.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialise le package de formatage des dates pour le français
+  await initializeDateFormatting('fr_FR');
   
   runApp(const MagicCompanionApp());
 }
@@ -21,8 +29,20 @@ class MagicCompanionApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      
+      // Garantit que l'app utilise le format FR pour les dates
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('fr', 'FR'), // Supporte le Français
+        Locale('en', 'US'), // Fallback Anglais
+      ],
+      locale: const Locale('fr', 'FR'),
+      
       theme: ThemeData.dark().copyWith(
-        // Thème global
         scaffoldBackgroundColor: Colors.transparent,
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
           backgroundColor: Colors.black.withAlpha((0.8 * 255).round()),
@@ -30,13 +50,12 @@ class MagicCompanionApp extends StatelessWidget {
           unselectedItemColor: Colors.white54,
         ),
       ),
-      // Notre "coquille" devient la page d'accueil
       home: const AppShell(),
     );
   }
 }
 
-// Ce widget gère la navigation principale et le fond
+// ... (Le reste de AppShell est inchangé) ...
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -45,9 +64,8 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _selectedIndex = 0; // 0 = Compteur, 1 = Glossaire
+  int _selectedIndex = 0; 
 
-  // La liste de nos deux pages principales
   static const List<Widget> _pages = <Widget>[
     LifeCounterPage(),
     GlossaryPage(),
@@ -67,7 +85,6 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // 1. NOTRE FOND TEXTURÉ (persiste sur toutes les pages)
         Container(
           decoration: const BoxDecoration(
             image: DecorationImage(
@@ -76,12 +93,9 @@ class _AppShellState extends State<AppShell> {
             ),
           ),
         ),
-
-        // 2. Le Scaffold (l'échafaudage de l'app)
         Scaffold(
-          backgroundColor: Colors.transparent, // Important pour voir la texture
+          backgroundColor: Colors.transparent,
           body: SafeArea(
-            // SafeArea évite que l'UI passe sous l'encoche/barre de statut
             child: _pages.elementAt(_selectedIndex),
           ),
           bottomNavigationBar: BottomNavigationBar(
@@ -113,7 +127,7 @@ class _AppShellState extends State<AppShell> {
             ],
             currentIndex: _selectedIndex,
             onTap: _onItemTapped,
-            type: BottomNavigationBarType.fixed, // Important pour 4+ items
+            type: BottomNavigationBarType.fixed,
             backgroundColor: Colors.black.withAlpha((0.8 * 255).round()),
             selectedItemColor: Colors.white,
             unselectedItemColor: Colors.white54,
