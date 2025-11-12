@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/models/search_filters.dart';
 import 'package:magic_companion/widgets/search/search_filter_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
@@ -27,17 +28,34 @@ class _CardSearchPageState extends State<CardSearchPage> {
   bool _isLoading = false;
   String _statusMessage = 'Entrez un nom de carte pour commencer.';
 
-  // <-- 2. INSTANCE DES DEUX SERVICES -->
   final CollectionService _collectionService = CollectionService();
   final WishlistService _wishlistService = WishlistService();
+  List<DeckCard> _collection = [];
+  List<DeckCard> _wishlist = [];
+  
+  @override
+  void initState() {
+    super.initState();
+    // Charge l'état actuel de la collection et wishlist
+    _loadLocalData();
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
-
-  // --- (Fonctions _searchCards et _openFilterModal inchangées) ---
+  Future<void> _loadLocalData() async {
+    final collection = await _collectionService.loadCollection();
+    final wishlist = await _wishlistService.loadWishlist();
+    if (mounted) {
+      setState(() {
+        _collection = collection;
+        _wishlist = wishlist;
+      });
+    }
+  }
+  
   Future<void> _searchCards() async {
     final String query = _searchController.text.trim();
     List<String> queryParts = [];
@@ -149,6 +167,9 @@ class _CardSearchPageState extends State<CardSearchPage> {
           imageUrl = card['card_faces'][0]['image_uris']['small'];
         }
 
+        final bool inWishlist = _wishlist.any((c) => c.scryfallId == scryfallId);
+        final bool inCollection = _collection.any((c) => c.scryfallId == scryfallId);
+        
         return Card(
           color: Colors.black.withAlpha(102),
           elevation: 2.0,
@@ -168,44 +189,52 @@ class _CardSearchPageState extends State<CardSearchPage> {
             title: Text(cardName, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
             subtitle: Text(cardType, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14)),
             
-            // --- 3. MODIFICATION DU TRAILING ---
             trailing: SizedBox(
-              width: 80, // Assez de place pour deux icônes
+              width: 100, // Augmenté pour éviter l'overflow
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Bouton Wishlist
+                  // Bouton Wishlist (Toggle)
                   IconButton(
-                    icon: const Icon(Icons.star_border_outlined, color: Colors.white54),
-                    tooltip: 'Ajouter à la Wishlist',
+                    icon: Icon(
+                      inWishlist ? Icons.star : Icons.star_border_outlined, // Icône dynamique
+                      color: inWishlist ? Colors.blue.shade400 : Colors.white54,
+                    ),
+                    tooltip: inWishlist ? 'Retirer de la Wishlist' : 'Ajouter à la Wishlist',
                     onPressed: () {
                       if (scryfallId.isEmpty) return;
-                      _wishlistService.upsertCardInWishlist(
-                        scryfallId: scryfallId, 
-                        cardName: cardName, 
-                        quantityToAdd: 1
-                      );
-                      _showFeedback(context, '"$cardName" ajouté à la Wishlist', Colors.blue.shade700);
+                      if (inWishlist) {
+                        _wishlistService.upsertCardInWishlist(scryfallId: scryfallId, cardName: cardName, absoluteQuantity: 0);
+                        _showFeedback(context, '"$cardName" retiré de la Wishlist', Colors.red.shade700);
+                      } else {
+                        _wishlistService.upsertCardInWishlist(scryfallId: scryfallId, cardName: cardName, quantityToAdd: 1);
+                        _showFeedback(context, '"$cardName" ajouté à la Wishlist', Colors.blue.shade700);
+                      }
+                      _loadLocalData(); // Rafraîchit l'état des icônes
                     },
                   ),
-                  // Bouton Collection
+                  // Bouton Collection (Toggle)
                   IconButton(
-                    icon: const Icon(Icons.inventory_2_outlined, color: Colors.white54),
-                    tooltip: 'Ajouter à la collection',
+                    icon: Icon(
+                      inCollection ? Icons.inventory_2 : Icons.inventory_2_outlined, // Icône dynamique
+                      color: inCollection ? Colors.green.shade400 : Colors.white54,
+                    ),
+                    tooltip: inCollection ? 'Retirer de la collection' : 'Ajouter à la collection',
                     onPressed: () {
                       if (scryfallId.isEmpty) return;
-                      _collectionService.upsertCardInCollection(
-                        scryfallId: scryfallId, 
-                        cardName: cardName, 
-                        quantityToAdd: 1
-                      );
-                      _showFeedback(context, '"$cardName" ajouté à la collection', Colors.green.shade700);
+                      if (inCollection) {
+                        _collectionService.upsertCardInCollection(scryfallId: scryfallId, cardName: cardName, absoluteQuantity: 0);
+                         _showFeedback(context, '"$cardName" retiré de la collection', Colors.red.shade700);
+                      } else {
+                        _collectionService.upsertCardInCollection(scryfallId: scryfallId, cardName: cardName, quantityToAdd: 1);
+                        _showFeedback(context, '"$cardName" ajouté à la collection', Colors.green.shade700);
+                      }
+                      _loadLocalData(); // Rafraîchit l'état des icônes
                     },
                   ),
                 ],
               ),
             ),
-            // --- FIN MODIFICATION ---
             
             splashColor: Colors.yellow.withAlpha(26),
             onTap: () {

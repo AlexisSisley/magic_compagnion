@@ -58,10 +58,9 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   final DeckService _deckService = DeckService();
   final CollectionService _collectionService = CollectionService();
   final ScanHistoryService _historyService = ScanHistoryService();
-  
-  // <-- 2. INSTANCE DU NOUVEAU SERVICE
   final WishlistService _wishlistService = WishlistService();
-
+  bool _inWishlist = false;
+  bool _inCollection = false;
 
   @override
   void initState() {
@@ -81,40 +80,113 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     } catch (e) {
       print("Erreur chargement glossaire (CardDetail): $e"); _activeGlossary = []; 
     }
-    if (widget.imagePath != null) { _startAutomaticProcess(); } 
-    else if (widget.cardName != null) { _searchController.text = widget.cardName!; _searchScryfall(); }
+    if (widget.imagePath != null) { 
+      _startAutomaticProcess(); 
+    } 
+    else if (widget.cardName != null) { 
+      _searchController.text = widget.cardName!; 
+      _searchScryfall(); 
+    }
   }
+
   @override
-  void dispose() { _searchController.dispose(); super.dispose(); }
+  void dispose() { 
+    _searchController.dispose(); 
+    super.dispose(); 
+  }
+
+  /// Nettoie le texte brut de l'OCR pour isoler le nom de la carte
+  String _cleanOcrText(String text) {
+    String cleanedText = text;
+
+    // 1. Remplacer les '0' par 'O' (souvent confondus)
+    cleanedText = cleanedText.replaceAll('0', 'O');
+
+    // 2. Supprimer les symboles de mana (WUBRG), les 'O' (confondus) 
+    //    et les 'X'/'Y'/'Z' s'ils sont des mots "seuls".
+    //    \b = limite de mot (word boundary)
+    cleanedText = cleanedText.replaceAll(RegExp(r'\b(W|U|B|R|G|O|X|Y|Z)\b', caseSensitive: false), '');
+
+    // 3. Supprimer tous les chiffres et les slashs (coûts incolores {5}, P/T "1/4")
+    cleanedText = cleanedText.replaceAll(RegExp(r'[\d\/]'), '');
+
+    // 4. Supprimer la ponctuation inutile que l'OCR pourrait mal lire
+    //    On garde les apostrophes et les tirets (ex: "Clé-runique", "D'ailleurs")
+    cleanedText = cleanedText.replaceAll(RegExp(r'[{}<>()\[\].,:;]'), '');
+
+    // 5. Nettoyer les espaces multiples
+    cleanedText = cleanedText.replaceAll(RegExp(r'\s+'), ' ').trim();
+    
+    return cleanedText;
+  }
+
   Future<void> _startAutomaticProcess() async {
     setState(() { _pageState = ResultPageState.loading; _statusMessage = "Analyse de l'image..."; });
     if (widget.imagePath == null) {
        setState(() { _pageState = ResultPageState.error; _statusMessage = "Erreur interne: Aucun chemin d'image fourni."; });
       return;
     }
+    
     final inputImage = InputImage.fromFilePath(widget.imagePath!);
     final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-    String? cardName;
+    
+    String? bestGuess;
+    int bestLength = 0;
+    
+    // Mots-clés de ligne de type à ignorer (en minuscules)
+    const List<String> typeKeywords = [
+      'créature', 'creature', 'artefact', 'artifact', 'enchantement', 'enchantment',
+      'éphémère', 'instant', 'rituel', 'sorcery', 'planeswalker', 'terrain', 'land',
+      'tribal', 'légendaire', 'legendary', 'neigeux', 'snow'
+    ];
+
     try {
       final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
       textRecognizer.close();
+
+      // 1. Itérer sur toutes les lignes reconnues
       for (var block in recognizedText.blocks) {
         for (var line in block.lines) {
-          if (line.text.trim().isNotEmpty) { cardName = line.text.trim(); break; }
+          String originalLine = line.text.trim();
+          if (originalLine.isEmpty) continue;
+          
+          // 2. Nettoyer la ligne
+          String cleanedLine = _cleanOcrText(originalLine);
+          if (cleanedLine.isEmpty) continue;
+
+          // 3. Vérifier si c'est une ligne de type (ex: "Créature : humain")
+          String lowerCleaned = cleanedLine.toLowerCase();
+          bool isTypeLine = typeKeywords.any((keyword) => lowerCleaned.startsWith(keyword));
+          
+          if (isTypeLine) {
+            print("Ligne ignorée (type): $originalLine");
+            continue;
+          }
+
+          // 4. Garder la ligne nettoyée la plus longue
+          //    (Le titre est souvent plus long que les P/T ou les restes de mana)
+          if (cleanedLine.length > bestLength) {
+            bestLength = cleanedLine.length;
+            bestGuess = cleanedLine;
+            print("Meilleur candidat trouvé: $bestGuess (depuis: $originalLine)");
+          }
         }
-        if (cardName != null) break;
       }
     } catch (e) {
       setState(() { _pageState = ResultPageState.error; _statusMessage = "Erreur OCR: $e. Veuillez réessayer."; });
       return;
     }
-    if (cardName == null || cardName.isEmpty) {
-      setState(() { _pageState = ResultPageState.error; _statusMessage = "Aucun texte reconnu. Veuillez entrer le nom manuellement."; });
+
+    if (bestGuess == null || bestGuess.isEmpty) {
+      setState(() { _pageState = ResultPageState.error; _statusMessage = "Aucun texte de titre reconnu. Veuillez entrer le nom manuellement."; });
       return;
     }
-    _searchController.text = cardName;
+
+    // 5. Utiliser le meilleur candidat (nettoyé) pour la recherche
+    _searchController.text = bestGuess;
     await _searchScryfall();
   }
+
   Future<void> _searchScryfall() async {
     final String cardName = _searchController.text.trim();
     if (cardName.isEmpty) { /* ... */ return; }
@@ -139,6 +211,7 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
           await _historyService.addScan(newItem);
         }
         _fetchRulings(foundCard.id);
+        await _checkCardStatus();
       } else {
         setState(() {
           _statusMessage = "Carte \"$cardName\" non trouvée (Code: ${response.statusCode}). Vérifiez le nom et réessayez.";
@@ -171,6 +244,68 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     if(mounted) { setState(() { _isLoadingRulings = false; }); }
   }
 
+  /// Vérifie si la carte trouvée est dans la wishlist ou la collection
+  Future<void> _checkCardStatus() async {
+    if (_foundCard == null) return;
+    
+    final collection = await _collectionService.loadCollection();
+    final wishlist = await _wishlistService.loadWishlist();
+    
+    if (!mounted) return;
+    
+    setState(() {
+      _inCollection = collection.any((c) => c.scryfallId == _foundCard!.id);
+      _inWishlist = wishlist.any((c) => c.scryfallId == _foundCard!.id);
+    });
+  }
+
+  /// Ajoute ou retire la carte de la wishlist
+  Future<void> _toggleWishlist() async {
+    if (_foundCard == null) return;
+    
+    if (_inWishlist) {
+      // Retirer
+      await _wishlistService.upsertCardInWishlist(
+        scryfallId: _foundCard!.id,
+        cardName: _foundCard!.name,
+        absoluteQuantity: 0, // Met la quantité à 0, ce qui la supprime
+      );
+      _showFeedback(context, '"${_foundCard!.name}" retiré de la Wishlist', Colors.red.shade700);
+    } else {
+      // Ajouter
+      await _wishlistService.addCard(_foundCard!, 1);
+      _showFeedback(context, '"${_foundCard!.name}" ajouté à la Wishlist', Colors.blue.shade700);
+    }
+    
+    // Met à jour l'icône
+    setState(() {
+      _inWishlist = !_inWishlist;
+    });
+  }
+
+  /// Ajoute ou retire la carte de la collection
+  Future<void> _toggleCollection() async {
+    if (_foundCard == null) return;
+    
+    if (_inCollection) {
+      // Retirer
+      await _collectionService.upsertCardInCollection(
+        scryfallId: _foundCard!.id,
+        cardName: _foundCard!.name,
+        absoluteQuantity: 0, // Met la quantité à 0, ce qui la supprime
+      );
+      _showFeedback(context, '"${_foundCard!.name}" retiré de la collection', Colors.red.shade700);
+    } else {
+      // Ajouter
+      await _collectionService.addCard(_foundCard!, 1);
+      _showFeedback(context, '"${_foundCard!.name}" ajouté à la collection', Colors.green.shade700);
+    }
+    
+    // Met à jour l'icône
+    setState(() {
+      _inCollection = !_inCollection;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -180,30 +315,28 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
         title: Text("Résultat", style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
         backgroundColor: Colors.black,
         
-        // --- 3. MODIFICATION DE L'APPBAR ---
         actions: [
           if (_pageState == ResultPageState.success && _foundCard != null) ...[
-            // Bouton Wishlist
+            // Bouton Wishlist (Toggle)
             IconButton(
-              icon: const Icon(Icons.star_border_outlined),
-              tooltip: 'Ajouter à la Wishlist',
-              onPressed: () {
-                _wishlistService.addCard(_foundCard!, 1);
-                _showFeedback(context, '"${_foundCard!.name}" ajouté à la Wishlist', Colors.blue.shade700);
-              },
+              icon: Icon(
+                _inWishlist ? Icons.star : Icons.star_border_outlined, // Icône dynamique
+                color: _inWishlist ? Colors.blue.shade400 : Colors.white,
+              ),
+              tooltip: _inWishlist ? 'Retirer de la Wishlist' : 'Ajouter à la Wishlist',
+              onPressed: _toggleWishlist, // Appelle la fonction de toggle
             ),
-            // Bouton Collection
+            // Bouton Collection (Toggle)
             IconButton(
-              icon: const Icon(Icons.inventory_2_outlined),
-              tooltip: 'Ajouter à la collection',
-              onPressed: () {
-                _collectionService.addCard(_foundCard!, 1);
-                _showFeedback(context, '"${_foundCard!.name}" ajouté à la collection', Colors.green.shade700);
-              },
+              icon: Icon(
+                _inCollection ? Icons.inventory_2 : Icons.inventory_2_outlined, // Icône dynamique
+                color: _inCollection ? Colors.green.shade400 : Colors.white,
+              ),
+              tooltip: _inCollection ? 'Retirer de la collection' : 'Ajouter à la collection',
+              onPressed: _toggleCollection, // Appelle la fonction de toggle
             )
           ]
         ],
-        // --- FIN MODIFICATION ---
       ),
       
       body: _buildBody(), 
@@ -289,10 +422,12 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
                   ],
                 ),
               ),
+              _buildInfoCard(title: 'Texte des règles', child: _buildClickableRulesText(_foundCard!.rulesText, _foundCard!.lang)),
               _buildInfoCard(title: 'Prix (approximatif)', child: _buildPriceInfo(_foundCard!.prices)),
               _buildInfoCard(title: 'Légalité en tournoi', child: _buildLegalities(_foundCard!.legalities)),
+              
+              
               _buildInfoCard(title: 'Décisions de Règles', child: _buildRulingsList()),
-              _buildInfoCard(title: 'Texte des règles', child: _buildClickableRulesText(_foundCard!.rulesText, _foundCard!.lang)),
             ],
           ),
         );

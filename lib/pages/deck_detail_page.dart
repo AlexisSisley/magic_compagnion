@@ -527,7 +527,10 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
       isScrollControlled: true, 
       backgroundColor: Colors.transparent,
       builder: (modalContext) {
-        return DrawTestSimulator(mainboard: mainboardList);
+        return DrawTestSimulator(
+          mainboard: mainboardList,
+          fullCardData: _fullCardData, // <-- AJOUTÉ
+        );
       },
     );
   }
@@ -850,40 +853,58 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
               ),
             ),
             
-            // --- Liste des cartes du groupe ---
             Column(
               children: [
                 ...group.cards.map((card) {
-                  // --- LOGIQUE : Vérifie si c'est le commandant ---
                   final bool isCommander = _currentDeck.commanderScryfallId == card.scryfallId;
                   
-                  // --- MODIFICATION : Gère le fallback ici ---
                   final scryfallCard = _fullCardData.firstWhere(
                     (sc) => sc.id == card.scryfallId,
-                    // Fallback (gère les cartes 'LOCAL:')
                     orElse: () => ScryfallCard.fromJson({
                       'id': card.scryfallId, 'name': card.name, 'legalities': {}, 
                       'prices': {}, 'lang': 'fr', 'type_line': '', 'color_identity': [],
-                      'mana_cost': '' // Important d'avoir un mana_cost vide
+                      'mana_cost': '', 'smallImageUrl': null // S'assurer que le fallback n'a pas d'image
                     }),
                   );
+                  
+                  // Récupérer l'URL de la miniature
+                  String? smallImageUrl;
+                  if (!scryfallCard.id.startsWith('LOCAL:')) {
+                    smallImageUrl = scryfallCard.smallImageUrl;
+                  }
+
                   return Card(
                     color: Colors.black.withAlpha((0.3 * 255).round()),
                     margin: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
                     child: ListTile(
-                      // --- AJOUT : onTap pour la navigation ---
+                      // --- NOUVEAU LEADING (Image) ---
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(4.0),
+                        child: (smallImageUrl != null)
+                            ? Image.network(
+                                smallImageUrl,
+                                width: 40,
+                                height: 56, // Ratio de carte
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, e, s) => const Icon(Icons.image_not_supported, size: 40),
+                              )
+                            : Container(
+                                width: 40,
+                                height: 56,
+                                color: Colors.grey.shade800,
+                                child: const Icon(Icons.image_not_supported, color: Colors.white30),
+                              ),
+                      ),
+                      
                       onTap: () {
-                        // On ne peut naviguer que si on a un vrai ID Scryfall
                         if (!scryfallCard.id.startsWith('LOCAL:')) {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              // RecognitionResultPage est notre "Card Detail Page"
                               builder: (context) => RecognitionResultPage(cardName: scryfallCard.name),
                             ),
                           );
                         } else {
-                          // Optionnel : SnackBar pour informer l'utilisateur
                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             content: Text('Données Scryfall non trouvées pour "${scryfallCard.name}"',
                                 style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)),
@@ -891,46 +912,46 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
                           ));
                         }
                       },
-                      // --- Fin de l'ajout ---
-                      
                       onLongPress: () {
-                        // On ne peut définir un commandant que depuis le mainboard
                         if (cardList == _currentDeck.mainboard) {
                           _setCommander(card);
                         }
                       },
-                      title: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+
+                      // --- NOUVEAU TITLE (Quantité + Nom + Étoile Cdt) ---
+                      title: Row(
                         children: [
+                          // Quantité
                           Text(
-                            card.name,
-                            style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16),
+                            '${card.quantity}x',
+                            style: GoogleFonts.cinzel(
+                              color: Colors.yellow.shade700,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold
+                            ),
                           ),
-                          // Ajoute la rangée de pips de mana
-                          _buildManaCostRow(scryfallCard.manaCost),
+                          const SizedBox(width: 8),
+                          // Nom (dans Expanded pour éviter l'overflow)
+                          Expanded(
+                            child: Text(
+                              card.name,
+                              style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          // Icône Commandant
+                          if (isCommander)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4.0),
+                              child: Icon(Icons.star, color: Colors.yellow, size: 16),
+                            ),
                         ],
                       ),
-                      leading: SizedBox(
-                        width: 50, // Espace pour "99x ⭐️"
-                        child: Row(
-                          children: [
-                            Text(
-                              '${card.quantity}x',
-                              style: GoogleFonts.cinzel(
-                                color: Colors.yellow.shade700,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold
-                              ),
-                            ),
-                            // --- NOUVEL AJOUT : Icône Commandant ---
-                            if (isCommander)
-                              const Padding(
-                                padding: EdgeInsets.only(left: 4.0),
-                                child: Icon(Icons.star, color: Colors.yellow, size: 16),
-                              ),
-                          ],
-                        ),
-                      ),
+                      
+                      // --- NOUVEAU SUBTITLE (Coût de mana) ---
+                      subtitle: _buildManaCostRow(scryfallCard.manaCost),
+                      
+                      // --- TRAILING (Inchangé) ---
                       trailing: SizedBox(
                         width: 100,
                         child: Row(

@@ -1,14 +1,21 @@
 // Fichier : lib/widgets/decks/draw_test_simulator.dart
+// VERSION MISE À JOUR (Avec miniatures)
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math';
 import '../../models/deck_model.dart';
+import '../../models/scryfall_card_model.dart'; // <-- AJOUTÉ
 
 class DrawTestSimulator extends StatefulWidget {
   final List<DeckCard> mainboard;
+  final List<ScryfallCard> fullCardData; // <-- AJOUTÉ
   
-  const DrawTestSimulator({super.key, required this.mainboard});
+  const DrawTestSimulator({
+    super.key, 
+    required this.mainboard,
+    required this.fullCardData, // <-- AJOUTÉ
+  });
 
   @override
   State<DrawTestSimulator> createState() => _DrawTestSimulatorState();
@@ -107,9 +114,42 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
                       itemCount: _hand.length,
                       itemBuilder: (context, index) {
                         final card = _hand[index];
+                        
+                        // --- MODIFICATION : Trouver l'URL de l'image ---
+                        String? smallImageUrl;
+                        try {
+                          final scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId);
+                          if (!scryfallCard.id.startsWith('LOCAL:')) {
+                            smallImageUrl = scryfallCard.smallImageUrl;
+                          }
+                        } catch (e) {
+                          // Carte locale ou non trouvée, smallImageUrl reste null
+                        }
+                        // --- FIN MODIFICATION ---
+
                         return Card(
                           color: Colors.black.withAlpha((0.3 * 255).round()),
                           child: ListTile(
+                            // --- MODIFICATION : Ajout du Leading (image) ---
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(3.0),
+                              child: (smallImageUrl != null)
+                                  ? Image.network(
+                                      smallImageUrl,
+                                      width: 30, // Plus petit ici
+                                      height: 42,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, e, s) => const Icon(Icons.image_not_supported, size: 30),
+                                    )
+                                  : Container(
+                                      width: 30,
+                                      height: 42,
+                                      color: Colors.grey.shade800,
+                                      child: const Icon(Icons.image_not_supported, color: Colors.white30, size: 24),
+                                    ),
+                            ),
+                            // --- FIN MODIFICATION ---
+                            
                             title: Text(
                               card.name,
                               style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16),

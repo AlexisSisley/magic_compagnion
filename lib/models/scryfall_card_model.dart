@@ -1,13 +1,14 @@
 // Fichier : lib/models/scryfall_card_model.dart
-// VERSION CORRIGÉE (Avec 'cmc')
+// VERSION MISE À JOUR (Avec 'cmc' et 'smallImageUrl')
 
 class ScryfallCard {
   final String id;
   final String name;
   final String? printedName;
   final String? manaCost;
-  final double? cmc; // <-- CHAMP AJOUTÉ
+  final double? cmc; 
   final String imageUrl;
+  final String? smallImageUrl; // <-- CHAMP AJOUTÉ
   final String rulesText;
   final String typeLine;
   final Map<String, String> legalities;
@@ -20,8 +21,9 @@ class ScryfallCard {
     required this.name,
     this.printedName,
     this.manaCost,
-    this.cmc, // <-- CHAMP AJOUTÉ
+    this.cmc,
     required this.imageUrl,
+    this.smallImageUrl, // <-- CHAMP AJOUTÉ
     required this.rulesText,
     required this.typeLine,
     required this.legalities,
@@ -32,28 +34,30 @@ class ScryfallCard {
 
   factory ScryfallCard.fromJson(Map<String, dynamic> json) {
     String imageUrl = '';
+    String? smallImageUrl; // <-- CHAMP AJOUTÉ
     String rulesText = '';
     String? manaCost;
     String? printedName;
-    double? cmc; // <-- CHAMP AJOUTÉ
+    double? cmc; 
 
     if (json['card_faces'] != null &&
         json['card_faces'][0]['image_uris'] != null) {
       final face = json['card_faces'][0];
       imageUrl = face['image_uris']['normal'] ?? '';
+      smallImageUrl = face['image_uris']['small'] ?? ''; // <-- CHAMP AJOUTÉ
       rulesText = face['printed_text'] ?? face['oracle_text'] ?? '';
       manaCost = face['mana_cost'];
       printedName = face['printed_name'];
-      // Le CMC est généralement sur l'objet principal, même pour les recto-verso
       cmc = (json['cmc'] as num?)?.toDouble(); 
     } else {
       if (json['image_uris'] != null) { 
         imageUrl = json['image_uris']['normal'] ?? ''; 
+        smallImageUrl = json['image_uris']['small'] ?? ''; // <-- CHAMP AJOUTÉ
       }
       rulesText = json['printed_text'] ?? json['oracle_text'] ?? '';
       manaCost = json['mana_cost'];
       printedName = json['printed_name'];
-      cmc = (json['cmc'] as num?)?.toDouble(); // <-- CHAMP AJOUTÉ
+      cmc = (json['cmc'] as num?)?.toDouble();
     }
 
     final List<String> identity = (json['color_identity'] as List? ?? [])
@@ -65,8 +69,9 @@ class ScryfallCard {
       name: json['name'] ?? 'Nom inconnu',
       printedName: printedName,
       manaCost: manaCost,
-      cmc: cmc, // <-- CHAMP AJOUTÉ
+      cmc: cmc,
       imageUrl: imageUrl,
+      smallImageUrl: smallImageUrl, // <-- CHAMP AJOUTÉ
       rulesText: rulesText,
       typeLine: json['type_line'] ?? 'Type inconnu',
       legalities: Map<String, String>.from(json['legalities'] ?? {}),
