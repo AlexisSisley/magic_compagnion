@@ -1,23 +1,25 @@
 // Fichier : lib/pages/card_detail_page.dart
-// VERSION MISE À JOUR (Avec "Ajouter au Deck")
+// VERSION MISE À JOUR (JSON)
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle; // <-- AJOUTÉ
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:magic_companion/models/scan_history_model.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
+import 'package:magic_companion/services/collection_service.dart';
 import 'package:magic_companion/widgets/decks/deck_picker_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/deck_service.dart';
-import '../data/glossary_data.dart';
-import '../data/glossary_data_en.dart';
+import '../data/glossary_data.dart'; // Importer le MODÈLE Keyword
 import 'glossary_detail_page.dart';
+import '../services/scan_history_service.dart'; // <-- 1. AJOUT DE L'IMPORT
 
-// ... (L'enum est inchangé) ...
 enum ResultPageState { loading, success, error }
 
 
@@ -38,13 +40,13 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   ScryfallCard? _foundCard;
   
   String _userLang = 'fr';
-  List<Keyword> _activeGlossary = glossaryTerms;
+  List<Keyword> _activeGlossary = []; // Sera chargé depuis JSON
 
   final RegExp _manaSymbolRegex = RegExp(r'(\{.*?\})');
-
-  // --- NOUVEAU : Instance du DeckService ---
   final DeckService _deckService = DeckService();
 
+  final CollectionService _collectionService = CollectionService();
+  final ScanHistoryService _historyService = ScanHistoryService();
 
   @override
   void initState() {
@@ -52,14 +54,34 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     _initializeAndSearch();
   }
 
-  // ... (Toutes les fonctions _initializeAndSearch, dispose, _startAutomaticProcess, _searchScryfall restent INCHANGÉES) ...
+  // --- LOGIQUE DE CHARGEMENT ---
 
   Future<void> _initializeAndSearch() async {
-    final prefs = await SharedPreferences.getInstance();
-    _userLang = prefs.getString('glossaryLang') ?? 'fr';
-    
-    _activeGlossary = (_userLang == 'fr') ? glossaryTerms : glossaryTermsEN;
-    
+    // --- 1. Charger la langue et le glossaire en parallèle ---
+    // (Nous chargeons le glossaire AVANT de chercher la carte)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _userLang = prefs.getString('glossaryLang') ?? 'fr';
+      
+      final String assetPath = (_userLang == 'fr') 
+          ? 'assets/glossary_fr.json' 
+          : 'assets/glossary_en.json';
+          
+      final String jsonString = await rootBundle.loadString(assetPath);
+      final List<dynamic> jsonList = json.decode(jsonString) as List;
+      
+      _activeGlossary = jsonList
+          .map((jsonItem) => Keyword.fromJson(jsonItem as Map<String, dynamic>))
+          .toList();
+
+    } catch (e) {
+      print("Erreur chargement glossaire (CardDetail): $e");
+      // Si le glossaire ne charge pas, l'app fonctionne quand même
+      // mais les mots-clés ne seront pas cliquables.
+      _activeGlossary = []; 
+    }
+
+    // --- 2. Démarrer la recherche de carte (logique inchangée) ---
     if (widget.imagePath != null) {
       _startAutomaticProcess();
     } else if (widget.cardName != null) {
@@ -137,7 +159,7 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     }
     
     final connectivityResult = await (Connectivity().checkConnectivity());
-    if (connectivityResult == ConnectivityResult.none) {
+    if (connectivityResult.contains(ConnectivityResult.none)) { // Corrigé
       setState(() {
         _pageState = ResultPageState.error;
         _statusMessage = "Erreur : Pas de connexion internet.";
@@ -151,16 +173,30 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     });
 
     try {
+      // Utilise _userLang déjà chargé pour l'appel API
       final response = await http.get(Uri.parse(
           'https://api.scryfall.com/cards/named?fuzzy=$cardName&lang=$_userLang'));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data =
             json.decode(utf8.decode(response.bodyBytes));
+        final ScryfallCard foundCard = ScryfallCard.fromJson(data);    
         setState(() {
           _foundCard = ScryfallCard.fromJson(data);
           _pageState = ResultPageState.success;
         });
+
+        if (widget.imagePath != null) {
+          // On crée l'objet d'historique
+          final newItem = ScanHistoryItem(
+            scryfallId: foundCard.id, 
+            cardName: foundCard.name,
+            imagePath: widget.imagePath, // Sauvegarde le chemin de la photo prise
+            timestamp: DateTime.now()     // Sauvegarde l'heure actuelle
+          );
+          // On l'ajoute au service
+          await _historyService.addScan(newItem);
+        }
       } else {
         setState(() {
           _statusMessage =
@@ -187,10 +223,28 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
           style: GoogleFonts.cinzel(fontWeight: FontWeight.w600),
         ),
         backgroundColor: Colors.black,
+        actions: [
+          // N'affiche le bouton que si la carte est chargée
+          if (_pageState == ResultPageState.success && _foundCard != null)
+            IconButton(
+              icon: Icon(Icons.inventory_2_outlined),
+              tooltip: 'Ajouter à la collection',
+              onPressed: () {
+                _collectionService.addCard(_foundCard!, 1);
+                
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('"${_foundCard!.name}" ajouté à la collection', 
+                    style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)
+                  ),
+                  backgroundColor: Colors.green.shade700,
+                  duration: const Duration(seconds: 1),
+                ));
+              },
+            )
+        ],
       ),
       body: _buildBody(), 
       
-      // --- NOUVEAU : Floating Action Button ---
       floatingActionButton: _pageState == ResultPageState.success
           ? FloatingActionButton(
               onPressed: _showDeckPicker,
@@ -198,11 +252,13 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
               foregroundColor: Colors.white,
               child: const Icon(Icons.add_to_photos_outlined),
             )
-          : null, // N'affiche pas le bouton si échec ou chargement
+          : null,
     );
   }
   
-  // --- NOUVELLE FONCTION : Afficher le sélecteur de deck ---
+  // --- (Le reste de la page : _showDeckPicker, _buildBody, _buildInfoCard, etc.
+  //      est IDENTIQUE à votre version précédente.
+  //      Seule la fonction _findKeyword est légèrement modifiée pour être plus sûre) ---
   
   Future<void> _showDeckPicker() async {
     if (_foundCard == null) return;
@@ -210,13 +266,11 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      isScrollControlled: true, // Important pour le clavier
+      isScrollControlled: true,
       builder: (modalContext) {
-        // --- NOUVEAU : On délègue toute la logique au widget _DeckPickerModal ---
         return DeckPickerModal(
           deckService: _deckService,
           cardToAdd: _foundCard!,
-          // On passe le ScaffoldMessenger du contexte principal
           onCardAdded: (deckName, cardName) {
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
@@ -234,8 +288,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     );
   }
 
-
-  // --- WIDGETS D'AFFICHAGE (Inchangés, sauf le _buildBody) ---
 
   Widget _buildBody() {
     final mediaQuery = MediaQuery.of(context);
@@ -263,13 +315,11 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
             8.0, 
             8.0, 
             8.0, 
-            // --- MODIFIÉ : Ajout d'espace pour le FAB ---
-            8.0 + mediaQuery.padding.bottom + 80.0, // 80.0 pour le FAB
+            8.0 + mediaQuery.padding.bottom + 80.0,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ... (Le reste des Cards reste inchangé) ...
               Card(
                 color: Colors.black.withAlpha((0.4 * 255).round()),
                 elevation: 2.0,
@@ -387,7 +437,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     }
   }
 
-  // ... (Tous les autres widgets helpers _buildInfoCard, _findKeyword, etc. sont inchangés) ...
   
   Widget _buildInfoCard({required String title, required Widget child}) {
     return Card(
@@ -556,18 +605,22 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     );
   }
 
+  // --- _findKeyword (MODIFIÉ) ---
   Keyword? _findKeyword(String word) {
-    // La condition (if (_foundCard!.lang != _userLang)) A ÉTÉ SUPPRIMÉE.
-    
+    // _activeGlossary est maintenant chargé en JSON au démarrage
+    if (_activeGlossary.isEmpty) return null;
+
     final normalizedWord = word.toLowerCase().replaceAll(RegExp(r'[,\.]'), '');
     
-    // Boucle directement dans le dictionnaire actif (FR ou EN selon _userLang)
-    for (final keyword in _activeGlossary) {
-      if (keyword.term.toLowerCase() == normalizedWord) {
-        return keyword;
-      }
+    try {
+      // Utilise firstWhere pour trouver, ou renvoie une erreur si non trouvé
+      return _activeGlossary.firstWhere(
+        (keyword) => keyword.term.toLowerCase() == normalizedWord
+      );
+    } catch (e) {
+      // firstWhere lève une erreur "Bad state" si non trouvé
+      return null;
     }
-    return null;
   }
 
   InlineSpan _buildKeywordSpans(String textChunk) {

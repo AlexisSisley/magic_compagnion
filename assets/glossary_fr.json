@@ -1,0 +1,294 @@
+[
+  {
+    "term": "Bibliothèque",
+    "definition": "C'est votre pioche. Les cartes y sont face cachée, et l'ordre ne doit pas être changé (sauf si un effet l'exige).",
+    "category": "1. Zones de Jeu"
+  },
+  {
+    "term": "Main",
+    "definition": "Les cartes que vous avez piochées et que vous pouvez jouer. Votre main est cachée à vos adversaires. La taille maximale de la main est de 7 cartes à la fin de votre tour.",
+    "category": "1. Zones de Jeu"
+  },
+  {
+    "term": "Champ de bataille",
+    "definition": "La zone principale où se trouvent vos permanents (créatures, terrains, enchantements, etc.). C'est là que le 'jeu' se déroule.",
+    "category": "1. Zones de Jeu"
+  },
+  {
+    "term": "Cimetière",
+    "definition": "Votre défausse. Les cartes détruites, défaussées, contrecarrées ou les rituels/éphémères résolus y vont.",
+    "category": "1. Zones de Jeu"
+  },
+  {
+    "term": "La Pile",
+    "definition": "Une zone de jeu 'virtuelle' cruciale. Quand vous lancez un sort ou activez une capacité, il va sur la pile. Il ne se résout que lorsque les deux joueurs 'passent'.\n\nImportant : La pile se résout en mode 'Dernier entré, Premier sorti' (LIFO). Si vous jouez un sort, et que votre adversaire y répond avec un autre sort, le sort de votre adversaire se résout *avant* le vôtre.",
+    "category": "1. Zones de Jeu"
+  },
+  {
+    "term": "Exil",
+    "definition": "Une zone pour les cartes qui sont retirées du jeu, souvent de manière permanente. Ce n'est *pas* le cimetière.",
+    "category": "1. Zones de Jeu"
+  },
+  {
+    "term": "Adversaire",
+    "definition": "La personne contre qui vous jouez.",
+    "category": "1. Zones de Jeu"
+  },
+  {
+    "term": "Permanent",
+    "definition": "Un terme générique pour toute carte qui *reste* sur le champ de bataille (Terrains, Créatures, Artefacts, Enchantements, Planeswalkers).",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Sort",
+    "definition": "N'importe quelle carte que vous jouez qui n'est *pas* un terrain (les terrains ne sont jamais des sorts). Les créatures, rituels, éphémères, etc., sont des sorts quand ils sont sur la pile.",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Terrain",
+    "definition": "La ressource de base du jeu. Vous pouvez jouer un terrain par tour. Ils ne coûtent pas de mana.",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Créature",
+    "definition": "Vos 'soldats'. Elles attaquent et bloquent. Elles ont une Force (attaque) et une Endurance (vie).",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Rituel",
+    "definition": "Un sort que vous ne pouvez jouer que pendant votre phase principale, quand la pile est vide (pas en réponse à quelque chose).",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Éphémère",
+    "definition": "Un sort que vous pouvez jouer *n'importe quand* vous avez la priorité, y compris pendant le tour de votre adversaire ou en réponse à un autre sort.",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Enchantement",
+    "definition": "Un effet magique permanent qui reste sur le champ de bataille et affecte le jeu.",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Artefact",
+    "definition": "Un objet magique. Comme les enchantements, il reste sur le champ de bataille. Beaucoup sont incolores.",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Planeswalker",
+    "definition": "Un puissant allié que vous invoquez. Il entre avec des marqueurs 'Loyauté'. Vous pouvez activer une de ses capacités par tour, et les adversaires peuvent l'attaquer.",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Jeton",
+    "definition": "Une représentation d'un permanent (souvent une créature) qui n'est pas une 'vraie' carte, mais qui est créé par un effet. S'il quitte le champ de bataille, il cesse d'exister.",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Aura",
+    "definition": "Un sous-type d'enchantement. Les Auras sont attachées à des permanents (ou joueurs) et les affectent. Elles ont le mot-clé 'Enchanter'.",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Équipement",
+    "definition": "Un sous-type d'artefact. Les équipements peuvent être attachés à une créature que vous contrôlez en payant leur coût d'équipement.",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Légendaire",
+    "definition": "Un super-type. Si un joueur contrôle deux permanents légendaires ou plus avec le même nom, ce joueur choisit l'un d'eux et met les autres dans le cimetière de leur propriétaire.",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Mana",
+    "definition": "L'énergie magique utilisée pour lancer des sorts. Le mana est produit par les terrains et d'autres permanents.",
+    "category": "2. Types de Cartes"
+  },
+  {
+    "term": "Engager ( / Tap)",
+    "definition": "Tourner une carte à 90 degrés (généralement un terrain pour produire du mana, ou une créature pour attaquer). Une carte engagée ne peut pas être engagée à nouveau ou bloquer avant d'être 'dégagée'.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "Dégager (Untap)",
+    "definition": "Remettre une carte engagée en position verticale. Cela se produit au début de votre tour.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "Lancer (Cast)",
+    "definition": "Jouer une carte (qui n'est pas un terrain) en payant son coût de mana. Le sort est mis sur la pile.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "Résoudre (Resolve)",
+    "definition": "L'action d'un sort ou d'une capacité qui quitte la pile et produit son effet.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "Piocher (Draw)",
+    "definition": "Prendre la carte du dessus de votre bibliothèque et la mettre dans votre main.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "Défausser (Discard)",
+    "definition": "Retirer une carte de votre main et la mettre dans votre cimetière.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "Contrecarrer",
+    "definition": "Annuler un sort ou une capacité sur la pile avant qu'il ne se résolve. Il est généralement déplacé de la pile au cimetière.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "Détruire",
+    "definition": "Mettre un permanent du champ de bataille dans le cimetière de son propriétaire.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "Sacrifier",
+    "definition": "Action où *vous* (le contrôleur) mettez un permanent que vous contrôlez dans votre cimetière.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "Exiler",
+    "definition": "Déplacer une carte vers la zone d'exil. Ce n'est pas le cimetière.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "Révéler",
+    "definition": "Montrer une carte (généralement de votre main ou bibliothèque) à tous les joueurs pour prouver une condition ou suivre une instruction.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "X",
+    "definition": "Une variable dans un coût de mana ou un effet. Vous choisissez la valeur de X lorsque vous lancez le sort ou activez la capacité.",
+    "category": "3. Actions de Base"
+  },
+  {
+    "term": "Structure du Tour",
+    "definition": "Un tour se divise en 5 phases :\n\n1. Phase de début (Dégagement, Entretien, Pioche)\n2. Phase principale (Vous pouvez jouer 1 terrain, lancer des rituels, créatures...)\n3. Phase de combat (Début, Déclaration des attaquants, Déclaration des bloqueurs, Dégâts)\n4. Seconde phase principale (Identique à la première)\n5. Phase de fin (Fin de tour, Nettoyage)",
+    "category": "4. Structure du Tour"
+  },
+  {
+    "term": "Mulligan",
+    "definition": "Au début de la partie, vous pouvez choisir de mélanger votre main dans votre bibliothèque pour piocher une nouvelle main de 7 cartes. Vous devez ensuite mettre sous votre bibliothèque un nombre de cartes égal au nombre de mulligans que vous avez pris.",
+    "category": "4. Structure du Tour"
+  },
+  {
+    "term": "Initiative",
+    "definition": "Une capacité mot-clé. Les créatures avec l'initiative infligent leurs blessures de combat avant les créatures sans l'initiative.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Double initiative",
+    "definition": "Une capacité mot-clé. Une créature avec la double initiative inflige des blessures pendant l'étape de blessures d'initiative ET pendant l'étape de blessures de combat normale.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Vol",
+    "definition": "Une capacité mot-clé. Les créatures avec le vol ne peuvent être bloquées que par des créatures avec le vol ou la portée.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Portée",
+    "definition": "Une capacité mot-clé. Une créature avec la portée peut bloquer les créatures avec le vol.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Piétinement",
+    "definition": "Une capacité mot-clé. Si cette créature inflige suffisamment de dégâts pour détruire ses bloqueurs, l'excédent de dégâts est infligé au joueur (ou planeswalker) qu'elle attaque.",
+    "category": "5. Capacités Mot-Clé",
+    "example": "Ex: Votre créature 5/5 avec Piétinement est bloquée par une 2/2. Elle inflige 2 dégâts à la 2/2 (la tuant) et 3 dégâts au joueur."
+  },
+  {
+    "term": "Vigilance",
+    "definition": "Une capacité mot-clé. Attaquer avec cette créature ne la fait pas s'engager.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Menace",
+    "definition": "Une capacité mot-clé. Cette créature ne peut pas être bloquée, excepté par deux créatures ou plus.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Défenseur",
+    "definition": "Une capacité mot-clé. Une créature avec le défenseur ne peut pas attaquer.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Contact mortel",
+    "definition": "Une capacité mot-clé. N'importe quel nombre de blessures non nul qu'une source avec le contact mortel inflige à une créature est considéré comme étant des blessures mortelles.",
+    "category": "5. Capacités Mot-Clé",
+    "example": "Ex: Votre créature 1/1 avec Contact mortel bloque une 10/10. Les deux créatures sont détruites."
+  },
+  {
+    "term": "Lien de vie",
+    "definition": "Une capacité mot-clé. Les blessures infligées par une source avec le lien de vie font gagner autant de points de vie à son contrôleur.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Indestructible",
+    "definition": "Une capacité mot-clé. Les permanents indestructibles ne sont pas détruits par les effets qui disent « détruisez » ou par les blessures mortelles.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Célérité",
+    "definition": "Une capacité mot-clé. Cette créature peut attaquer et utiliser ses capacités {T} (d'engagement) le tour même où elle arrive sous votre contrôle.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Flash",
+    "definition": "Une capacité mot-clé. Vous pouvez lancer ce sort à tout moment où vous pourriez lancer un éphémère.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Défense talismanique",
+    "definition": "Une capacité mot-clé. Ce permanent (ou joueur) ne peut pas être la cible de sorts ou de capacités que vos adversaires contrôlent.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Protection",
+    "definition": "Une capacité mot-clé (ex: 'Protection contre le rouge'). Un permanent avec la protection ne peut pas être : Bloqué, Ciblé, Blessé, ou Enchanté/Équipé par des sources de la qualité spécifiée.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Regard",
+    "definition": "Une action mot-clé (ex: 'Regard 2'). Regardez les X cartes du dessus de votre bibliothèque. Mettez n'importe quel nombre de ces cartes au-dessous de votre bibliothèque et le reste au-dessus, dans n'importe quel ordre.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Piller",
+    "definition": "Une instruction de règle non-officielle. Signifie « Piochez une carte, puis défaussez-vous d'une carte. »",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Enchanter",
+    "definition": "Une capacité mot-clé trouvée sur les Auras, qui définit ce qu'elles peuvent légalement cibler et à quoi elles peuvent être attachées (ex: 'Enchanter : créature').",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Équiper",
+    "definition": "La capacité activée d'un Équipement pour l'attacher à une créature que vous contrôlez. Ne peut être activée que lorsque vous pourriez lancer un rituel.",
+    "category": "5. Capacités Mot-Clé"
+  },
+  {
+    "term": "Priorité (Priority)",
+    "definition": "Le concept qui détermine *quand* un joueur peut lancer un sort ou activer une capacité. Après qu'un sort est lancé ou qu'une capacité est résolue, le joueur actif reçoit la priorité. Il peut la 'passer' à son adversaire, qui peut alors répondre. C'est le cœur des 'réponses' et des 'stack tricks'.",
+    "category": "6. Concepts Avancés"
+  },
+  {
+    "term": "Actions Basées sur l'État (SBA)",
+    "definition": "Une série de vérifications que le jeu effectue automatiquement chaque fois qu'un joueur reçoit la priorité. C'est ce qui fait qu'une créature avec 0 d'endurance est mise au cimetière, ou qu'un joueur à 0 PV perd la partie. Elles n'utilisent pas la pile.",
+    "category": "6. Concepts Avancés"
+  },
+  {
+    "term": "Couches (Layers)",
+    "definition": "Un système de règles complexe qui détermine l'ordre dans lequel les effets continus (ex: 'devient 1/1', '+1/+1', 'change de couleur') s'appliquent. C'est la règle la plus technique de Magic, utilisée pour résoudre les interactions d'effets contradictoires.",
+    "category": "6. Concepts Avancés"
+  },
+  {
+    "term": "Actions Spéciales",
+    "definition": "Actions qu'un joueur peut effectuer quand il a la priorité mais qui n'utilisent pas la pile. La plus courante est : 'Jouer un terrain'. Retourner une créature face cachée (Morph) en est une autre.",
+    "category": "6. Concepts Avancés"
+  }
+]

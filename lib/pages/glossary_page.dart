@@ -1,11 +1,12 @@
 // Fichier : lib/pages/glossary_page.dart
-// VERSION MISE À JOUR (Multilingue)
+// VERSION MISE À JOUR (Catégories + Recherche)
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // <-- AJOUTÉ
-import '../data/glossary_data.dart'; // Importer nos données (FR)
-import '../data/glossary_data_en.dart'; // <-- AJOUTÉ (EN)
+import 'package:shared_preferences/shared_preferences.dart';
+import '../data/glossary_data.dart'; // Importer notre modèle (Keyword)
 import 'glossary_detail_page.dart';
 
 class GlossaryPage extends StatefulWidget {
@@ -18,17 +19,15 @@ class GlossaryPage extends StatefulWidget {
 class _GlossaryPageState extends State<GlossaryPage> {
   final TextEditingController _searchController = TextEditingController();
   
-  // NOUVEAU: Listes de données
-  List<Keyword> _displayedTerms = []; // Termes affichés (filtrés)
-  List<Keyword> _allTerms = []; // Termes de la langue active
-  String _currentLang = 'fr'; // Langue active
-  bool _isLoading = true; // Pour le chargement initial
+  List<Keyword> _displayedTerms = [];
+  List<Keyword> _allTerms = []; 
+  String _currentLang = 'fr';
+  bool _isLoading = true; 
 
   @override
   void initState() {
     super.initState();
-    // Charger la langue et les données au démarrage
-    _loadPreferences();
+    _loadPreferencesAndData(); 
     _searchController.addListener(_filterTerms);
   }
 
@@ -39,74 +38,84 @@ class _GlossaryPageState extends State<GlossaryPage> {
     super.dispose();
   }
 
-  // --- NOUVELLES FONCTIONS (Gestion de la langue) ---
+  // --- GESTION DES DONNÉES (Inchangée) ---
 
-  Future<void> _loadPreferences() async {
+  Future<void> _loadPreferencesAndData() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      // Charge la langue (défaut 'fr')
-      _currentLang = prefs.getString('glossaryLang') ?? 'fr';
-      _loadGlossaryData(); // Charge les données correspondantes
-      _isLoading = false;
-    });
+    final String savedLang = prefs.getString('glossaryLang') ?? 'fr';
+    await _loadGlossaryData(savedLang);
   }
 
   Future<void> _toggleLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      // Bascule la langue
-      _currentLang = (_currentLang == 'fr') ? 'en' : 'fr';
-      // Sauvegarde le choix
-      prefs.setString('glossaryLang', _currentLang);
-      // Charge les nouvelles données
-      _loadGlossaryData();
-    });
+    final String newLang = (_currentLang == 'fr') ? 'en' : 'fr';
+    await prefs.setString('glossaryLang', newLang);
+    await _loadGlossaryData(newLang);
   }
 
-  void _loadGlossaryData() {
-    // Pas besoin de setState ici, car appelé depuis des fonctions
-    // qui le font déjà.
-    if (_currentLang == 'fr') {
-      _allTerms = glossaryTerms; //
-    } else {
-      _allTerms = glossaryTermsEN; // Données anglaises
+  Future<void> _loadGlossaryData(String lang) async {
+    if (mounted) setState(() { _isLoading = true; _currentLang = lang; });
+
+    try {
+      final String assetPath = (lang == 'fr') 
+          ? 'assets/glossary_fr.json' 
+          : 'assets/glossary_en.json';
+      final String jsonString = await rootBundle.loadString(assetPath);
+      final List<dynamic> jsonList = json.decode(jsonString) as List;
+      
+      List<Keyword> loadedTerms = jsonList
+          .map((jsonItem) => Keyword.fromJson(jsonItem as Map<String, dynamic>))
+          .toList();
+      
+      // Tri alphabétique (pour l'affichage filtré ET catégorisé)
+      loadedTerms.sort((a, b) => a.term.compareTo(b.term));
+
+      if (mounted) {
+        setState(() {
+          _allTerms = loadedTerms;
+          _filterTerms(); 
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Erreur de chargement du glossaire: $e");
+      if (mounted) setState(() { _isLoading = false; _allTerms = []; _displayedTerms = []; });
     }
-    // Met à jour la liste affichée
-    _filterTerms();
   }
 
-  // --- FONCTION DE FILTRAGE (Mise à jour) ---
+  // --- FONCTION DE FILTRAGE (Inchangée) ---
 
   void _filterTerms() {
     final query = _searchController.text.toLowerCase();
     setState(() {
       if (query.isEmpty) {
-        _displayedTerms = _allTerms; // Utilise _allTerms
+        // Quand la recherche est vide, _displayedTerms n'est pas utilisé
+        _displayedTerms = _allTerms; 
       } else {
-        _displayedTerms = _allTerms // Utilise _allTerms
+        // Quand on tape, on filtre la liste complète
+        _displayedTerms = _allTerms
             .where((keyword) => keyword.term.toLowerCase().contains(query))
             .toList();
       }
     });
   }
 
+  // --- INTERFACE UTILISATEUR (MISE À JOUR) ---
+
   @override
   Widget build(BuildContext context) {
-    // Affiche un indicateur de chargement pendant la lecture
-    // des SharedPreferences
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
     
     return Column(
       children: [
-        // --- Barre de recherche (MODIFIÉE) ---
+        // --- Barre de recherche (Inchangée) ---
         Padding(
           padding: const EdgeInsets.all(12.0),
-          child: Row( // <-- MODIFIÉ: Ligne pour le champ + bouton
+          child: Row(
             children: [
-              // --- Champ de recherche ---
-              Expanded( // Prend l'espace disponible
+              Expanded(
                 child: TextField(
                   controller: _searchController,
                   style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16),
@@ -129,9 +138,7 @@ class _GlossaryPageState extends State<GlossaryPage> {
                   ),
                 ),
               ),
-              const SizedBox(width: 10), // Espace
-              
-              // --- NOUVEAU: Bouton de langue ---
+              const SizedBox(width: 10),
               TextButton(
                 onPressed: _toggleLanguage,
                 style: TextButton.styleFrom(
@@ -143,7 +150,7 @@ class _GlossaryPageState extends State<GlossaryPage> {
                   padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
                 ),
                 child: Text(
-                  _currentLang.toUpperCase(), // Affiche 'FR' ou 'EN'
+                  _currentLang.toUpperCase(),
                   style: GoogleFonts.cinzel(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -155,60 +162,117 @@ class _GlossaryPageState extends State<GlossaryPage> {
           ),
         ),
         
-        // --- Liste des résultats (Inchangée) ---
+        // --- NOUVELLE LOGIQUE D'AFFICHAGE ---
         Expanded(
-          child: ListView.builder(
-            itemCount: _displayedTerms.length,
-            itemBuilder: (context, index) {
-              final keyword = _displayedTerms[index];
-              
-              return Card(
-                color: Colors.black.withOpacity(0.4),
-                elevation: 2.0,
-                margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10.0),
-                  side: BorderSide(
-                    color: Colors.yellow.shade800.withOpacity(0.6),
-                    width: 1,
-                  ),
-                ),
-                clipBehavior: Clip.antiAlias,
-                
-                child: ListTile(
-                  leading: Icon(
-                    Icons.auto_stories_outlined,
-                    color: Colors.white.withOpacity(0.7),
-                  ),
-                  
-                  title: Text(
-                    keyword.term,
-                    style: GoogleFonts.cinzel(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  
-                  trailing: const Icon(Icons.chevron_right, color: Colors.white54),
-                  splashColor: Colors.yellow.withOpacity(0.1),
-                  
-                  onTap: () {
-                    // La page de détail n'a pas besoin de savoir la langue,
-                    // elle reçoit juste l'objet Keyword !
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => GlossaryDetailPage(keyword: keyword),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
+          // Si on recherche, on affiche la liste filtrée
+          // Sinon, on affiche la nouvelle liste par catégories
+          child: _searchController.text.isNotEmpty
+              ? _buildFilteredList()
+              : _buildCategorizedList(),
         ),
       ],
+    );
+  }
+
+  // --- NOUVEAU WIDGET : Liste filtrée (ce qu'on avait avant) ---
+  Widget _buildFilteredList() {
+    return ListView.builder(
+      itemCount: _displayedTerms.length, // Utilise la liste filtrée
+      itemBuilder: (context, index) {
+        final keyword = _displayedTerms[index];
+        // Construit la même ListTile qu'avant
+        return _buildKeywordTile(keyword);
+      },
+    );
+  }
+
+  // --- NOUVEAU WIDGET : Liste par catégories ---
+  Widget _buildCategorizedList() {
+    // 1. Grouper les termes par catégorie
+    Map<String, List<Keyword>> groupedMap = {};
+    for (final keyword in _allTerms) {
+      if (!groupedMap.containsKey(keyword.category)) {
+        groupedMap[keyword.category] = [];
+      }
+      groupedMap[keyword.category]!.add(keyword);
+    }
+
+    // 2. Trier les catégories (ex: "1. Zones", "2. Types"...)
+    final sortedCategories = groupedMap.keys.toList()..sort();
+
+    // 3. Construire la liste
+    return ListView.builder(
+      itemCount: sortedCategories.length,
+      itemBuilder: (context, index) {
+        final categoryName = sortedCategories[index];
+        final keywordsInCategory = groupedMap[categoryName]!;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- Titre de la catégorie ---
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 8.0),
+              child: Text(
+                categoryName,
+                style: GoogleFonts.cinzel(
+                  color: Colors.yellow.shade800, // Couleur d'accent
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            
+            // --- Liste des termes dans cette catégorie ---
+            // On utilise un Column plutôt qu'un ListView.builder imbriqué
+            // car la liste externe est déjà scrollable.
+            ...keywordsInCategory.map((keyword) {
+              return _buildKeywordTile(keyword);
+            }).toList(),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- NOUVEAU WIDGET (Factorisé) : La ListTile d'un mot-clé ---
+  Widget _buildKeywordTile(Keyword keyword) {
+    return Card(
+      color: Colors.black.withOpacity(0.4),
+      elevation: 2.0,
+      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10.0),
+        side: BorderSide(
+          color: Colors.yellow.shade800.withOpacity(0.6),
+          width: 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        leading: Icon(
+          Icons.auto_stories_outlined,
+          color: Colors.white.withOpacity(0.7),
+        ),
+        title: Text(
+          keyword.term,
+          style: GoogleFonts.cinzel(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+        splashColor: Colors.yellow.withOpacity(0.1),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => GlossaryDetailPage(keyword: keyword),
+            ),
+          );
+        },
+      ),
     );
   }
 }

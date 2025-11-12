@@ -1,0 +1,294 @@
+[
+  {
+    "term": "Library",
+    "definition": "Your deck. Cards are kept face down, and the order may not be changed (unless an effect says so).",
+    "category": "1. Game Zones"
+  },
+  {
+    "term": "Hand",
+    "definition": "The cards you have drawn that you can play. Your hand is hidden from opponents. The maximum hand size is 7 at the end of your turn.",
+    "category": "1. Game Zones"
+  },
+  {
+    "term": "Battlefield",
+    "definition": "The main area where your permanents (creatures, lands, enchantments, etc.) are during the game.",
+    "category": "1. Game Zones"
+  },
+  {
+    "term": "Graveyard",
+    "definition": "Your discard pile. Destroyed, discarded, or countered cards, as well as resolved instants/sorceries, go here.",
+    "category": "1. Game Zones"
+  },
+  {
+    "term": "The Stack",
+    "definition": "A crucial, virtual game zone. When you cast a spell or activate an ability, it goes on the stack. It only resolves (has its effect) when all players 'pass' (choose to do nothing else).\n\nImportant: The stack resolves 'Last In, First Out' (LIFO). If you cast a spell, and your opponent responds with another spell, your opponent's spell resolves *before* yours.",
+    "category": "1. Game Zones"
+  },
+  {
+    "term": "Exile",
+    "definition": "A zone for cards that are removed from the game, often permanently. This is *not* the graveyard.",
+    "category": "1. Game Zones"
+  },
+  {
+    "term": "Opponent",
+    "definition": "The person you are playing against.",
+    "category": "1. Game Zones"
+  },
+  {
+    "term": "Permanent",
+    "definition": "A generic term for any card or token that *stays* on the battlefield (Lands, Creatures, Artifacts, Enchantments, Planeswalkers).",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Spell",
+    "definition": "Any card you play that is *not* a land (lands are never spells). Creatures, sorceries, instants, etc., are all spells when they are on the stack.",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Land",
+    "definition": "The basic resource of the game. You can play one land per turn. They do not cost mana to play.",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Creature",
+    "definition": "Your 'soldiers'. They attack and block. They have Power (their attack strength) and Toughness (their 'health').",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Sorcery",
+    "definition": "A spell you can only cast during your main phase when the stack is empty (i.e., not in response to something).",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Instant",
+    "definition": "A spell you can cast *any time* you have priority, including on your opponent's turn or in response to another spell.",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Enchantment",
+    "definition": "A permanent magical effect that stays on the battlefield and affects the game.",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Artifact",
+    "definition": "A magical object. Like enchantments, it stays on the battlefield. Many are colorless.",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Planeswalker",
+    "definition": "A powerful ally you summon. They enter with 'Loyalty' counters. You can activate one of their abilities per turn, and opponents can attack them.",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Token",
+    "definition": "A representation of a permanent (often a creature) that isn't a 'real' card, but is created by an effect. If it leaves the battlefield, it ceases to exist.",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Aura",
+    "definition": "An enchantment subtype. Auras are attached to permanents (or players) and affect them. They have the 'Enchant' keyword.",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Equipment",
+    "definition": "An artifact subtype. Equipment can be attached to a creature you control by paying its equip cost.",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Legendary",
+    "definition": "A supertype. If a player controls two or more legendary permanents with the same name, that player chooses one and puts the others into their owner's graveyard.",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Mana",
+    "definition": "The magical energy used to cast spells. Mana is produced by lands and other permanents.",
+    "category": "2. Card Types"
+  },
+  {
+    "term": "Tap ( / Engage)",
+    "definition": "To turn a card 90 degrees (usually a land for mana, or a creature to attack). A tapped card cannot be tapped again or block until it is 'untapped'.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "Untap",
+    "definition": "To turn a tapped card back to its upright position. This happens at the start of your turn.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "Cast",
+    "definition": "To play a card (that isn't a land) by paying its mana cost. The spell is put on the stack.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "Resolve",
+    "definition": "The action of a spell or ability leaving the stack and having its effect.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "Draw",
+    "definition": "To take the top card of your library and put it into your hand.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "Discard",
+    "definition": "To remove a card from your hand and put it into your graveyard.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "Counter",
+    "definition": "To cancel a spell or ability on the stack before it can resolve. It is usually moved from the stack to the graveyard.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "Destroy",
+    "definition": "To put a permanent from the battlefield into its owner's graveyard.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "Sacrifice",
+    "definition": "An action where *you* (the controller) put a permanent you control into your graveyard.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "Exile",
+    "definition": "To move a card to the exile zone. This is not the graveyard.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "Reveal",
+    "definition": "To show a card (usually from your hand or library) to all players to prove a condition or follow an instruction.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "X",
+    "definition": "A variable in a mana cost or effect. You choose the value of X as you cast the spell or activate the ability, and you pay the corresponding cost.",
+    "category": "3. Basic Actions"
+  },
+  {
+    "term": "Turn Structure",
+    "definition": "A turn is divided into 5 phases:\n\n1. Beginning Phase (Untap, Upkeep, Draw)\n2. Main Phase (You can play 1 land, cast sorceries, creatures...)\n3. Combat Phase (Beginning, Declare Attackers, Declare Blockers, Damage)\n4. Second Main Phase (Same as the first)\n5. Ending Phase (End Step, Cleanup)",
+    "category": "4. Turn Structure"
+  },
+  {
+    "term": "Mulligan",
+    "definition": "At the start of the game, you may choose to shuffle your hand into your library to draw a new hand of 7 cards. You must then put a number of cards from your hand on the bottom of your library equal to the number of mulligans you have taken.",
+    "category": "4. Turn Structure"
+  },
+  {
+    "term": "First Strike",
+    "definition": "A keyword ability. Creatures with first strike deal combat damage before creatures without first strike.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Double Strike",
+    "definition": "A keyword ability. A creature with double strike deals damage during the first strike combat damage step AND the normal combat damage step.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Flying",
+    "definition": "A keyword ability. Creatures with flying can only be blocked by creatures with flying or reach.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Reach",
+    "definition": "A keyword ability. A creature with reach can block creatures with flying.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Trample",
+    "definition": "A keyword ability. If this creature would assign enough damage to destroy its blockers, you may have it assign the rest of its damage to the player or planeswalker it's attacking.",
+    "category": "5. Keyword Abilities",
+    "example": "Ex: Your 5/5 creature with Trample is blocked by a 2/2. It deals 2 damage to the 2/2 (killing it) and 3 damage to the player."
+  },
+  {
+    "term": "Vigilance",
+    "definition": "A keyword ability. Attacking with this creature doesn't cause it to tap.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Menace",
+    "definition": "A keyword ability. This creature can't be blocked except by two or more creatures.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Defender",
+    "definition": "A keyword ability. A creature with defender cannot attack.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Deathtouch",
+    "definition": "A keyword ability. Any nonzero amount of damage a source with deathtouch deals to a creature is considered to be lethal damage.",
+    "category": "5. Keyword Abilities",
+    "example": "Ex: Your 1/1 Deathtouch creature blocks a 10/10. Both creatures are destroyed."
+  },
+  {
+    "term": "Lifelink",
+    "definition": "A keyword ability. Damage dealt by a source with lifelink causes its controller to gain that much life.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Indestructible",
+    "definition": "A keyword ability. Indestructible permanents cannot be destroyed by effects that say 'destroy' or by lethal damage.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Haste",
+    "definition": "A keyword ability. This creature can attack and use its {T} (tap) abilities the turn it comes under your control.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Flash",
+    "definition": "A keyword ability. You may cast this spell any time you could cast an instant.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Hexproof",
+    "definition": "A keyword ability. This permanent (or player) cannot be the target of spells or abilities your opponents control.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Protection",
+    "definition": "A keyword ability (e.g., 'Protection from red'). A permanent with protection cannot be: Blocked, Targeted, Dealt damage, or Enchanted/Equipped by sources of the specified quality.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Scry",
+    "definition": "A keyword action (e.g., 'Scry 2'). Look at the top X cards of your library. Put any number of them on the bottom of your library and the rest on top in any order.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Loot",
+    "definition": "An unofficial rules term. It means 'Draw a card, then discard a card.'",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Enchant",
+    "definition": "A keyword ability found on Auras, which defines what they can legally target and be attached to (e.g., 'Enchant creature').",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Equip",
+    "definition": "The activated ability of an Equipment to attach it to a creature you control. Can only be activated any time you could cast a sorcery.",
+    "category": "5. Keyword Abilities"
+  },
+  {
+    "term": "Priority",
+    "definition": "The concept that determines *when* a player can cast spells or activate abilities. After a spell resolves or an ability is activated, the active player gets priority. They can 'pass' it to their opponent, who can then respond. This is the core of 'responses' and 'stack tricks'.",
+    "category": "6. Advanced Concepts"
+  },
+  {
+    "term": "State-Based Actions (SBAs)",
+    "definition": "A series of checks the game automatically performs whenever a player would get priority. This is what causes a creature with 0 toughness to be put into the graveyard, or a player at 0 life to lose the game. They do not use the stack.",
+    "category": "6. Advanced Concepts"
+  },
+  {
+    "term": "Layers",
+    "definition": "A complex rules system that determines the order in which continuous effects (e.g., 'becomes 1/1', '+1/+1', 'changes color') are applied. This is Magic's most technical rule, used to resolve conflicting effect interactions.",
+    "category": "6. Advanced Concepts"
+  },
+  {
+    "term": "Special Actions",
+    "definition": "Actions a player can take when they have priority that do not use the stack. The most common is: 'Playing a land'. Turning a facedown creature (Morph) face up is another.",
+    "category": "6. Advanced Concepts"
+  }
+]

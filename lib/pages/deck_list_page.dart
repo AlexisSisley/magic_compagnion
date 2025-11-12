@@ -1,5 +1,5 @@
 // Fichier : lib/pages/deck_list_page.dart
-// NOUVEAU FICHIER
+// VERSION MISE À JOUR (Import Fallback)
 
 import 'dart:convert';
 import 'dart:developer';
@@ -13,9 +13,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/deck_model.dart';
 import '../services/deck_service.dart';
 
+// ... (La const _secondBreakfastDecklist est inchangée) ...
 const String _secondBreakfastDecklist = """
 Commander
-1 Frodon, hobbit audacieux
+1 Frodo, hobbit audacieux
 
 Deck (102)
 1 Chauves-souris de la Forêt Noire
@@ -108,6 +109,7 @@ Deck (102)
 1 Aube de l'espoir
 1 Herbes et ragoût de lapin
 """;
+
 
 class DeckListPage extends StatefulWidget {
   const DeckListPage({super.key});
@@ -348,17 +350,17 @@ class _DeckListPageState extends State<DeckListPage> {
           scryfallCardData.addAll((data['data'] as List)
               .map((cardJson) => ScryfallCard.fromJson(cardJson)));
         } else {
+          // Si le chunk échoue (ex: 404), on continue quand même
           log('Erreur API (chunk ${callCount-1}): ${response.statusCode} - ${response.body}');
-          throw Exception('Erreur API: ${response.statusCode}');
+          // Ne pas 'throw' ou 'return' ici, on veut continuer
         }
         // Petite pause pour respecter l'API Scryfall
         if (remainingIdentifiers.isNotEmpty) {
           await Future.delayed(const Duration(milliseconds: 100));
         }
       } catch (e) {
-        log('Erreur d\'importation Scryfall: $e');
-        setState(() { _isImporting = false; _isLoading = false; });
-        return;
+        log('Erreur d\'importation Scryfall (chunk): $e');
+        // On continue même en cas d'erreur réseau sur un chunk
       }
     }
 
@@ -367,32 +369,39 @@ class _DeckListPageState extends State<DeckListPage> {
     final decks = await _deckService.loadDecks();
     Deck newDeck = decks.firstWhere((d) => d.name == deckName);
 
-    // 4. Remplir le deck (Logique de matching inchangée, mais maintenant elle marche !)
+    // 4. Remplir le deck (Logique de matching modifiée)
     List<DeckCard> mainboardCards = [];
     for (final parsedCard in parsedMainboard) {
+      final parsedNameLower = parsedCard['name'].toLowerCase();
       try {
-        final parsedNameLower = parsedCard['name'].toLowerCase();
-        
-        // 'scryfallCardData' contient maintenant les objets en FRANÇAIS
-        // 'sc.name' sera "Forêt", 'parsedNameLower' sera "forêt"
+        // Tente de trouver la carte dans les résultats Scryfall
         final scryfallCard = scryfallCardData.firstWhere(
           (sc) => sc.name.toLowerCase() == parsedNameLower ||
                  (sc.printedName != null && sc.printedName!.toLowerCase() == parsedNameLower)
         );
         
         mainboardCards.add(DeckCard(
-          scryfallId: scryfallCard.id,
+          scryfallId: scryfallCard.id, // ID Scryfall trouvé
           name: scryfallCard.name,
           quantity: parsedCard['quantity'],
         ));
-      } catch (e) { log('Carte non trouvée (main) : ${parsedCard['name']}'); }
+      } catch (e) { 
+        // --- MODIFICATION : Fallback si la carte n'est pas trouvée ---
+        log('Carte non trouvée (main) : ${parsedCard['name']}. Ajout avec nom uniquement.');
+        mainboardCards.add(DeckCard(
+          scryfallId: 'LOCAL:${parsedCard['name']}', // ID placeholder unique
+          name: parsedCard['name'], // Nom d'origine
+          quantity: parsedCard['quantity'],
+        ));
+        // --- Fin du Fallback ---
+      }
     }
     newDeck.mainboard = mainboardCards;
     
     List<DeckCard> sideboardCards = [];
     for (final parsedCard in parsedSideboard) {
+      final parsedNameLower = parsedCard['name'].toLowerCase();
       try {
-        final parsedNameLower = parsedCard['name'].toLowerCase();
         final scryfallCard = scryfallCardData.firstWhere(
           (sc) => sc.name.toLowerCase() == parsedNameLower ||
                  (sc.printedName != null && sc.printedName!.toLowerCase() == parsedNameLower)
@@ -402,30 +411,52 @@ class _DeckListPageState extends State<DeckListPage> {
           name: scryfallCard.name,
           quantity: parsedCard['quantity'],
         ));
-      } catch (e) { log('Carte non trouvée (side) : ${parsedCard['name']}'); }
+      } catch (e) { 
+        // --- MODIFICATION : Fallback ---
+        log('Carte non trouvée (side) : ${parsedCard['name']}. Ajout avec nom uniquement.');
+        sideboardCards.add(DeckCard(
+          scryfallId: 'LOCAL:${parsedCard['name']}', // ID placeholder unique
+          name: parsedCard['name'],
+          quantity: parsedCard['quantity'],
+        ));
+        // --- Fin du Fallback ---
+      }
     }
     newDeck.sideboard = sideboardCards;
 
+    // --- Logique du Commandant (Modifiée avec Fallback) ---
     if (parsedCommanderName != null) {
+      final parsedNameLower = parsedCommanderName.toLowerCase();
+      String commanderScryfallId = 'LOCAL:$parsedCommanderName'; // ID par défaut (fallback)
+      String commanderName = parsedCommanderName;
+
       try {
-        final parsedNameLower = parsedCommanderName.toLowerCase();
+        // Tente de trouver le commandant dans les données Scryfall
         final scryfallCard = scryfallCardData.firstWhere(
           (sc) => sc.name.toLowerCase() == parsedNameLower ||
                  (sc.printedName != null && sc.printedName!.toLowerCase() == parsedNameLower)
         );
-        newDeck.commanderScryfallId = scryfallCard.id;
+        commanderScryfallId = scryfallCard.id; // Met à jour avec le vrai ID
+        commanderName = scryfallCard.name; // Met à jour avec le nom correct (casse)
+      } catch (e) {
+        log('Commandant non trouvé dans Scryfall: $parsedCommanderName. Ajout local.');
+      }
+      
+      newDeck.commanderScryfallId = commanderScryfallId;
         
-        // Gère le cas où le commandant n'était pas listé dans le mainboard
-        final bool commanderInMain = newDeck.mainboard.any((c) => c.scryfallId == scryfallCard.id);
-        if (!commanderInMain) {
-           newDeck.mainboard.add(DeckCard(
-             scryfallId: scryfallCard.id,
-             name: scryfallCard.name,
-             quantity: 1
-           ));
-        }
-
-      } catch (e) { log('Commandant non trouvé: $parsedCommanderName'); }
+      // Gère le cas où le commandant n'était pas listé dans le mainboard
+      // (Recherche par ID ou par nom)
+      final bool commanderInMain = newDeck.mainboard.any(
+          (c) => c.scryfallId == commanderScryfallId || c.name == commanderName
+      );
+      
+      if (!commanderInMain) {
+         newDeck.mainboard.add(DeckCard(
+           scryfallId: commanderScryfallId,
+           name: commanderName,
+           quantity: 1
+         ));
+      }
     }
     
     await _deckService.updateDeck(newDeck);

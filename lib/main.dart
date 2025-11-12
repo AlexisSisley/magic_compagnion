@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:magic_companion/pages/card_search_page.dart';
+import 'package:magic_companion/pages/collection_page.dart';
 import 'package:magic_companion/pages/scanner_page.dart';
 import 'pages/life_counter_page.dart'; 
 import 'pages/glossary_page.dart'; 
@@ -53,6 +54,7 @@ class _AppShellState extends State<AppShell> {
     CardSearchPage(),
     ScannerPage(),
     DeckListPage(),
+    CollectionPage(),
   ];
 
   void _onItemTapped(int index) {
@@ -103,6 +105,10 @@ class _AppShellState extends State<AppShell> {
               BottomNavigationBarItem( 
                 icon: Icon(Icons.style_outlined), 
                 label: 'Decks',
+              ),
+              BottomNavigationBarItem( 
+                icon: Icon(Icons.inventory_2_outlined), 
+                label: 'Collection',
               ),
             ],
             currentIndex: _selectedIndex,

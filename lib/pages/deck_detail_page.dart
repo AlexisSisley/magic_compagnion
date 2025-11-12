@@ -1,5 +1,5 @@
 // Fichier : lib/pages/deck_detail_page.dart
-// VERSION MISE À JOUR (Avec chargement initial et regroupement par type)
+// VERSION MISE À JOUR (Filtre LOCAL + Navigation onTap)
 
 import 'dart:developer';
 
@@ -8,13 +8,14 @@ import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:magic_companion/models/scryfall_card_model.dart';
+import 'package:magic_companion/pages/card_detail_page.dart'; // <-- AJOUTÉ POUR LA NAVIGATION
 import 'package:magic_companion/widgets/decks/draw_test_simulator.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:convert';
 import '../models/deck_model.dart';
 import '../services/deck_service.dart';
 
-// (IDs Scryfall pour des terrains de base spécifiques)
+// ... (const kBasicLands est inchangée) ...
 const Map<String, Map<String, String>> kBasicLands = {
   'W': {'id': 'f5f80d82-d64c-466f-8874-9cfb00469f02', 'name': 'Plains'},
   'U': {'id': '560384fe-7be0-4b93-a515-2fe687ab2492', 'name': 'Island'},
@@ -22,6 +23,7 @@ const Map<String, Map<String, String>> kBasicLands = {
   'R': {'id': '354110de-1e3d-4a94-a550-4d87dae7cd6a', 'name': 'Mountain'},
   'G': {'id': '1850d588-436e-4886-bd76-1f3a2f3a55d4', 'name': 'Forest'},
 };
+
 
 class DeckDetailPage extends StatefulWidget {
   final Deck deck;
@@ -63,13 +65,17 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
 
     final allCards = [..._currentDeck.mainboard, ..._currentDeck.sideboard];
     
+    // --- MODIFICATION ---
+    // On filtre les cartes "LOCAL:" pour ne pas les envoyer à Scryfall
     final uniqueCardIdentifiers = allCards
-        .where((card) => card.scryfallId.isNotEmpty) 
-        .map((card) => {"id": card.scryfallId}) // ID corrigé
+        .where((card) => card.scryfallId.isNotEmpty && !card.scryfallId.startsWith('LOCAL:')) 
+        .map((card) => {"id": card.scryfallId}) 
         .toSet()
         .toList();
+    // --- FIN MODIFICATION ---
 
     if (uniqueCardIdentifiers.isEmpty) {
+      log("Aucun ID Scryfall à charger.");
       setState(() { _isLoading = false; });
       return;
     }
@@ -125,6 +131,18 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
   }
 
   Future<void> _setCommander(DeckCard deckCard) async {
+    // --- MODIFICATION : Gère les cartes locales ---
+    if (deckCard.scryfallId.startsWith('LOCAL:')) {
+       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Données Scryfall non trouvées. Impossible de définir comme Cdt.',
+            style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.red.shade700,
+      ));
+      return;
+    }
+    // --- Fin Modification ---
+
     final scryfallCard = _fullCardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
 
     if (!scryfallCard.typeLine.toLowerCase().contains('legendary') ||
@@ -158,9 +176,15 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     setState(() { _isValidating = true; });
 
     if (_fullCardData.isEmpty && _getCardCount(_currentDeck.mainboard) > 0) {
-      setState(() { _isValidating = false; });
-      _showValidationResults({'Erreur': 'Données Scryfall non chargées.'});
-      return;
+      // S'il n'y a QUE des cartes locales, on ne peut pas valider
+      final bool hasOnlyLocalCards = _currentDeck.mainboard
+            .every((card) => card.scryfallId.startsWith('LOCAL:'));
+            
+      if(hasOnlyLocalCards) {
+         setState(() { _isValidating = false; });
+        _showValidationResults({'Erreur': 'Aucune donnée Scryfall trouvée pour ce deck.'});
+        return;
+      }
     }
 
     final validationResults = _validateDeckRules(_fullCardData);
@@ -168,13 +192,15 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     _showValidationResults(validationResults);
   }
 
-  // Moteur de validation (inchangé)
+  // Moteur de validation
   Map<String, String> _validateDeckRules(List<ScryfallCard> cardData) {
     Map<String, String> results = {};
     const List<String> formats = ['standard', 'pioneer', 'modern', 'commander'];
 
     // --- Helpers pour la validation
     ScryfallCard? getCard(String scryfallId) {
+      // --- MODIFICATION : Ignore les cartes locales ---
+      if (scryfallId.startsWith('LOCAL:')) return null; 
       try {
         return cardData.firstWhere((sc) => sc.id == scryfallId);
       } catch (e) {
@@ -212,15 +238,15 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
         }
         
         // 2b. Existence du Commandant
-        if (_currentDeck.commanderScryfallId == null) {
-          results[format] = '❌ Illégal (Pas de Commandant)';
+        if (_currentDeck.commanderScryfallId == null || _currentDeck.commanderScryfallId!.startsWith('LOCAL:')) {
+          results[format] = '❌ Illégal (Cdt non valide ou non trouvé)';
           continue;
         }
         
         final commanderCard = getCard(_currentDeck.commanderScryfallId!) ?? emptyCard;
         if (!commanderCard.typeLine.toLowerCase().contains('legendary') ||
             !commanderCard.typeLine.toLowerCase().contains('creature')) {
-           results[format] = '❌ Illégal (Cmdt non valide)';
+           results[format] = '❌ Illégal (Cmdt non légendaire)';
            continue;
         }
         
@@ -230,7 +256,9 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
         String illegalCardName = '';
 
         for (final deckCard in _currentDeck.mainboard) {
-          final scryfallCard = getCard(deckCard.scryfallId) ?? emptyCard;
+          final scryfallCard = getCard(deckCard.scryfallId); // Peut être null
+          if (scryfallCard == null) continue; // Ignore les cartes locales
+
           final Set<String> cardColors = scryfallCard.colorIdentity.toSet();
 
           // Vérifie si chaque couleur de la carte est DANS l'identité du cmdt
@@ -252,7 +280,15 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
       
       // --- VALIDATION AUTRES FORMATS ---
       for (final deckCard in _currentDeck.mainboard) {
-        final scryfallCard = getCard(deckCard.scryfallId) ?? emptyCard;
+        final scryfallCard = getCard(deckCard.scryfallId); // Peut être null
+        if (scryfallCard == null) {
+          // Si une carte locale est dans un deck non-commander, on ne peut pas valider
+           if (format != 'commander') {
+             status = '❔ Inconnu (Contient "${deckCard.name}")';
+           }
+           continue; // Ignore les cartes locales
+        }
+        
         final legality = scryfallCard.legalities[format];
 
         if (legality == 'not_legal' || legality == 'banned') {
@@ -286,6 +322,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
       ScryfallCard? scryfallCard;
       try {
         // Tente de trouver la carte
+        if (deckCard.scryfallId.startsWith('LOCAL:')) continue; // Ignore cartes locales
         scryfallCard = _fullCardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
       } catch (e) {
         // Si 'firstWhere' échoue (Bad state), on logue et on ignore
@@ -404,7 +441,11 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     setState(() { _currentDeck = deckCopy; });
 
     // Calcule les terrains nécessaires
-    final int currentNonLandCount = _getCardCount(_currentDeck.mainboard);
+    // --- MODIFICATION : Exclut les cartes locales du comptage non-terrain ---
+    final int currentNonLandCount = _currentDeck.mainboard
+        .where((card) => !card.scryfallId.startsWith('LOCAL:')) // Exclut les cartes locales
+        .fold(0, (sum, card) => sum + card.quantity);
+
     final int landsNeeded = targetCount - currentNonLandCount;
     
     if (landsNeeded <= 0) {
@@ -579,7 +620,14 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
         final commanderCard = _fullCardData.firstWhere((c) => c.id == _currentDeck.commanderScryfallId);
         decklistText.writeln('\nCommander');
         decklistText.writeln('1 ${commanderCard.name}');
-      } catch (e) { /* ignore */ }
+      } catch (e) { 
+        // Fallback pour Cdt local
+        if (_currentDeck.commanderScryfallId!.startsWith('LOCAL:')) {
+           final cmdName = _currentDeck.commanderScryfallId!.replaceFirst('LOCAL:', '');
+           decklistText.writeln('\nCommander');
+           decklistText.writeln('1 $cmdName');
+        }
+      }
     }
 
     // 3. Ajoute le Mainboard
@@ -688,15 +736,17 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     for (final deckCard in cardList) {
       ScryfallCard? scryfallCard;
       try {
-        // Tente de trouver la carte
+        // --- MODIFICATION ---
+        // Ne cherche que si ce n'est pas une carte locale
+        if (deckCard.scryfallId.startsWith('LOCAL:')) {
+          throw Exception("Carte locale"); // Saute au catch
+        }
         scryfallCard = _fullCardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
       } catch (e) {
-        // --- CORRECTION ---
-        // Si la carte n'est pas dans _fullCardData (ex: terrain juste ajouté)
-        // On crée un objet ScryfallCard "factice" pour qu'elle s'affiche !
+        // --- CORRECTION (Inchangée, elle gère déjà notre cas) ---
         log('Données locales pour "${deckCard.name}"');
         scryfallCard = ScryfallCard.fromJson({
-            'id': deckCard.scryfallId, 
+            'id': deckCard.scryfallId, // Garde l'ID "LOCAL:..."
             'name': deckCard.name, 
             'legalities': {}, 
             'prices': {}, 
@@ -726,6 +776,12 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
   // --- FONCTION : Classifie une carte ---
   String _getPrimaryType(String typeLine) {
     String lowerType = typeLine.toLowerCase();
+    
+    // Si le type est juste le nom (pour les cartes locales), on devine
+    if (!lowerType.contains(' — ') && (lowerType.contains('swamp') || lowerType.contains('plains') || lowerType.contains('island') || lowerType.contains('mountain') || lowerType.contains('forest'))) {
+      return 'Terrains';
+    }
+    
     if (lowerType.contains('creature')) return 'Créatures';
     if (lowerType.contains('planeswalker')) return 'Planeswalkers';
     if (lowerType.contains('land')) return 'Terrains';
@@ -733,6 +789,10 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     if (lowerType.contains('enchantment')) return 'Enchantements';
     if (lowerType.contains('instant')) return 'Sorts';
     if (lowerType.contains('sorcery')) return 'Sorts';
+    
+    // Fallback pour les cartes locales qu'on ne peut pas deviner
+    if (typeLine.startsWith('LOCAL:')) return 'Autres';
+    
     return 'Autres';
   }
 
@@ -784,9 +844,11 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
                 ...group.cards.map((card) {
                   // --- LOGIQUE : Vérifie si c'est le commandant ---
                   final bool isCommander = _currentDeck.commanderScryfallId == card.scryfallId;
+                  
+                  // --- MODIFICATION : Gère le fallback ici ---
                   final scryfallCard = _fullCardData.firstWhere(
                     (sc) => sc.id == card.scryfallId,
-                    // Fallback au cas où (ne devrait pas arriver si _isLoading est bien géré)
+                    // Fallback (gère les cartes 'LOCAL:')
                     orElse: () => ScryfallCard.fromJson({
                       'id': card.scryfallId, 'name': card.name, 'legalities': {}, 
                       'prices': {}, 'lang': 'fr', 'type_line': '', 'color_identity': [],
@@ -797,7 +859,28 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
                     color: Colors.black.withAlpha((0.3 * 255).round()),
                     margin: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
                     child: ListTile(
-                      // --- AJOUT : Appui long ---
+                      // --- AJOUT : onTap pour la navigation ---
+                      onTap: () {
+                        // On ne peut naviguer que si on a un vrai ID Scryfall
+                        if (!scryfallCard.id.startsWith('LOCAL:')) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              // RecognitionResultPage est notre "Card Detail Page"
+                              builder: (context) => RecognitionResultPage(cardName: scryfallCard.name),
+                            ),
+                          );
+                        } else {
+                          // Optionnel : SnackBar pour informer l'utilisateur
+                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text('Données Scryfall non trouvées pour "${scryfallCard.name}"',
+                                style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)),
+                            backgroundColor: Colors.yellow.shade700,
+                          ));
+                        }
+                      },
+                      // --- Fin de l'ajout ---
+                      
                       onLongPress: () {
                         // On ne peut définir un commandant que depuis le mainboard
                         if (cardList == _currentDeck.mainboard) {
@@ -888,6 +971,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
               const Divider(color: Colors.white24, height: 32),
               ...results.entries.map((entry) {
                 final bool isLegal = entry.value.startsWith('✅');
+                final bool isUnknown = entry.value.startsWith('❔');
                 return ListTile(
                   title: Text(
                     entry.key[0].toUpperCase() + entry.key.substring(1),
@@ -897,7 +981,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
                     child: Text(
                       entry.value,
                       style: GoogleFonts.cinzel(
-                        color: isLegal ? Colors.green.shade300 : Colors.red.shade300,
+                        color: isLegal ? Colors.green.shade300 : (isUnknown ? Colors.grey : Colors.red.shade300),
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),

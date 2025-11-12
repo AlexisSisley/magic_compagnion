@@ -1,5 +1,5 @@
 // Fichier : lib/pages/card_search_page.dart
-// VERSION MISE À JOUR (Multilingue)
+// VERSION MISE À JOUR (Connectée à la Collection)
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -8,8 +8,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:magic_companion/models/search_filters.dart';
 import 'package:magic_companion/widgets/search/search_filter_modal.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // <-- AJOUTÉ
+import 'package:shared_preferences/shared_preferences.dart'; 
 import 'card_detail_page.dart';
+import '../services/collection_service.dart'; // <-- 1. AJOUT DE L'IMPORT
 
 class CardSearchPage extends StatefulWidget {
   const CardSearchPage({super.key});
@@ -24,6 +25,9 @@ class _CardSearchPageState extends State<CardSearchPage> {
   List<dynamic> _searchResults = [];
   bool _isLoading = false;
   String _statusMessage = 'Entrez un nom de carte pour commencer.';
+
+  // <-- 2. INSTANCE DU SERVICE
+  final CollectionService _collectionService = CollectionService();
 
   @override
   void dispose() {
@@ -60,7 +64,7 @@ class _CardSearchPageState extends State<CardSearchPage> {
     // ---
 
     final connectivityResult = await (Connectivity().checkConnectivity());
-    if (connectivityResult.contains(ConnectivityResult.none)) { // Corrigé
+    if (connectivityResult.contains(ConnectivityResult.none)) { 
       setState(() {
         _isLoading = false;
         _searchResults = [];
@@ -79,7 +83,6 @@ class _CardSearchPageState extends State<CardSearchPage> {
     });
 
     try {
-      // --- MODIFIÉ : Utilise finalQuery encodé ---
       final encodedQuery = Uri.encodeComponent(finalQuery);
       final response = await http.get(Uri.parse(
           'https://api.scryfall.com/cards/search?q=$encodedQuery&lang=$lang'));
@@ -110,7 +113,6 @@ class _CardSearchPageState extends State<CardSearchPage> {
 
 
  Future<void> _openFilterModal() async {
-    // Affiche la modale et ATTEND son retour
     final newFilters = await showModalBottomSheet<SearchFilters>(
       context: context,
       isScrollControlled: true,
@@ -120,7 +122,6 @@ class _CardSearchPageState extends State<CardSearchPage> {
       },
     );
 
-    // Si l'utilisateur a cliqué sur "Appliquer"
     if (newFilters != null) {
       setState(() {
         _activeFilters = newFilters;
@@ -141,26 +142,22 @@ class _CardSearchPageState extends State<CardSearchPage> {
               hintText: 'Nom de la carte...',
               hintStyle: GoogleFonts.cinzel(color: Colors.white54, fontSize: 16),
               
-              // --- MODIFIÉ : Bouton Filtre ---
               prefixIcon: IconButton(
                 icon: Icon(
                   Icons.filter_list,
                   color: _activeFilters.colors.isNotEmpty || 
                          _activeFilters.cardType != null ||
                          _activeFilters.setCode != null
-                      ? Colors.yellow.shade700 // Icône en surbrillance si filtres actifs
+                      ? Colors.yellow.shade700 
                       : Colors.white70,
                 ),
                 onPressed: _openFilterModal,
               ),
-              // ---
               
-              // --- MODIFIÉ : Bouton Envoyer ---
               suffixIcon: IconButton(
                 icon: const Icon(Icons.send, color: Colors.white70),
-                onPressed: _searchCards, // Le bouton "Envoyer" lance la recherche
+                onPressed: _searchCards,
               ),
-              // ---
               
               filled: true,
               fillColor: Colors.black.withAlpha(140),
@@ -204,6 +201,7 @@ class _CardSearchPageState extends State<CardSearchPage> {
         final card = _searchResults[index];
         final String cardName = card['name'] ?? 'Nom inconnu';
         final String cardType = card['type_line'] ?? '';
+        final String scryfallId = card['id'] ?? '';
 
         String? imageUrl;
         if (card['image_uris'] != null) {
@@ -248,11 +246,36 @@ class _CardSearchPageState extends State<CardSearchPage> {
               cardType,
               style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14),
             ),
-            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+            
+            // --- 3. MODIFICATION DU TRAILING ---
+            trailing: IconButton(
+              icon: Icon(Icons.add_circle_outline, color: Colors.white54),
+              tooltip: 'Ajouter à la collection',
+              onPressed: () {
+                if (scryfallId.isEmpty) return; // Sécurité
+                
+                // Appel au service
+                _collectionService.upsertCardInCollection(
+                  scryfallId: scryfallId, 
+                  cardName: cardName, 
+                  quantityToAdd: 1
+                );
+                
+                // Feedback utilisateur
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('"$cardName" ajouté à la collection', 
+                    style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)
+                  ),
+                  backgroundColor: Colors.green.shade700,
+                  duration: const Duration(seconds: 1),
+                ));
+              },
+            ),
+            // --- FIN MODIFICATION ---
+            
             splashColor: Colors.yellow.withAlpha(26),
             onTap: () {
-              // On passe le nom ; la page de résultat
-              // fera sa propre recherche multilingue
+              // Navigation vers la page de détail (inchangé)
               Navigator.push(
                 context,
                 MaterialPageRoute(
