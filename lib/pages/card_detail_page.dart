@@ -1,36 +1,32 @@
 // Fichier : lib/pages/card_detail_page.dart
-// VERSION MISE À JOUR (avec bouton Wishlist)
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle; 
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:intl/intl.dart'; 
+import 'package:magic_companion/pages/glossary_detail_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// IMPORTS LOCAUX
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/widgets/decks/deck_picker_modal.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../services/deck_service.dart';
-import '../data/glossary_data.dart'; 
-import 'glossary_detail_page.dart';
-import '../services/collection_service.dart'; 
-import '../services/scan_history_service.dart'; 
-import '../models/scan_history_model.dart'; 
-import '../services/wishlist_service.dart'; // <-- 1. AJOUT DE L'IMPORT
+import '../data/glossary_data.dart';
+import '../services/collection_service.dart';
+import '../services/scan_history_service.dart';
+import '../models/scan_history_model.dart';
+import '../services/wishlist_service.dart';
 
+// NOUVEAUX IMPORTS
+import '../models/scryfall_ruling.dart'; 
+import '../widgets/cards/versions_selector_sheet.dart';
 
 enum ResultPageState { loading, success, error }
-
-// Classe helper (inchangée)
-class _ScryfallRuling {
-  final String date;
-  final String comment;
-  _ScryfallRuling({required this.date, required this.comment});
-}
 
 class RecognitionResultPage extends StatefulWidget {
   final String? imagePath;
@@ -46,12 +42,12 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   final TextEditingController _searchController = TextEditingController();
   ResultPageState _pageState = ResultPageState.loading;
   String _statusMessage = "Analyse de l'image...";
+  
   ScryfallCard? _foundCard;
   
   String _userLang = 'fr';
-  List<Keyword> _activeGlossary = []; 
-
-  List<_ScryfallRuling> _rulings = [];
+  List<Keyword> _activeGlossary = [];
+  List<ScryfallRuling> _rulings = []; // Utilise la nouvelle classe importée
   bool _isLoadingRulings = false;
 
   final RegExp _manaSymbolRegex = RegExp(r'(\{.*?\})');
@@ -59,16 +55,16 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   final CollectionService _collectionService = CollectionService();
   final ScanHistoryService _historyService = ScanHistoryService();
   final WishlistService _wishlistService = WishlistService();
+  
   bool _inWishlist = false;
   bool _inCollection = false;
+  String _currentDisplayLang = 'fr';
 
   @override
   void initState() {
     super.initState();
     _initializeAndSearch();
   }
-
-  String _currentDisplayLang = 'fr';
 
   Future<void> _initializeAndSearch() async {
     try {
@@ -79,52 +75,37 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       final List<dynamic> jsonList = json.decode(jsonString) as List;
       _activeGlossary = jsonList.map((jsonItem) => Keyword.fromJson(jsonItem as Map<String, dynamic>)).toList();
     } catch (e) {
-      print("Erreur chargement glossaire (CardDetail): $e"); _activeGlossary = []; 
+      print("Erreur chargement glossaire: $e");
+      _activeGlossary = [];
     }
-    if (widget.imagePath != null) { 
-      _startAutomaticProcess(); 
-    } 
-    else if (widget.cardName != null) { 
-      _searchController.text = widget.cardName!; 
-      _searchScryfall(); 
+    if (widget.imagePath != null) {
+      _startAutomaticProcess();
+    } else if (widget.cardName != null) {
+      _searchController.text = widget.cardName!;
+      _searchScryfall();
     }
   }
 
   @override
-  void dispose() { 
-    _searchController.dispose(); 
-    super.dispose(); 
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  /// Nettoie le texte brut de l'OCR pour isoler le nom de la carte
   String _cleanOcrText(String text) {
     String cleanedText = text;
-
-    // 1. Remplacer les '0' par 'O' (souvent confondus)
     cleanedText = cleanedText.replaceAll('0', 'O');
-
-    // 2. Supprimer les symboles de mana (WUBRG), les 'O' (confondus) 
-    //    et les 'X'/'Y'/'Z' s'ils sont des mots "seuls".
-    //    \b = limite de mot (word boundary)
     cleanedText = cleanedText.replaceAll(RegExp(r'\b(W|U|B|R|G|O|X|Y|Z)\b', caseSensitive: false), '');
-
-    // 3. Supprimer tous les chiffres et les slashs (coûts incolores {5}, P/T "1/4")
     cleanedText = cleanedText.replaceAll(RegExp(r'[\d\/]'), '');
-
-    // 4. Supprimer la ponctuation inutile que l'OCR pourrait mal lire
-    //    On garde les apostrophes et les tirets (ex: "Clé-runique", "D'ailleurs")
     cleanedText = cleanedText.replaceAll(RegExp(r'[{}<>()\[\].,:;]'), '');
-
-    // 5. Nettoyer les espaces multiples
     cleanedText = cleanedText.replaceAll(RegExp(r'\s+'), ' ').trim();
-    
     return cleanedText;
   }
 
   Future<void> _startAutomaticProcess() async {
     setState(() { _pageState = ResultPageState.loading; _statusMessage = "Analyse de l'image..."; });
     if (widget.imagePath == null) {
-       setState(() { _pageState = ResultPageState.error; _statusMessage = "Erreur interne: Aucun chemin d'image fourni."; });
+      setState(() { _pageState = ResultPageState.error; _statusMessage = "Erreur interne: Aucun chemin d'image."; });
       return;
     }
     
@@ -133,91 +114,69 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     
     String? bestGuess;
     int bestLength = 0;
-    
-    // Mots-clés de ligne de type à ignorer (en minuscules)
-    const List<String> typeKeywords = [
-      'créature', 'creature', 'artefact', 'artifact', 'enchantement', 'enchantment',
-      'éphémère', 'instant', 'rituel', 'sorcery', 'planeswalker', 'terrain', 'land',
-      'tribal', 'légendaire', 'legendary', 'neigeux', 'snow'
-    ];
+    const List<String> typeKeywords = ['créature', 'creature', 'artefact', 'artifact', 'enchantement', 'enchantment', 'éphémère', 'instant', 'rituel', 'sorcery', 'planeswalker', 'terrain', 'land', 'tribal', 'légendaire', 'legendary', 'neigeux', 'snow'];
 
     try {
       final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
       textRecognizer.close();
 
-      // 1. Itérer sur toutes les lignes reconnues
       for (var block in recognizedText.blocks) {
         for (var line in block.lines) {
           String originalLine = line.text.trim();
           if (originalLine.isEmpty) continue;
-          
-          // 2. Nettoyer la ligne
           String cleanedLine = _cleanOcrText(originalLine);
           if (cleanedLine.isEmpty) continue;
-
-          // 3. Vérifier si c'est une ligne de type (ex: "Créature : humain")
           String lowerCleaned = cleanedLine.toLowerCase();
           bool isTypeLine = typeKeywords.any((keyword) => lowerCleaned.startsWith(keyword));
-          
-          if (isTypeLine) {
-            print("Ligne ignorée (type): $originalLine");
-            continue;
-          }
-
-          // 4. Garder la ligne nettoyée la plus longue
-          //    (Le titre est souvent plus long que les P/T ou les restes de mana)
+          if (isTypeLine) continue;
           if (cleanedLine.length > bestLength) {
             bestLength = cleanedLine.length;
             bestGuess = cleanedLine;
-            print("Meilleur candidat trouvé: $bestGuess (depuis: $originalLine)");
           }
         }
       }
     } catch (e) {
-      setState(() { _pageState = ResultPageState.error; _statusMessage = "Erreur OCR: $e. Veuillez réessayer."; });
+      setState(() { _pageState = ResultPageState.error; _statusMessage = "Erreur OCR: $e"; });
       return;
     }
 
     if (bestGuess == null || bestGuess.isEmpty) {
-      setState(() { _pageState = ResultPageState.error; _statusMessage = "Aucun texte de titre reconnu. Veuillez entrer le nom manuellement."; });
+      setState(() { _pageState = ResultPageState.error; _statusMessage = "Titre non reconnu."; });
       return;
     }
-
-    // 5. Utiliser le meilleur candidat (nettoyé) pour la recherche
     _searchController.text = bestGuess;
     await _searchScryfall();
   }
 
   Future<void> _searchScryfall() async {
     final String cardName = _searchController.text.trim();
-    if (cardName.isEmpty) { /* ... */ return; }
+    if (cardName.isEmpty) return;
     final connectivityResult = await (Connectivity().checkConnectivity());
-    if (connectivityResult.contains(ConnectivityResult.none)) { /* ... */ return; }
+    if (connectivityResult.contains(ConnectivityResult.none)) return;
+    
     setState(() {
       _pageState = ResultPageState.loading;
-      _statusMessage = "Recherche de \"$cardName\" (${_currentDisplayLang.toUpperCase()})..."; 
+      _statusMessage = "Recherche de \"$cardName\"...";
       _rulings = [];
     });
 
     try {
-      // Utilise _currentDisplayLang dans l'URL
       final response = await http.get(Uri.parse('https://api.scryfall.com/cards/named?fuzzy=$cardName&lang=$_currentDisplayLang'));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         final ScryfallCard foundCard = ScryfallCard.fromJson(data);
+        
         setState(() { _foundCard = foundCard; _pageState = ResultPageState.success; });
+        
         if (widget.imagePath != null) {
-          final newItem = ScanHistoryItem(
-            scryfallId: foundCard.id, cardName: foundCard.name,
-            imagePath: widget.imagePath, timestamp: DateTime.now()
-          );
+          final newItem = ScanHistoryItem(scryfallId: foundCard.id, cardName: foundCard.name, imagePath: widget.imagePath, timestamp: DateTime.now());
           await _historyService.addScan(newItem);
         }
         _fetchRulings(foundCard.id);
         await _checkCardStatus();
       } else {
         setState(() {
-          _statusMessage = "Carte \"$cardName\" non trouvée (Code: ${response.statusCode}). Vérifiez le nom et réessayez.";
+          _statusMessage = "Carte non trouvée (Code: ${response.statusCode}).";
           _pageState = ResultPageState.error;
         });
       }
@@ -226,11 +185,30 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     }
   }
 
+  // APPEL AU WIDGET SÉPARÉ
+  Future<void> _showVersionsModal() async {
+    if (_foundCard == null) return;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => VersionsSelectorSheet(
+        oracleId: _foundCard!.oracleId,
+        currentCardId: _foundCard!.id,
+        onVersionSelected: (ScryfallCard selectedVersion) {
+           setState(() {
+             _foundCard = selectedVersion;
+           });
+           _checkCardStatus(); 
+        },
+      ),
+    );
+  }
+
   void _toggleLanguage() {
-    setState(() {
-      _currentDisplayLang = (_currentDisplayLang == 'fr') ? 'en' : 'fr';
-    });
-    _searchScryfall(); // Relance la recherche avec la nouvelle langue
+    setState(() => _currentDisplayLang = (_currentDisplayLang == 'fr') ? 'en' : 'fr');
+    _searchScryfall();
   }
 
   Future<void> _fetchRulings(String cardId) async {
@@ -240,82 +218,47 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         final List<dynamic> rulingsList = data['data'] ?? [];
-        final DateFormat apiFormatter = DateFormat('yyyy-MM-dd');
-        final DateFormat displayFormatter = DateFormat('d MMM y', 'fr_FR');
         setState(() {
-          _rulings = rulingsList.map((rulingJson) {
-            String formattedDate = '';
-            try { formattedDate = displayFormatter.format(apiFormatter.parse(rulingJson['published_at'])); } 
-            catch (e) { formattedDate = rulingJson['published_at']; }
-            return _ScryfallRuling(date: formattedDate, comment: rulingJson['comment']);
-          }).toList();
+          _rulings = rulingsList.map((rulingJson) => ScryfallRuling(date: rulingJson['published_at'], comment: rulingJson['comment'])).toList();
         });
       }
-    } catch (e) { print("Erreur chargement rulings: $e"); }
-    if(mounted) { setState(() { _isLoadingRulings = false; }); }
+    } catch (e) { /* ... */ }
+    if(mounted) setState(() { _isLoadingRulings = false; });
   }
 
-  /// Vérifie si la carte trouvée est dans la wishlist ou la collection
   Future<void> _checkCardStatus() async {
     if (_foundCard == null) return;
-    
     final collection = await _collectionService.loadCollection();
     final wishlist = await _wishlistService.loadWishlist();
-    
     if (!mounted) return;
-    
     setState(() {
       _inCollection = collection.any((c) => c.scryfallId == _foundCard!.id);
       _inWishlist = wishlist.any((c) => c.scryfallId == _foundCard!.id);
     });
   }
 
-  /// Ajoute ou retire la carte de la wishlist
   Future<void> _toggleWishlist() async {
     if (_foundCard == null) return;
-    
     if (_inWishlist) {
-      // Retirer
-      await _wishlistService.upsertCardInWishlist(
-        scryfallId: _foundCard!.id,
-        cardName: _foundCard!.name,
-        absoluteQuantity: 0, // Met la quantité à 0, ce qui la supprime
-      );
-      _showFeedback(context, '"${_foundCard!.name}" retiré de la Wishlist', Colors.red.shade700);
+      await _wishlistService.upsertCardInWishlist(scryfallId: _foundCard!.id, cardName: _foundCard!.name, absoluteQuantity: 0);
+      _showFeedback('"Let\'s remove it!"', Colors.red.shade700);
     } else {
-      // Ajouter
       await _wishlistService.addCard(_foundCard!, 1);
-      _showFeedback(context, '"${_foundCard!.name}" ajouté à la Wishlist', Colors.blue.shade700);
+      _showFeedback('Ajouté à la Wishlist', Colors.blue.shade700);
     }
-    
-    // Met à jour l'icône
-    setState(() {
-      _inWishlist = !_inWishlist;
-    });
+    setState(() => _inWishlist = !_inWishlist);
   }
 
-  /// Ajoute ou retire la carte de la collection
   Future<void> _toggleCollection() async {
     if (_foundCard == null) return;
-    
     if (_inCollection) {
-      // Retirer
-      await _collectionService.upsertCardInCollection(
-        scryfallId: _foundCard!.id,
-        cardName: _foundCard!.name,
-        absoluteQuantity: 0, // Met la quantité à 0, ce qui la supprime
-      );
-      _showFeedback(context, '"${_foundCard!.name}" retiré de la collection', Colors.red.shade700);
+      await _collectionService.upsertCardInCollection(scryfallId: _foundCard!.id, cardName: _foundCard!.name, absoluteQuantity: 0);
+      _showFeedback('Retiré de la collection', Colors.red.shade700);
     } else {
-      // Ajouter
       await _collectionService.addCard(_foundCard!, 1);
-      _showFeedback(context, '"${_foundCard!.name}" ajouté à la collection', Colors.green.shade700);
+      _showFeedback('Ajouté à la collection', Colors.green.shade700);
     }
-    
-    // Met à jour l'icône
-    setState(() {
-      _inCollection = !_inCollection;
-    });
+    setState(() => _inCollection = !_inCollection);
   }
 
   @override
@@ -323,96 +266,67 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
       appBar: AppBar(
-        title: Text("Résultat", style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
+        title: Text("Détail Carte", style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
         backgroundColor: Colors.black,
-        
         actions: [
-          if (_pageState == ResultPageState.success)
+          if (_pageState == ResultPageState.success) ...[
+            IconButton(
+              icon: const Icon(Icons.style, color: Colors.white),
+              tooltip: 'Autres Versions / Editions',
+              onPressed: _showVersionsModal,
+            ),
             TextButton(
               onPressed: _toggleLanguage,
-              child: Text(
-                _currentDisplayLang.toUpperCase(),
-                style: GoogleFonts.cinzel(
-                  color: Colors.white, 
-                  fontWeight: FontWeight.bold
-                ),
-              ),
+              child: Text(_currentDisplayLang.toUpperCase(), style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
-          if (_pageState == ResultPageState.success && _foundCard != null) ...[
-            // Bouton Wishlist (Toggle)
             IconButton(
-              icon: Icon(
-                _inWishlist ? Icons.star : Icons.star_border_outlined, // Icône dynamique
-                color: _inWishlist ? Colors.blue.shade400 : Colors.white,
-              ),
-              tooltip: _inWishlist ? 'Retirer de la Wishlist' : 'Ajouter à la Wishlist',
-              onPressed: _toggleWishlist, // Appelle la fonction de toggle
+              icon: Icon(_inWishlist ? Icons.star : Icons.star_border_outlined, color: _inWishlist ? Colors.blue.shade400 : Colors.white),
+              onPressed: _toggleWishlist,
             ),
-            // Bouton Collection (Toggle)
             IconButton(
-              icon: Icon(
-                _inCollection ? Icons.inventory_2 : Icons.inventory_2_outlined, // Icône dynamique
-                color: _inCollection ? Colors.green.shade400 : Colors.white,
-              ),
-              tooltip: _inCollection ? 'Retirer de la collection' : 'Ajouter à la collection',
-              onPressed: _toggleCollection, // Appelle la fonction de toggle
+              icon: Icon(_inCollection ? Icons.inventory_2 : Icons.inventory_2_outlined, color: _inCollection ? Colors.green.shade400 : Colors.white),
+              onPressed: _toggleCollection,
             )
           ]
         ],
       ),
-      
-      body: _buildBody(), 
-      
+      body: _buildBody(),
       floatingActionButton: _pageState == ResultPageState.success
           ? FloatingActionButton(
-              onPressed: _showDeckPicker, // Inchangé (pour les decks)
+              onPressed: _showDeckPicker,
               backgroundColor: Colors.yellow.shade800,
               foregroundColor: Colors.white,
-              child: const Icon(Icons.add_to_photos_outlined), 
+              child: const Icon(Icons.add_to_photos_outlined),
             )
           : null,
     );
   }
-  
-  // Helper pour afficher les notifications
-  void _showFeedback(BuildContext context, String message, Color color) {
+
+  void _showFeedback(String message, Color color) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message, style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)),
-      backgroundColor: color,
-      duration: const Duration(seconds: 1),
+      backgroundColor: color, duration: const Duration(seconds: 1),
     ));
   }
 
-  // --- (Toutes les autres fonctions _showDeckPicker, _buildBody, _buildInfoCard, _buildPriceInfo, _buildLegalities, _buildRulingsList, etc... sont INCHANGÉES) ---
   Future<void> _showDeckPicker() async {
     if (_foundCard == null) return;
     showModalBottomSheet(
       context: context, backgroundColor: Colors.transparent, isScrollControlled: true,
-      builder: (modalContext) {
-        return DeckPickerModal(
+      builder: (modalContext) => DeckPickerModal(
           deckService: _deckService,
           cardToAdd: _foundCard!,
-          onCardAdded: (deckName, cardName) {
-            if (!context.mounted) return;
-            _showFeedback(context, '"$cardName" ajouté à "$deckName"', Colors.yellow.shade700);
-          },
-        );
-      },
+          onCardAdded: (deckName, cardName) => _showFeedback('Ajouté à "$deckName"', Colors.yellow.shade700),
+      ),
     );
   }
+
   Widget _buildBody() {
     final mediaQuery = MediaQuery.of(context);
     switch (_pageState) {
       case ResultPageState.loading:
-        return Center(
-          child: Column( mainAxisAlignment: MainAxisAlignment.center, children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 20),
-              Text(_statusMessage, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
-            ],
-          ),
-        );
+        return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text(_statusMessage, style: GoogleFonts.cinzel(color: Colors.white))]));
       case ResultPageState.success:
         return SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + mediaQuery.padding.bottom + 80.0),
@@ -420,32 +334,34 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Card(
-                color: Colors.black.withAlpha((0.4 * 255).round()), elevation: 2.0, margin: const EdgeInsets.symmetric(vertical: 5.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10.0),
-                  side: BorderSide(color:Colors.yellow.shade800.withAlpha((0.6 * 255).round()), width: 1),
-                ),
+                color: Colors.black.withAlpha(100),
+                elevation: 4.0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: BorderSide(color: Colors.yellow.shade800.withAlpha(150), width: 1)),
                 clipBehavior: Clip.antiAlias,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Image.network(_foundCard!.imageUrl, fit: BoxFit.fitWidth),
+                    Image.network(_foundCard!.imageUrl, fit: BoxFit.fitWidth,
+                       loadingBuilder: (c, child, progress) => progress == null ? child : const SizedBox(height: 300, child: Center(child: CircularProgressIndicator())),
+                       errorBuilder: (c, e, s) => const SizedBox(height: 300, child: Center(child: Icon(Icons.broken_image, size: 50, color: Colors.white))),
+                    ),
                     Padding(
                       padding: const EdgeInsets.all(12.0),
                       child: Column(
                         children: [
-                          const SizedBox(height: 8),
                           _buildManaCostRow(_foundCard!.manaCost),
-                          Text(
-                            _foundCard!.printedName ?? _foundCard!.name, // <-- LA CLÉ EST ICI
-                            style: GoogleFonts.cinzel(
-                              color: Colors.white, 
-                              fontSize: 24, 
-                              fontWeight: FontWeight.bold
-                            ), 
-                            textAlign: TextAlign.center
+                          const SizedBox(height: 8),
+                          Text(_foundCard!.printedName ?? _foundCard!.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                          Text(_foundCard!.typeLine, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4)),
+                            child: Text(
+                              '${_foundCard!.setName}  •  #${_foundCard!.collectorNumber}',
+                              style: GoogleFonts.cinzel(color: Colors.yellow.shade700, fontSize: 12),
+                            ),
                           ),
-                          Text(_foundCard!.typeLine, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 18, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
                         ],
                       ),
                     ),
@@ -453,10 +369,8 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
                 ),
               ),
               _buildInfoCard(title: 'Texte des règles', child: _buildClickableRulesText(_foundCard!.rulesText, _foundCard!.lang)),
-              _buildInfoCard(title: 'Prix (approximatif)', child: _buildPriceInfo(_foundCard!.prices)),
-              _buildInfoCard(title: 'Légalité en tournoi', child: _buildLegalities(_foundCard!.legalities)),
-              
-              
+              _buildInfoCard(title: 'Prix & Marché', child: _buildPriceInfo(_foundCard!.prices)),
+              _buildInfoCard(title: 'Légalité', child: _buildLegalities(_foundCard!.legalities)),
               _buildInfoCard(title: 'Décisions de Règles', child: _buildRulingsList()),
             ],
           ),
@@ -467,186 +381,162 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(_statusMessage, style: GoogleFonts.cinzel(color: Colors.red.shade300, fontSize: 16), textAlign: TextAlign.center),
+              Text(_statusMessage, style: GoogleFonts.cinzel(color: Colors.red.shade300), textAlign: TextAlign.center),
               const SizedBox(height: 20),
               TextField(
                 controller: _searchController,
-                style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16),
-                decoration: InputDecoration(
-                  hintText: 'Nom de la carte', hintStyle: GoogleFonts.cinzel(color: Colors.white54, fontSize: 16),
-                  prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                  filled: true, fillColor: Colors.black.withAlpha((0.5 * 255).round()),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.white70, width: 1)),
-                ),
-                autofocus: true,
+                style: GoogleFonts.cinzel(color: Colors.white),
+                decoration: InputDecoration(hintText: 'Nom de la carte', filled: true, fillColor: Colors.white10, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
               ),
               const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _searchScryfall,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.yellow.shade800.withAlpha((0.8 * 255).round()),
-                  foregroundColor: Colors.white,
-                ),
-                child: Text('Rechercher', style: GoogleFonts.cinzel(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
+              ElevatedButton(onPressed: _searchScryfall, style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800), child: Text('Rechercher', style: GoogleFonts.cinzel())),
             ],
           ),
         );
     }
   }
-  Widget _buildRulingsList() {
-    if (_isLoadingRulings) { return const Center(child: CircularProgressIndicator(strokeWidth: 2)); }
-    if (_rulings.isEmpty) {
-      return Text('(Aucune décision de règle officielle trouvée)', style: GoogleFonts.cinzel(color: Colors.white70, fontStyle: FontStyle.italic));
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: _rulings.map((ruling) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 14.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(ruling.date, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-              const SizedBox(height: 4),
-              Text(ruling.comment, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.4)),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-  Widget _buildInfoCard({required String title, required Widget child}) {
-    return Card(
-      color: Colors.black.withAlpha((0.4 * 255).round()), elevation: 2.0, margin: const EdgeInsets.symmetric(vertical: 6.0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10.0),
-        side: BorderSide(color: Colors.yellow.shade800.withAlpha((0.6 * 255).round()), width: 1),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            child: Text(title, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600)),
-          ),
-          Container(height: 1, color: Colors.yellow.shade800.withAlpha((0.6 * 255).round())),
-          Padding(padding: const EdgeInsets.all(16.0), child: child),
-        ],
-      ),
-    );
-  }
+
   Widget _buildPriceInfo(Map<String, dynamic> prices) {
     final String priceEur = prices['eur'] ?? 'N/A';
     final String priceEurFoil = prices['eur_foil'] ?? 'N/A';
-    return Column( crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Normal : $priceEur €', style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16)),
-        Text('Foil : $priceEurFoil €', style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16)),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        Column(children: [
+          Text('Normal', style: GoogleFonts.cinzel(color: Colors.white70)),
+          Text('$priceEur €', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+        ]),
+        Container(width: 1, height: 30, color: Colors.white24),
+        Column(children: [
+          Text('Foil (Brillant)', style: GoogleFonts.cinzel(color: Colors.amber.shade200)),
+          Text('$priceEurFoil €', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+        ]),
       ],
     );
   }
+  
+  Widget _buildRulingsList() {
+    if (_isLoadingRulings) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    if (_rulings.isEmpty) return Text('(Aucune décision)', style: GoogleFonts.cinzel(color: Colors.white70, fontStyle: FontStyle.italic));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: _rulings.map((r) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(r.date, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)), Text(r.comment, style: const TextStyle(color: Colors.white))]))).toList());
+  }
+  
+  Widget _buildInfoCard({required String title, required Widget child}) {
+    return Card(
+      color: Colors.black.withAlpha(102), elevation: 2, margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.yellow.shade800.withAlpha(150))),
+      child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600)), const Divider(color: Colors.white24), const SizedBox(height: 8), child])),
+    );
+  }
+  
   Widget _buildLegalities(Map<String, String> legalities) {
-    const List<String> formats = ['standard', 'pioneer', 'modern', 'commander'];
-    String formatName(String key) { return key[0].toUpperCase() + key.substring(1); }
-    Widget formatStatus(String status) {
-      Color color; String text;
-      switch (status) {
-        case 'legal': text = 'Légal'; color = Colors.green.shade400; break;
-        case 'not_legal': text = 'Non Légal'; color = Colors.grey; break;
-        case 'banned': text = 'Banni'; color = Colors.red.shade400; break;
-        case 'restricted': text = 'Restreint'; color = Colors.orange.shade400; break;
-        default: text = status; color = Colors.white;
-      }
-      return Text(text, style: GoogleFonts.cinzel(color: color, fontWeight: FontWeight.bold, fontSize: 16));
-    }
-    return Column( crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ...formats.map((formatKey) {
-          final status = legalities[formatKey] ?? 'N/A';
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 4.0),
-            child: Row( children: [
-                Text('${formatName(formatKey)} :', style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16)),
-                const Spacer(),
-                formatStatus(status),
-              ],
-            ),
-          );
-        })
-      ],
-    );
+    const formats = ['standard', 'commander', 'modern', 'pioneer'];
+    return Wrap(spacing: 12, runSpacing: 8, children: formats.map((fmt) {
+       final status = legalities[fmt] ?? 'not_legal';
+       Color c = status == 'legal' ? Colors.green : (status == 'banned' ? Colors.red : Colors.grey);
+       return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: c.withOpacity(0.2), borderRadius: BorderRadius.circular(4), border: Border.all(color: c)), child: Text('${fmt[0].toUpperCase()}${fmt.substring(1)}', style: GoogleFonts.cinzel(color: c, fontWeight: FontWeight.bold)));
+    }).toList());
   }
-  Widget _getManaIcon(String symbol) {
-    final String cleanSymbol = symbol.replaceAll(RegExp(r'[{}/]'), '').toUpperCase();
-    final String svgUrl = 'https://svgs.scryfall.io/card-symbols/$cleanSymbol.svg';
-    return SvgPicture.network(
-      svgUrl, height: 16, width: 16,
-      placeholderBuilder: (context) => Text(symbol, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16)),
-    );
-  }
-  Widget _buildManaCostRow(String? manaCost) {
-    if (manaCost == null || manaCost.isEmpty) { return const SizedBox.shrink(); }
-    final List<String> symbols = _manaSymbolRegex.allMatches(manaCost).map((match) => match.group(0)!).toList();
-    return Container(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row( mainAxisAlignment: MainAxisAlignment.center, children: symbols.map((symbol) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                  child: _getManaIcon(symbol),
-                )).toList(),
-      ),
-    );
-  }
+
+  // --- GESTION DES MOTS-CLÉS (GLOSSAIRE) ---
+
+  // 1. Cherche si un mot existe dans le glossaire actif
   Keyword? _findKeyword(String word) {
     if (_activeGlossary.isEmpty) return null;
+    // Nettoyage basique (enlever ponctuation comme virgules ou points)
     final normalizedWord = word.toLowerCase().replaceAll(RegExp(r'[,\.]'), '');
-    try { return _activeGlossary.firstWhere((keyword) => keyword.term.toLowerCase() == normalizedWord); } 
-    catch (e) { return null; }
+    try {
+      return _activeGlossary.firstWhere(
+        (keyword) => keyword.term.toLowerCase() == normalizedWord
+      );
+    } catch (e) {
+      return null;
+    }
   }
+
+  // 2. Construit les spans de texte (mots normaux + mots-clés cliquables)
   InlineSpan _buildKeywordSpans(String textChunk) {
     final List<String> words = textChunk.split(' ');
     final List<InlineSpan> spans = [];
-    for (final word in words) {
-      final keyword = _findKeyword(word);
+
+    for (int i = 0; i < words.length; i++) {
+      final String word = words[i];
+      final Keyword? keyword = _findKeyword(word);
+
       if (keyword != null) {
-        spans.add(TextSpan(
-            text: '$word ',
+        // C'est un mot-clé : on le rend bleu et cliquable
+        spans.add(
+          TextSpan(
+            text: '$word ', // Remet l'espace après le mot
             style: GoogleFonts.cinzel(
-              color: Colors.blue.shade300, fontWeight: FontWeight.bold,
-              decoration: TextDecoration.underline, fontSize: 16,
+              color: Colors.blue.shade300,
+              fontWeight: FontWeight.bold,
+              decoration: TextDecoration.underline,
+              decorationColor: Colors.blue.shade300,
             ),
-            recognizer: TapGestureRecognizer()..onTap = () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => GlossaryDetailPage(keyword: keyword)));
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => GlossaryDetailPage(keyword: keyword),
+                  ),
+                );
               },
           ),
         );
       } else {
-        spans.add(TextSpan(text: '$word ', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16, height: 1.4)));
+        // Mot normal
+        spans.add(TextSpan(
+          text: '$word ',
+          style: const TextStyle(color: Colors.white, height: 1.4),
+        ));
       }
     }
     return TextSpan(children: spans);
   }
-  Widget _buildClickableRulesText(String text, String cardLang) {
-    if (text.trim().isEmpty) {
-      return Text('(Aucun texte de règles)', style: GoogleFonts.cinzel(color: Colors.white70, fontStyle: FontStyle.italic));
+
+  // 3. La méthode principale qui remplace celle simplifiée
+  Widget _buildClickableRulesText(String text, String lang) {
+    if (text.isEmpty) {
+      return Text("(Pas de texte)", style: GoogleFonts.cinzel(color: Colors.white70, fontStyle: FontStyle.italic));
     }
+    
     final List<InlineSpan> spans = [];
+    
+    // On sépare le texte par les symboles de mana ({T}, {1}, etc.)
     text.splitMapJoin(
       _manaSymbolRegex,
       onMatch: (Match match) {
         final String symbol = match.group(0)!;
+        // Ajoute l'icône de mana
         spans.add(WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Padding(padding: const EdgeInsets.symmetric(horizontal: 1.0), child: _getManaIcon(symbol)),
-          ),
-        );
+          alignment: PlaceholderAlignment.middle, 
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 1.0), 
+            child: _getManaIcon(symbol)
+          )
+        ));
         return '';
       },
       onNonMatch: (String nonMatch) {
+        // Analyse le texte entre les symboles pour trouver les mots-clés
         spans.add(_buildKeywordSpans(nonMatch));
         return '';
       },
     );
+    
     return RichText(text: TextSpan(children: spans));
+  }
+
+  Widget _buildManaCostRow(String? manaCost) {
+    if (manaCost == null) return const SizedBox();
+    final matches = _manaSymbolRegex.allMatches(manaCost).map((m) => m.group(0)!).toList();
+    return Row(mainAxisAlignment: MainAxisAlignment.center, children: matches.map((s) => Padding(padding: const EdgeInsets.symmetric(horizontal: 1), child: _getManaIcon(s))).toList());
+  }
+  
+  Widget _getManaIcon(String symbol) {
+     final clean = symbol.replaceAll(RegExp(r'[{}/]'), '').toUpperCase();
+     return SvgPicture.network('https://svgs.scryfall.io/card-symbols/$clean.svg', width: 16, placeholderBuilder: (_) => Text(symbol, style: const TextStyle(color: Colors.white)));
   }
 }
