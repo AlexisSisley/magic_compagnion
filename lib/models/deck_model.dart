@@ -1,10 +1,9 @@
 // Fichier : lib/models/deck_model.dart
 
-// Représente UNE ligne dans le deck, ex: "4x Sol Ring"
 class DeckCard {
-  final String scryfallId; // L'ID Scryfall unique, pour l'API
-  final String name;       // Le nom, pour l'affichage
-  int quantity;            // Le nombre d'exemplaires
+  final String scryfallId;
+  final String name;
+  int quantity;
 
   DeckCard({
     required this.scryfallId,
@@ -12,14 +11,12 @@ class DeckCard {
     required this.quantity,
   });
 
-  // Méthodes pour convertir notre objet en JSON (pour la sauvegarde)
   Map<String, dynamic> toJson() => {
         'scryfallId': scryfallId,
         'name': name,
         'quantity': quantity,
       };
 
-  // Méthode pour créer notre objet depuis un JSON (pour le chargement)
   factory DeckCard.fromJson(Map<String, dynamic> json) => DeckCard(
         scryfallId: json['scryfallId'],
         name: json['name'],
@@ -27,13 +24,16 @@ class DeckCard {
       );
 }
 
-// Représente le deck complet
 class Deck {
-  String id; // Un ID unique pour identifier le deck
-  String name; // Ex: "Mon Deck Commander"
+  String id;
+  String name;
   List<DeckCard> mainboard;
   List<DeckCard> sideboard;
   String? commanderScryfallId;
+  
+  // --- NOUVEAUX CHAMPS ---
+  List<String> colors; // Ex: ["W", "U", "B"]
+  String format;       // Ex: "Commander", "Standard"
 
   Deck({
     required this.id,
@@ -41,27 +41,30 @@ class Deck {
     List<DeckCard>? mainboard,
     List<DeckCard>? sideboard,
     this.commanderScryfallId,
+    List<String>? colors,
+    this.format = 'Standard',
   })  : this.mainboard = mainboard ?? [],
-        this.sideboard = sideboard ?? [];
+        this.sideboard = sideboard ?? [],
+        this.colors = colors ?? [];
 
-  // Méthodes toJson/fromJson pour la sauvegarde
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'mainboard': mainboard.map((c) => c.toJson()).toList(),
         'sideboard': sideboard.map((c) => c.toJson()).toList(),
         'commanderScryfallId': commanderScryfallId,
+        'colors': colors, // Sauvegarde
+        'format': format,
       };
 
   factory Deck.fromJson(Map<String, dynamic> json) => Deck(
         id: json['id'],
         name: json['name'],
-        mainboard: (json['mainboard'] as List)
-            .map((i) => DeckCard.fromJson(i))
-            .toList(),
-        sideboard: (json['sideboard'] as List)
-            .map((i) => DeckCard.fromJson(i))
-            .toList(),
+        mainboard: (json['mainboard'] as List).map((i) => DeckCard.fromJson(i)).toList(),
+        sideboard: (json['sideboard'] as List).map((i) => DeckCard.fromJson(i)).toList(),
         commanderScryfallId: json['commanderScryfallId'],
+        // Chargement (avec fallback)
+        colors: (json['colors'] as List?)?.map((e) => e.toString()).toList() ?? [],
+        format: json['format'] ?? 'Standard',
       );
 }

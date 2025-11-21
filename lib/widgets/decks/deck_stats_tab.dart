@@ -51,12 +51,39 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     super.initState();
     _calculateStats();
   }
-
+  double _averageCmc = 0.0;
+  double _totalPrice = 0.0;
   /// Fonction principale qui lance tous les calculs
   void _calculateStats() {
     _manaCurveData = _calculateManaCurve();
     _cardTypeData = _calculateCardTypes();
     _pipCountData = _calculatePipCount();
+  double totalCmc = 0;
+    int totalNonLandCards = 0;
+    double tempPrice = 0;
+
+    for (final deckCard in widget.mainboard) {
+      if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
+      
+      try {
+        final scryfallCard = widget.cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
+        
+        // Calcul Prix (EUR)
+        final String? priceStr = scryfallCard.prices['eur'];
+        if (priceStr != null) {
+          tempPrice += (double.tryParse(priceStr) ?? 0) * deckCard.quantity;
+        }
+
+        // Calcul CMC (Exclure les terrains pour la moyenne généralement)
+        if (!scryfallCard.typeLine.toLowerCase().contains('land')) {
+           totalCmc += (scryfallCard.cmc ?? 0) * deckCard.quantity;
+           totalNonLandCards += deckCard.quantity;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    _totalPrice = tempPrice;
+    _averageCmc = totalNonLandCards > 0 ? totalCmc / totalNonLandCards : 0.0;
   }
 
   // ... (Les fonctions _calculateManaCurve, _calculateCardTypes, _calculatePipCount, _getPrimaryType sont INCHANGÉES) ...
@@ -152,6 +179,8 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
       padding: const EdgeInsets.all(12.0).copyWith(bottom: 90.0),
       child: Column(
         children: [
+          _buildSummaryCard(),
+          const SizedBox(height: 16),
           _buildStatsCard(
             title: "Courbe de Mana",
             child: _buildManaCurveChart(),
@@ -177,6 +206,36 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     );
   }
 
+  Widget _buildSummaryCard() {
+    return Card(
+      color: Colors.black.withOpacity(0.4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10.0),
+        side: BorderSide(color: Colors.yellow.shade800.withOpacity(0.6)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildSummaryItem("CMC Moyen", _averageCmc.toStringAsFixed(2)),
+            Container(width: 1, height: 40, color: Colors.white24),
+            _buildSummaryItem("Prix Est.", "${_totalPrice.toStringAsFixed(2)} €"),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryItem(String label, String value) {
+    return Column(
+      children: [
+        Text(label, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14)),
+        const SizedBox(height: 4),
+        Text(value, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
   /// Widget pour la "carte" de fond de chaque graphique
   Widget _buildStatsCard({
     required String title, 

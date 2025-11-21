@@ -68,11 +68,12 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     _initializeAndSearch();
   }
 
-  // --- (Toutes les fonctions de logique : _initializeAndSearch, _startAutomaticProcess, _searchScryfall, _fetchRulings... sont INCHANGÉES) ---
+  String _currentDisplayLang = 'fr';
+
   Future<void> _initializeAndSearch() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _userLang = prefs.getString('glossaryLang') ?? 'fr';
+      _currentDisplayLang = prefs.getString('glossaryLang') ?? 'fr';
       final String assetPath = (_userLang == 'fr') ? 'assets/glossary_fr.json' : 'assets/glossary_en.json';
       final String jsonString = await rootBundle.loadString(assetPath);
       final List<dynamic> jsonList = json.decode(jsonString) as List;
@@ -194,11 +195,13 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     if (connectivityResult.contains(ConnectivityResult.none)) { /* ... */ return; }
     setState(() {
       _pageState = ResultPageState.loading;
-      _statusMessage = "Recherche de \"$cardName\"...";
-      _rulings = []; 
+      _statusMessage = "Recherche de \"$cardName\" (${_currentDisplayLang.toUpperCase()})..."; 
+      _rulings = [];
     });
+
     try {
-      final response = await http.get(Uri.parse('https://api.scryfall.com/cards/named?fuzzy=$cardName&lang=$_userLang'));
+      // Utilise _currentDisplayLang dans l'URL
+      final response = await http.get(Uri.parse('https://api.scryfall.com/cards/named?fuzzy=$cardName&lang=$_currentDisplayLang'));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         final ScryfallCard foundCard = ScryfallCard.fromJson(data);
@@ -222,6 +225,14 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       setState(() { _statusMessage = "Erreur réseau: $e"; _pageState = ResultPageState.error; });
     }
   }
+
+  void _toggleLanguage() {
+    setState(() {
+      _currentDisplayLang = (_currentDisplayLang == 'fr') ? 'en' : 'fr';
+    });
+    _searchScryfall(); // Relance la recherche avec la nouvelle langue
+  }
+
   Future<void> _fetchRulings(String cardId) async {
     setState(() { _isLoadingRulings = true; });
     try {
@@ -316,6 +327,17 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
         backgroundColor: Colors.black,
         
         actions: [
+          if (_pageState == ResultPageState.success)
+            TextButton(
+              onPressed: _toggleLanguage,
+              child: Text(
+                _currentDisplayLang.toUpperCase(),
+                style: GoogleFonts.cinzel(
+                  color: Colors.white, 
+                  fontWeight: FontWeight.bold
+                ),
+              ),
+            ),
           if (_pageState == ResultPageState.success && _foundCard != null) ...[
             // Bouton Wishlist (Toggle)
             IconButton(
@@ -414,7 +436,15 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
                         children: [
                           const SizedBox(height: 8),
                           _buildManaCostRow(_foundCard!.manaCost),
-                          Text(_foundCard!.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                          Text(
+                            _foundCard!.printedName ?? _foundCard!.name, // <-- LA CLÉ EST ICI
+                            style: GoogleFonts.cinzel(
+                              color: Colors.white, 
+                              fontSize: 24, 
+                              fontWeight: FontWeight.bold
+                            ), 
+                            textAlign: TextAlign.center
+                          ),
                           Text(_foundCard!.typeLine, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 18, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
                         ],
                       ),

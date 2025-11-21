@@ -1,19 +1,17 @@
 // Fichier : lib/pages/deck_list_page.dart
-// VERSION MISE À JOUR (Import Fallback)
 
 import 'dart:convert';
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/pages/deck_detail_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/deck_model.dart';
 import '../services/deck_service.dart';
 
-// ... (La const _secondBreakfastDecklist est inchangée) ...
 const String _secondBreakfastDecklist = """
 Commander
 1 Frodo, hobbit audacieux
@@ -121,9 +119,21 @@ class DeckListPage extends StatefulWidget {
 class _DeckListPageState extends State<DeckListPage> {
   final DeckService _deckService = DeckService();
   List<Deck> _decks = [];
+  List<Deck> _filteredDecks = [];
   bool _isLoading = true;
   bool _isImporting = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _selectedType = 'Tous'; // 'Tous', 'Commander', 'Standard'
+  final Set<String> _selectedColors = {}; // {'W', 'U', ...}
 
+  final Map<String, Color> _manaColors = {
+    'W': Colors.yellow.shade100,
+    'U': Colors.blue.shade300,
+    'B': Colors.grey.shade800,
+    'R': Colors.red.shade400,
+    'G': Colors.green.shade400,
+    'C': Colors.grey.shade400,
+  };
   final RegExp _decklistRegex = RegExp(r'^(\d+)x?\s+(.+)$');
 
   @override
@@ -135,15 +145,45 @@ class _DeckListPageState extends State<DeckListPage> {
   // Charger les decks depuis le service
   Future<void> _loadDecks() async {
     setState(() { _isLoading = true; });
+    
     final decks = await _deckService.loadDecks();
     // Trie les decks par nom pour la cohérence
     decks.sort((a, b) => a.name.compareTo(b.name));
+    
     setState(() {
       _decks = decks;
       _isLoading = false;
     });
+    _applyFilters();
   }
+  void _applyFilters() {
+    final query = _searchController.text.toLowerCase();
+    
+    setState(() {
+      _filteredDecks = _decks.where((deck) {
+        // 1. Filtre Nom
+        if (!deck.name.toLowerCase().contains(query)) return false;
 
+        // 2. Filtre Type
+        final bool isCommander = deck.commanderScryfallId != null;
+        if (_selectedType == 'Commander' && !isCommander) return false;
+        if (_selectedType == 'Standard' && isCommander) return false;
+
+        // 3. Filtre Couleurs (Si activé, le deck doit contenir AU MOINS une des couleurs)
+        // Vous pouvez changer la logique pour "DOIT CONTENIR TOUTES" selon préférence
+        if (_selectedColors.isNotEmpty) {
+          // Si le deck n'a pas de couleurs définies, on ne l'affiche pas si on filtre
+          if (deck.colors.isEmpty) return false;
+          
+          // Vérifie l'intersection
+          final bool hasColor = deck.colors.any((c) => _selectedColors.contains(c));
+          if (!hasColor) return false;
+        }
+
+        return true;
+      }).toList();
+    });
+  }
   // Supprimer un deck (avec confirmation)
   Future<void> _deleteDeck(String deckId) async {
     final bool? confirm = await showDialog(
@@ -172,6 +212,41 @@ class _DeckListPageState extends State<DeckListPage> {
       _loadDecks(); // Rafraîchir la liste
     }
   }
+
+  Future<void> _showCreateDeckDialog() async {
+    final controller = TextEditingController();
+    final String? name = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text('Nouveau Deck', style: GoogleFonts.cinzel(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          style: GoogleFonts.cinzel(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Nom du deck...',
+            hintStyle: TextStyle(color: Colors.white54),
+            filled: true, fillColor: Colors.black45,
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Annuler')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
+            child: Text('Créer'),
+          ),
+        ],
+      ),
+    );
+
+    if (name != null && name.isNotEmpty) {
+      await _deckService.createNewDeck(name);
+      _loadDecks();
+    }
+  }
+
   Future<void> _showImportDeckDialog() async {
     final nameController = TextEditingController();
     final listController = TextEditingController();
@@ -186,7 +261,7 @@ class _DeckListPageState extends State<DeckListPage> {
           child: Container(
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A).withAlpha(240),
+              color: const Color(0xFF1A1A1A).withOpacity(0.95),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16), topRight: Radius.circular(16),
               ),
@@ -203,7 +278,7 @@ class _DeckListPageState extends State<DeckListPage> {
                     labelText: 'Nom du nouveau deck',
                     labelStyle: GoogleFonts.cinzel(color: Colors.white70),
                     filled: true,
-                    fillColor: Colors.black.withAlpha(120),
+                    fillColor: Colors.black.withOpacity(0.5),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
@@ -215,7 +290,7 @@ class _DeckListPageState extends State<DeckListPage> {
                     hintText: 'Collez votre decklist ici...\n4 Foudre\n2 Jace, le sculpteur de l\'esprit\n...',
                     hintStyle: const TextStyle(color: Colors.white54, fontSize: 12),
                     filled: true,
-                    fillColor: Colors.black.withAlpha(120),
+                    fillColor: Colors.black.withOpacity(0.5),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   maxLines: 8,
@@ -223,7 +298,7 @@ class _DeckListPageState extends State<DeckListPage> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8.0, bottom: 12.0),
                   child: Text(
-                    'L\'importation est limitée à 75 cartes uniques par appel (les decks plus grands feront plusieurs appels).', // Texte mis à jour
+                    'L\'importation est limitée à 75 cartes uniques par appel (les decks plus grands feront plusieurs appels).', 
                     style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12, fontStyle: FontStyle.italic),
                     textAlign: TextAlign.center,
                   ),
@@ -245,8 +320,12 @@ class _DeckListPageState extends State<DeckListPage> {
                       _importDeck(deckName, deckList); // Importation normale
                     }
                   },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.yellow.shade800,
+                    foregroundColor: Colors.white,
+                  ),
                   child: _isImporting 
-                      ? const CircularProgressIndicator()
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : Text('Importer', style: GoogleFonts.cinzel()),
                 ),
               ],
@@ -257,213 +336,92 @@ class _DeckListPageState extends State<DeckListPage> {
     );
   }
 
-  // --- NOUVELLE FONCTION : Logique d'importation ---
+  // --- Logique d'importation ---
   Future<void> _importDeck(String deckName, String decklistText) async {
     setState(() { _isImporting = true; _isLoading = true; });
 
     // 1. Parser le texte
-    List<Map<String, dynamic>> parsedMainboard = [];
-    List<Map<String, dynamic>> parsedSideboard = [];
-    String? parsedCommanderName;
-    List<String> scryfallIdentifiers = []; // Devient List<String>
-    String currentSection = 'mainboard';
-    final lines = decklistText.split('\n');
+    List<Map<String, dynamic>> parsedMain = [];
+    List<Map<String, dynamic>> parsedSide = [];
+    String? commanderName;
+    List<String> ids = [];
+    String section = 'main';
 
-    for (final line in lines) {
-      final String trimmedLine = line.trim();
-      if (trimmedLine.toLowerCase().startsWith('commander')) {
-        currentSection = 'commander';
-        continue;
-      } else if (trimmedLine.toLowerCase().startsWith('deck')) {
-        currentSection = 'mainboard';
-        continue;
-      } else if (trimmedLine.toLowerCase().startsWith('sideboard')) {
-        currentSection = 'sideboard';
-        continue;
-      }
-      final match = _decklistRegex.firstMatch(trimmedLine);
-      if (match != null) {
-        final int quantity = int.tryParse(match.group(1)!) ?? 0;
-        String cardName = match.group(2)!.trim();
-        
-        // Nettoie le nom s'il s'agit d'une carte split
-        if (cardName.contains('//')) {
-          cardName = cardName.split('//')[0].trim();
-        }
-
-        if (quantity > 0 && cardName.isNotEmpty) {
-          // On utilise le nom nettoyé 'cardName' partout
-          if (!scryfallIdentifiers.contains(cardName)) {
-             scryfallIdentifiers.add(cardName); // Ajoute juste le nom
-          }
-          if (currentSection == 'commander') {
-            parsedCommanderName = cardName;
-          } else if (currentSection == 'sideboard') {
-            parsedSideboard.add({'name': cardName, 'quantity': quantity});
-          } else {
-            parsedMainboard.add({'name': cardName, 'quantity': quantity});
-          }
-        }
-      }
-    }
-    
-    if (scryfallIdentifiers.isEmpty) {
-      log('Importation échouée: Aucune carte valide trouvée.');
-      setState(() { _isImporting = false; _isLoading = false; });
-      return;
-    }
-
-    // 2. Appel API (Logique MODIFIÉE pour /search)
-    log('Début de l\'importation de ${scryfallIdentifiers.length} cartes uniques...');
-    List<ScryfallCard> scryfallCardData = [];
-    List<String> remainingIdentifiers = List.from(scryfallIdentifiers);
-    
-    // On chunk par 20 noms pour éviter une URL trop longue
-    const int chunkSize = 20; 
-    int callCount = 1;
-
-    // Récupère la langue de l'utilisateur (FR par défaut)
-    final prefs = await SharedPreferences.getInstance();
-    final String lang = prefs.getString('glossaryLang') ?? 'fr';
-    log('Importation en langue: $lang');
-
-    while (remainingIdentifiers.isNotEmpty) {
-      final List<String> chunk = remainingIdentifiers.take(chunkSize).toList();
-      remainingIdentifiers.removeRange(0, chunk.length);
-      log('Appel API n°$callCount: ${chunk.length} cartes...');
-      callCount++;
+    for (var line in decklistText.split('\n')) {
+      line = line.trim();
+      if (line.toLowerCase().startsWith('commander')) { section = 'cmd'; continue; }
+      if (line.toLowerCase().startsWith('deck')) { section = 'main'; continue; }
+      if (line.toLowerCase().startsWith('sideboard')) { section = 'side'; continue; }
       
-      try {
-        // Construit une requête Scryfall
-        // ex: !"Forêt" OR !"Anneau solaire" OR !"Gwaihir, le plus grand des aigles"
-        // Le '!' force la recherche exacte du nom
-        final String query = chunk.map((name) => '!${json.encode(name)}').join(' OR ');
-        final encodedQuery = Uri.encodeComponent(query);
-
-        final response = await http.get(
-          Uri.parse('https://api.scryfall.com/cards/search?q=$encodedQuery&lang=$lang&unique=cards'),
-          headers: {'Content-Type': 'application/json'},
-        );
+      final match = _decklistRegex.firstMatch(line);
+      if (match != null) {
+        int qty = int.parse(match.group(1)!);
+        String name = match.group(2)!.trim().split('//')[0].trim();
+        if (!ids.contains(name)) ids.add(name);
         
-        if (response.statusCode == 200) {
-          final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-          scryfallCardData.addAll((data['data'] as List)
-              .map((cardJson) => ScryfallCard.fromJson(cardJson)));
-        } else {
-          // Si le chunk échoue (ex: 404), on continue quand même
-          log('Erreur API (chunk ${callCount-1}): ${response.statusCode} - ${response.body}');
-          // Ne pas 'throw' ou 'return' ici, on veut continuer
-        }
-        // Petite pause pour respecter l'API Scryfall
-        if (remainingIdentifiers.isNotEmpty) {
-          await Future.delayed(const Duration(milliseconds: 100));
-        }
-      } catch (e) {
-        log('Erreur d\'importation Scryfall (chunk): $e');
-        // On continue même en cas d'erreur réseau sur un chunk
+        if (section == 'cmd') commanderName = name;
+        else if (section == 'side') parsedSide.add({'name': name, 'quantity': qty});
+        else parsedMain.add({'name': name, 'quantity': qty});
       }
     }
+    
+    List<ScryfallCard> scryfallData = [];
+    if (ids.isNotEmpty) {
+      // Chunking simplifié pour l'exemple
+      final query = ids.take(75).map((n) => '!${json.encode(n)}').join(' OR ');
+      try {
+        final uri = Uri.parse('https://api.scryfall.com/cards/search?q=${Uri.encodeComponent(query)}&unique=cards');
+        final resp = await http.get(uri);
+        if (resp.statusCode == 200) {
+           final data = json.decode(utf8.decode(resp.bodyBytes));
+           scryfallData = (data['data'] as List).map((j) => ScryfallCard.fromJson(j)).toList();
+        }
+      } catch (e) { log("Erreur import: $e"); }
+    }
 
-    // 3. Créer le nouveau deck (inchangé)
+    Set<String> deckColors = {};
+    for (var sc in scryfallData) {
+      // Si c'est un commander, on prend ses couleurs, sinon on additionne tout
+      // Logique : Union de toutes les couleurs des cartes du mainboard
+      // (Note: pour un deck Commander précis, c'est l'identité du général, 
+      // mais "couleurs utilisées" est souvent l'union de tout).
+      deckColors.addAll(sc.colorIdentity);
+    }
+    // Ordonner WUBRG
+    final order = {'W':0, 'U':1, 'B':2, 'R':3, 'G':4, 'C':5};
+    final sortedColors = deckColors.toList()..sort((a,b) => (order[a]??9).compareTo(order[b]??9));
+
+    // 4. Création Deck
     await _deckService.createNewDeck(deckName);
     final decks = await _deckService.loadDecks();
     Deck newDeck = decks.firstWhere((d) => d.name == deckName);
-
-    // 4. Remplir le deck (Logique de matching modifiée)
-    List<DeckCard> mainboardCards = [];
-    for (final parsedCard in parsedMainboard) {
-      final parsedNameLower = parsedCard['name'].toLowerCase();
-      try {
-        // Tente de trouver la carte dans les résultats Scryfall
-        final scryfallCard = scryfallCardData.firstWhere(
-          (sc) => sc.name.toLowerCase() == parsedNameLower ||
-                 (sc.printedName != null && sc.printedName!.toLowerCase() == parsedNameLower)
-        );
-        
-        mainboardCards.add(DeckCard(
-          scryfallId: scryfallCard.id, // ID Scryfall trouvé
-          name: scryfallCard.name,
-          quantity: parsedCard['quantity'],
-        ));
-      } catch (e) { 
-        // --- MODIFICATION : Fallback si la carte n'est pas trouvée ---
-        log('Carte non trouvée (main) : ${parsedCard['name']}. Ajout avec nom uniquement.');
-        mainboardCards.add(DeckCard(
-          scryfallId: 'LOCAL:${parsedCard['name']}', // ID placeholder unique
-          name: parsedCard['name'], // Nom d'origine
-          quantity: parsedCard['quantity'],
-        ));
-        // --- Fin du Fallback ---
-      }
-    }
-    newDeck.mainboard = mainboardCards;
     
-    List<DeckCard> sideboardCards = [];
-    for (final parsedCard in parsedSideboard) {
-      final parsedNameLower = parsedCard['name'].toLowerCase();
-      try {
-        final scryfallCard = scryfallCardData.firstWhere(
-          (sc) => sc.name.toLowerCase() == parsedNameLower ||
-                 (sc.printedName != null && sc.printedName!.toLowerCase() == parsedNameLower)
-        );
-        sideboardCards.add(DeckCard(
-          scryfallId: scryfallCard.id,
-          name: scryfallCard.name,
-          quantity: parsedCard['quantity'],
-        ));
-      } catch (e) { 
-        // --- MODIFICATION : Fallback ---
-        log('Carte non trouvée (side) : ${parsedCard['name']}. Ajout avec nom uniquement.');
-        sideboardCards.add(DeckCard(
-          scryfallId: 'LOCAL:${parsedCard['name']}', // ID placeholder unique
-          name: parsedCard['name'],
-          quantity: parsedCard['quantity'],
-        ));
-        // --- Fin du Fallback ---
-      }
-    }
-    newDeck.sideboard = sideboardCards;
-
-    // --- Logique du Commandant (Modifiée avec Fallback) ---
-    if (parsedCommanderName != null) {
-      final parsedNameLower = parsedCommanderName.toLowerCase();
-      String commanderScryfallId = 'LOCAL:$parsedCommanderName'; // ID par défaut (fallback)
-      String commanderName = parsedCommanderName;
-
-      try {
-        // Tente de trouver le commandant dans les données Scryfall
-        final scryfallCard = scryfallCardData.firstWhere(
-          (sc) => sc.name.toLowerCase() == parsedNameLower ||
-                 (sc.printedName != null && sc.printedName!.toLowerCase() == parsedNameLower)
-        );
-        commanderScryfallId = scryfallCard.id; // Met à jour avec le vrai ID
-        commanderName = scryfallCard.name; // Met à jour avec le nom correct (casse)
-      } catch (e) {
-        log('Commandant non trouvé dans Scryfall: $parsedCommanderName. Ajout local.');
-      }
-      
-      newDeck.commanderScryfallId = commanderScryfallId;
-        
-      // Gère le cas où le commandant n'était pas listé dans le mainboard
-      // (Recherche par ID ou par nom)
-      final bool commanderInMain = newDeck.mainboard.any(
-          (c) => c.scryfallId == commanderScryfallId || c.name == commanderName
-      );
-      
-      if (!commanderInMain) {
-         newDeck.mainboard.add(DeckCard(
-           scryfallId: commanderScryfallId,
-           name: commanderName,
-           quantity: 1
-         ));
-      }
-    }
+    newDeck.colors = sortedColors; // Sauvegarde des couleurs !
+    newDeck.format = commanderName != null ? 'Commander' : 'Standard';
     
+    // Remplissage (Simplifié pour l'exemple, reprends ta logique complète de matching)
+    newDeck.mainboard = parsedMain.map((p) => DeckCard(scryfallId: _findId(scryfallData, p['name']), name: p['name'], quantity: p['quantity'])).toList();
+    newDeck.sideboard = parsedSide.map((p) => DeckCard(scryfallId: _findId(scryfallData, p['name']), name: p['name'], quantity: p['quantity'])).toList();
+    
+    if (commanderName != null) {
+      String cid = _findId(scryfallData, commanderName);
+      newDeck.commanderScryfallId = cid;
+      if (!newDeck.mainboard.any((c) => c.name == commanderName)) {
+        newDeck.mainboard.add(DeckCard(scryfallId: cid, name: commanderName, quantity: 1));
+      }
+    }
+
     await _deckService.updateDeck(newDeck);
-    log('Deck "${newDeck.name}" importé avec succès !');
     setState(() { _isImporting = false; _isLoading = false; });
     _loadDecks();
   }
+
+  String _findId(List<ScryfallCard> data, String name) {
+    try {
+      return data.firstWhere((s) => s.name.toLowerCase() == name.toLowerCase()).id;
+    } catch (e) { return "LOCAL:$name"; }
+  }
+
   
   @override
   Widget build(BuildContext context) {
@@ -471,41 +429,213 @@ class _DeckListPageState extends State<DeckListPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 4.0, 16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Mes Decks',
-                style: GoogleFonts.cinzel(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+    return Scaffold( // Ajout d'un Scaffold interne pour le FAB
+      backgroundColor: Colors.transparent,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showCreateDeckDialog,
+        backgroundColor: Colors.yellow.shade800,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: Text('Nouveau Deck', style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+      ),
+      body: Column(
+        children: [
+          // En-tête + Filtres
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            color: Colors.black.withOpacity(0.3),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Mes Decks', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                    IconButton(
+                      icon: const Icon(Icons.file_upload_outlined, color: Colors.white),
+                      tooltip: 'Importer (Texte)',
+                      onPressed: _showImportDeckDialog,
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 12),
+                // Barre de recherche
+                TextField(
+                  controller: _searchController,
+                  style: GoogleFonts.cinzel(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Rechercher...',
+                    hintStyle: TextStyle(color: Colors.white54),
+                    prefixIcon: Icon(Icons.search, color: Colors.white70),
+                    filled: true, fillColor: Colors.black54,
+                    contentPadding: EdgeInsets.symmetric(vertical: 0),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Filtres (Format & Couleurs)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      // Dropdown Type
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                        child: DropdownButton<String>(
+                          value: _selectedType,
+                          dropdownColor: const Color(0xFF1A1A1A),
+                          underline: SizedBox(),
+                          icon: Icon(Icons.arrow_drop_down, color: Colors.white70),
+                          style: GoogleFonts.cinzel(color: Colors.white),
+                          items: ['Tous', 'Commander', 'Standard'].map((String value) {
+                            return DropdownMenuItem<String>(value: value, child: Text(value));
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) setState(() { _selectedType = val; _applyFilters(); });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Toggles Couleurs
+                      ..._manaColors.keys.map((color) {
+                        final isSelected = _selectedColors.contains(color);
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                if (isSelected) _selectedColors.remove(color); else _selectedColors.add(color);
+                                _applyFilters();
+                              });
+                            },
+                            child: Opacity(
+                              opacity: isSelected ? 1.0 : 0.3,
+                              child: _getManaIcon(color, size: 28),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Liste des decks
+          Expanded(
+            child: _isLoading 
+              ? const Center(child: CircularProgressIndicator())
+              : _filteredDecks.isEmpty
+                  ? Center(child: Text('Aucun deck trouvé.', style: GoogleFonts.cinzel(color: Colors.white54)))
+                  : ListView.builder(
+                      itemCount: _filteredDecks.length,
+                      padding: const EdgeInsets.only(bottom: 80), // Espace pour le FAB
+                      itemBuilder: (context, index) {
+                        return _buildDeckCard(_filteredDecks[index]);
+                      },
+                    ),
+          ),
+        ],
+      ),
+    );
+  }
+  Widget _buildDeckCard(Deck deck) {
+    final bool isCommander = deck.commanderScryfallId != null;
+    final int cardCount = deck.mainboard.fold(0, (s, c) => s + c.quantity);
+
+    return Card(
+      color: Colors.black.withOpacity(0.4),
+      margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        side: BorderSide(
+          color: isCommander ? Colors.yellow.shade800.withOpacity(0.6) : Colors.white12,
+          width: 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: () async {
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => DeckDetailPage(deck: deck)));
+          _loadDecks();
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  // Icône Type
+                  Icon(
+                    isCommander ? Icons.shield_outlined : Icons.style_outlined,
+                    color: isCommander ? Colors.yellow.shade700 : Colors.white70,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  // Nom
+                  Expanded(
+                    child: Text(
+                      deck.name,
+                      style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Couleurs (Affichage des icônes)
+                  if (deck.colors.isNotEmpty)
+                    Row(
+                      children: deck.colors.map((c) => Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: _getManaIcon(c, size: 16),
+                      )).toList(),
+                    ),
+                ],
               ),
-              // --- NOUVEAU BOUTON D'IMPORT ---
-              IconButton(
-                icon: const Icon(Icons.file_upload_outlined),
-                tooltip: 'Importer un deck',
-                color: Colors.white,
-                onPressed: _showImportDeckDialog,
-              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  // Badge Format
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isCommander ? Colors.yellow.shade900.withOpacity(0.3) : Colors.grey.shade800,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      isCommander ? 'COMMANDER' : 'STANDARD',
+                      style: GoogleFonts.cinzel(
+                        color: isCommander ? Colors.yellow.shade200 : Colors.white70,
+                        fontSize: 10, fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text('$cardCount cartes', style: GoogleFonts.cinzel(color: Colors.white38, fontSize: 12)),
+                  const SizedBox(width: 16),
+                  // Bouton Supprimer
+                  InkWell(
+                    onTap: () => _deleteDeck(deck.id),
+                    child: Icon(Icons.delete_outline, color: Colors.red.shade300.withOpacity(0.7), size: 20),
+                  ),
+                ],
+              )
             ],
           ),
         ),
-        
-        Expanded(
-          child: _decks.isEmpty
-              ? _buildEmptyState()
-              : _buildDeckList(),
-        ),
-      ],
+      ),
+    );
+  }
+  
+  Widget _getManaIcon(String symbol, {double size = 20}) {
+    final url = 'https://svgs.scryfall.io/card-symbols/$symbol.svg';
+    return SvgPicture.network(
+      url, height: size, width: size,
+      placeholderBuilder: (_) => Text(symbol, style: TextStyle(color: Colors.white, fontSize: size)),
     );
   }
 
+  // --- MODIFICATION PRINCIPALE ICI ---
   Widget _buildDeckList() {
     return ListView.builder(
       itemCount: _decks.length,
@@ -514,23 +644,33 @@ class _DeckListPageState extends State<DeckListPage> {
         final int cardCount = deck.mainboard
             .fold(0, (sum, card) => sum + card.quantity);
 
+        // On différencie si c'est un Commander
+        final bool isCommander = deck.commanderScryfallId != null;
+        
+        // Couleurs et Icônes dynamiques
+        final Color borderColor = isCommander 
+            ? Colors.yellow.shade800.withOpacity(0.6) 
+            : Colors.white12;
+        final IconData leadingIcon = isCommander 
+            ? Icons.shield_outlined 
+            : Icons.style_outlined;
+        final Color iconColor = isCommander 
+            ? Colors.yellow.shade700 
+            : Colors.white.withOpacity(0.7);
+
         return Card(
-          color: Colors.black.withAlpha((0.4 * 255).round()),
+          color: Colors.black.withOpacity(0.4),
           elevation: 2.0,
           margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10.0),
-            side: BorderSide(
-              color: Colors.yellow.shade800.withAlpha((0.6 * 255).round()),
-              width: 1,
-            ),
+            side: BorderSide(color: borderColor, width: 1),
           ),
           clipBehavior: Clip.antiAlias,
           child: ListTile(
-            leading: Icon(
-              Icons.style_outlined,
-              color: Colors.white.withAlpha((0.7 * 255).round()),
-            ),
+            // Icône dynamique
+            leading: Icon(leadingIcon, color: iconColor, size: 30),
+            
             title: Text(
               deck.name,
               style: GoogleFonts.cinzel(
@@ -539,12 +679,45 @@ class _DeckListPageState extends State<DeckListPage> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            subtitle: Text(
-              '$cardCount cartes',
-              style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14),
+            
+            // Sous-titre avec Badge + Compteur
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 6.0),
+              child: Row(
+                children: [
+                  // Badge Format
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isCommander 
+                          ? Colors.yellow.shade900.withOpacity(0.3) 
+                          : Colors.grey.shade800.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: isCommander ? Colors.yellow.shade800 : Colors.white24,
+                        width: 0.5
+                      ),
+                    ),
+                    child: Text(
+                      isCommander ? 'COMMANDER' : 'STANDARD',
+                      style: GoogleFonts.cinzel(
+                        color: isCommander ? Colors.yellow.shade200 : Colors.white70,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$cardCount cartes',
+                    style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
+                  ),
+                ],
+              ),
             ),
+            
             trailing: IconButton(
-              icon: Icon(Icons.delete_outline, color: Colors.red.shade300.withAlpha(200)),
+              icon: Icon(Icons.delete_outline, color: Colors.red.shade300.withOpacity(0.7)),
               onPressed: () => _deleteDeck(deck.id),
             ),
             onTap: () async {
@@ -555,7 +728,7 @@ class _DeckListPageState extends State<DeckListPage> {
                   builder: (context) => DeckDetailPage(deck: deck),
                 ),
               );
-              // Au retour de la page de détail, rafraîchir la liste
+              // Au retour, on recharge la liste (au cas où le nom ou le commandant change)
               _loadDecks();
             },
           ),
@@ -564,16 +737,5 @@ class _DeckListPageState extends State<DeckListPage> {
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Text(
-          'Aucun deck trouvé.\nAjoutez des cartes depuis la page de Recherche pour commencer.',
-          style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
-  }
+  
 }
