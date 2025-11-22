@@ -94,9 +94,15 @@ jobs:
           echo "Renommage de $OLD_PATH vers $NEW_PATH"
           mv $OLD_PATH $NEW_PATH
           
-          # On sauvegarde le chemin dans une variable de sortie pour l'étape suivante
+          # On sauvegarde le chemin dans une variable de sortie
           echo "apk_path=$NEW_PATH" >> $GITHUB_OUTPUT
 
+      - name: Upload APK to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MagicCompagnion-v${{ steps.version_step.outputs.version }}
+          path: ${{ steps.rename_apk.outputs.apk_path }}
+          retention-days: 5
       # 10. CRÉER LA RELEASE GITHUB (Avec softprops, le plus fiable)
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -104,11 +110,7 @@ jobs:
           tag_name: v${{ steps.version_step.outputs.version }}
           name: Release v${{ steps.version_step.outputs.version }}
           body: ${{ steps.version_step.outputs.changelog }}
-          
-          # On utilise le fichier renommé
           files: ${{ steps.rename_apk.outputs.apk_path }}
-          
-          # Force la mise à jour si le tag existe déjà (très utile pour le debug)
           fail_on_unmatched_files: true
           make_latest: true
         env:
