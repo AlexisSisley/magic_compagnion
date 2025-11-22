@@ -32,24 +32,12 @@ jobs:
         with:
           tag_prefix: "v"
           version_format: "${major}.${minor}.${patch}"
-          
-          # --- RÈGLES DE VERSIONNING ---
-          
-          # MAJOR : Détecte "BREAKING CHANGE", ou "feat!", "fix!", "refactor!"
-          # On est explicite ici pour forcer la main
+          # Détection explicite des changements majeurs et mineurs
           major_pattern: "(BREAKING CHANGE|feat!|fix!|refactor!)"
-          
-          # MINOR : On simplifie. Si ça commence par "feat", c'est une feature.
-          # Le regex matchera "feat:", "feat(ui):", "feat!:" etc.
           minor_pattern: "^(feat|Feat)"
-          
-          # PATCH : C'est le comportement par défaut si rien au dessus ne match.
-          # (fix, docs, style, refactor, perf, test, chore...) tomberont ici.
-          
-          # --- CONFIGURATION GIT ---
-          bump_each_commit: false   # On veut 1 version par release, pas par commit
-          search_commit_body: true  # Cherche aussi dans la description (utile si Squash merge)
-          user_format_type: "csv"
+          bump_each_commit: false
+          search_commit_body: true
+          user_format_type: csv
 
       # 3. Setup Java
       - name: Setup Java (JDK)
@@ -89,39 +77,39 @@ jobs:
       # 8. BUILD APK AVEC LA NOUVELLE VERSION
       - name: Build Release APK
         run: |
-          # On récupère la version calculée à l'étape 2
           VERSION_NAME=${{ steps.version_step.outputs.version }}
-          # On utilise le nombre de commits total comme build number (pour l'unicité)
           BUILD_NUMBER=${{ steps.version_step.outputs.increment }}
-          
           echo "BUILDING VERSION: $VERSION_NAME+$BUILD_NUMBER"
-          
           flutter build apk --release --build-name=$VERSION_NAME --build-number=$BUILD_NUMBER
 
-      # 9. CRÉER LE TAG GIT ET LA RELEASE GITHUB (CORRIGÉ)
-      # Étape de vérification pour être sûr que le fichier est là avant l'upload
-      - name: Check Artifact Existence
+      # 9. RENOMMAGE (Inspiré de ton exemple)
+      # On renomme l'APK pour qu'il soit propre dans la release (ex: MagicCompagnion-v1.0.1.apk)
+      - name: Rename APK
+        id: rename_apk
         run: |
-          ls -la build/app/outputs/flutter-apk/
-          echo "Fichier à uploader : build/app/outputs/flutter-apk/app-release.apk"
-
-      - name: Create GitHub Release & Tag
-        uses: ncipollo/release-action@v1
-        with:
-          # Utilise la version calculée comme nom de Tag
-          tag: "v${{ steps.version_step.outputs.version }}"
-          name: "Release v${{ steps.version_step.outputs.version }}"
+          OLD_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          NEW_FILENAME="MagicCompagnion-v${{ steps.version_step.outputs.version }}.apk"
+          NEW_PATH="build/app/outputs/flutter-apk/$NEW_FILENAME"
           
-          # Ajoute le message des commits dans la description de la release
+          echo "Renommage de $OLD_PATH vers $NEW_PATH"
+          mv $OLD_PATH $NEW_PATH
+          
+          # On sauvegarde le chemin dans une variable de sortie pour l'étape suivante
+          echo "apk_path=$NEW_PATH" >> $GITHUB_OUTPUT
+
+      # 10. CRÉER LA RELEASE GITHUB (Avec softprops, le plus fiable)
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version_step.outputs.version }}
+          name: Release v${{ steps.version_step.outputs.version }}
           body: ${{ steps.version_step.outputs.changelog }}
           
-          # Attache l'APK compilé à la release
-          artifacts: "build/app/outputs/flutter-apk/app-release.apk"
+          # On utilise le fichier renommé
+          files: ${{ steps.rename_apk.outputs.apk_path }}
           
-          # Token GitHub
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
-          # RÈGLES IMPORTANTES AJOUTÉES :
-          allowUpdates: true       # Permet de modifier une release existante si elle a échoué avant
-          replacesArtifacts: true  # Force le remplacement de l'APK s'il existe déjà
-          makeLatest: true         # Marque cette release comme la "Dernière" officielle
+          # Force la mise à jour si le tag existe déjà (très utile pour le debug)
+          fail_on_unmatched_files: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
