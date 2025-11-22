@@ -1,5 +1,4 @@
 // Fichier : lib/pages/collection_page.dart
-// VERSION FINALE (Tri + Top Valo Wishlist + Refresh)
 
 import 'dart:developer';
 import 'package:flutter/material.dart';
@@ -7,6 +6,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:share_plus/share_plus.dart'; 
 
 import '../models/scryfall_card_model.dart';
 import '../models/search_filters.dart';
@@ -14,7 +14,8 @@ import 'card_detail_page.dart';
 import '../widgets/search/search_filter_modal.dart';
 import '../models/deck_model.dart'; 
 import '../services/collection_service.dart';
-import '../services/wishlist_service.dart'; 
+import '../services/wishlist_service.dart';
+import '../services/local_card_service.dart'; // <-- Import du service local
 
 class CollectionPage extends StatefulWidget {
   const CollectionPage({super.key});
@@ -26,20 +27,19 @@ class CollectionPage extends StatefulWidget {
 class _CollectionPageState extends State<CollectionPage> with TickerProviderStateMixin {
   final CollectionService _collectionService = CollectionService();
   final WishlistService _wishlistService = WishlistService();
+  final LocalCardService _localCardService = LocalCardService();
   
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController(); 
   SearchFilters _activeFilters = SearchFilters(); 
   
-  // Variable de tri
-  String _currentSort = 'Type'; // Options: 'Type', 'Nom', 'Prix', 'Couleur'
-
+  String _currentSort = 'Type';
   List<DeckCard> _collection = [];
   List<DeckCard> _wishlist = [];
   List<ScryfallCard> _fullCardData = [];
   bool _isLoading = true;
+  bool _isImporting = false; // Pour le loader d'import
 
-  // --- Données Financières ---
   double _totalCollectionValue = 0.0;
   double _totalWishlistValue = 0.0;
   double? _evolutionValue;
@@ -52,6 +52,15 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) setState(() {});
+    });
+    
+    // On s'assure que le service local est chargé (silencieusement)
+    _localCardService.loadLocalData().then((_) {
+       if (mounted) setState(() {}); // Rafraîchir si le chargement finit pendant qu'on est là
+    });
+    
     _loadData();
   }
 
@@ -82,63 +91,86 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     }
   }
 
+  // --- LOGIQUE HYBRIDE (LOCAL + API) ---
   Future<void> _loadFullCardData() async {
     final allCards = [..._collection, ..._wishlist];
-    final uniqueCardIdentifiers = allCards
+    
+    // Liste des IDs uniques
+    final uniqueIds = allCards
         .where((card) => card.scryfallId.isNotEmpty && !card.scryfallId.startsWith('LOCAL:'))
-        .map((card) => {"id": card.scryfallId})
+        .map((card) => card.scryfallId)
         .toSet()
         .toList();
 
-    if (uniqueCardIdentifiers.isEmpty) {
+    if (uniqueIds.isEmpty) {
       _fullCardData = [];
       return;
     }
     
     List<ScryfallCard> loadedCards = [];
-    const int chunkSize = 75;
-    
-    for (var i = 0; i < uniqueCardIdentifiers.length; i += chunkSize) {
-      final end = (i + chunkSize < uniqueCardIdentifiers.length) ? i + chunkSize : uniqueCardIdentifiers.length;
-      final batch = uniqueCardIdentifiers.sublist(i, end);
-      final requestBody = json.encode({'identifiers': batch});
+    List<String> missingIds = []; // IDs non trouvés en local
 
-      try {
-        final response = await http.post(
-          Uri.parse('https://api.scryfall.com/cards/collection'),
-          headers: {'Content-Type': 'application/json'},
-          body: requestBody,
-        );
-        if (response.statusCode == 200) {
-          final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-          final List<ScryfallCard> batchCards = (data['data'] as List)
-              .map((cardJson) => ScryfallCard.fromJson(cardJson))
-              .toList();
-          loadedCards.addAll(batchCards);
+    // 1. Recherche dans la base locale (Oracle)
+    if (_localCardService.isLoaded) {
+      for (String id in uniqueIds) {
+        final localCard = _localCardService.getCardById(id);
+        if (localCard != null) {
+          loadedCards.add(localCard);
+        } else {
+          missingIds.add(id);
         }
-      } catch (e) {
-        log('Erreur chargement Scryfall: $e');
+      }
+    } else {
+      // Si pas chargé, tout doit venir de l'API
+      missingIds = uniqueIds;
+    }
+
+    // 2. Récupération API pour les manquants (Batch)
+    if (missingIds.isNotEmpty) {
+      const int chunkSize = 75;
+      for (var i = 0; i < missingIds.length; i += chunkSize) {
+        final end = (i + chunkSize < missingIds.length) ? i + chunkSize : missingIds.length;
+        final batch = missingIds.sublist(i, end);
+        
+        // Formatage pour l'endpoint /collection
+        final requestBody = json.encode({'identifiers': batch.map((id) => {'id': id}).toList()});
+
+        try {
+          final response = await http.post(
+            Uri.parse('https://api.scryfall.com/cards/collection'),
+            headers: {'Content-Type': 'application/json'},
+            body: requestBody,
+          );
+          
+          if (response.statusCode == 200) {
+            final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+            final List<ScryfallCard> batchCards = (data['data'] as List)
+                .map((cardJson) => ScryfallCard.fromJson(cardJson))
+                .toList();
+            loadedCards.addAll(batchCards);
+          }
+        } catch (e) {
+          log('Erreur chargement Scryfall (Batch): $e');
+        }
       }
     }
+    
     _fullCardData = loadedCards;
   }
 
   Future<void> _calculateFinancials() async {
-    // 1. Calcul Collection
     double tempColTotal = 0.0;
     for (var deckCard in _collection) {
        tempColTotal += _getCardPrice(deckCard.scryfallId) * deckCard.quantity;
     }
     _totalCollectionValue = tempColTotal;
 
-    // 2. Calcul Wishlist
     double tempWishTotal = 0.0;
     for (var deckCard in _wishlist) {
        tempWishTotal += _getCardPrice(deckCard.scryfallId) * deckCard.quantity;
     }
     _totalWishlistValue = tempWishTotal;
     
-    // Sauvegarde historique collection uniquement
     await _collectionService.recordDailyValue(_totalCollectionValue);
     final evo = await _collectionService.getEvolutionSince(7);
     
@@ -168,15 +200,145 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
         list.remove(card);
       }
     });
-    // Recalcul rapide
     _calculateFinancials(); 
     serviceUpdate();
   }
 
-  // --- LOGIQUE DE TRI ---
+  Future<void> _showBulkImportDialog() async {
+    final TextEditingController importController = TextEditingController();
+    
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        // On récupère la hauteur du clavier ET la hauteur de la barre de navigation
+        final double keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+        final double navBarHeight = MediaQuery.of(context).padding.bottom;
+
+        return Padding(
+          // Padding externe : Pousse la modale au-dessus du clavier
+          padding: EdgeInsets.only(bottom: keyboardHeight),
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.6,
+            // Padding interne : On ajoute la hauteur de la barre de nav au padding du bas (16 + navBarHeight)
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + navBarHeight),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              border: Border(top: BorderSide(color: Colors.yellow.shade800, width: 2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Importation de masse", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                  ],
+                ),
+                Text(
+                  "Collez une liste de cartes (format Arena ou texte).\nEx: '4 Sol Ring' ou juste 'Sol Ring'.\nL'application gérera automatiquement les paquets de 75 cartes.",
+                  style: GoogleFonts.roboto(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: TextField(
+                    controller: importController,
+                    maxLines: null,
+                    expands: true,
+                    style: GoogleFonts.cinzel(color: Colors.white, fontSize: 12),
+                    decoration: InputDecoration(
+                      hintText: "Collez votre liste ici...",
+                      hintStyle: const TextStyle(color: Colors.white24),
+                      filled: true,
+                      fillColor: Colors.black45,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    if (importController.text.trim().isEmpty) return;
+                    Navigator.pop(context); // Fermer la modale
+                    _performBulkImport(importController.text);
+                  },
+                  icon: const Icon(Icons.download),
+                  label: Text("Lancer l'importation", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.yellow.shade800,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                )
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _performBulkImport(String text) async {
+    setState(() { _isLoading = true; _isImporting = true; });
+    
+    // Découper par ligne
+    List<String> lines = text.split('\n').where((s) => s.trim().isNotEmpty).toList();
+    
+    final result = await _collectionService.importBatchCards(lines);
+    
+    await _loadData(forceLoading: false); // Recharger la collection
+    
+    if (mounted) {
+      setState(() { _isLoading = false; _isImporting = false; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("Import terminé : ${result['added']} cartes ajoutées.", style: GoogleFonts.cinzel()),
+        backgroundColor: Colors.green.shade700,
+        duration: const Duration(seconds: 3),
+      ));
+    }
+  }
+
+  void _exportCurrentList() {
+    final bool isWishlist = _tabController.index == 1;
+    final List<DeckCard> sourceList = isWishlist ? _wishlist : _collection;
+    final double totalValue = isWishlist ? _totalWishlistValue : _totalCollectionValue;
+    final String title = isWishlist ? "Ma Wishlist Magic" : "Ma Collection Magic";
+
+    if (sourceList.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Rien à exporter !', style: GoogleFonts.cinzel()),
+        backgroundColor: Colors.red.shade700,
+      ));
+      return;
+    }
+
+    StringBuffer sb = StringBuffer();
+    sb.writeln(title);
+    sb.writeln("====================");
+    sb.writeln("Total cartes : ${sourceList.fold(0, (s, c) => s + c.quantity)}");
+    sb.writeln("Valeur estimée : ${totalValue.toStringAsFixed(2)} €");
+    sb.writeln("====================");
+    sb.writeln("");
+
+    final sortedList = List<DeckCard>.from(sourceList)..sort((a, b) => a.name.compareTo(b.name));
+
+    for (var card in sortedList) {
+      double price = _getCardPrice(card.scryfallId);
+      String priceStr = price > 0 ? "(${price.toStringAsFixed(2)}€/u)" : "";
+      sb.writeln("${card.quantity}x ${card.name} $priceStr");
+    }
+
+    sb.writeln("");
+    sb.writeln("Généré par Magic Companion");
+
+    Share.share(sb.toString());
+  }
 
   List<DeckCard> _filterAndSortList(List<DeckCard> list) {
-    // 1. Filtre
     final query = _searchController.text.toLowerCase();
     List<DeckCard> filtered = list.where((card) {
       final matchesName = card.name.toLowerCase().contains(query);
@@ -197,7 +359,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
       return true;
     }).toList();
 
-    // 2. Tri
     switch (_currentSort) {
       case 'Nom':
         filtered.sort((a, b) => a.name.compareTo(b.name));
@@ -206,7 +367,7 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
         filtered.sort((a, b) {
           final priceA = _getCardPrice(a.scryfallId);
           final priceB = _getCardPrice(b.scryfallId);
-          return priceB.compareTo(priceA); // Descendant (plus cher en premier)
+          return priceB.compareTo(priceA);
         });
         break;
       case 'Couleur':
@@ -218,7 +379,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
         break;
       case 'Type':
       default:
-        // Le tri par type est géré par le groupement plus tard
         filtered.sort((a, b) => a.name.compareTo(b.name));
         break;
     }
@@ -229,8 +389,8 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
   int _getCardColorIndex(String id) {
     try {
       final sc = _fullCardData.firstWhere((s) => s.id == id);
-      if (sc.colorIdentity.isEmpty) return 10; // Incolore/Artefact
-      if (sc.colorIdentity.length > 1) return 6; // Multicolore
+      if (sc.colorIdentity.isEmpty) return 10; 
+      if (sc.colorIdentity.length > 1) return 6; 
       const map = {'W': 1, 'U': 2, 'B': 3, 'R': 4, 'G': 5};
       return map[sc.colorIdentity.first] ?? 10;
     } catch (e) { return 10; }
@@ -244,20 +404,39 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     if (newFilters != null) { setState(() => _activeFilters = newFilters); }
   }  
 
-  // --- UI ---
-
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // --- En-tête ---
         Container(
           padding: const EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 0.0),
           color: Colors.black.withOpacity(0.3),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Ma Collection', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Ma Collection', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  Row(
+                    children: [
+                      // BOUTON IMPORT (Nouveau)
+                      IconButton(
+                        icon: const Icon(Icons.file_upload_outlined),
+                        color: Colors.yellow.shade700,
+                        tooltip: 'Importer en masse',
+                        onPressed: _showBulkImportDialog,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.share),
+                        color: Colors.white,
+                        tooltip: 'Exporter la liste',
+                        onPressed: _exportCurrentList,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
               
               TextField(
@@ -315,79 +494,76 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
           ),
         ),
 
-        // --- Contenu ---
         Expanded(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator(color: Colors.white))
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(color: Colors.white),
+                      if (_isImporting) ...[
+                        const SizedBox(height: 16),
+                        Text("Importation de masse en cours...", style: GoogleFonts.cinzel(color: Colors.yellow.shade700)),
+                        const SizedBox(height: 8),
+                        const Text("Traitement des paquets de 75 cartes (Scryfall Limit)", style: TextStyle(color: Colors.white54, fontSize: 10)),
+                      ]
+                    ],
+                  ),
+                )
               : TabBarView(
                   controller: _tabController,
                   children: [
-                    // ONGLET COLLECTION
-                    RefreshIndicator(
-                      onRefresh: () => _loadData(forceLoading: false),
-                      color: Colors.yellow.shade800,
-                      backgroundColor: const Color(0xFF1A1A1A),
-                      child: Column(
-                        children: [
-                          if (_hasCalculatedFinance) 
-                            _buildFinancialHeader(
-                              title: "Valeur Collection",
-                              value: _totalCollectionValue,
-                              evoVal: _evolutionValue,
-                              evoPct: _evolutionPercent,
-                              onDetailPressed: () => _showFinancialDetail(_collection, "Top Collection"),
-                            ),
-                          Expanded(
-                            child: _buildListView(
-                              listSource: _collection,
-                              isWishlist: false,
-                              emptyMessage: "Votre collection est vide."
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    // ONGLET WISHLIST
-                    RefreshIndicator(
-                      onRefresh: () => _loadData(forceLoading: false),
-                      color: Colors.yellow.shade800,
-                      backgroundColor: const Color(0xFF1A1A1A),
-                      child: Column(
-                        children: [
-                          if (_hasCalculatedFinance) 
-                            _buildFinancialHeader(
-                              title: "Coût estimé Wishlist",
-                              value: _totalWishlistValue,
-                              evoVal: null,
-                              evoPct: null,
-                              // --- AJOUTÉ ICI : Le bouton Top Valo pour Wishlist ---
-                              onDetailPressed: () => _showFinancialDetail(_wishlist, "Top Wishlist"),
-                            ),
-                          Expanded(
-                            child: _buildListView(
-                              listSource: _wishlist,
-                              isWishlist: true,
-                              emptyMessage: "Votre wishlist est vide."
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // Tab Collection (Ton code existant pour l'affichage)
+                    _buildCollectionTab(),
+                    // Tab Wishlist (Ton code existant)
+                    _buildWishlistTab(),
                   ],
-                ),
+                ),       
         ),
       ],
     );
   }
 
-  // --- WIDGET : En-tête Financier ---
+  Widget _buildCollectionTab() {
+     return RefreshIndicator(
+        onRefresh: () => _loadData(forceLoading: false),
+        child: Column(
+          children: [
+             if (_hasCalculatedFinance) 
+                _buildFinancialHeader(
+                  title: "Valeur Collection", value: _totalCollectionValue, 
+                  evoVal: _evolutionValue, evoPct: _evolutionPercent,
+                  onDetailPressed: () => _showFinancialDetail(_collection, "Top Collection"),
+                ),
+             Expanded(child: _buildListView(listSource: _collection, isWishlist: false, emptyMessage: "Collection vide.")),
+          ],
+        ),
+     );
+  }
+
+  Widget _buildWishlistTab() {
+     return RefreshIndicator(
+        onRefresh: () => _loadData(forceLoading: false),
+        child: Column(
+          children: [
+             if (_hasCalculatedFinance) 
+                _buildFinancialHeader(
+                  title: "Coût Wishlist", value: _totalWishlistValue, 
+                  evoVal: null, evoPct: null,
+                  onDetailPressed: () => _showFinancialDetail(_wishlist, "Top Wishlist"),
+                ),
+             Expanded(child: _buildListView(listSource: _wishlist, isWishlist: true, emptyMessage: "Wishlist vide.")),
+          ],
+        ),
+     );
+  }
+
   Widget _buildFinancialHeader({
     required String title,
     required double value,
     double? evoVal,
     double? evoPct,
-    required VoidCallback onDetailPressed, // <-- Callback ajouté
+    required VoidCallback onDetailPressed,
   }) {
     final bool hasEvolution = evoVal != null;
     final isPositive = (evoVal ?? 0) >= 0;
@@ -446,7 +622,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
           else if (title.contains('Collection'))
              Text('Pas assez de données', style: GoogleFonts.cinzel(color: Colors.white38, fontSize: 10), textAlign: TextAlign.right),
 
-          // Bouton Détails (Toujours affiché maintenant via le callback)
           IconButton(
             icon: const Icon(Icons.analytics_outlined, color: Colors.white),
             tooltip: 'Top Valorisation',
@@ -457,7 +632,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     );
   }
 
-  // --- MODALE : Détail Financier (Modifiée pour prendre une source) ---
   void _showFinancialDetail(List<DeckCard> sourceList, String title) {
     List<Map<String, dynamic>> topCards = [];
     
@@ -539,8 +713,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
       },
     );
   }
-
-  // --- CONSTRUCTION DE LA LISTE ---
 
   Widget _buildListView({
     required List<DeckCard> listSource,
@@ -662,7 +834,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     );
   }
 
-  // --- Helpers ---
   List<_GroupedCardList> _buildGroupedList(List<DeckCard> cardList) {
     Map<String, List<DeckCard>> groupedMap = {
       'Créatures': [], 'Planeswalkers': [], 'Sorts': [], 
@@ -687,7 +858,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     List<_GroupedCardList> groupedList = [];
     groupedMap.forEach((title, cards) {
       if (cards.isNotEmpty) {
-        // Tri interne si on est en mode 'Type' (par nom par défaut)
         cards.sort((a, b) => a.name.compareTo(b.name));
         groupedList.add(_GroupedCardList(title: title, cards: cards));
       }

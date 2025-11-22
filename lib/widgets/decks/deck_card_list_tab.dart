@@ -11,6 +11,7 @@ class DeckCardListTab extends StatefulWidget {
   final List<ScryfallCard> fullCardData;
   final List<DeckCard> collection;
   final String? commanderId;
+  // Callback pour dire au parent de recharger l'état global (finance, stats...)
   final Function(DeckCard, int) onUpdateQuantity;
   final Function(DeckCard) onSetCommander;
 
@@ -29,7 +30,6 @@ class DeckCardListTab extends StatefulWidget {
 }
 
 class _DeckCardListTabState extends State<DeckCardListTab> {
-  // Par défaut, on reste sur la vue "Liste Classique"
   bool _isGridView = false; 
 
   @override
@@ -44,19 +44,16 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
 
     return Column(
       children: [
-        // --- BARRE D'OUTILS (Bouton de bascule) ---
+        // --- BARRE D'OUTILS ---
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Info sur le nombre de cartes (optionnel)
               Text(
                 "${widget.cardList.fold(0, (s, c) => s + c.quantity)} cartes",
                 style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
               ),
-              
-              // Le bouton de bascule
               Row(
                 children: [
                   Text(
@@ -69,12 +66,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                       _isGridView ? Icons.grid_view : Icons.view_list, 
                       color: Colors.yellow.shade700
                     ),
-                    tooltip: "Changer de vue",
-                    onPressed: () {
-                      setState(() {
-                        _isGridView = !_isGridView;
-                      });
-                    },
+                    onPressed: () => setState(() => _isGridView = !_isGridView),
                   ),
                 ],
               ),
@@ -82,10 +74,9 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
           ),
         ),
 
-        // --- LISTE OU GRILLE ---
+        // --- LISTE ---
         Expanded(
           child: ListView.builder(
-            // Padding en bas pour ne pas être caché par le FAB ou la TabBar
             padding: const EdgeInsets.only(bottom: 90.0, top: 0.0, left: 4.0, right: 4.0),
             itemCount: groupedList.length,
             itemBuilder: (context, index) {
@@ -95,20 +86,13 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Titre de la section (ex: Créatures)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
                     child: Text(
                       '${group.title} ($groupCardCount)',
-                      style: GoogleFonts.cinzel(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  
-                  // Affichage conditionnel : Grille ou Liste
                   _isGridView 
                       ? _buildGroupGrid(group.cards) 
                       : _buildGroupList(group.cards),
@@ -121,21 +105,19 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     );
   }
 
-  // --- VUE LISTE (Classique) ---
   Widget _buildGroupList(List<DeckCard> cards) {
     return Column(
       children: cards.map((card) => _buildItem(card, isGrid: false)).toList(),
     );
   }
 
-  // --- VUE GRILLE (Nouvelle) ---
   Widget _buildGroupGrid(List<DeckCard> cards) {
     return GridView.builder(
-      shrinkWrap: true, // Important car on est dans une ListView
-      physics: const NeverScrollableScrollPhysics(), // Le scroll est géré par la ListView parente
+      shrinkWrap: true, 
+      physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3, // 3 cartes par ligne
-        childAspectRatio: 0.68, // Ratio d'une carte Magic (~63x88mm)
+        crossAxisCount: 3,
+        childAspectRatio: 0.68,
         crossAxisSpacing: 6,
         mainAxisSpacing: 6,
       ),
@@ -146,62 +128,135 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     );
   }
 
-  // --- Constructeur d'item (Gère les données communes) ---
   Widget _buildItem(DeckCard card, {required bool isGrid}) {
     final bool isCommander = widget.commanderId == card.scryfallId;
-    
     ScryfallCard? scryfallCard;
     try {
       if (!card.scryfallId.startsWith('LOCAL:')) {
         scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId);
       }
     } catch (e) { /* Fallback */ }
-
     final bool isInCollection = widget.collection.any((c) => c.scryfallId == card.scryfallId);
 
-    // Fonctions de callback
     void onPlus() => widget.onUpdateQuantity(card, 1);
     void onMinus() => widget.onUpdateQuantity(card, -1);
-    void onLongPress() => widget.onSetCommander(card);
+    
+    // NOUVEAU : Appui long ouvre un menu d'options
+    void onLongPress() => _showCardOptions(context, card, isCommander);
+    
     void onTap() {
       if (scryfallCard != null) {
         Navigator.push(context, MaterialPageRoute(
           builder: (context) => RecognitionResultPage(cardName: scryfallCard!.name),
         ));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Données non disponibles pour "${card.name}"', style: GoogleFonts.cinzel()),
-        ));
       }
     }
 
-    // Retourne le bon widget selon le mode
     if (isGrid) {
       return DeckCardGridTile(
-        card: card,
-        scryfallCard: scryfallCard,
-        isCommander: isCommander,
-        isInCollection: isInCollection,
-        onPlus: onPlus,
-        onMinus: onMinus,
-        onTap: onTap,
-        onLongPress: onLongPress,
+        card: card, scryfallCard: scryfallCard, isCommander: isCommander,
+        isInCollection: isInCollection, onPlus: onPlus, onMinus: onMinus,
+        onTap: onTap, onLongPress: onLongPress,
       );
     } else {
       return DeckCardTile(
-        card: card,
-        scryfallCard: scryfallCard,
-        isCommander: isCommander,
-        isInCollection: isInCollection,
-        onPlus: onPlus,
-        onMinus: onMinus,
-        onTap: onTap,
-        onLongPress: onLongPress,
+        card: card, scryfallCard: scryfallCard, isCommander: isCommander,
+        isInCollection: isInCollection, onPlus: onPlus, onMinus: onMinus,
+        onTap: onTap, onLongPress: onLongPress,
       );
     }
   }
 
-  // --- Logique de groupement (Inchangée) ---
+  // --- MENU D'OPTIONS (PROXIES / COMMANDER) ---
+  void _showCardOptions(BuildContext context, DeckCard card, bool isAlreadyCommander) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      builder: (context) {
+        // On récupère la hauteur du clavier ET la hauteur de la barre de navigation
+        final double keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+        final double navBarHeight = MediaQuery.of(context).padding.bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: keyboardHeight),
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.6,
+            // Padding interne : On ajoute la hauteur de la barre de nav au padding du bas (16 + navBarHeight)
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + navBarHeight),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              border: Border(top: BorderSide(color: Colors.yellow.shade800, width: 2)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                const Divider(color: Colors.white24),
+                
+                // Option 1: Commander
+                ListTile(
+                  leading: Icon(Icons.star, color: isAlreadyCommander ? Colors.yellow : Colors.white70),
+                  title: Text(isAlreadyCommander ? 'Déjà Commandant' : 'Définir comme Commandant', style: GoogleFonts.cinzel(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (!isAlreadyCommander) widget.onSetCommander(card);
+                  },
+                ),
+                
+                // Option 2: Proxies
+                const Divider(color: Colors.white10),
+                Text("Gestion des Proxies", style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Nombre de proxies :", style: GoogleFonts.cinzel(color: Colors.white)),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline, color: Colors.white70),
+                          onPressed: () {
+                            if (card.proxyQuantity > 0) {
+                              setState(() => card.proxyQuantity--);
+                              // Hack pour forcer la mise à jour de l'interface parente si besoin
+                              // (Dans une vraie architecture, on passerait par le service, mais ici l'objet est muté par référence)
+                              // On déclenche un update quantity de 0 pour forcer le refresh du parent
+                              widget.onUpdateQuantity(card, 0); 
+                            }
+                            // Force le rebuild du modal pour voir le chiffre changer
+                            (context as Element).markNeedsBuild();
+                          },
+                        ),
+                        Text('${card.proxyQuantity} / ${card.quantity}', style: GoogleFonts.cinzel(color: Colors.blueGrey.shade200, fontSize: 18, fontWeight: FontWeight.bold)),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline, color: Colors.white70),
+                          onPressed: () {
+                            if (card.proxyQuantity < card.quantity) {
+                              setState(() => card.proxyQuantity++);
+                              widget.onUpdateQuantity(card, 0);
+                            }
+                            (context as Element).markNeedsBuild();
+                          },
+                        ),
+                      ],
+                    )
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Les proxies sont exclus du calcul financier.",
+                  style: TextStyle(color: Colors.white38, fontSize: 11, fontStyle: FontStyle.italic),
+                )
+              ],
+            ),
+          ),
+        );        
+      }
+    );
+  }
+
+  // --- LOGIQUE DE GROUPEMENT (Inchangée) ---
   List<_GroupedCardList> _buildGroupedList(List<DeckCard> cardList) {
     Map<String, List<DeckCard>> groupedMap = {
       'Créatures': [], 'Planeswalkers': [], 'Sorts': [], 

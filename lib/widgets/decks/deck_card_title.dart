@@ -1,4 +1,4 @@
-// Fichier : lib/widgets/decks/deck_card_tile.dart
+// Fichier : lib/widgets/decks/deck_card_title.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -63,6 +63,23 @@ class DeckCardTile extends StatelessWidget {
             Text('${card.quantity}x', style: GoogleFonts.cinzel(color: Colors.yellow.shade700, fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(width: 8),
             Expanded(child: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16), overflow: TextOverflow.ellipsis)),
+            
+            // --- INDICATEUR PROXY ---
+            if (card.proxyQuantity > 0)
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.shade700,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.white38)
+                ),
+                child: Text(
+                  'P:${card.proxyQuantity}',
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            
             if (isCommander) const Padding(padding: EdgeInsets.only(left: 4.0), child: Icon(Icons.star, color: Colors.yellow, size: 16)),
           ],
         ),
@@ -116,7 +133,6 @@ class DeckCardGridTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // On préfère l'image 'normal' pour la grille si dispo, sinon 'small'
     final imageUrl = scryfallCard?.imageUrl ?? scryfallCard?.smallImageUrl;
 
     return GestureDetector(
@@ -140,7 +156,7 @@ class DeckCardGridTile extends StatelessWidget {
                 ? Image.network(
                     imageUrl,
                     fit: BoxFit.cover,
-                    alignment: Alignment.topCenter, // Focus sur l'illustration
+                    alignment: Alignment.topCenter, 
                     errorBuilder: (ctx, e, s) => Container(color: Colors.grey.shade900, child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white24))),
                   )
                 : Container(
@@ -148,7 +164,7 @@ class DeckCardGridTile extends StatelessWidget {
                     child: Center(child: Text(card.name, textAlign: TextAlign.center, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 12))),
                   ),
             
-            // Gradient noir en bas pour lisibilité
+            // Gradient noir en bas
             Positioned(
               bottom: 0, left: 0, right: 0, height: 60,
               child: Container(
@@ -160,6 +176,20 @@ class DeckCardGridTile extends StatelessWidget {
                 ),
               ),
             ),
+
+            // --- INDICATEUR PROXY (Coin supérieur) ---
+            if (card.proxyQuantity > 0)
+              Positioned(
+                top: 30, right: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(color: Colors.blueGrey.shade800, shape: BoxShape.circle, border: Border.all(color: Colors.white54)),
+                  child: Text(
+                    'P',
+                    style: GoogleFonts.cinzel(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
 
             // --- 2. Coût de Mana (Haut Droite) ---
             if (scryfallCard?.manaCost != null)
@@ -192,13 +222,8 @@ class DeckCardGridTile extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    // Moins
                     InkWell(onTap: onMinus, child: const Icon(Icons.remove, color: Colors.white70, size: 20)),
-                    
-                    // Quantité
                     Text('${card.quantity}', style: GoogleFonts.cinzel(color: Colors.yellow.shade700, fontSize: 18, fontWeight: FontWeight.bold)),
-                    
-                    // Plus
                     InkWell(onTap: onPlus, child: const Icon(Icons.add, color: Colors.white70, size: 20)),
                   ],
                 ),
@@ -211,7 +236,6 @@ class DeckCardGridTile extends StatelessWidget {
   }
 }
 
-// --- Helper pour afficher les icônes de mana ---
 class ManaHelper {
   static Widget buildManaCostRow(String? manaCost) {
     if (manaCost == null || manaCost.isEmpty) return const SizedBox.shrink();

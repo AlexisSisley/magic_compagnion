@@ -1,5 +1,4 @@
 // Fichier : lib/pages/scanner_page.dart
-// VERSION CORRIGÉE (Gère le cycle de vie sans FutureBuilder)
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -19,10 +18,12 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   
   CameraController? _controller;
   
-  // Remplacent le Future
   bool _isCameraInitialized = false;
   bool _isPermissionDenied = false;
   String _errorMessage = "";
+  
+  // NOUVEAU : Gestion du flash
+  bool _isFlashOn = false;
 
   @override
   void initState() {
@@ -34,30 +35,21 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
     final CameraController? cameraController = _controller;
 
-    // Si l'app n'est plus active (pause, inactive)
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
       if (cameraController != null) {
         cameraController.dispose();
-        if (mounted) {
-          setState(() {
-            _isCameraInitialized = false;
-          });
-        }
+        if (mounted) setState(() => _isCameraInitialized = false);
       }
     } else if (state == AppLifecycleState.resumed) {
-      // Si on revient sur l'app et que la caméra n'est pas prête
       if (cameraController == null || !cameraController.value.isInitialized) {
          _initializeCamera();
       }
     }
   }
 
-  /// Initialise (ou ré-initialise) le contrôleur de la caméra
   Future<void> _initializeCamera() async {
-    // Réinitialise l'état
     if (mounted) {
       setState(() {
         _isCameraInitialized = false;
@@ -66,66 +58,88 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
       });
     }
     
-    // Nettoyer l'ancien contrôleur s'il existe
-    if (_controller != null) {
-      await _controller!.dispose();
-    }
+    if (_controller != null) await _controller!.dispose();
   
-    // 1. Demander la permission
     var status = await Permission.camera.request();
     if (!status.isGranted) {
       if (mounted) {
         setState(() {
           _isPermissionDenied = true;
-          _errorMessage = "Permission caméra refusée. Veuillez l'activer dans les réglages.";
+          _errorMessage = "Permission caméra refusée.";
         });
       }
       return;
     }
 
-    // 2. Essayer d'initialiser
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-         if (mounted) {
-          setState(() {
-            _isPermissionDenied = true; // Utilise le même état pour afficher l'erreur
-            _errorMessage = "Aucune caméra disponible sur cet appareil.";
+         if (mounted) setState(() {
+            _isPermissionDenied = true;
+            _errorMessage = "Aucune caméra disponible.";
           });
-        }
         return;
       }
 
-      // Préfère la caméra arrière
       final firstCamera = cameras.firstWhere(
           (c) => c.lensDirection == CameraLensDirection.back, 
           orElse: () => cameras.first
       );
       
+      // AMÉLIORATION : Utilisation de ResolutionPreset.max pour une meilleure OCR
       _controller = CameraController(
         firstCamera,
-        ResolutionPreset.high,
+        ResolutionPreset.max, 
         enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
       );
       
-      // 3. Attendre l'initialisation
       await _controller!.initialize();
       
-      // 4. Mettre à jour l'état si la page est toujours montée
-      if (mounted) {
-        setState(() {
-          _isCameraInitialized = true;
-        });
-      }
+      // Désactiver le flash par défaut au démarrage
+      await _controller!.setFlashMode(FlashMode.off);
+
+      if (mounted) setState(() => _isCameraInitialized = true);
     } catch (e) {
-      // Gère les erreurs d'initialisation (ex: caméra en cours d'utilisation)
       if (mounted) {
         setState(() {
           _isPermissionDenied = true;
           _errorMessage = "Erreur caméra: ${e.toString()}";
         });
       }
-      print("Erreur initialisation caméra: $e");
+    }
+  }
+
+  Future<void> _toggleFlash() async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    
+    try {
+      if (_isFlashOn) {
+        await _controller!.setFlashMode(FlashMode.off);
+      } else {
+        await _controller!.setFlashMode(FlashMode.torch);
+      }
+      setState(() {
+        _isFlashOn = !_isFlashOn;
+      });
+    } catch (e) {
+      print("Erreur flash: $e");
+    }
+  }
+  
+  // NOUVEAU : Focus manuel au toucher
+  Future<void> _onTapFocus(TapDownDetails details, BoxConstraints constraints) async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+
+    final offset = Offset(
+      details.localPosition.dx / constraints.maxWidth,
+      details.localPosition.dy / constraints.maxHeight,
+    );
+    try {
+      await _controller!.setFocusPoint(offset);
+      await _controller!.setExposurePoint(offset);
+    } catch (e) {
+      // Ignorer les erreurs de focus sur certains appareils
     }
   }
 
@@ -136,91 +150,91 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  void _navigateToHistory() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ScanHistoryPage()),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text('Scanner', style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
+        title: Text('Scanner HD', style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
         backgroundColor: Colors.black.withOpacity(0.5),
-        elevation: 0,        
+        elevation: 0, 
+        actions: [
+          IconButton(
+            icon: Icon(_isFlashOn ? Icons.flash_on : Icons.flash_off),
+            color: _isFlashOn ? Colors.yellow : Colors.white,
+            onPressed: _toggleFlash,
+          )
+        ],       
       ),
-      body: _buildCameraPreview(), // On utilise une fonction dédiée
+      body: _buildCameraPreview(),
     );
   }
 
-  /// Construit la vue caméra en fonction de l'état
   Widget _buildCameraPreview() {
-    // Cas 1 : Permission refusée ou erreur
     if (_isPermissionDenied) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            _errorMessage,
-            style: GoogleFonts.cinzel(color: Colors.red.shade300, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
+      return Center(child: Text(_errorMessage, style: GoogleFonts.cinzel(color: Colors.red.shade300)));
     }
     
-    // Cas 2 : Caméra initialisée et prête
     if (_isCameraInitialized && _controller != null && _controller!.value.isInitialized) {
-       return Stack(
-        fit: StackFit.expand,
-        children: [
-          CameraPreview(_controller!),
-          _buildCardOverlay(),
-          Positioned(
-            bottom: 30, // Légèrement plus haut que le FAB.large
-            left: 30,
-            child: FloatingActionButton(
-              onPressed: _navigateToHistory,
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
-              heroTag: 'history_button', // Tag pour éviter les conflits
-              child: const Icon(Icons.history),
-            ),
-          ),
-          Positioned(
-            bottom: 30,
-            right: 30,
-            child: FloatingActionButton.large( // Utilise .large()
-              onPressed: _onTakePicture,
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
-              child: const Icon(
-                Icons.camera_alt,
-                size: 40, // Icône plus grande
-              ),
-            ),
-          ),
-        ],
-      );
+       return LayoutBuilder(
+         builder: (context, constraints) {
+           return GestureDetector(
+             onTapDown: (details) => _onTapFocus(details, constraints),
+             child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CameraPreview(_controller!),
+                _buildCardOverlay(),
+                
+                // Instructions
+                Positioned(
+                  top: 20, 
+                  left: 0, 
+                  right: 0,
+                  child: Text(
+                    "Touchez l'écran pour faire la mise au point",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12, shadows: [const Shadow(blurRadius: 4, color: Colors.black)]),
+                  ),
+                ),
+
+                Positioned(
+                  bottom: 30, left: 30,
+                  child: FloatingActionButton(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ScanHistoryPage())),
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    heroTag: 'history_button',
+                    child: const Icon(Icons.history),
+                  ),
+                ),
+                Positioned(
+                  bottom: 30, right: 30,
+                  child: FloatingActionButton.large(
+                    onPressed: _onTakePicture,
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    child: const Icon(Icons.camera_alt, size: 40),
+                  ),
+                ),
+              ],
+             ),
+           );
+         }
+       );
     }
-    
-    // Cas 3 : En cours d'initialisation
     return const Center(child: CircularProgressIndicator(color: Colors.white));
   }
 
-
   Future<void> _onTakePicture() async {
-    if (_controller == null || !_controller!.value.isInitialized) {
-      return;
-    }
+    if (_controller == null || !_controller!.value.isInitialized) return;
     try {
       final XFile picture = await _controller!.takePicture();
       if (!mounted) return; 
       
-      // Navigue vers la page de résultat (qui gère l'analyse OCR)
+      // Arrêt du flash après la photo pour économiser la batterie
+      if (_isFlashOn) _toggleFlash();
+
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -228,18 +242,32 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
         ),
       );
     } catch (e) {
-      print("Erreur en prenant la photo: $e");
+      print("Erreur photo: $e");
     }
   }
 
   Widget _buildCardOverlay() {
     return Center(
       child: Container(
-        width: 250, 
-        height: 350, 
+        width: 280, // Un peu plus large pour capter le texte du titre
+        height: 390, 
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.white.withOpacity(0.7), width: 3),
+          border: Border.all(color: Colors.yellow.withOpacity(0.5), width: 2),
           borderRadius: BorderRadius.circular(15), 
+        ),
+        child: Column(
+          children: [
+            // Zone prioritaire pour le titre (Haut de la carte)
+            Container(
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.yellow.withOpacity(0.1),
+                border: Border(bottom: BorderSide(color: Colors.yellow.withOpacity(0.3))),
+              ),
+              child: Center(child: Icon(Icons.title, color: Colors.yellow.withOpacity(0.5))),
+            ),
+            const Expanded(child: SizedBox()),
+          ],
         ),
       ),
     );

@@ -4,23 +4,27 @@ class DeckCard {
   final String scryfallId;
   final String name;
   int quantity;
+  int proxyQuantity; // <--- NOUVEAU : Nombre de proxies parmi la quantité totale
 
   DeckCard({
     required this.scryfallId,
     required this.name,
     required this.quantity,
+    this.proxyQuantity = 0, // Par défaut 0
   });
 
   Map<String, dynamic> toJson() => {
         'scryfallId': scryfallId,
         'name': name,
         'quantity': quantity,
+        'proxyQuantity': proxyQuantity,
       };
 
   factory DeckCard.fromJson(Map<String, dynamic> json) => DeckCard(
         scryfallId: json['scryfallId'],
         name: json['name'],
         quantity: json['quantity'],
+        proxyQuantity: json['proxyQuantity'] ?? 0, // Compatible avec les anciens JSON
       );
 }
 
@@ -30,10 +34,8 @@ class Deck {
   List<DeckCard> mainboard;
   List<DeckCard> sideboard;
   String? commanderScryfallId;
-  
-  // --- NOUVEAUX CHAMPS ---
-  List<String> colors; // Ex: ["W", "U", "B"]
-  String format;       // Ex: "Commander", "Standard"
+  List<String> colors;
+  String format;
 
   Deck({
     required this.id,
@@ -53,7 +55,7 @@ class Deck {
         'mainboard': mainboard.map((c) => c.toJson()).toList(),
         'sideboard': sideboard.map((c) => c.toJson()).toList(),
         'commanderScryfallId': commanderScryfallId,
-        'colors': colors, // Sauvegarde
+        'colors': colors,
         'format': format,
       };
 
@@ -63,7 +65,6 @@ class Deck {
         mainboard: (json['mainboard'] as List).map((i) => DeckCard.fromJson(i)).toList(),
         sideboard: (json['sideboard'] as List).map((i) => DeckCard.fromJson(i)).toList(),
         commanderScryfallId: json['commanderScryfallId'],
-        // Chargement (avec fallback)
         colors: (json['colors'] as List?)?.map((e) => e.toString()).toList() ?? [],
         format: json['format'] ?? 'Standard',
       );

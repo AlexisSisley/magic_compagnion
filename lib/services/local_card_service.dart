@@ -1,7 +1,7 @@
 // Fichier : lib/services/local_card_service.dart
 
 import 'dart:convert';
-import 'package:flutter/foundation.dart'; // Pour compute
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/scryfall_card_model.dart';
 
@@ -11,28 +11,32 @@ class LocalCardService {
   LocalCardService._internal();
 
   List<ScryfallCard> _cachedCards = [];
+  // AJOUT : Une Map pour l'accès instantané par ID
+  final Map<String, ScryfallCard> _idMap = {}; 
+  
   bool _isLoaded = false;
   bool _isLoading = false;
 
   bool get isLoaded => _isLoaded;
   bool get isLoading => _isLoading;
 
-  /// Charge le fichier JSON (oracle-cards.json est recommandé pour la recherche)
-  /// Cette opération est lourde et se fait dans un Isolate.
   Future<void> loadLocalData() async {
     if (_isLoaded || _isLoading) return;
 
     _isLoading = true;
     try {
-      // 1. Lire le fichier en string (rapide)
-      // Assurez-vous que le fichier est bien dans assets/json/oracle-cards.json
+      // Assurez-vous d'avoir oracle-cards.json ou unique-artwork.json
       final String jsonString = await rootBundle.loadString('assets/json/oracle-cards.json');
-
-      // 2. Parser le JSON dans un thread séparé (lourd)
-      // On utilise 'compute' pour éviter de geler l'UI
+      
       final List<ScryfallCard> parsedCards = await compute(_parseCards, jsonString);
 
       _cachedCards = parsedCards;
+      
+      // AJOUT : Remplissage de la Map pour les recherches par ID rapides
+      for (var card in _cachedCards) {
+        _idMap[card.id] = card;
+      }
+
       _isLoaded = true;
       debugPrint("Données locales chargées : ${_cachedCards.length} cartes.");
     } catch (e) {
@@ -42,13 +46,17 @@ class LocalCardService {
     }
   }
 
-  /// Fonction statique isolée pour le parsing
   static List<ScryfallCard> _parseCards(String jsonString) {
     final List<dynamic> jsonList = json.decode(jsonString);
     return jsonList.map((jsonItem) => ScryfallCard.fromJson(jsonItem)).toList();
   }
 
-  /// Recherche locale optimisée
+  // --- NOUVELLE MÉTHODE ---
+  /// Récupère une carte directement par son ID Scryfall (instantané)
+  ScryfallCard? getCardById(String id) {
+    return _idMap[id];
+  }
+
   List<ScryfallCard> searchCards({
     required String query,
     String? setCode,
@@ -62,32 +70,22 @@ class LocalCardService {
     final lowerSet = setCode?.toLowerCase();
 
     return _cachedCards.where((card) {
-      // 1. Filtre Nom (Si query vide, on passe, sauf si on a d'autres filtres)
       if (lowerQuery.isNotEmpty && !card.name.toLowerCase().contains(lowerQuery)) {
         return false;
       }
-
-      // 2. Filtre Type
       if (lowerType != null && !card.typeLine.toLowerCase().contains(lowerType)) {
         return false;
       }
-
-      // 3. Filtre Set (Attention: oracle-cards contient 1 seule version par carte)
-      // Si tu utilises oracle-cards.json, ce filtre peut ne pas trouver la version précise du set.
-      // Si tu utilises unique-artwork.json, ça marchera mieux mais c'est plus lourd.
       if (lowerSet != null && card.setCode.toLowerCase() != lowerSet) {
         return false;
       }
-
-      // 4. Filtre Couleurs (Contient TOUTES les couleurs demandées)
       if (colors.isNotEmpty) {
         final cardColors = card.colorIdentity.toSet();
         if (!colors.every((c) => cardColors.contains(c))) {
           return false;
         }
       }
-
       return true;
-    }).take(50).toList(); // Limite à 50 résultats pour l'affichage
+    }).toList();
   }
 }

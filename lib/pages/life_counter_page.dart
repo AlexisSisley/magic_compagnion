@@ -5,7 +5,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:magic_companion/pages/dev_tools_page.dart';
 import 'package:magic_companion/pages/turn_guide_page.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/player_model.dart';
 import '../widgets/life_counter/player_zone.dart';
@@ -375,7 +377,99 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
       ),
     );
   }
+  // C'est la modale "À propos" avec le trigger caché
+  Future<void> _showAboutDialog() async {
+    PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    int tapCount = 0; // Compteur local pour le secret
 
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        // StatefulBuilder permet de mettre à jour le compteur visuellement si on veut (optionnel)
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1A1A1A),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  const Icon(Icons.auto_awesome, color: Colors.yellow, size: 24),
+                  const SizedBox(width: 12),
+                  Text('Magic Companion', style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Le compagnon ultime pour vos parties de Magic: The Gathering.',
+                    style: TextStyle(color: Colors.white70),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // --- LE TRIGGER CACHÉ EST ICI ---
+                  InkWell(
+                    onTap: () {
+                      tapCount++;
+                      print("Debug tap: $tapCount");
+                      
+                      if (tapCount >= 3 && tapCount < 7) {
+                        // Petit feedback visuel optionnel (Toast)
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text("Encore ${7 - tapCount} étapes...", style: GoogleFonts.cinzel()),
+                          duration: const Duration(milliseconds: 500),
+                          backgroundColor: Colors.grey[800],
+                        ));
+                      }
+                      
+                      if (tapCount == 7) {
+                        Navigator.pop(context); // Ferme la modale
+                        // Ouvre les DevTools
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const DevToolsPage()),
+                        );
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Version ${packageInfo.version}',
+                            style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
+                          ),
+                          Text(
+                            'Build ${packageInfo.buildNumber}',
+                            style: GoogleFonts.cinzel(color: Colors.white24, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Fermer', style: GoogleFonts.cinzel(color: Colors.yellow.shade800)),
+                ),
+              ],
+            );
+          }
+        );
+      },
+    );
+  }
   // --- CONSTRUCTION DE L'UI ---
 
   @override
@@ -454,6 +548,13 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
                 backgroundColor: Colors.black.withOpacity(0.8),
                 foregroundColor: Colors.white,
                 onTap: _resetGame,
+              ),
+              SpeedDialChild(
+                child: const Icon(Icons.info_outline),
+                label: 'Infos', // Discret
+                backgroundColor: Colors.black.withOpacity(0.8),
+                foregroundColor: Colors.white,
+                onTap: _showAboutDialog, // Lance la modale avec le secret
               ),
             ],
           ),

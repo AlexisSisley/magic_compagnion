@@ -1,3 +1,4 @@
+// Fichier : lib/widgets/decks/deck_financial_sheet.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/deck_model.dart';
@@ -20,6 +21,7 @@ class DeckFinancialSheet extends StatelessWidget {
     // 1. Calculs
     double totalMissingCost = 0.0;
     double totalOwnedValue = 0.0;
+    double totalProxySaving = 0.0; // Pour info
     int missingCardsCount = 0;
     List<Map<String, dynamic>> cardPrices = [];
 
@@ -35,19 +37,32 @@ class DeckFinancialSheet extends StatelessWidget {
 
       final double unitPrice = double.tryParse(scryfallCard.prices['eur'] ?? '0') ?? 0.0;
       
+      // On vérifie la collection
       final collectionEntry = collection.firstWhere(
         (c) => c.scryfallId == deckCard.scryfallId,
         orElse: () => DeckCard(scryfallId: '', name: '', quantity: 0),
       );
 
-      final int ownedQty = collectionEntry.quantity;
-      final int neededQty = deckCard.quantity;
+      // LOGIQUE PROXY :
+      // On a besoin de 'neededQty' cartes.
+      // 'proxyQuantity' sont des proxies, donc on n'a pas besoin de les acheter.
+      // 'ownedQty' sont déjà possédées.
       
-      final int missingQty = (neededQty - ownedQty).clamp(0, neededQty);
-      final int usedOwnedQty = (ownedQty > neededQty) ? neededQty : ownedQty;
+      final int totalNeeded = deckCard.quantity;
+      final int proxies = deckCard.proxyQuantity;
+      final int realCardsNeeded = (totalNeeded - proxies).clamp(0, totalNeeded); // Ce qu'il faut vraiment avoir en carte physique
+      
+      final int ownedQty = collectionEntry.quantity;
+      
+      // Combien il en manque PHYSIQUEMENT à acheter
+      final int missingQty = (realCardsNeeded - ownedQty).clamp(0, realCardsNeeded);
+      
+      // Valeur du stock utilisé (on utilise nos vraies cartes pour couvrir le besoin 'realCardsNeeded')
+      final int usedOwnedQty = (ownedQty > realCardsNeeded) ? realCardsNeeded : ownedQty;
 
       totalMissingCost += (missingQty * unitPrice);
       totalOwnedValue += (usedOwnedQty * unitPrice);
+      totalProxySaving += (proxies * unitPrice); // L'argent économisé grâce aux proxies
       missingCardsCount += missingQty;
 
       if (unitPrice > 0) {
@@ -55,7 +70,8 @@ class DeckFinancialSheet extends StatelessWidget {
           'name': scryfallCard.name,
           'price': unitPrice,
           'image': scryfallCard.smallImageUrl,
-          'isOwned': ownedQty >= neededQty
+          'isOwned': ownedQty >= realCardsNeeded, // On a tout ce qu'il faut (hors proxies) ?
+          'isProxy': proxies > 0
         });
       }
     }
@@ -65,7 +81,7 @@ class DeckFinancialSheet extends StatelessWidget {
 
     // 2. UI
     return DraggableScrollableSheet(
-      initialChildSize: 0.6,
+      initialChildSize: 0.65, // Un peu plus grand
       minChildSize: 0.4,
       maxChildSize: 0.9,
       expand: false,
@@ -83,16 +99,32 @@ class DeckFinancialSheet extends StatelessWidget {
               Text('Estimation Financière', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
               const SizedBox(height: 20),
               
-              _buildFinanceCard(
-                title: 'Reste à acheter',
-                amount: totalMissingCost,
-                subtitle: '$missingCardsCount cartes manquantes',
-                color: Colors.red.shade400,
-                icon: Icons.shopping_cart_outlined,
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildFinanceCard(
+                      title: 'Reste à acheter',
+                      amount: totalMissingCost,
+                      subtitle: '$missingCardsCount cartes',
+                      color: Colors.red.shade400,
+                      icon: Icons.shopping_cart_outlined,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildFinanceCard(
+                      title: 'Économie (Proxies)',
+                      amount: totalProxySaving,
+                      subtitle: 'Non comptabilisé',
+                      color: Colors.blueGrey.shade300,
+                      icon: Icons.print,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               _buildFinanceCard(
-                title: 'Valeur de votre stock',
+                title: 'Valeur du stock utilisé',
                 amount: totalOwnedValue,
                 subtitle: 'Basé sur votre collection',
                 color: Colors.green.shade400,
@@ -115,7 +147,13 @@ class DeckFinancialSheet extends StatelessWidget {
                       leading: card['image'] != null 
                         ? ClipRRect(borderRadius: BorderRadius.circular(4), child: Image.network(card['image'], width: 30))
                         : const Icon(Icons.image, color: Colors.white24),
-                      title: Text(card['name'], style: GoogleFonts.cinzel(color: Colors.white), overflow: TextOverflow.ellipsis),
+                      title: Row(
+                        children: [
+                          Expanded(child: Text(card['name'], style: GoogleFonts.cinzel(color: Colors.white), overflow: TextOverflow.ellipsis)),
+                          if (card['isProxy']) 
+                            Padding(padding: const EdgeInsets.only(left:8), child: Icon(Icons.print, size: 16, color: Colors.blueGrey.shade200))
+                        ],
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -136,20 +174,17 @@ class DeckFinancialSheet extends StatelessWidget {
 
   Widget _buildFinanceCard({required String title, required double amount, required String subtitle, required Color color, required IconData icon}) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withOpacity(0.3))),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, 
         children: [
-          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.2), shape: BoxShape.circle), child: Icon(icon, color: color, size: 24)),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14)),
-              Text('${amount.toStringAsFixed(2)} €', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-              Text(subtitle, style: TextStyle(color: Colors.white38, fontSize: 12)),
-            ]),
-          ),
-        ],
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Text(title, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text('${amount.toStringAsFixed(2)} €', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(subtitle, style: TextStyle(color: Colors.white38, fontSize: 10)),
+        ]
       ),
     );
   }

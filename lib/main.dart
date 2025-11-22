@@ -12,7 +12,6 @@ import 'package:magic_companion/pages/scanner_page.dart';
 import 'pages/life_counter_page.dart';
 import 'pages/glossary_page.dart';
 import 'pages/deck_list_page.dart';
-import 'pages/set_list_page.dart'; // Assurez-vous d'avoir créé ce fichier à l'étape précédente
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
