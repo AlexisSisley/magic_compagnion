@@ -1,5 +1,4 @@
 // Fichier : lib/pages/life_counter_page.dart
-// VERSION FINALE (Avec Compteur Commander)
 
 import 'dart:math';
 
@@ -42,7 +41,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     _loadGame();
   }
 
-  // --- LOGIQUE SAUVEGARDE / CHARGEMENT (MISE À JOUR) ---
+  // --- LOGIQUE SAUVEGARDE / CHARGEMENT ---
 
   Future<void> _loadGame() async {
     final prefs = await SharedPreferences.getInstance();
@@ -56,11 +55,9 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
           final life = prefs.getInt('player_${index}_life') ?? _startingLife;
           Map<int, int> cmdDamage = {};
           
-          // On ne charge les dégâts de Cdt que si on est en mode Commander
           if (_startingLife == 40) {
             for (int i = 0; i < _playerCount; i++) {
-              if (i == index) continue; // Pas de dégâts de soi-même
-              // Charge les dégâts de Cdt de l'adversaire 'i'
+              if (i == index) continue;
               cmdDamage[i] = prefs.getInt('player_${index}_cmd_from_$i') ?? 0;
             }
           }
@@ -85,7 +82,6 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     for (final player in _players) {
       await prefs.setInt('player_${player.id}_life', player.life);
       
-      // Sauvegarder les dégâts de Cdt
       for (final opponentId in player.commanderDamageReceived.keys) {
         final damage = player.commanderDamageReceived[opponentId]!;
         await prefs.setInt('player_${player.id}_cmd_from_$opponentId', damage);
@@ -93,7 +89,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     }
   }
 
-  // --- LOGIQUE MÉTIER (MISE À JOUR) ---
+  // --- LOGIQUE MÉTIER ---
 
   void _resetGame() {
     setState(() {
@@ -101,11 +97,10 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
         _playerCount,
         (index) {
           Map<int, int> cmdDamage = {};
-          // On n'initialise les dégâts de Cdt que si on est en mode Commander
           if (_startingLife == 40) {
             for (int i = 0; i < _playerCount; i++) {
               if (i == index) continue;
-              cmdDamage[i] = 0; // 0 dégâts de Cdt de l'adversaire 'i'
+              cmdDamage[i] = 0;
             }
           }
           return Player(
@@ -127,13 +122,11 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     _saveGame();
   }
 
-  // Mettre à jour les dégâts de Commandant
   void _updateCommanderDamage(int playerId, int opponentId, int change) {
     setState(() {
       final player = _players.firstWhere((p) => p.id == playerId);
-      // Met à jour les dégâts pour cet adversaire spécifique
       final currentDamage = player.commanderDamageReceived[opponentId] ?? 0;
-      player.commanderDamageReceived[opponentId] = (currentDamage + change).clamp(0, 99); // Bloque à 0 min
+      player.commanderDamageReceived[opponentId] = (currentDamage + change).clamp(0, 99);
     });
     _saveGame();
   }
@@ -191,7 +184,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
                       style: TextStyle(color: Colors.white70)),
                   onTap: () {
                     setState(() {
-_startingLife = 40;
+                      _startingLife = 40;
                     });
                     _resetGame();
                     Navigator.pop(context);
@@ -263,7 +256,6 @@ _startingLife = 40;
     );
   }
 
-  // Menu pour choisir les dégâts de Cdt
   void _showCommanderDamageSelector(Player attacker) {
     showModalBottomSheet(
       context: context,
@@ -284,7 +276,7 @@ _startingLife = 40;
               children: <Widget>[
                 ListTile(
                   title: Text(
-                    'Infliger des dégâts (Cmdt ${attacker.id + 1})', // Nouveau titre
+                    'Infliger des dégâts (Cmdt ${attacker.id + 1})',
                     style: GoogleFonts.cinzel(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -292,34 +284,28 @@ _startingLife = 40;
                     ),
                   ),
                   subtitle: Text(
-                    'Sélectionnez une cible :', // Nouveau sous-titre
+                    'Sélectionnez une cible :',
                     style: GoogleFonts.cinzel(color: Colors.white70),
                   ),
                 ),
-                // Lister tous les adversaires (en tant que CIBLES)
                 ..._players
-                  .where((opponent) => opponent.id != attacker.id) // 'opponent' est la CIBLE
+                  .where((opponent) => opponent.id != attacker.id)
                   .map((opponent) {
-                    // On cherche les dégâts que 'opponent' a REÇUS de 'attacker'
                     final damage = opponent.commanderDamageReceived[attacker.id] ?? 0;
                     return ListTile(
                       leading: Icon(Icons.shield, color: _playerColors[opponent.id]),
-                      title: Text('Au Joueur ${opponent.id + 1}', // Cible
+                      title: Text('Au Joueur ${opponent.id + 1}',
                           style: const TextStyle(color: Colors.white)),
                       
                       trailing: SizedBox(
-                        width: 150, // Largeur fixe
+                        width: 150,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             IconButton(
                               icon: const Icon(Icons.remove, color: Colors.white70),
                               onPressed: () {
-                                // Met à jour la CIBLE ('opponent.id')
-                                // avec les dégâts de L'ATTAQUANT ('attacker.id')
                                 _updateCommanderDamage(opponent.id, attacker.id, -1);
-                                
-                                // On reconstruit le BottomSheet pour rafraîchir
                                 Navigator.pop(context);
                                 _showCommanderDamageSelector(attacker);
                               },
@@ -356,28 +342,26 @@ _startingLife = 40;
   void _rollDice() {
     final int result = Random().nextInt(20) + 1; // Un D20
     
-    // --- Logique de l'Easter Egg ---
     String title = 'Jet de D20';
     String content = '$result';
     Color contentColor = Colors.yellow.shade700;
 
     if (result == 1) {
       title = 'POUR FRODON !';
-      content = '$result ⚔️'; // Une petite épée
+      content = '$result ⚔️';
       contentColor = Colors.red.shade400;
     }
-    // ---
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
-        title: Text(title, style: GoogleFonts.cinzel(color: Colors.white)), // Utilise le titre variable
+        title: Text(title, style: GoogleFonts.cinzel(color: Colors.white)),
         content: Text(
-          content, // Utilise le contenu variable
+          content,
           textAlign: TextAlign.center,
           style: GoogleFonts.cinzel(
-            color: contentColor, // Utilise la couleur variable
+            color: contentColor,
             fontSize: 80,
             fontWeight: FontWeight.bold,
           ),
@@ -391,6 +375,7 @@ _startingLife = 40;
       ),
     );
   }
+
   // --- CONSTRUCTION DE L'UI ---
 
   @override
@@ -407,17 +392,32 @@ _startingLife = 40;
       children: [
         _buildLayout(),
         
+        // --- BOUTON DÉ (Sorti du menu) ---
+        Positioned(
+          bottom: 16,
+          right: 90, // 16 (marge) + 56 (taille FAB) + 18 (espace)
+          child: FloatingActionButton(
+            heroTag: 'dice_roll_fab', // Tag unique obligatoire
+            onPressed: _rollDice,
+            backgroundColor: Colors.black.withOpacity(0.8),
+            foregroundColor: Colors.white,
+            tooltip: 'Lancer un D20',
+            child: const Icon(Icons.casino_outlined),
+          ),
+        ),
+
+        // --- MENU SPEED DIAL ---
         Positioned(
           bottom: 16,
           right: 16,
           child: SpeedDial(
-            icon: Icons.menu, // Icône principale
-            activeIcon: Icons.close, // Icône quand le menu est ouvert
+            icon: Icons.menu,
+            activeIcon: Icons.close,
             backgroundColor: Colors.black.withOpacity(0.8),
             foregroundColor: Colors.white,
-            overlayColor: Colors.black, // Couleur du fond estompé
+            overlayColor: Colors.black,
             overlayOpacity: 0.4,
-            spacing: 12, // Espace entre les boutons
+            spacing: 12,
             childrenButtonSize: const Size(56.0, 56.0),
             
             children: [
@@ -435,13 +435,7 @@ _startingLife = 40;
                 foregroundColor: Colors.white,
                 onTap: _showPlayerSelector,
               ),
-              SpeedDialChild(
-                child: const Icon(Icons.casino_outlined),
-                label: 'Jet de Dé',
-                backgroundColor: Colors.black.withOpacity(0.8),
-                foregroundColor: Colors.white,
-                onTap: _rollDice,
-              ),
+              // Note : Le jet de dé a été déplacé en dehors
               SpeedDialChild(
                 child: const Icon(Icons.checklist_rtl_outlined),
                 label: 'Phases du Tour',
@@ -464,20 +458,14 @@ _startingLife = 40;
             ],
           ),
         ),
-        // --- Fin de la correction ---
       ],
     );
   }
 
-  // NOUVELLE Fonction pour construire le layout (MISE À JOUR)
   Widget _buildLayout() {
     return LayoutBuilder(
       builder: (context, constraints) {
         
-        // constraints.maxHeight = Hauteur réelle disponible
-        // constraints.maxWidth = Largeur réelle disponible
-
-        // 1-3 joueurs : Colonne
         if (_playerCount <= 3) {
           return Column(
             children: _players.map((player) {
@@ -497,16 +485,12 @@ _startingLife = 40;
           );
         }
         
-        // 4-6 joueurs : Grille
         else {
+          final rowCount = (_playerCount / 2).ceil();
           
-          final rowCount = (_playerCount / 2).ceil(); // 5 joueurs -> 3 rangées
-          
-          // On utilise les contraintes pour calculer la taille de la cellule
           final cellHeight = constraints.maxHeight / rowCount;
           final cellWidth = constraints.maxWidth / 2;
           
-          // Calcule le ratio dynamique
           final aspectRatio = (cellHeight > 0) ? cellWidth / cellHeight : 1.0;
 
           return GridView.builder(
@@ -514,7 +498,7 @@ _startingLife = 40;
             itemCount: _playerCount,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              childAspectRatio: aspectRatio, // Utilise le ratio corrigé
+              childAspectRatio: aspectRatio,
             ),
             itemBuilder: (context, index) {
               final player = _players[index];

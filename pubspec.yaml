@@ -100,6 +100,7 @@ flutter:
     - assets/images/background_texture_black.png
     - assets/icone.png
     - assets/icone_rb.png
+    - assets/json/oracle-cards.json
     
 dependency_overrides:
   google_mlkit_commons: 0.11.0

@@ -28,17 +28,34 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // --- AJOUT POUR LE NOM DE L'APP ---
+        // Par défaut (pour la release), le nom est "Magic Companion"
+        resValue("string", "app_name", "Magic Companion")
     }
 
     buildTypes {
+        getByName("debug") {
+            // --- CONFIGURATION DEBUG ---
+            // Ajoute un suffixe à l'ID pour installer l'app à côté de la version release
+            applicationIdSuffix = ".debug"
+            // Change le nom pour la version debug (avec un emoji ou un texte)
+            resValue("string", "app_name", "Magic Dev 🛠️")
+            
+            // Signature de debug standard
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        
         getByName("release") {
-            // Votre CI utilise la signature de debug, ce qui est parfait
-            signingConfig = signingConfigs.getByName("debug")    
-            // Indique les fichiers de règles (celui que vous venez de corriger)
+            // Votre CI utilise la signature de debug pour l'instant, ce qui est OK pour les tests
+            signingConfig = signingConfigs.getByName("debug")
+            
+            // Indique les fichiers de règles ProGuard
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // En release, le nom reste celui défini dans defaultConfig ("Magic Companion")
         }
     }
 }
