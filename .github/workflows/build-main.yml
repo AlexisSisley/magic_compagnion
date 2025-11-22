@@ -33,17 +33,23 @@ jobs:
           tag_prefix: "v"
           version_format: "${major}.${minor}.${patch}"
           
-          # RÈGLES CORRIGÉES :
-          # Detecte "refactor" ou "BREAKING CHANGE" au début, avec ou sans parenthèses
-          major_pattern: "(refactor|BREAKING CHANGE)"
+          # --- RÈGLES DE VERSIONNING ---
           
-          # Detecte "feat" au début de la ligne, peu importe la casse ou le scope
-          # Ex: "feat:", "feat(api):", "Feat :"
-          minor_pattern: "(feat|Feat)"
+          # MAJOR : Uniquement si "BREAKING CHANGE" ou "!" (ex: feat!: changement cassant)
+          # J'ai retiré 'refactor' d'ici car c'est dangereux pour la version Major
+          major_pattern: "(BREAKING CHANGE|!)"
           
-          # Force le Patch par défaut si rien n'est trouvé
-          bump_each_commit: false
-          search_commit_body: true
+          # MINOR : Déclenche sur "feat:" ou "feat(scope):" ou "Feat :"
+          # L'expression "^(feat|Feat)" assure qu'on cherche au début du mot clé
+          minor_pattern: "^(feat|Feat)(\\(|:)"
+          
+          # PATCH : C'est le comportement par défaut si rien au dessus ne match.
+          # (fix, docs, style, refactor, perf, test, chore...) tomberont ici.
+          
+          # --- CONFIGURATION GIT ---
+          bump_each_commit: false   # On veut 1 version par release, pas par commit
+          search_commit_body: true  # Cherche aussi dans la description (utile si Squash merge)
+          user_format_type: "csv"
 
       # 3. Setup Java
       - name: Setup Java (JDK)
@@ -92,7 +98,13 @@ jobs:
           
           flutter build apk --release --build-name=$VERSION_NAME --build-number=$BUILD_NUMBER
 
-      # 9. CRÉER LE TAG GIT ET LA RELEASE GITHUB
+      # 9. CRÉER LE TAG GIT ET LA RELEASE GITHUB (CORRIGÉ)
+      # Étape de vérification pour être sûr que le fichier est là avant l'upload
+      - name: Check Artifact Existence
+        run: |
+          ls -la build/app/outputs/flutter-apk/
+          echo "Fichier à uploader : build/app/outputs/flutter-apk/app-release.apk"
+
       - name: Create GitHub Release & Tag
         uses: ncipollo/release-action@v1
         with:
@@ -106,5 +118,10 @@ jobs:
           # Attache l'APK compilé à la release
           artifacts: "build/app/outputs/flutter-apk/app-release.apk"
           
-          # Token GitHub (automatique)
+          # Token GitHub
           token: ${{ secrets.GITHUB_TOKEN }}
+          
+          # RÈGLES IMPORTANTES AJOUTÉES :
+          allowUpdates: true       # Permet de modifier une release existante si elle a échoué avant
+          replacesArtifacts: true  # Force le remplacement de l'APK s'il existe déjà
+          makeLatest: true         # Marque cette release comme la "Dernière" officielle
