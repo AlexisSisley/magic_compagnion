@@ -39,7 +39,7 @@ jobs:
           
           # Detecte "feat" au début de la ligne, peu importe la casse ou le scope
           # Ex: "feat:", "feat(api):", "Feat :"
-          minor_pattern: "^(feat|Feat)"
+          minor_pattern: "(feat|Feat)"
           
           # Force le Patch par défaut si rien n'est trouvé
           bump_each_commit: false
