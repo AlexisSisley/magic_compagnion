@@ -1,48 +1,66 @@
-# Nom du workflow
-name: Build APK on Main
+name: Auto Release & Build
 
-# Déclencheur : s'exécute uniquement lors d'un push sur la branche 'main'
 on:
   push:
     branches:
       - main
 
-# Évite les exécutions en double si on push plusieurs fois rapidement
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Permissions nécessaires pour créer le Tag et la Release
+permissions:
+  contents: write
+
 jobs:
-  # Job unique pour compiler l'APK
-  build-apk:
-    name: Build Release APK
-    # Utilise la dernière image Ubuntu
+  build-and-release:
+    name: Calculate Version & Build
     runs-on: ubuntu-latest
 
     steps:
-      # Étape 1 : Récupérer le code de votre dépôt
+      # 1. Récupérer le code (avec l'historique complet pour calculer la version)
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Nécessaire pour obtenir le hash du commit
+          fetch-depth: 0
 
-      # Étape 2 : Configurer Java (nécessaire pour Gradle et Flutter)
-      # Utilise Java 17, qui est compatible avec votre configuration
+      # 2. CALCUL DE LA VERSION (Cœur de ta demande)
+      - name: Calculate Semantic Version
+        id: version_step
+        uses: PaulHatch/semantic-version@v5.4.0
+        with:
+          # Le préfixe du tag (ex: v1.0.0)
+          tag_prefix: "v"
+          # Format de version (Major.Minor.Patch)
+          version_format: "${major}.${minor}.${patch}"
+          
+          # TES RÈGLES DE VERSIONING :
+          # refactor -> Major (ex: 1.0.0)
+          major_pattern: "(refactor:)|(BREAKING CHANGE:)"
+          # feat -> Minor (ex: 0.1.0)
+          minor_pattern: "(feat:)"
+          # Tout le reste (fix, docs, style...) -> Patch (ex: 0.0.1)
+          
+          # Si aucun mot clé n'est trouvé, ça fait un patch par défaut
+          bump_each_commit: false
+          search_commit_body: true
+
+      # 3. Setup Java
       - name: Setup Java (JDK)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # Étape 3 : Configurer Flutter (avec cache)
+      # 4. Setup Flutter
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable' # ou 'beta' si vous préférez
+          channel: 'stable'
           cache: true
 
-      # Étape 4 : Mettre en cache les dépendances Gradle
-      # Accélère les builds futurs en réutilisant les téléchargements de Gradle
+      # 5. Cache Gradle
       - name: Cache Gradle Dependencies
         uses: actions/cache@v4
         with:
@@ -53,35 +71,41 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # Étape 5 : Installer les dépendances Flutter
+      # 6. Dépendances Flutter
       - name: Install dependencies
         run: flutter pub get
 
-      # Étape 6 : Lancer le build de l'APK en mode release
-      # C'est la commande principale que vous vouliez
-      # Elle fonctionnera car "signingConfig" est sur "debug"
-      - name: Build Release APK
-        run: flutter build apk --release
-
-      # Étape 7 : Préparer les artefacts pour le téléchargement
-      - name: Prepare Artifacts
+      # 7. DÉCOMPRESSION DES DONNÉES (Important !)
+      - name: Unzip Data Files
         run: |
-          mkdir -p artifacts
-          # On récupère le hash court du commit pour un nom de fichier unique
-          SHA=$(git rev-parse --short HEAD)
-          echo "SHA=$SHA" >> $GITHUB_ENV
-          
-          # Renomme et déplace l'APK
-          mv build/app/outputs/flutter-apk/app-release.apk artifacts/magic-companion-main-$SHA.apk
-          
-          echo "APK renommé :"
-          ls -l artifacts
+          echo "Décompression des données..."
+          unzip assets/json/cards_data.zip -d assets/json/
 
-      # Étape 8 : Uploader l'APK en tant qu'artefact
-      # Vous pourrez télécharger cet APK depuis la page "Actions" de votre dépôt
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+      # 8. BUILD APK AVEC LA NOUVELLE VERSION
+      - name: Build Release APK
+        run: |
+          # On récupère la version calculée à l'étape 2
+          VERSION_NAME=${{ steps.version_step.outputs.version }}
+          # On utilise le nombre de commits total comme build number (pour l'unicité)
+          BUILD_NUMBER=${{ steps.version_step.outputs.increment }}
+          
+          echo "BUILDING VERSION: $VERSION_NAME+$BUILD_NUMBER"
+          
+          flutter build apk --release --build-name=$VERSION_NAME --build-number=$BUILD_NUMBER
+
+      # 9. CRÉER LE TAG GIT ET LA RELEASE GITHUB
+      - name: Create GitHub Release & Tag
+        uses: ncipollo/release-action@v1
         with:
-          name: release-apk-${{ env.SHA }}
-          path: artifacts/
-          retention-days: 7 # Garde l'artefact pendant 7 jours
+          # Utilise la version calculée comme nom de Tag
+          tag: "v${{ steps.version_step.outputs.version }}"
+          name: "Release v${{ steps.version_step.outputs.version }}"
+          
+          # Ajoute le message des commits dans la description de la release
+          body: ${{ steps.version_step.outputs.changelog }}
+          
+          # Attache l'APK compilé à la release
+          artifacts: "build/app/outputs/flutter-apk/app-release.apk"
+          
+          # Token GitHub (automatique)
+          token: ${{ secrets.GITHUB_TOKEN }}
