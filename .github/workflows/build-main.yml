@@ -30,19 +30,18 @@ jobs:
         id: version_step
         uses: PaulHatch/semantic-version@v5.4.0
         with:
-          # Le préfixe du tag (ex: v1.0.0)
           tag_prefix: "v"
-          # Format de version (Major.Minor.Patch)
           version_format: "${major}.${minor}.${patch}"
           
-          # TES RÈGLES DE VERSIONING :
-          # refactor -> Major (ex: 1.0.0)
-          major_pattern: "(refactor:)|(BREAKING CHANGE:)"
-          # feat -> Minor (ex: 0.1.0)
-          minor_pattern: "(feat:)"
-          # Tout le reste (fix, docs, style...) -> Patch (ex: 0.0.1)
+          # RÈGLES CORRIGÉES :
+          # Detecte "refactor" ou "BREAKING CHANGE" au début, avec ou sans parenthèses
+          major_pattern: "(refactor|BREAKING CHANGE)"
           
-          # Si aucun mot clé n'est trouvé, ça fait un patch par défaut
+          # Detecte "feat" au début de la ligne, peu importe la casse ou le scope
+          # Ex: "feat:", "feat(api):", "Feat :"
+          minor_pattern: "^(feat|Feat)"
+          
+          # Force le Patch par défaut si rien n'est trouvé
           bump_each_commit: false
           search_commit_body: true
 
