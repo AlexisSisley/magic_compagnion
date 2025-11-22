@@ -35,13 +35,13 @@ jobs:
           
           # --- RÈGLES DE VERSIONNING ---
           
-          # MAJOR : Uniquement si "BREAKING CHANGE" ou "!" (ex: feat!: changement cassant)
-          # J'ai retiré 'refactor' d'ici car c'est dangereux pour la version Major
-          major_pattern: "(BREAKING CHANGE|!)"
+          # MAJOR : Détecte "BREAKING CHANGE", ou "feat!", "fix!", "refactor!"
+          # On est explicite ici pour forcer la main
+          major_pattern: "(BREAKING CHANGE|feat!|fix!|refactor!)"
           
-          # MINOR : Déclenche sur "feat:" ou "feat(scope):" ou "Feat :"
-          # L'expression "^(feat|Feat)" assure qu'on cherche au début du mot clé
-          minor_pattern: "^(feat|Feat)(\\(|:)"
+          # MINOR : On simplifie. Si ça commence par "feat", c'est une feature.
+          # Le regex matchera "feat:", "feat(ui):", "feat!:" etc.
+          minor_pattern: "^(feat|Feat)"
           
           # PATCH : C'est le comportement par défaut si rien au dessus ne match.
           # (fix, docs, style, refactor, perf, test, chore...) tomberont ici.
