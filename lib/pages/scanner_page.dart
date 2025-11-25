@@ -1,11 +1,15 @@
 // Fichier : lib/pages/scanner_page.dart
+// VERSION MISE À JOUR : Ajout Recherche Manuelle (Fallback Local)
 
+import 'dart:async'; // Ajouté pour le Debounce
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart'; 
 import 'package:magic_companion/pages/card_detail_page.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'scan_history_page.dart'; 
+import '../services/local_card_service.dart'; // Import du service
+import '../models/scryfall_card_model.dart'; // Import du modèle
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
@@ -17,12 +21,11 @@ class ScannerPage extends StatefulWidget {
 class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   
   CameraController? _controller;
+  final LocalCardService _localCardService = LocalCardService(); // Instance du service
   
   bool _isCameraInitialized = false;
   bool _isPermissionDenied = false;
   String _errorMessage = "";
-  
-  // NOUVEAU : Gestion du flash
   bool _isFlashOn = false;
 
   @override
@@ -30,6 +33,8 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this); 
     _initializeCamera();
+    // On s'assure que les données locales sont prêtes pour la recherche manuelle
+    _localCardService.loadLocalData();
   }
 
   @override
@@ -86,7 +91,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
           orElse: () => cameras.first
       );
       
-      // AMÉLIORATION : Utilisation de ResolutionPreset.max pour une meilleure OCR
       _controller = CameraController(
         firstCamera,
         ResolutionPreset.max, 
@@ -95,8 +99,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
       );
       
       await _controller!.initialize();
-      
-      // Désactiver le flash par défaut au démarrage
       await _controller!.setFlashMode(FlashMode.off);
 
       if (mounted) setState(() => _isCameraInitialized = true);
@@ -112,7 +114,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
 
   Future<void> _toggleFlash() async {
     if (_controller == null || !_controller!.value.isInitialized) return;
-    
     try {
       if (_isFlashOn) {
         await _controller!.setFlashMode(FlashMode.off);
@@ -127,10 +128,8 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     }
   }
   
-  // NOUVEAU : Focus manuel au toucher
   Future<void> _onTapFocus(TapDownDetails details, BoxConstraints constraints) async {
     if (_controller == null || !_controller!.value.isInitialized) return;
-
     final offset = Offset(
       details.localPosition.dx / constraints.maxWidth,
       details.localPosition.dy / constraints.maxHeight,
@@ -139,8 +138,18 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
       await _controller!.setFocusPoint(offset);
       await _controller!.setExposurePoint(offset);
     } catch (e) {
-      // Ignorer les erreurs de focus sur certains appareils
+      // Ignore
     }
+  }
+
+  // --- NOUVEAU : MODALE DE RECHERCHE MANUELLE ---
+  void _showManualSearch() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ManualSearchModal(localCardService: _localCardService),
+    );
   }
 
   @override
@@ -156,9 +165,15 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
       backgroundColor: Colors.black,
       appBar: AppBar(
         title: Text('Scanner HD', style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
-        backgroundColor: Colors.black.withOpacity(0.5),
+        backgroundColor: Colors.black.withValues(alpha: 0.5),
         elevation: 0, 
         actions: [
+          // Bouton Recherche Manuelle
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            tooltip: "Recherche manuelle (si OCR échoue)",
+            onPressed: _showManualSearch,
+          ),
           IconButton(
             icon: Icon(_isFlashOn ? Icons.flash_on : Icons.flash_off),
             color: _isFlashOn ? Colors.yellow : Colors.white,
@@ -186,13 +201,10 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                 CameraPreview(_controller!),
                 _buildCardOverlay(),
                 
-                // Instructions
                 Positioned(
-                  top: 20, 
-                  left: 0, 
-                  right: 0,
+                  top: 20, left: 0, right: 0,
                   child: Text(
-                    "Touchez l'écran pour faire la mise au point",
+                    "Touchez pour focus • Loupe pour chercher",
                     textAlign: TextAlign.center,
                     style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12, shadows: [const Shadow(blurRadius: 4, color: Colors.black)]),
                   ),
@@ -231,8 +243,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     try {
       final XFile picture = await _controller!.takePicture();
       if (!mounted) return; 
-      
-      // Arrêt du flash après la photo pour économiser la batterie
       if (_isFlashOn) _toggleFlash();
 
       Navigator.push(
@@ -249,24 +259,135 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   Widget _buildCardOverlay() {
     return Center(
       child: Container(
-        width: 280, // Un peu plus large pour capter le texte du titre
+        width: 280, 
         height: 390, 
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.yellow.withOpacity(0.5), width: 2),
+          border: Border.all(color: Colors.yellow.withValues(alpha: 0.5), width: 2),
           borderRadius: BorderRadius.circular(15), 
         ),
         child: Column(
           children: [
-            // Zone prioritaire pour le titre (Haut de la carte)
             Container(
               height: 60,
               decoration: BoxDecoration(
-                color: Colors.yellow.withOpacity(0.1),
-                border: Border(bottom: BorderSide(color: Colors.yellow.withOpacity(0.3))),
+                color: Colors.yellow.withValues(alpha: 0.1),
+                border: Border(bottom: BorderSide(color: Colors.yellow.withValues(alpha: 0.3))),
               ),
-              child: Center(child: Icon(Icons.title, color: Colors.yellow.withOpacity(0.5))),
+              child: Center(child: Icon(Icons.title, color: Colors.yellow.withValues(alpha: 0.5))),
             ),
             const Expanded(child: SizedBox()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- SOUS-WIDGET : MODALE DE RECHERCHE ---
+class _ManualSearchModal extends StatefulWidget {
+  final LocalCardService localCardService;
+  const _ManualSearchModal({required this.localCardService});
+
+  @override
+  State<_ManualSearchModal> createState() => _ManualSearchModalState();
+}
+
+class _ManualSearchModalState extends State<_ManualSearchModal> {
+  final TextEditingController _controller = TextEditingController();
+  List<ScryfallCard> _results = [];
+  Timer? _debounce;
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (query.trim().length >= 2) {
+        setState(() {
+          _results = widget.localCardService.searchCards(query: query);
+        });
+      } else {
+        setState(() => _results = []);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.search, color: Colors.white54),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      autofocus: true,
+                      style: GoogleFonts.cinzel(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: "Nom de la carte (FR/EN)...",
+                        hintStyle: TextStyle(color: Colors.white30),
+                        border: InputBorder.none,
+                      ),
+                      onChanged: _onSearchChanged,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => Navigator.pop(context),
+                  )
+                ],
+              ),
+            ),
+            const Divider(color: Colors.white10, height: 1),
+            Expanded(
+              child: _results.isEmpty
+                  ? Center(
+                      child: Text(
+                        _controller.text.isEmpty 
+                            ? "Tapez le nom d'une carte" 
+                            : "Aucun résultat local.",
+                        style: GoogleFonts.cinzel(color: Colors.white30),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _results.length,
+                      itemBuilder: (context, index) {
+                        final card = _results[index];
+                        return ListTile(
+                          title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white)),
+                          subtitle: Text(card.typeLine, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          trailing: const Icon(Icons.chevron_right, color: Colors.white24),
+                          onTap: () {
+                            Navigator.pop(context); // Ferme la modale
+                            // Navigue vers la page de détail comme si on avait scanné
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => RecognitionResultPage(cardName: card.name),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+            ),
           ],
         ),
       ),

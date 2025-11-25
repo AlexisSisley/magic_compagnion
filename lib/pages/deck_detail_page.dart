@@ -1,9 +1,10 @@
 // Fichier : lib/pages/deck_detail_page.dart
-// VERSION : Bouton Légalité déplacé dans le menu
+// VERSION CORRIGÉE : Fix Export Modal Overflow + Nav Bar Padding
 
 import 'dart:developer';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; 
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
@@ -44,16 +45,14 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
   final CollectionService _collectionService = CollectionService();
   late TabController _tabController;
   
-  // _isValidating n'est plus utilisé pour un loader bouton, mais on le garde pour la logique
+  // ignore: unused_field
   bool _isValidating = false; 
   bool _isLoading = true;
   
   List<ScryfallCard> _fullCardData = [];
   List<DeckCard> _myCollection = [];
   
-  // --- VARIABLES FINANCE ---
   double _totalDeckPrice = 0.0;
-
   final RegExp _manaPipRegex = RegExp(r'\{([WUBRGCTPXYZS0-9/]+)\}');
 
   @override
@@ -78,9 +77,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
       _loadFullCardData(),
       _loadCollection(),
     ]);
-    
     _calculateDeckValue(); 
-    
     if (mounted) setState(() { _isLoading = false; });
   }
 
@@ -163,9 +160,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
       } catch (e) { continue; }
 
       final double unitPrice = double.tryParse(scryfallCard.prices['eur'] ?? '0') ?? 0.0;
-      
       final int realQuantity = (deckCard.quantity - deckCard.proxyQuantity).clamp(0, deckCard.quantity);
-      
       total += (realQuantity * unitPrice);
     }
 
@@ -268,13 +263,12 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
 
   Future<void> _checkLegality() async {
     setState(() { _isValidating = true; });
-    
     final bool hasOnlyLocalCards = _currentDeck.mainboard.isNotEmpty && 
         _currentDeck.mainboard.every((card) => card.scryfallId.startsWith('LOCAL:'));
             
     if(hasOnlyLocalCards) {
         setState(() { _isValidating = false; });
-      _showValidationResults({'Erreur': 'Aucune donnée Scryfall trouvée pour ce deck (tout est local).'});
+      _showValidationResults({'Erreur': 'Aucune donnée Scryfall trouvée pour ce deck.'});
       return;
     }
 
@@ -463,15 +457,8 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
 
   Future<void> _addLandsToDeck(int targetCount, Map<String, int> pipCount, int totalPips) async {
     setState(() { _isLoading = true; });
-    
     Deck deckCopy = _currentDeck;
-    for (final land in kBasicLands.values) {
-      deckCopy = await _deckService.upsertCardInDeck(
-        deckId: deckCopy.id, scryfallId: land['id']!, cardName: land['name']!, absoluteQuantity: 0
-      );
-    }
-    _currentDeck = deckCopy;
-
+    
     final int currentNonLand = _currentDeck.mainboard.fold(0, (s, c) => s + c.quantity);
     final int landsNeeded = targetCount - currentNonLand;
 
@@ -494,7 +481,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
             deckId: deckCopy.id, 
             scryfallId: kBasicLands[entry.key]!['id']!, 
             cardName: kBasicLands[entry.key]!['name']!, 
-            absoluteQuantity: entry.value
+            quantityToAdd: entry.value
           );
         }
       }
@@ -525,21 +512,104 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
      }
   }
 
+  // --- NOUVEAU : PARTAGE AVEC OPTIONS (CORRIGÉ) ---
   void _shareDeck() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true, // Permet d'adapter la hauteur
+      builder: (context) {
+        // On récupère le padding du bas (pour la barre de nav)
+        final double bottomPadding = MediaQuery.of(context).viewPadding.bottom;
+        
+        return Container(
+          // On retire la hauteur fixe pour éviter l'overflow
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomPadding),
+          child: Column(
+            mainAxisSize: MainAxisSize.min, // S'adapte au contenu
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Format d'exportation", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.description_outlined, color: Colors.white70),
+                title: const Text("Liste Simple", style: TextStyle(color: Colors.white)),
+                subtitle: const Text("Quantité + Nom (Lisible)", style: TextStyle(color: Colors.white38)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _performShare(isArenaFormat: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.videogame_asset, color: Colors.purpleAccent),
+                title: const Text("Format Arena / MOX", style: TextStyle(color: Colors.white)),
+                subtitle: const Text("Quantité + Nom + Set + ID (Importable)", style: TextStyle(color: Colors.white38)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _performShare(isArenaFormat: true);
+                },
+              ),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  void _performShare({required bool isArenaFormat}) {
     final sb = StringBuffer();
-    sb.writeln('Deck: ${_currentDeck.name}');
-    if (_currentDeck.commanderScryfallId != null) {
-       try {
-         final c = _fullCardData.firstWhere((x)=>x.id==_currentDeck.commanderScryfallId);
-         sb.writeln("Commander: ${c.name}");
-       } catch(e){ sb.writeln("Commander ID: ${_currentDeck.commanderScryfallId}"); }
+    
+    if (!isArenaFormat) {
+      // Entête lisible pour humains
+      sb.writeln('Deck: ${_currentDeck.name}');
+      if (_currentDeck.commanderScryfallId != null) {
+         try {
+           final c = _fullCardData.firstWhere((x)=>x.id==_currentDeck.commanderScryfallId);
+           sb.writeln("Commander: ${c.name}");
+         } catch(e){ /* */ }
+      }
+      sb.writeln("");
+    } else {
+      // Pour Arena, on commence direct par "Deck" ou "Commander"
+      if (_currentDeck.commanderScryfallId != null) {
+         try {
+           final c = _fullCardData.firstWhere((x)=>x.id==_currentDeck.commanderScryfallId);
+           sb.writeln("Commander");
+           sb.writeln("1 ${c.name} (${c.setCode.toUpperCase()}) ${c.collectorNumber}");
+           sb.writeln("");
+         } catch(e){ /* */ }
+      }
+      sb.writeln("Deck");
     }
-    sb.writeln("\nMainboard:");
-    for(var c in _currentDeck.mainboard) sb.writeln("${c.quantity} ${c.name}");
+
+    // Fonction helper pour écrire une ligne
+    void writeCardLine(DeckCard card) {
+      if (isArenaFormat) {
+        // Format: Qty Name (SET) CollNum
+        try {
+          final sc = _fullCardData.firstWhere((x) => x.id == card.scryfallId);
+          sb.writeln("${card.quantity} ${sc.name} (${sc.setCode.toUpperCase()}) ${sc.collectorNumber}");
+        } catch (e) {
+          sb.writeln("${card.quantity} ${card.name}");
+        }
+      } else {
+        // Format Simple
+        sb.writeln("${card.quantity} ${card.name}");
+      }
+    }
+
+    for(var c in _currentDeck.mainboard) {
+      // Si c'est le commander, on ne le remet pas dans le deck pour Arena si déjà mis en "Commander"
+      if (isArenaFormat && c.scryfallId == _currentDeck.commanderScryfallId) continue;
+      writeCardLine(c);
+    }
+
     if(_currentDeck.sideboard.isNotEmpty) {
-      sb.writeln("\nSideboard:");
-      for(var c in _currentDeck.sideboard) sb.writeln("${c.quantity} ${c.name}");
+      sb.writeln("");
+      sb.writeln("Sideboard");
+      for(var c in _currentDeck.sideboard) writeCardLine(c);
     }
+    
     Share.share(sb.toString());
   }
 
@@ -560,32 +630,45 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("Résultats Légalité", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            ...results.entries.map((e) {
-              final isError = e.value.startsWith('❌');
-              return ListTile(
-                title: Text(e.key, style: const TextStyle(color: Colors.white)), 
-                trailing: Flexible(
-                  child: Text(e.value, 
-                    style: TextStyle(color: isError ? Colors.red.shade300 : Colors.green.shade300, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.right,
-                  )
-                )
-              );
-            }),
-          ],
-        ),
+      isScrollControlled: true, 
+      builder: (context) => DraggableScrollableSheet( 
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (context, scrollController) {
+          return SingleChildScrollView(
+            controller: scrollController,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey, borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(height: 16),
+                  Text("Résultats Légalité", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  ...results.entries.map((e) {
+                    final isError = e.value.startsWith('❌');
+                    return ListTile(
+                      title: Text(e.key, style: const TextStyle(color: Colors.white)), 
+                      trailing: Flexible(
+                        child: Text(e.value, 
+                          style: TextStyle(color: isError ? Colors.red.shade300 : Colors.green.shade300, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.right,
+                        )
+                      )
+                    );
+                  }),
+                ],
+              ),
+            ),
+          );
+        }
       )
     );
   }
 
-  // --- NOUVEAU : MODALE TOP CARTES ---
   void _showTopCardsModal() {
     List<Map<String, dynamic>> topCards = [];
     final allCards = [..._currentDeck.mainboard, ..._currentDeck.sideboard];
@@ -650,11 +733,11 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.yellow.shade900.withOpacity(0.3), Colors.black.withOpacity(0.6)],
+          colors: [Colors.yellow.shade900.withValues(alpha: 0.3), Colors.black.withValues(alpha: 0.6)],
           begin: Alignment.topLeft, end: Alignment.bottomRight
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.yellow.shade800.withOpacity(0.5)),
+        border: Border.all(color: Colors.yellow.shade800.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -723,8 +806,8 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: _getLandColor(e.key).withOpacity(0.2),
-            border: Border.all(color: _getLandColor(e.key).withOpacity(0.6)),
+            color: _getLandColor(e.key).withValues(alpha: 0.2),
+            border: Border.all(color: _getLandColor(e.key).withValues(alpha: 0.6)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -792,7 +875,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
                 case 'add': _openCardPicker(); break;
                 case 'lands': _showAutoFillLandsModal(); break;
                 case 'play': _openDrawSimulator(); break;
-                case 'legality': _checkLegality(); break; // <-- NOUVEAU : Légalité ici
+                case 'legality': _checkLegality(); break;
                 case 'clear': _showClearDeckDialog(); break;
               }
             },
@@ -827,7 +910,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
                   ],
                 ),
               ),
-              // Option Légalité
               PopupMenuItem<String>(
                 value: 'legality',
                 child: Row(
@@ -893,10 +975,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
           ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : Column(
               children: [
-                // --- LE NOUVEAU BLOC FINANCE ---
                 _buildFinancialHeader(),
-                
-                // --- CONTENU DES ONGLETS ---
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
@@ -930,7 +1009,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
                 ),
               ],
             ),
-      // Plus de FloatingActionButton ici
     );
   }
 }

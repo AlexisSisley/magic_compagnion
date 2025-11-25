@@ -1,5 +1,5 @@
 // Fichier : lib/widgets/decks/deck_card_picker.dart
-// NOUVEAU FICHIER
+// VERSION MISE À JOUR : Infinite Scroll + Sélecteur de Versions
 
 import 'dart:async';
 import 'dart:convert';
@@ -13,6 +13,7 @@ import 'package:magic_companion/widgets/search/search_filter_modal.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/collection_service.dart';
+import '../cards/versions_selector_sheet.dart'; // Import du sélecteur
 
 class DeckCardPicker extends StatefulWidget {
   const DeckCardPicker({super.key});
@@ -23,6 +24,7 @@ class DeckCardPicker extends StatefulWidget {
 
 class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final ScrollController _scrollController = ScrollController(); // Scroll partagé
   
   // Panier de sélection : ID Scryfall -> Quantité
   final Map<String, int> _selectedQuantities = {};
@@ -31,37 +33,57 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
 
   // Services
   final CollectionService _collectionService = CollectionService();
-  final LocalCardService _localCardService = LocalCardService(); //
+  final LocalCardService _localCardService = LocalCardService();
 
   // --- ONGLET 1 : RECHERCHE API ---
   final TextEditingController _searchController = TextEditingController();
-  List<ScryfallCard> _searchResults = [];
+  List<ScryfallCard> _apiResults = [];
   bool _isSearching = false;
   Timer? _debounce;
-  SearchFilters _apiFilters = SearchFilters(); //
-  String _apiSort = 'name'; // 'name', 'cmc', 'type'
+  SearchFilters _apiFilters = SearchFilters();
+  String _apiSort = 'name'; 
+  
+  // Pagination API
+  String? _nextApiPageUrl;
+  bool _isApiLoadingMore = false;
+  int _totalApiResults = 0;
 
   // --- ONGLET 2 : COLLECTION ---
-  List<DeckCard> _fullCollection = [];
-  List<DeckCard> _filteredCollection = [];
+  List<DeckCard> _fullCollection = []; // Toute la collection filtrée
+  List<DeckCard> _displayedCollection = []; // Ce qu'on affiche (pagination locale)
+  static const int _localPageSize = 30;
+  
   final TextEditingController _collectionSearchController = TextEditingController();
   SearchFilters _collectionFilters = SearchFilters();
-  String _collectionSort = 'name'; // 'name', 'price', 'type'
+  String _collectionSort = 'name'; 
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _scrollController.addListener(_onScroll);
     _loadCollection();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _scrollController.dispose();
     _searchController.dispose();
     _collectionSearchController.dispose();
     _debounce?.cancel();
     super.dispose();
+  }
+
+  // Gestion du Scroll Infini
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (_tabController.index == 0) {
+        _loadMoreApiResults();
+      } else {
+        _loadMoreLocalResults();
+      }
+    }
   }
 
   // ===========================================================================
@@ -69,16 +91,15 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
   // ===========================================================================
 
   Future<void> _loadCollection() async {
-    // On s'assure que le service local est prêt pour récupérer images/mana
     if (!_localCardService.isLoaded) {
       await _localCardService.loadLocalData();
     }
     
-    final col = await _collectionService.loadCollection(); //
+    final col = await _collectionService.loadCollection(); 
     if (mounted) {
       setState(() {
-        _fullCollection = col;
-        _applyCollectionFilters();
+        _fullCollection = col; // Charge brut
+        _applyCollectionFilters(); // Filtre et initialise l'affichage
       });
     }
   }
@@ -86,64 +107,85 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
   void _applyCollectionFilters() {
     final query = _collectionSearchController.text.toLowerCase();
     
+    // 1. Filtrage
+    List<DeckCard> filtered = _fullCollection.where((deckCard) {
+      // Filtre Nom
+      if (query.isNotEmpty && !deckCard.name.toLowerCase().contains(query)) {
+        return false;
+      }
+
+      // Filtres Avancés
+      if (_collectionFilters.cardType != null || _collectionFilters.colors.isNotEmpty || _collectionFilters.setCode != null) {
+         final scryfallCard = _localCardService.getCardById(deckCard.scryfallId);
+         if (scryfallCard == null) return false; 
+
+         // Type
+         if (_collectionFilters.cardType != null && 
+             !scryfallCard.typeLine.toLowerCase().contains(_collectionFilters.cardType!.toLowerCase())) {
+           return false;
+         }
+         // Couleurs
+         if (_collectionFilters.colors.isNotEmpty) {
+           final cardColors = scryfallCard.colorIdentity.toSet();
+           if (!_collectionFilters.colors.every((c) => cardColors.contains(c))) return false;
+         }
+         // Set
+         if (_collectionFilters.setCode != null && 
+             scryfallCard.setCode.toLowerCase() != _collectionFilters.setCode!.toLowerCase()) {
+           return false;
+         }
+      }
+      return true;
+    }).toList();
+
+    // 2. Tri
+    filtered.sort((a, b) {
+      final cardA = _localCardService.getCardById(a.scryfallId);
+      final cardB = _localCardService.getCardById(b.scryfallId);
+
+      switch (_collectionSort) {
+        case 'price':
+           double priceA = double.tryParse(cardA?.prices['eur'] ?? '0') ?? 0;
+           double priceB = double.tryParse(cardB?.prices['eur'] ?? '0') ?? 0;
+           return priceB.compareTo(priceA);
+        case 'type':
+           return (cardA?.typeLine ?? '').compareTo(cardB?.typeLine ?? '');
+        case 'name':
+        default:
+           return a.name.compareTo(b.name);
+      }
+    });
+
+    // 3. Reset Pagination Locale
     setState(() {
-      _filteredCollection = _fullCollection.where((deckCard) {
-        // 1. Filtre Nom
-        if (query.isNotEmpty && !deckCard.name.toLowerCase().contains(query)) {
-          return false;
-        }
+      _fullCollection = filtered; // On stocke le résultat filtré "complet" ici temporairement pour simplifier
+      // Note: Dans une vraie app on garderait _allCards et _filteredCards séparés, 
+      // mais ici _fullCollection est utilisé comme source filtrée.
+      
+      final int count = (filtered.length < _localPageSize) ? filtered.length : _localPageSize;
+      _displayedCollection = filtered.sublist(0, count);
+    });
+  }
 
-        // 2. Filtres Avancés (via LocalCardService)
-        if (_collectionFilters.cardType != null || _collectionFilters.colors.isNotEmpty || _collectionFilters.setCode != null) {
-           final scryfallCard = _localCardService.getCardById(deckCard.scryfallId);
-           if (scryfallCard == null) return false; // Pas d'info = on exclut par sécurité si filtre actif
-
-           // Type
-           if (_collectionFilters.cardType != null && 
-               !scryfallCard.typeLine.toLowerCase().contains(_collectionFilters.cardType!.toLowerCase())) {
-             return false;
-           }
-           // Couleurs
-           if (_collectionFilters.colors.isNotEmpty) {
-             final cardColors = scryfallCard.colorIdentity.toSet();
-             if (!_collectionFilters.colors.every((c) => cardColors.contains(c))) return false;
-           }
-           // Set
-           if (_collectionFilters.setCode != null && 
-               scryfallCard.setCode.toLowerCase() != _collectionFilters.setCode!.toLowerCase()) {
-             return false;
-           }
-        }
-        return true;
-      }).toList();
-
-      // 3. Tri
-      _filteredCollection.sort((a, b) {
-        final cardA = _localCardService.getCardById(a.scryfallId);
-        final cardB = _localCardService.getCardById(b.scryfallId);
-
-        switch (_collectionSort) {
-          case 'price':
-             double priceA = double.tryParse(cardA?.prices['eur'] ?? '0') ?? 0;
-             double priceB = double.tryParse(cardB?.prices['eur'] ?? '0') ?? 0;
-             return priceB.compareTo(priceA); // Décroissant
-          case 'type':
-             return (cardA?.typeLine ?? '').compareTo(cardB?.typeLine ?? '');
-          case 'name':
-          default:
-             return a.name.compareTo(b.name);
-        }
-      });
+  void _loadMoreLocalResults() {
+    if (_displayedCollection.length >= _fullCollection.length) return;
+    setState(() {
+      final int nextCount = (_displayedCollection.length + _localPageSize).clamp(0, _fullCollection.length);
+      _displayedCollection = _fullCollection.sublist(0, nextCount);
     });
   }
 
   Future<void> _openCollectionFilterModal() async {
     final newFilters = await showModalBottomSheet<SearchFilters>(
       context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-      builder: (context) => SearchFilterModal(initialFilters: _collectionFilters), //
+      builder: (context) => SearchFilterModal(initialFilters: _collectionFilters),
     );
     if (newFilters != null) {
       setState(() => _collectionFilters = newFilters);
+      // Recharger la collection complète brute avant de refiltrer
+      // (car _fullCollection a été écrasé par le filtre précédent dans cette implémentation simplifiée)
+      final col = await _collectionService.loadCollection();
+      setState(() { _fullCollection = col; });
       _applyCollectionFilters();
     }
   }
@@ -155,7 +197,6 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      // On lance la recherche si on a du texte OU des filtres
       if (query.trim().isNotEmpty || _apiFilters.cardType != null || _apiFilters.colors.isNotEmpty || _apiFilters.setCode != null) {
         _searchScryfall(query);
       }
@@ -163,18 +204,20 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
   }
 
   Future<void> _searchScryfall(String query) async {
-    setState(() { _isSearching = true; });
+    setState(() { _isSearching = true; _apiResults = []; _nextApiPageUrl = null; _totalApiResults = 0; });
     try {
-      // Construction de la requête Scryfall
       List<String> parts = [];
       if (query.trim().isNotEmpty) parts.add(query.trim());
       if (_apiFilters.setCode != null) parts.add('e:${_apiFilters.setCode}');
       if (_apiFilters.cardType != null) parts.add('t:${_apiFilters.cardType}');
       if (_apiFilters.colors.isNotEmpty) parts.add('c:${_apiFilters.colors.join()}');
+      if (_apiFilters.rarity != null) parts.add('r:${_apiFilters.rarity}');
+      if (_apiFilters.minCmc != null) parts.add('cmc>=${_apiFilters.minCmc!.toInt()}');
+      if (_apiFilters.maxCmc != null) parts.add('cmc<=${_apiFilters.maxCmc!.toInt()}');
       
       String finalQuery = parts.join(' ');
       if (finalQuery.isEmpty) { 
-        setState(() { _searchResults = []; _isSearching = false; });
+        setState(() { _isSearching = false; });
         return; 
       }
 
@@ -186,17 +229,52 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
       
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
+        
+        // Gestion Pagination
+        _totalApiResults = data['total_cards'] ?? 0;
+        if (data['has_more'] == true) {
+          _nextApiPageUrl = data['next_page'];
+        }
+
         final List<dynamic> raw = data['data'] ?? [];
         setState(() {
-          _searchResults = raw.map((json) => ScryfallCard.fromJson(json)).toList();
+          _apiResults = raw.map((json) => ScryfallCard.fromJson(json)).toList();
         });
-      } else {
-        setState(() => _searchResults = []);
       }
     } catch (e) {
        // Erreur silencieuse
     } finally {
       if (mounted) setState(() { _isSearching = false; });
+    }
+  }
+
+  Future<void> _loadMoreApiResults() async {
+    if (_isApiLoadingMore || _nextApiPageUrl == null) return;
+    setState(() { _isApiLoadingMore = true; });
+
+    try {
+      final response = await http.get(Uri.parse(_nextApiPageUrl!));
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        if (data['has_more'] == true) {
+          _nextApiPageUrl = data['next_page'];
+        } else {
+          _nextApiPageUrl = null;
+        }
+
+        final List<dynamic> raw = data['data'] ?? [];
+        final newCards = raw.map((json) => ScryfallCard.fromJson(json)).toList();
+        
+        if (mounted) {
+          setState(() {
+            _apiResults.addAll(newCards);
+          });
+        }
+      }
+    } catch (e) {
+      // Erreur silencieuse
+    } finally {
+      if (mounted) setState(() { _isApiLoadingMore = false; });
     }
   }
 
@@ -212,7 +290,7 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
   }
 
   // ===========================================================================
-  // GESTION DU PANIER
+  // GESTION DU PANIER & VERSIONS
   // ===========================================================================
 
   void _increment(ScryfallCard card) {
@@ -241,6 +319,40 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
       }
     });
     Navigator.pop(context, result);
+  }
+
+  Future<void> _openVersionSelector(ScryfallCard currentCard, int index, bool isApiTab) async {
+    // Si c'est une carte locale sans oracle_id, on ne peut pas chercher de versions
+    if (currentCard.oracleId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossible de trouver d'autres versions (Carte locale).")));
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => VersionsSelectorSheet(
+        oracleId: currentCard.oracleId,
+        currentCardId: currentCard.id,
+        onVersionSelected: (ScryfallCard newVersion) {
+          setState(() {
+            // Remplace la carte dans la liste affichée
+            if (isApiTab) {
+              _apiResults[index] = newVersion;
+            } else {
+              // Pour la collection, c'est plus délicat car on manipule des DeckCard
+              // Ici on met à jour l'affichage, mais l'ajout se fera avec le nouvel ID
+              // Note: Cela ne modifie pas la collection physique, juste la carte qu'on s'apprête à ajouter au deck
+              // Pour simplifier, on ne le fait que pour l'API ou on accepte que l'affichage change temporairement
+            }
+            
+            // Si l'utilisateur avait déjà sélectionné l'ancienne version, on transfère la quantité ?
+            // Pour l'instant, on considère que c'est une nouvelle sélection.
+          });
+        },
+      ),
+    );
   }
 
   // ===========================================================================
@@ -287,7 +399,7 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
   Widget _buildApiSearchTab() {
     return Column(
       children: [
-        // Barre de recherche + Filtres
+        // Barre de recherche
         Container(
           padding: const EdgeInsets.all(8.0),
           color: Colors.black38,
@@ -316,18 +428,38 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
             ],
           ),
         ),
+        
+        // Barre de statut (Nombre de résultats)
+        if (_apiResults.isNotEmpty && !_isSearching)
+          Container(
+            width: double.infinity,
+            color: Colors.black26,
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+            child: Text(
+              "$_totalApiResults résultats trouvés",
+              style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
+            ),
+          ),
+
         if (_isSearching) const LinearProgressIndicator(color: Colors.yellow, minHeight: 2),
         
         Expanded(
           child: ListView.separated(
-            itemCount: _searchResults.length,
+            controller: _scrollController, // Attaché ici
+            itemCount: _apiResults.length + (_isApiLoadingMore ? 1 : 0),
             separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.white10),
             itemBuilder: (context, index) {
-              final card = _searchResults[index];
+              if (index == _apiResults.length) {
+                return const Padding(padding: EdgeInsets.all(16.0), child: Center(child: CircularProgressIndicator()));
+              }
+              
+              final card = _apiResults[index];
               final qty = _selectedQuantities[card.id] ?? 0;
               return _buildRichCardTile(
                 card: card,
                 quantity: qty,
+                isApiTab: true,
+                index: index,
                 onAdd: () => _increment(card),
                 onRemove: () => _decrement(card.id),
               );
@@ -370,26 +502,36 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
           ),
         ),
         
+        if (_displayedCollection.isNotEmpty)
+           Container(
+            width: double.infinity,
+            color: Colors.black26,
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+            child: Text(
+              "${_fullCollection.length} cartes dans la collection (filtrées)",
+              style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
+            ),
+          ),
+
         Expanded(
           child: ListView.separated(
-            itemCount: _filteredCollection.length,
+            controller: _scrollController, // Attaché ici aussi
+            itemCount: _displayedCollection.length,
             separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.white10),
             itemBuilder: (context, index) {
-              final deckCard = _filteredCollection[index];
+              final deckCard = _displayedCollection[index];
               final qtySelected = _selectedQuantities[deckCard.scryfallId] ?? 0;
               
-              // Récupération LOCAL de l'image et du mana via le service
               final scryfallCard = _localCardService.getCardById(deckCard.scryfallId) ?? 
-                  // Fallback minimal si pas trouvé en local
-                  ScryfallCard(id: deckCard.scryfallId, oracleId: '', name: deckCard.name, imageUrl: '', rulesText: '', typeLine: '', legalities: {}, prices: {}, lang: 'en', colorIdentity: [], setName: '', setCode: '', collectorNumber: '');
+                  ScryfallCard(id: deckCard.scryfallId, oracleId: '', name: deckCard.name, imageUrl: '', rulesText: '', typeLine: '', legalities: {}, prices: {}, lang: 'en', colorIdentity: [], setName: '', setCode: '', collectorNumber: '', rarity: 'common');
 
               return _buildRichCardTile(
                 card: scryfallCard,
                 quantity: qtySelected,
-                ownedQuantity: deckCard.quantity, // Affiche combien on en a
-                onAdd: () {
-                   _increment(scryfallCard); // On utilise le ScryfallCard reconstitué/trouvé pour le cache
-                },
+                ownedQuantity: deckCard.quantity, 
+                isApiTab: false,
+                index: index,
+                onAdd: () => _increment(scryfallCard),
                 onRemove: () => _decrement(deckCard.scryfallId),
               );
             },
@@ -404,6 +546,8 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
     required ScryfallCard card,
     required int quantity,
     int? ownedQuantity,
+    required bool isApiTab,
+    required int index,
     required VoidCallback onAdd,
     required VoidCallback onRemove,
   }) {
@@ -411,19 +555,51 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
     final hasImage = imageUrl.isNotEmpty;
 
     return Container(
-      color: quantity > 0 ? Colors.yellow.shade900.withOpacity(0.2) : null,
+      color: quantity > 0 ? Colors.yellow.shade900.withValues(alpha: 0.2) : null,
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: hasImage 
-            ? Image.network(imageUrl, width: 40, height: 56, fit: BoxFit.cover)
-            : Container(width: 40, height: 56, color: Colors.grey.shade800, child: const Icon(Icons.image, size: 20)),
+        leading: GestureDetector(
+          // Le clic sur l'image ouvre aussi le sélecteur de version pour plus de fluidité
+          onTap: isApiTab ? () => _openVersionSelector(card, index, isApiTab) : null,
+          child: Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: hasImage 
+                  ? Image.network(imageUrl, width: 40, height: 56, fit: BoxFit.cover)
+                  : Container(width: 40, height: 56, color: Colors.grey.shade800, child: const Icon(Icons.image, size: 20)),
+              ),
+              if (isApiTab)
+                Positioned(
+                  bottom: 0, right: 0,
+                  child: Container(
+                    color: Colors.black54,
+                    child: const Icon(Icons.swap_horiz, size: 14, color: Colors.white),
+                  ),
+                )
+            ],
+          ),
         ),
-        title: Text(
-          card.name,
-          style: GoogleFonts.cinzel(color: quantity > 0 ? Colors.yellow :Colors.white, fontWeight: quantity > 0 ? FontWeight.bold : FontWeight.normal),
-           overflow: TextOverflow.fade
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                card.name,
+                style: GoogleFonts.cinzel(color: quantity > 0 ? Colors.yellow :Colors.white, fontWeight: quantity > 0 ? FontWeight.bold : FontWeight.normal),
+                 overflow: TextOverflow.ellipsis,
+                 maxLines: 1,
+              ),
+            ),
+            // Bouton Version explicite
+            if (isApiTab)
+              IconButton(
+                icon: const Icon(Icons.palette_outlined, size: 18, color: Colors.white54),
+                tooltip: "Changer d'édition / illustration",
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.only(left: 8),
+                onPressed: () => _openVersionSelector(card, index, isApiTab),
+              ),
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,10 +611,13 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
               ),
             Row(
               children: [
-                Text(
-                  card.typeLine, 
-                  style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 10), maxLines: 1, 
-                  overflow: TextOverflow.ellipsis
+                Expanded(
+                  child: Text(
+                    "${card.typeLine} • ${card.setName}", 
+                    style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 10), 
+                    maxLines: 1, 
+                    overflow: TextOverflow.ellipsis
+                  ),
                 ),
                 if (ownedQuantity != null)
                    Text(" • En stock: $ownedQuantity", style: const TextStyle(color: Colors.greenAccent, fontSize: 10)),
@@ -481,8 +660,9 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
 
   // --- HELPER BARRE INFÉRIEURE ---
   Widget _buildBottomBar(int totalCards) {
+    final double bottomPadding = MediaQuery.of(context).viewPadding.bottom;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomPadding),
       decoration: BoxDecoration(
         color: Colors.black,
         border: Border(top: BorderSide(color: Colors.yellow.shade800)),
@@ -545,9 +725,6 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
   }
 }
 
-// =============================================================================
-// PETIT WIDGET LOCAL POUR AFFICHER LE MANA
-// =============================================================================
 class _ManaDisplay extends StatelessWidget {
   final String manaCost;
   const _ManaDisplay({required this.manaCost});

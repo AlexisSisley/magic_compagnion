@@ -1,20 +1,21 @@
 // Fichier : lib/widgets/decks/draw_test_simulator.dart
-// VERSION MISE À JOUR (Avec miniatures)
+// VERSION MISE À JOUR : Analyseur de Mana ajouté
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math';
 import '../../models/deck_model.dart';
-import '../../models/scryfall_card_model.dart'; // <-- AJOUTÉ
+import '../../models/scryfall_card_model.dart';
 
 class DrawTestSimulator extends StatefulWidget {
   final List<DeckCard> mainboard;
-  final List<ScryfallCard> fullCardData; // <-- AJOUTÉ
+  final List<ScryfallCard> fullCardData;
   
   const DrawTestSimulator({
     super.key, 
     required this.mainboard,
-    required this.fullCardData, // <-- AJOUTÉ
+    required this.fullCardData,
   });
 
   @override
@@ -25,6 +26,9 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
   late List<DeckCard> _library;
   List<DeckCard> _hand = [];
   int _mulliganCount = 0;
+
+  // Analyse du mana
+  Map<String, int> _manaSources = {'W': 0, 'U': 0, 'B': 0, 'R': 0, 'G': 0, 'C': 0};
 
   @override
   void initState() {
@@ -38,6 +42,7 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
       _library.shuffle(Random());
       _hand = _drawCards(7);
       _mulliganCount = 0;
+      _calculateManaStats();
     });
   }
 
@@ -61,12 +66,50 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
       if (cardsToDraw < 0) cardsToDraw = 0;
       
       _hand = _drawCards(cardsToDraw);
+      _calculateManaStats();
     });
   }
   
   void _drawOneCard() {
     setState(() {
       _hand.addAll(_drawCards(1));
+      _calculateManaStats();
+    });
+  }
+
+  /// Analyse les terrains en main pour estimer les sources de mana
+  void _calculateManaStats() {
+    // Réinitialiser
+    final newStats = {'W': 0, 'U': 0, 'B': 0, 'R': 0, 'G': 0, 'C': 0};
+
+    for (final card in _hand) {
+      if (card.scryfallId.startsWith('LOCAL:')) continue;
+
+      try {
+        final scryfallData = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId);
+        
+        // On ne compte que les Terrains pour l'instant (approximation fiable)
+        if (scryfallData.typeLine.toLowerCase().contains('land')) {
+          if (scryfallData.colorIdentity.isEmpty) {
+             // Terrain incolore (ex: Reliquary Tower)
+             newStats['C'] = (newStats['C'] ?? 0) + 1;
+          } else {
+            // Ajoute 1 à chaque couleur que le terrain peut produire
+            // (C'est une estimation basée sur l'identité couleur)
+            for (final color in scryfallData.colorIdentity) {
+              if (newStats.containsKey(color)) {
+                newStats[color] = (newStats[color] ?? 0) + 1;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // Ignorer si données manquantes
+      }
+    }
+
+    setState(() {
+      _manaSources = newStats;
     });
   }
 
@@ -74,7 +117,7 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
   Widget build(BuildContext context) {
     return ConstrainedBox(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.8,
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -86,13 +129,14 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
         ),
         child: Column(
           children: [
+            // --- Header ---
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Main de départ',
+                    'Simulateur de Main',
                     style: GoogleFonts.cinzel(
                       color: Colors.white,
                       fontSize: 20,
@@ -106,6 +150,31 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
                 ],
               ),
             ),
+            
+            // --- Analyseur de Mana (NOUVEAU) ---
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+              padding: const EdgeInsets.all(8.0),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Text("Sources disponibles :", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  _buildManaIndicator('W', _manaSources['W'] ?? 0),
+                  _buildManaIndicator('U', _manaSources['U'] ?? 0),
+                  _buildManaIndicator('B', _manaSources['B'] ?? 0),
+                  _buildManaIndicator('R', _manaSources['R'] ?? 0),
+                  _buildManaIndicator('G', _manaSources['G'] ?? 0),
+                  _buildManaIndicator('C', _manaSources['C'] ?? 0),
+                ],
+              ),
+            ),
+
+            // --- Liste des cartes ---
             Expanded(
               child: _hand.isEmpty
                   ? Center(child: Text('Main vide.', style: GoogleFonts.cinzel(color: Colors.white54)))
@@ -115,76 +184,115 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
                       itemBuilder: (context, index) {
                         final card = _hand[index];
                         
-                        // --- MODIFICATION : Trouver l'URL de l'image ---
                         String? smallImageUrl;
+                        String typeLine = "";
                         try {
                           final scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId);
                           if (!scryfallCard.id.startsWith('LOCAL:')) {
                             smallImageUrl = scryfallCard.smallImageUrl;
+                            typeLine = scryfallCard.typeLine;
                           }
-                        } catch (e) {
-                          // Carte locale ou non trouvée, smallImageUrl reste null
-                        }
-                        // --- FIN MODIFICATION ---
+                        } catch (e) { /* fallback */ }
+
+                        // Indication visuelle si c'est un terrain (pour aider à comprendre l'analyse)
+                        final bool isLand = typeLine.toLowerCase().contains('land');
 
                         return Card(
-                          color: Colors.black.withAlpha((0.3 * 255).round()),
+                          color: isLand ? Colors.brown.shade900.withOpacity(0.3) : Colors.black.withOpacity(0.3),
+                          margin: const EdgeInsets.symmetric(vertical: 4),
                           child: ListTile(
-                            // --- MODIFICATION : Ajout du Leading (image) ---
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                             leading: ClipRRect(
                               borderRadius: BorderRadius.circular(3.0),
                               child: (smallImageUrl != null)
                                   ? Image.network(
                                       smallImageUrl,
-                                      width: 30, // Plus petit ici
-                                      height: 42,
+                                      width: 35, 
+                                      height: 49, // Ratio magic
                                       fit: BoxFit.cover,
                                       errorBuilder: (context, e, s) => const Icon(Icons.image_not_supported, size: 30),
                                     )
                                   : Container(
-                                      width: 30,
-                                      height: 42,
+                                      width: 35, height: 49,
                                       color: Colors.grey.shade800,
                                       child: const Icon(Icons.image_not_supported, color: Colors.white30, size: 24),
                                     ),
                             ),
-                            // --- FIN MODIFICATION ---
-                            
                             title: Text(
                               card.name,
-                              style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16),
+                              style: GoogleFonts.cinzel(color: isLand ? Colors.amber.shade100 : Colors.white, fontSize: 15),
+                              overflow: TextOverflow.ellipsis,
                             ),
+                            subtitle: isLand 
+                              ? const Text("Terrain", style: TextStyle(color: Colors.white38, fontSize: 10)) 
+                              : null,
+                            dense: true,
                           ),
                         );
                       },
                     ),
             ),
+            
+            // --- Contrôles ---
             Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.all(12.0),
               child: Wrap(
-                spacing: 10,
+                spacing: 12,
+                runSpacing: 8,
                 alignment: WrapAlignment.center,
                 children: [
-                  ElevatedButton(
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add, size: 16),
                     onPressed: _drawOneCard,
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade800),
-                    child: Text('Piocher 1', style: GoogleFonts.cinzel(color: Colors.white)),
+                    label: Text('Piocher 1', style: GoogleFonts.cinzel(color: Colors.white)),
                   ),
-                  ElevatedButton(
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.refresh, size: 16),
                     onPressed: _mulligan,
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
-                    child: Text('Mulligan (${7 - _mulliganCount - 1})', style: GoogleFonts.cinzel(color: Colors.white)),
+                    label: Text('Mulligan (${7 - _mulliganCount - 1})', style: GoogleFonts.cinzel(color: Colors.white)),
                   ),
-                  ElevatedButton(
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.restart_alt, size: 16),
                     onPressed: _startNewGame,
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade800),
-                    child: Text('Recommencer', style: GoogleFonts.cinzel(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
+                    label: Text('Reset', style: GoogleFonts.cinzel(color: Colors.white)),
                   ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildManaIndicator(String symbol, int count) {
+    // Si count est 0, on affiche en gris très foncé pour montrer que c'est manquant
+    final double opacity = count > 0 ? 1.0 : 0.3;
+    final String cleanSymbol = symbol.replaceAll(RegExp(r'[{}/]'), '').toUpperCase();
+    
+    return Opacity(
+      opacity: opacity,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SvgPicture.network(
+            'https://svgs.scryfall.io/card-symbols/$cleanSymbol.svg',
+            width: 16, height: 16,
+            placeholderBuilder: (_) => Text(symbol, style: const TextStyle(color: Colors.white, fontSize: 12)),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            "$count",
+            style: TextStyle(
+              color: count > 0 ? Colors.white : Colors.grey, 
+              fontWeight: FontWeight.bold, 
+              fontSize: 12
+            ),
+          ),
+        ],
       ),
     );
   }

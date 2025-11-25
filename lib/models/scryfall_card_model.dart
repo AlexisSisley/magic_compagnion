@@ -1,9 +1,9 @@
 // Fichier : lib/models/scryfall_card_model.dart
-// VERSION MISE À JOUR (Support des éditions et Oracle ID)
+// VERSION MISE À JOUR : Ajout du champ 'rarity'
 
 class ScryfallCard {
   final String id;
-  final String oracleId; // <-- AJOUT IMPORTANT : Lien entre toutes les versions
+  final String oracleId;
   final String name;
   final String? printedName;
   final String? manaCost;
@@ -17,10 +17,12 @@ class ScryfallCard {
   final String lang;
   final List<String> colorIdentity;
   
-  // --- NOUVEAUX CHAMPS ---
-  final String setName;        // Nom de l'édition (ex: "Theros Beyond Death")
-  final String setCode;        // Code de l'édition (ex: "thb")
-  final String collectorNumber; // Numéro de collection (ex: "123")
+  final String setName;
+  final String setCode;
+  final String collectorNumber;
+  
+  // --- NOUVEAU CHAMP ---
+  final String rarity; // common, uncommon, rare, mythic, special...
 
   ScryfallCard({
     required this.id,
@@ -40,6 +42,7 @@ class ScryfallCard {
     required this.setName,
     required this.setCode,
     required this.collectorNumber,
+    required this.rarity, // Ajouté au constructeur
   });
 
   factory ScryfallCard.fromJson(Map<String, dynamic> json) {
@@ -50,7 +53,6 @@ class ScryfallCard {
     String? printedName;
     double? cmc;
 
-    // Gestion des cartes double-face (transform, etc.)
     if (json['card_faces'] != null && json['card_faces'][0]['image_uris'] != null) {
       final face = json['card_faces'][0];
       imageUrl = face['image_uris']['normal'] ?? '';
@@ -76,7 +78,7 @@ class ScryfallCard {
 
     return ScryfallCard(
       id: json['id'],
-      oracleId: json['oracle_id'] ?? '', // <-- Récupération Oracle ID
+      oracleId: json['oracle_id'] ?? '',
       name: json['name'] ?? 'Nom inconnu',
       printedName: printedName,
       manaCost: manaCost,
@@ -89,9 +91,11 @@ class ScryfallCard {
       prices: Map<String, dynamic>.from(json['prices'] ?? {}),
       lang: json['lang'] ?? 'en',
       colorIdentity: identity,
-      setName: json['set_name'] ?? 'Unknown Set', // <-- Récupération Set Name
+      setName: json['set_name'] ?? 'Unknown Set',
       setCode: json['set'] ?? '',
       collectorNumber: json['collector_number'] ?? '',
+      // Récupération de la rareté avec valeur par défaut
+      rarity: json['rarity'] ?? 'common', 
     );
   }
 }

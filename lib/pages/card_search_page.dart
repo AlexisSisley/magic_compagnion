@@ -1,8 +1,8 @@
 // Fichier : lib/pages/card_search_page.dart
+// VERSION MISE À JOUR : Fallback Local sur Erreur API
 
 import 'dart:async'; 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
@@ -33,7 +33,6 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
   
   final ScrollController _scrollController = ScrollController();
   
-  // --- ÉTAT DE RECHERCHE ---
   List<ScryfallCard> _fullLocalResults = []; 
   List<ScryfallCard> _searchResults = [];    
   static const int _localPageSize = 30;      
@@ -43,19 +42,18 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
   
   SearchFilters _activeFilters = SearchFilters();
   bool _isLoading = false;
-  String _statusMessage = 'Entrez un nom ou choisissez une édition.';
+  String _statusMessage = 'Entrez un nom ou utilisez les filtres.';
   
   bool _isGridView = false; 
   Timer? _debounce; 
-
-  // --- TRI (NOUVEAU) ---
-  String _sortBy = 'name'; // 'name', 'cmc', 'type'
+  String _sortBy = 'name'; // 'name', 'cmc', 'type', 'eur'
 
   final CollectionService _collectionService = CollectionService();
   final WishlistService _wishlistService = WishlistService();
   List<DeckCard> _collection = [];
   List<DeckCard> _wishlist = [];
   
+  // ignore: unused_field
   final RegExp _manaRegex = RegExp(r'\{([^}]+)\}');
 
   @override
@@ -101,22 +99,17 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
 
   Future<void> _loadMoreApiResults() async {
     if (_isApiLoadingMore || _nextPageUrl == null) return;
-
     setState(() { _isApiLoadingMore = true; });
 
     try {
       final response = await http.get(Uri.parse(_nextPageUrl!));
-      
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         final String? nextUri = data['next_page']; 
         final List<dynamic> rawList = data['data'] ?? [];
         List<ScryfallCard> newCards = rawList.map((json) => ScryfallCard.fromJson(json)).toList();
 
-        // Si tri par Type (non supporté par API), on trie chaque page reçue (imparfait mais mieux que rien)
-        if (_sortBy == 'type') {
-           newCards.sort((a, b) => a.typeLine.compareTo(b.typeLine));
-        }
+        if (_sortBy == 'type') newCards.sort((a, b) => a.typeLine.compareTo(b.typeLine));
 
         if (mounted) {
           setState(() {
@@ -130,7 +123,6 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
       }
     } catch (e) {
       setState(() { _isApiLoadingMore = false; });
-      debugPrint("Erreur pagination API: $e");
     }
   }
 
@@ -138,23 +130,28 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     final collection = await _collectionService.loadCollection();
     final wishlist = await _wishlistService.loadWishlist();
     if (mounted) {
-      setState(() {
-        _collection = collection;
-        _wishlist = wishlist;
-      });
+      setState(() { _collection = collection; _wishlist = wishlist; });
     }
   }
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 600), () {
-      if (query.trim().isNotEmpty || _activeFilters.setCode != null) {
+      if (query.trim().isNotEmpty || _hasActiveFilters()) {
         _searchCards();
       }
     });
   }
+  
+  bool _hasActiveFilters() {
+    return _activeFilters.setCode != null || 
+           _activeFilters.cardType != null || 
+           _activeFilters.colors.isNotEmpty ||
+           _activeFilters.minCmc != null || 
+           _activeFilters.maxCmc != null ||
+           _activeFilters.rarity != null;
+  }
 
-  // --- LOGIQUE DE TRI ---
   void _applySort(List<ScryfallCard> list) {
     switch (_sortBy) {
       case 'cmc':
@@ -163,6 +160,9 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
       case 'type':
         list.sort((a, b) => a.typeLine.compareTo(b.typeLine));
         break;
+      case 'eur':
+        list.sort((a, b) => (double.tryParse(b.prices['eur']??'0')??0).compareTo(double.tryParse(a.prices['eur']??'0')??0));
+        break;
       case 'name':
       default:
         list.sort((a, b) => a.name.compareTo(b.name));
@@ -170,67 +170,102 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     }
   }
 
+  // --- NOUVELLE MÉTHODE DE RECHERCHE PRINCIPALE ---
   Future<void> _searchCards() async {
     if (_tabController.index != 0) _tabController.animateTo(0);
-
     final String query = _searchController.text.trim();
     
-    if (query.isEmpty && _activeFilters.setCode == null && _activeFilters.cardType == null && _activeFilters.colors.isEmpty) {
+    if (query.isEmpty && !_hasActiveFilters()) {
       if (mounted) setState(() { _searchResults = []; _fullLocalResults = []; _nextPageUrl = null; _statusMessage = "Veuillez entrer un critère."; });
       return;
     }
 
-    setState(() { 
-      _isLoading = true; 
-      _searchResults = []; 
-      _fullLocalResults = [];
-      _nextPageUrl = null; 
-      _statusMessage = 'Recherche...'; 
-    });
+    setState(() { _isLoading = true; _searchResults = []; _fullLocalResults = []; _nextPageUrl = null; _statusMessage = 'Recherche...'; });
 
-    // 1. Recherche Locale
-    if (_localCardService.isLoaded) {
-      await Future.delayed(const Duration(milliseconds: 50));
-      final results = _localCardService.searchCards(
-        query: query,
-        setCode: _activeFilters.setCode,
-        cardType: _activeFilters.cardType,
-        colors: _activeFilters.colors,
-      );
-      
-      if (results.isNotEmpty) {
-        // Appliquer le tri sur TOUT le résultat local
-        _applySort(results);
-
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _fullLocalResults = results;
-            final int initialCount = (results.length < _localPageSize) ? results.length : _localPageSize;
-            _searchResults = results.sublist(0, initialCount);
-            _statusMessage = '${results.length} cartes trouvées (Local)';
-          });
-        }
-        return;
-      }
+    // 1. PRIORITÉ LOCALE : Si on n'a pas de filtre d'édition, on commence par le local (plus rapide)
+    if (_localCardService.isLoaded && _activeFilters.setCode == null) {
+      bool localSuccess = await _performLocalSearch(query);
+      // Si on a trouvé des résultats en local, on s'arrête là pour l'instant
+      if (localSuccess) return;
     }
 
-    // 2. Fallback API
-    await _searchCardsApi(query);
+    // 2. APPEL API : Si filtre d'édition OU pas de résultat local
+    bool apiSuccess = await _searchCardsApi(query);
+
+    // 3. FALLBACK : Si l'API échoue (404 ou Erreur) ET qu'on a la base locale chargée
+    if (!apiSuccess && _localCardService.isLoaded) {
+       // On relance une recherche locale en IGNORANT le filtre d'édition
+       // (car c'est souvent lui qui bloque si la base locale n'a pas l'extension demandée)
+       setState(() { _statusMessage = "Erreur API. Recherche locale de secours..."; });
+       
+       await _performLocalSearch(query, ignoreSetFilter: true);
+       
+       if (mounted && _searchResults.isNotEmpty) {
+         setState(() {
+           _statusMessage = "${_searchResults.length} résultats (Mode Hors-Ligne / Fallback)";
+         });
+       }
+    }
   }
 
-  Future<void> _searchCardsApi(String query) async {
+  // --- MÉTHODE DE RECHERCHE LOCALE EXTRAITE ---
+  Future<bool> _performLocalSearch(String query, {bool ignoreSetFilter = false}) async {
+    await Future.delayed(const Duration(milliseconds: 50));
+    
+    // On ignore le setCode si demandé (pour le fallback)
+    String? setCodeFilter = ignoreSetFilter ? null : _activeFilters.setCode;
+
+    List<ScryfallCard> results = _localCardService.searchCards(
+      query: query,
+      setCode: setCodeFilter,
+      cardType: _activeFilters.cardType,
+      colors: _activeFilters.colors,
+    );
+    
+    // Filtrage manuel des nouveaux champs (CMC/Rareté) sur les résultats locaux
+    if (_activeFilters.minCmc != null || _activeFilters.maxCmc != null || _activeFilters.rarity != null) {
+       results = results.where((c) {
+         if (_activeFilters.minCmc != null && (c.cmc ?? 0) < _activeFilters.minCmc!) return false;
+         if (_activeFilters.maxCmc != null && (c.cmc ?? 0) > _activeFilters.maxCmc!) return false;
+         if (_activeFilters.rarity != null && c.rarity != _activeFilters.rarity) return false;
+         return true;
+       }).toList();
+    }
+
+    if (results.isNotEmpty) {
+      _applySort(results);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _fullLocalResults = results;
+          final int initialCount = (results.length < _localPageSize) ? results.length : _localPageSize;
+          _searchResults = results.sublist(0, initialCount);
+          _statusMessage = '${results.length} cartes trouvées (Local)';
+        });
+      }
+      return true; // Succès
+    }
+    return false; // Pas de résultat
+  }
+
+  // --- MÉTHODE API MODIFIÉE (Retourne bool) ---
+  Future<bool> _searchCardsApi(String query) async {
     final connectivityResult = await (Connectivity().checkConnectivity());
     if (connectivityResult.contains(ConnectivityResult.none)) { 
-      if (mounted) setState(() { _isLoading = false; _statusMessage = "Pas de connexion internet."; });
-      return;
+      // Pas de connexion = Echec immédiat pour déclencher le fallback
+      return false;
     }
 
     List<String> queryParts = [];
     if (query.isNotEmpty) queryParts.add(query);
+    
     if (_activeFilters.setCode != null) queryParts.add('e:${_activeFilters.setCode}');
     if (_activeFilters.colors.isNotEmpty) queryParts.add('c:${_activeFilters.colors.join()}');
     if (_activeFilters.cardType != null) queryParts.add('t:${_activeFilters.cardType}');
+    if (_activeFilters.rarity != null) queryParts.add('r:${_activeFilters.rarity}');
+    
+    if (_activeFilters.minCmc != null) queryParts.add('cmc>=${_activeFilters.minCmc!.toInt()}');
+    if (_activeFilters.maxCmc != null) queryParts.add('cmc<=${_activeFilters.maxCmc!.toInt()}');
     
     final String finalQuery = queryParts.join(' ');
     final prefs = await SharedPreferences.getInstance();
@@ -238,20 +273,15 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
 
     try {
       String uniqueParam = _activeFilters.setCode != null ? '&unique=prints' : '&unique=cards';
-      
-      // --- GESTION TRI API ---
-      // Scryfall supporte 'name', 'cmc'. 'type' n'est pas supporté directement par order=
       String sortParam = '&order=name';
       if (_sortBy == 'cmc') sortParam = '&order=cmc';
-      // Pour 'type', on reste sur 'name' par défaut côté API et on triera la page reçue
+      if (_sortBy == 'eur') sortParam = '&order=eur';
       
       final encodedQuery = Uri.encodeComponent(finalQuery);
-      
       final response = await http.get(Uri.parse('https://api.scryfall.com/cards/search?q=$encodedQuery&lang=$lang$uniqueParam$sortParam'));
       
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-        
         if (data.containsKey('has_more') && data['has_more'] == true) {
            _nextPageUrl = data['next_page'];
         }
@@ -259,10 +289,7 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
         final List<dynamic> rawList = data['data'] ?? [];
         List<ScryfallCard> apiResults = rawList.map((json) => ScryfallCard.fromJson(json)).toList();
 
-        // Tri manuel pour le type (puisque l'API ne le fait pas)
-        if (_sortBy == 'type') {
-           apiResults.sort((a, b) => a.typeLine.compareTo(b.typeLine));
-        }
+        if (_sortBy == 'type') apiResults.sort((a, b) => a.typeLine.compareTo(b.typeLine));
         
         if (mounted) {
           setState(() {
@@ -271,11 +298,15 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
             if (_searchResults.isEmpty) { _statusMessage = 'Aucune carte trouvée (API).'; }
           });
         }
+        return true; // Succès API
       } else {
+        // Erreur API (404, 500...)
         if (mounted) setState(() { _isLoading = false; _statusMessage = 'Erreur API (${response.statusCode}).'; });
+        return false; // Echec API -> Déclenchera le fallback
       }
     } catch (e) {
-      if (mounted) setState(() { _isLoading = false; _statusMessage = 'Erreur réseau: $e'; });
+      if (mounted) setState(() { _isLoading = false; _statusMessage = 'Erreur réseau'; });
+      return false; // Echec Réseau -> Déclenchera le fallback
     }
   }
 
@@ -309,7 +340,7 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     return Column(
       children: [
         Container(
-          color: Colors.black.withOpacity(0.5),
+          color: Colors.black.withValues(alpha: 0.5),
           child: TabBar(
             controller: _tabController,
             indicatorColor: Colors.yellow.shade800,
@@ -332,23 +363,19 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
                   
                   if (_searchResults.isNotEmpty && !_isLoading)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), // Plus compact
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       color: Colors.black26,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Info compte
                           Text(
                             _fullLocalResults.isNotEmpty 
                                 ? "${_searchResults.length}/${_fullLocalResults.length}"
                                 : "${_searchResults.length} cartes",
                             style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
                           ),
-                          
-                          // Zone Droite : Tri + Vue
                           Row(
                             children: [
-                              // --- MENU DE TRI ---
                               PopupMenuButton<String>(
                                 icon: Icon(Icons.sort, color: Colors.yellow.shade700, size: 20),
                                 color: const Color(0xFF1A1A1A),
@@ -356,26 +383,20 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
                                 onSelected: (val) {
                                   if (_sortBy != val) {
                                     setState(() => _sortBy = val);
-                                    _searchCards(); // Relancer pour appliquer le tri API ou Local
+                                    _searchCards();
                                   }
                                 },
                                 itemBuilder: (context) => [
                                   _buildSortMenuItem('name', 'Nom'),
                                   _buildSortMenuItem('cmc', 'Mana (CMC)'),
                                   _buildSortMenuItem('type', 'Type'),
+                                  _buildSortMenuItem('eur', 'Prix (€)'),
                                 ],
                               ),
-                              
                               const SizedBox(width: 8),
-                              
-                              // Toggle Vue
                               InkWell(
                                 onTap: () => setState(() => _isGridView = !_isGridView),
-                                child: Icon(
-                                  _isGridView ? Icons.grid_view : Icons.view_list,
-                                  color: Colors.white70,
-                                  size: 20,
-                                ),
+                                child: Icon(_isGridView ? Icons.grid_view : Icons.view_list, color: Colors.white70, size: 20),
                               ),
                             ],
                           )
@@ -409,13 +430,14 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
             size: 18,
           ),
           const SizedBox(width: 8),
-          Text(label, style: TextStyle(color: Colors.white)),
+          Text(label, style: const TextStyle(color: Colors.white)),
         ],
       ),
     );
   }
 
   Widget _buildSearchBar() {
+    final bool hasFilters = _hasActiveFilters();
     return Padding(
       padding: const EdgeInsets.all(12.0),
       child: TextField(
@@ -423,33 +445,25 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
         style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16),
         onChanged: _onSearchChanged,
         decoration: InputDecoration(
-          hintText: _activeFilters.setCode != null 
-              ? 'Dans: ${_activeFilters.setCode!.toUpperCase()}...' 
-              : 'Nom de la carte...',
+          hintText: _activeFilters.setCode != null ? 'Dans: ${_activeFilters.setCode!.toUpperCase()}...' : 'Nom de la carte...',
           hintStyle: GoogleFonts.cinzel(color: Colors.white54, fontSize: 14),
           prefixIcon: IconButton(
-            icon: Icon(
-              Icons.filter_list,
-              color: _activeFilters.colors.isNotEmpty || _activeFilters.cardType != null || _activeFilters.setCode != null
-                  ? Colors.yellow.shade700 : Colors.white70,
-            ),
+            icon: Icon(Icons.filter_list, color: hasFilters ? Colors.yellow.shade700 : Colors.white70),
             onPressed: _openFilterModal,
             tooltip: "Filtres avancés",
           ),
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-               if (_activeFilters.setCode != null)
+               if (hasFilters)
                 IconButton(
                   icon: const Icon(Icons.highlight_off, color: Colors.red),
-                  tooltip: "Quitter l'édition",
+                  tooltip: "Réinitialiser filtres",
                   onPressed: () {
                     setState(() {
-                      _activeFilters = _activeFilters.copyWith(setCode: null);
+                      _activeFilters = SearchFilters();
                       _searchController.clear();
-                      _searchResults = [];
-                      _fullLocalResults = [];
-                      _nextPageUrl = null;
+                      _searchResults = []; _fullLocalResults = []; _nextPageUrl = null;
                       _statusMessage = "Entrez un nom ou choisissez une édition.";
                     });
                   },
@@ -462,9 +476,6 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
                        setState(() { _searchResults = []; _fullLocalResults = []; _nextPageUrl = null; }); 
                     },
                  ),
-
-              if (_localCardService.isLoaded)
-                 const Padding(padding: EdgeInsets.all(8.0), child: Icon(Icons.offline_pin, color: Colors.green, size: 16)),
               
               IconButton(
                 icon: const Icon(Icons.search, color: Colors.white70),
@@ -473,7 +484,7 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
             ],
           ),
           filled: true,
-          fillColor: Colors.black.withAlpha(140),
+          fillColor: Colors.black.withValues(alpha: 0.55),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
         ),
         onSubmitted: (_) => _searchCards(),
@@ -481,9 +492,6 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     );
   }
 
-  // ===========================================================================
-  // LISTE & GRILLE (Inchangés mais inclus pour contexte)
-  // ===========================================================================
   Widget _buildResultsList({Key? key}) {
     if (_isLoading) { return const Center(child: CircularProgressIndicator()); }
     if (_searchResults.isEmpty) {
@@ -502,7 +510,6 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
           if (_nextPageUrl != null) showLoader = true;
           return showLoader ? const Padding(padding: EdgeInsets.all(16.0), child: Center(child: CircularProgressIndicator())) : const SizedBox(height: 20);
         }
-        if (index >= _searchResults.length) return const SizedBox();
         return _buildListTile(_searchResults[index]);
       },
     );
@@ -510,16 +517,13 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
 
   Widget _buildListTile(ScryfallCard card) {
     final String cardName = card.name;
-    final String cardType = card.typeLine;
-    final String scryfallId = card.id;
     final String? imageUrl = card.smallImageUrl ?? card.imageUrl;
     final String price = card.prices['eur'] ?? '--';
-    final String setCode = card.setCode.toUpperCase();
-    final bool inWishlist = _wishlist.any((c) => c.scryfallId == scryfallId);
-    final bool inCollection = _collection.any((c) => c.scryfallId == scryfallId);
+    final bool inWishlist = _wishlist.any((c) => c.scryfallId == card.id);
+    final bool inCollection = _collection.any((c) => c.scryfallId == card.id);
 
     return Card(
-      color: Colors.black.withOpacity(0.45),
+      color: Colors.black.withValues(alpha: 0.45),
       elevation: 2.0,
       margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: BorderSide(color: Colors.white10, width: 1)),
@@ -529,59 +533,45 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
         child: Padding(
           padding: const EdgeInsets.all(8.0),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(6.0),
                 child: imageUrl != null && imageUrl.isNotEmpty
-                    ? Image.network(imageUrl, width: 70, height: 98, fit: BoxFit.cover,
-                        errorBuilder: (ctx, err, st) => Container(width: 70, height: 98, color: Colors.grey.shade800))
-                    : Container(width: 70, height: 98, color: Colors.grey.shade800, child: const Icon(Icons.image, color: Colors.white30)),
+                    ? Image.network(imageUrl, width: 60, height: 84, fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(width: 60, height: 84, color: Colors.grey.shade800))
+                    : Container(width: 60, height: 84, color: Colors.grey.shade800, child: const Icon(Icons.image, color: Colors.white30)),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(child: Text(cardName, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis)),
-                        if (card.manaCost != null) Padding(padding: const EdgeInsets.only(left: 4.0), child: _buildManaCost(card.manaCost!)),
-                      ],
-                    ),
-                    Text(cardType, style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 8),
+                    Text(cardName, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(card.typeLine, style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                           decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white24)),
-                          child: Text(setCode, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                          child: Text(card.setCode.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                         ),
+                        const SizedBox(width: 8),
+                        Text("${card.cmc?.toInt() ?? 0} CMC", style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                        const SizedBox(width: 8),
+                        _buildRarityBadge(card.rarity),
                         const Spacer(),
                         Text('$price €', style: TextStyle(color: Colors.yellow.shade700, fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        _buildActionButton(
-                          icon: inWishlist ? Icons.star : Icons.star_border,
-                          color: inWishlist ? Colors.blue.shade400 : Colors.white38,
-                          onTap: () => _toggleWishlist(scryfallId, cardName, inWishlist),
-                        ),
-                        const SizedBox(width: 16),
-                        _buildActionButton(
-                          icon: inCollection ? Icons.inventory_2 : Icons.inventory_2_outlined,
-                          color: inCollection ? Colors.green.shade400 : Colors.white38,
-                          onTap: () => _toggleCollection(scryfallId, cardName, inCollection),
-                        ),
-                      ],
-                    )
                   ],
                 ),
               ),
+              Column(
+                children: [
+                  _buildActionButton(icon: inWishlist ? Icons.star : Icons.star_border, color: inWishlist ? Colors.blue : Colors.white30, onTap: () => _toggleWishlist(card.id, cardName, inWishlist)),
+                  _buildActionButton(icon: inCollection ? Icons.inventory_2 : Icons.inventory_2_outlined, color: inCollection ? Colors.green : Colors.white30, onTap: () => _toggleCollection(card.id, cardName, inCollection)),
+                ],
+              )
             ],
           ),
         ),
@@ -600,10 +590,7 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
       controller: _scrollController,
       padding: const EdgeInsets.all(8.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.68,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
+        crossAxisCount: 2, childAspectRatio: 0.68, crossAxisSpacing: 10, mainAxisSpacing: 10,
       ),
       itemCount: _searchResults.length + 1, 
       itemBuilder: (context, index) {
@@ -613,65 +600,51 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
            if (_nextPageUrl != null) showLoader = true;
            return showLoader ? const Center(child: CircularProgressIndicator()) : const SizedBox();
         }
-        if (index >= _searchResults.length) return const SizedBox();
-        return _buildGridTile(_searchResults[index]);
+        final card = _searchResults[index];
+        final String imageUrl = card.imageUrl.isNotEmpty ? card.imageUrl : (card.smallImageUrl ?? '');
+        
+        return GestureDetector(
+          onTap: () => _navigateToDetail(card.name),
+          child: Card(
+            clipBehavior: Clip.antiAlias, color: Colors.black, elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.white12, width: 1)),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                imageUrl.isNotEmpty
+                    ? Image.network(imageUrl, fit: BoxFit.cover)
+                    : Container(color: Colors.grey.shade900, child: Center(child: Text(card.name, textAlign: TextAlign.center, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 10)))),
+                Positioned(bottom: 0, left: 0, right: 0, height: 40, child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withValues(alpha: 0.9), Colors.transparent])))),
+                Positioned(
+                  bottom: 4, left: 4, right: 4,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("${card.prices['eur'] ?? '-'}€", style: TextStyle(color: Colors.yellow.shade700, fontSize: 12, fontWeight: FontWeight.bold)),
+                      _buildRarityBadge(card.rarity, small: true),
+                    ],
+                  ),
+                )
+              ],
+            ),
+          ),
+        );
       },
     );
   }
-
-  Widget _buildGridTile(ScryfallCard card) {
-    final String imageUrl = card.imageUrl.isNotEmpty ? card.imageUrl : (card.smallImageUrl ?? '');
-    final bool inWishlist = _wishlist.any((c) => c.scryfallId == card.id);
-    final bool inCollection = _collection.any((c) => c.scryfallId == card.id);
-
-    return GestureDetector(
-      onTap: () => _navigateToDetail(card.name),
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        color: Colors.black,
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.white12, width: 1)),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            imageUrl.isNotEmpty
-                ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(color: Colors.grey.shade900, child: const Icon(Icons.broken_image, color: Colors.white24)))
-                : Container(color: Colors.grey.shade900, child: Center(child: Text(card.name, textAlign: TextAlign.center, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 10)))),
-            Positioned(
-              bottom: 0, left: 0, right: 0, height: 60,
-              child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withOpacity(0.9), Colors.transparent]))),
-            ),
-            if (card.prices['eur'] != null)
-              Positioned(
-                top: 4, left: 4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(4)),
-                  child: Text("${card.prices['eur']} €", style: TextStyle(color: Colors.yellow.shade700, fontSize: 10, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            Positioned(
-              bottom: 0, left: 0, right: 0,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(child: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-                    Row(
-                      children: [
-                        InkWell(onTap: () => _toggleWishlist(card.id, card.name, inWishlist), child: Icon(inWishlist ? Icons.star : Icons.star_border, size: 18, color: inWishlist ? Colors.blue.shade400 : Colors.white70)),
-                        const SizedBox(width: 8),
-                        InkWell(onTap: () => _toggleCollection(card.id, card.name, inCollection), child: Icon(inCollection ? Icons.inventory_2 : Icons.inventory_2_outlined, size: 18, color: inCollection ? Colors.green.shade400 : Colors.white70)),
-                      ],
-                    )
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+  
+  Widget _buildRarityBadge(String rarity, {bool small = false}) {
+    Color c;
+    switch(rarity) {
+      case 'common': c = Colors.white; break;
+      case 'uncommon': c = Colors.blue.shade300; break;
+      case 'rare': c = Colors.amber; break;
+      case 'mythic': c = Colors.orange.shade800; break;
+      default: c = Colors.grey;
+    }
+    return Container(
+      width: small ? 8 : 12, height: small ? 8 : 12,
+      decoration: BoxDecoration(color: c, shape: BoxShape.circle, border: Border.all(color: Colors.black, width: 1)),
     );
   }
 
@@ -679,53 +652,57 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     Navigator.push(context, MaterialPageRoute(builder: (context) => RecognitionResultPage(cardName: cardName))).then((_) => _loadLocalData()); 
   }
 
-  void _toggleWishlist(String id, String name, bool currentState) {
+  Future<void> _toggleWishlist(String id, String name, bool currentState) async {
+    // 1. Mise à jour Optimiste (visuel immédiat)
+    setState(() {
+      if (currentState) {
+        _wishlist.removeWhere((c) => c.scryfallId == id);
+      } else {
+        _wishlist.add(DeckCard(scryfallId: id, name: name, quantity: 1));
+      }
+    });
+
+    // 2. Sauvegarde réelle (attendre la fin)
     if (currentState) {
-      _wishlistService.upsertCardInWishlist(scryfallId: id, cardName: name, absoluteQuantity: 0);
+      await _wishlistService.upsertCardInWishlist(scryfallId: id, cardName: name, absoluteQuantity: 0);
       _showFeedback('Retiré de la Wishlist', Colors.red.shade700);
     } else {
-      _wishlistService.upsertCardInWishlist(scryfallId: id, cardName: name, quantityToAdd: 1);
+      await _wishlistService.upsertCardInWishlist(scryfallId: id, cardName: name, quantityToAdd: 1);
       _showFeedback('Ajouté à la Wishlist', Colors.blue.shade700);
     }
-    _loadLocalData(); 
+    
+    // 3. Resynchro (optionnel si la logique optimiste est fiable, mais utile pour être sûr)
+    await _loadLocalData(); 
   }
 
-  void _toggleCollection(String id, String name, bool currentState) {
+  Future<void> _toggleCollection(String id, String name, bool currentState) async {
+    // 1. Mise à jour Optimiste
+    setState(() {
+      if (currentState) {
+        _collection.removeWhere((c) => c.scryfallId == id);
+      } else {
+        _collection.add(DeckCard(scryfallId: id, name: name, quantity: 1));
+      }
+    });
+
+    // 2. Sauvegarde réelle
     if (currentState) {
-      _collectionService.upsertCardInCollection(scryfallId: id, cardName: name, absoluteQuantity: 0);
+      await _collectionService.upsertCardInCollection(scryfallId: id, cardName: name, absoluteQuantity: 0);
       _showFeedback('Retiré de la collection', Colors.red.shade700);
     } else {
-      _collectionService.upsertCardInCollection(scryfallId: id, cardName: name, quantityToAdd: 1);
+      await _collectionService.upsertCardInCollection(scryfallId: id, cardName: name, quantityToAdd: 1);
       _showFeedback('Ajouté à la collection', Colors.green.shade700);
     }
-    _loadLocalData();
-  }
-
-  Widget _buildManaCost(String manaCost) {
-    final matches = _manaRegex.allMatches(manaCost);
-    if (matches.isEmpty) return const SizedBox();
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: matches.map((m) {
-        final symbol = m.group(1)?.replaceAll('/', '') ?? ''; 
-        final normalizedSymbol = symbol.toUpperCase();
-        final url = 'https://svgs.scryfall.io/card-symbols/$normalizedSymbol.svg';
-        return Padding(
-          padding: const EdgeInsets.only(left: 1.0),
-          child: SvgPicture.network(
-            url, width: 14, height: 14,
-            placeholderBuilder: (_) => Text("{$symbol}", style: const TextStyle(fontSize: 10, color: Colors.white)),
-          ),
-        );
-      }).toList(),
-    );
+    
+    // 3. Resynchro
+    await _loadLocalData(); 
   }
 
   Widget _buildActionButton({required IconData icon, required Color color, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
-      child: Padding(padding: const EdgeInsets.all(6.0), child: Icon(icon, color: color, size: 24)),
+      child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(icon, color: color, size: 22)),
     );
   }
 

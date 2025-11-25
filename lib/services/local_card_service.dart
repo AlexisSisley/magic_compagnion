@@ -1,4 +1,5 @@
 // Fichier : lib/services/local_card_service.dart
+// VERSION MISE À JOUR : Recherche "Smart" par mots-clés
 
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -11,7 +12,6 @@ class LocalCardService {
   LocalCardService._internal();
 
   List<ScryfallCard> _cachedCards = [];
-  // AJOUT : Une Map pour l'accès instantané par ID
   final Map<String, ScryfallCard> _idMap = {}; 
   
   bool _isLoaded = false;
@@ -25,14 +25,11 @@ class LocalCardService {
 
     _isLoading = true;
     try {
-      // Assurez-vous d'avoir oracle-cards.json ou unique-artwork.json
       final String jsonString = await rootBundle.loadString('assets/json/oracle-cards.json');
-      
       final List<ScryfallCard> parsedCards = await compute(_parseCards, jsonString);
 
       _cachedCards = parsedCards;
       
-      // AJOUT : Remplissage de la Map pour les recherches par ID rapides
       for (var card in _cachedCards) {
         _idMap[card.id] = card;
       }
@@ -51,12 +48,11 @@ class LocalCardService {
     return jsonList.map((jsonItem) => ScryfallCard.fromJson(jsonItem)).toList();
   }
 
-  // --- NOUVELLE MÉTHODE ---
-  /// Récupère une carte directement par son ID Scryfall (instantané)
   ScryfallCard? getCardById(String id) {
     return _idMap[id];
   }
 
+  // Recherche standard (Filtres + Contient)
   List<ScryfallCard> searchCards({
     required String query,
     String? setCode,
@@ -70,9 +66,14 @@ class LocalCardService {
     final lowerSet = setCode?.toLowerCase();
 
     return _cachedCards.where((card) {
-      if (lowerQuery.isNotEmpty && !card.name.toLowerCase().contains(lowerQuery)) {
+      // Nom ou Nom Imprimé (FR)
+      bool matchName = card.name.toLowerCase().contains(lowerQuery);
+      bool matchPrinted = card.printedName?.toLowerCase().contains(lowerQuery) ?? false;
+
+      if (lowerQuery.isNotEmpty && !matchName && !matchPrinted) {
         return false;
       }
+
       if (lowerType != null && !card.typeLine.toLowerCase().contains(lowerType)) {
         return false;
       }
@@ -87,5 +88,47 @@ class LocalCardService {
       }
       return true;
     }).toList();
+  }
+
+  // --- NOUVEAU : RECHERCHE INTELLIGENTE (Score par mots-clés) ---
+  /// Découpe la query en mots et cherche les cartes qui contiennent le plus de mots communs.
+  /// Utile pour l'OCR imparfait (ex: "L'Ange de Serra 4/4" -> trouve "Ange de Serra")
+  List<ScryfallCard> findSmartMatch(String query, {int limit = 5}) {
+    if (!_isLoaded || query.trim().isEmpty) return [];
+
+    // 1. Nettoyage et découpage ("Tokenization")
+    final List<String> tokens = query.toLowerCase()
+        .replaceAll(RegExp(r'[^\w\s]'), '') // Enlève ponctuation
+        .split(RegExp(r'\s+')) // Coupe par espace
+        .where((t) => t.length > 2) // Ignore les mots courts (le, de, un...)
+        .toList();
+
+    if (tokens.isEmpty) return [];
+
+    // 2. Calcul des scores
+    final List<Map<String, dynamic>> scoredCards = [];
+
+    for (final card in _cachedCards) {
+      int score = 0;
+      final String name = card.name.toLowerCase();
+      final String printed = card.printedName?.toLowerCase() ?? '';
+
+      for (final token in tokens) {
+        if (name.contains(token) || printed.contains(token)) {
+          score++;
+        }
+      }
+
+      // On ne garde que si au moins un mot pertinent est trouvé
+      if (score > 0) {
+        scoredCards.add({'card': card, 'score': score});
+      }
+    }
+
+    // 3. Tri par score décroissant (le meilleur match en premier)
+    scoredCards.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
+
+    // 4. Retourne les meilleurs résultats
+    return scoredCards.take(limit).map((item) => item['card'] as ScryfallCard).toList();
   }
 }
