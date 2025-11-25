@@ -7,13 +7,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 // Imports des pages
-import 'package:magic_companion/pages/card_search_page.dart';
-import 'package:magic_companion/pages/collection_page.dart';
-import 'package:magic_companion/pages/scanner_page.dart';
-import 'pages/life_counter_page.dart';
-import 'pages/glossary_page.dart';
-import 'pages/deck_list_page.dart';
-import 'pages/settings_page.dart'; // <-- NOUVEL IMPORT
+import 'package:magic_companion/pages/cards/card_search_page.dart';
+import 'package:magic_companion/pages/collections/collection_page.dart';
+import 'package:magic_companion/pages/scans/scanner_page.dart';
+import 'pages/life_counter/life_counter_page.dart';
+import 'pages/glossary/glossary_page.dart';
+import 'pages/decks/deck_list_page.dart';
+import 'pages/settings/settings_page.dart'; // <-- NOUVEL IMPORT
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

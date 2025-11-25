@@ -10,22 +10,22 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:magic_companion/pages/glossary_detail_page.dart';
+import 'package:magic_companion/pages/glossary/glossary_detail_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // IMPORTS LOCAUX
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/widgets/decks/deck_picker_modal.dart';
-import '../services/deck_service.dart';
-import '../data/glossary_data.dart';
-import '../services/collection_service.dart';
-import '../services/scan_history_service.dart';
-import '../models/scan_history_model.dart';
-import '../services/wishlist_service.dart';
-import '../services/local_card_service.dart';
+import '../../services/deck_service.dart';
+import '../../data/glossary_data.dart';
+import '../../services/collection_service.dart';
+import '../../services/scan_history_service.dart';
+import '../../models/scan_history_model.dart';
+import '../../services/wishlist_service.dart';
+import '../../services/local_card_service.dart';
 
-import '../models/scryfall_ruling.dart'; 
-import '../widgets/cards/versions_selector_sheet.dart';
+import '../../models/scryfall_ruling.dart'; 
+import '../../widgets/cards/versions_selector_sheet.dart';
 
 enum ResultPageState { loading, selection, success, error }
 
@@ -223,7 +223,8 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       var localResults = _localCardService.findSmartMatch(query, limit: 10);
       
       if (localResults.isEmpty) {
-        localResults = _localCardService.searchCards(query: query).take(10).toList();
+        final searchResult = await _localCardService.searchCards(query: query);
+        localResults = searchResult.take(10).toList();
       }
 
       if (localResults.isNotEmpty) {

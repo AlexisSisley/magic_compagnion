@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../data/glossary_data.dart'; // Importer notre modèle
+import '../../data/glossary_data.dart'; // Importer notre modèle
 
 class GlossaryDetailPage extends StatelessWidget {
   final Keyword keyword;

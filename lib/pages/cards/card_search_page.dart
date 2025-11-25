@@ -1,5 +1,5 @@
-// Fichier : lib/pages/card_search_page.dart
-// VERSION MISE À JOUR : Fallback Local sur Erreur API
+// Fichier : lib/pages/cards/card_search_page.dart
+// VERSION CORRIGÉE : Fix du RangeError dans ListView.builder
 
 import 'dart:async'; 
 import 'package:flutter/material.dart';
@@ -11,12 +11,12 @@ import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/models/search_filters.dart';
 import 'package:magic_companion/widgets/search/search_filter_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
-import '../services/collection_service.dart'; 
-import '../services/wishlist_service.dart';
+import '../../services/collection_service.dart'; 
+import '../../services/wishlist_service.dart';
 import 'set_list_page.dart'; 
-import '../models/scryfall_set_model.dart';
-import '../models/scryfall_card_model.dart';
-import '../services/local_card_service.dart';
+import '../../models/scryfall_set_model.dart';
+import '../../models/scryfall_card_model.dart';
+import '../../services/local_card_service.dart';
 import 'card_detail_page.dart';
 
 class CardSearchPage extends StatefulWidget {
@@ -80,7 +80,7 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.hasClients && _scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
       if (_nextPageUrl != null) {
         _loadMoreApiResults();
       } else if (_fullLocalResults.isNotEmpty) {
@@ -214,14 +214,13 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     
     // On ignore le setCode si demandé (pour le fallback)
     String? setCodeFilter = ignoreSetFilter ? null : _activeFilters.setCode;
-
-    List<ScryfallCard> results = _localCardService.searchCards(
-      query: query,
-      setCode: setCodeFilter,
-      cardType: _activeFilters.cardType,
-      colors: _activeFilters.colors,
-    );
+    SearchFilters effectiveFilters = _activeFilters.copyWith(setCode: setCodeFilter);
     
+    List<ScryfallCard> results = await _localCardService.searchCards(
+      query: query,
+      filters: effectiveFilters,
+    );
+      
     // Filtrage manuel des nouveaux champs (CMC/Rareté) sur les résultats locaux
     if (_activeFilters.minCmc != null || _activeFilters.maxCmc != null || _activeFilters.rarity != null) {
        results = results.where((c) {
@@ -501,15 +500,24 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     return ListView.builder(
       key: key,
       controller: _scrollController,
+      // +1 pour le loader potentiel
       itemCount: _searchResults.length + 1,
       padding: const EdgeInsets.only(bottom: 80), 
       itemBuilder: (context, index) {
-        if (index == _searchResults.length) {
+        
+        // --- FIX : Condition de sécurité ---
+        // On vérifie >= au lieu de == pour éviter les RangeError
+        // si _searchResults change pendant le build
+        if (index >= _searchResults.length) {
           bool showLoader = false;
           if (_fullLocalResults.isNotEmpty && _searchResults.length < _fullLocalResults.length) showLoader = true;
           if (_nextPageUrl != null) showLoader = true;
           return showLoader ? const Padding(padding: EdgeInsets.all(16.0), child: Center(child: CircularProgressIndicator())) : const SizedBox(height: 20);
         }
+
+        // Sécurité supplémentaire : Si l'index est invalide (devrait être couvert par >= ci-dessus mais sait-on jamais)
+        if (index < 0) return const SizedBox();
+
         return _buildListTile(_searchResults[index]);
       },
     );
@@ -592,14 +600,18 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2, childAspectRatio: 0.68, crossAxisSpacing: 10, mainAxisSpacing: 10,
       ),
+      // +1 pour le loader
       itemCount: _searchResults.length + 1, 
       itemBuilder: (context, index) {
-        if (index == _searchResults.length) {
+        
+        // --- FIX : Même correction pour la Grille ---
+        if (index >= _searchResults.length) {
            bool showLoader = false;
            if (_fullLocalResults.isNotEmpty && _searchResults.length < _fullLocalResults.length) showLoader = true;
            if (_nextPageUrl != null) showLoader = true;
            return showLoader ? const Center(child: CircularProgressIndicator()) : const SizedBox();
         }
+
         final card = _searchResults[index];
         final String imageUrl = card.imageUrl.isNotEmpty ? card.imageUrl : (card.smallImageUrl ?? '');
         

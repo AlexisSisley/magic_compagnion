@@ -1,7 +1,7 @@
 // Fichier : lib/pages/settings_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/backup_service.dart';
+import '../../services/backup_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});

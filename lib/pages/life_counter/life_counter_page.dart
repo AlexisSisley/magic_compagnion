@@ -5,12 +5,15 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:magic_companion/pages/dev_tools_page.dart';
-import 'package:magic_companion/pages/turn_guide_page.dart';
+import 'package:magic_companion/models/game_history_model.dart';
+import 'package:magic_companion/pages/life_counter/game_history_page.dart';
+import 'package:magic_companion/pages/settings/dev_tools_page.dart';
+import 'package:magic_companion/pages/glossary/turn_guide_page.dart';
+import 'package:magic_companion/services/game_history_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/player_model.dart';
-import '../widgets/life_counter/player_zone.dart';
+import '../../models/player_model.dart';
+import '../../widgets/life_counter/player_zone.dart';
 
 
 // --- PAGE PRINCIPALE ---
@@ -22,6 +25,7 @@ class LifeCounterPage extends StatefulWidget {
 }
 
 class _LifeCounterPageState extends State<LifeCounterPage> {
+  final GameHistoryService _gameHistoryService = GameHistoryService();
   // --- ÉTAT ---
   List<Player> _players = [];
   int _startingLife = 20;
@@ -470,6 +474,44 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
       },
     );
   }
+
+  void _endGame() {
+  showDialog(
+    context: context,
+    builder: (context) {
+      // Simple liste pour choisir le gagnant
+      return AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text("Fin de partie - Qui a gagné ?", style: GoogleFonts.cinzel(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: _players.map((p) {
+            return ListTile(
+              leading: Icon(Icons.emoji_events, color: _playerColors[p.id]),
+              title: Text("Joueur ${p.id + 1}", style: const TextStyle(color: Colors.white)),
+              onTap: () async {
+                // Sauvegarde
+                final newItem = GameHistoryItem(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  date: DateTime.now(),
+                  playerNames: _players.map((pl) => "Joueur ${pl.id + 1}").toList(),
+                  winnerName: "Joueur ${p.id + 1}",
+                  format: _startingLife == 40 ? "Commander" : "Standard",
+                );
+                await _gameHistoryService.addGame(newItem);
+                
+                Navigator.pop(context); // Ferme dialog
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Partie enregistrée dans l'historique !"), backgroundColor: Colors.green)
+                );
+              },
+            );
+          }).toList(),
+        ),
+      );
+    }
+  );
+}
   // --- CONSTRUCTION DE L'UI ---
 
   @override
@@ -555,6 +597,22 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
                 backgroundColor: Colors.black.withOpacity(0.8),
                 foregroundColor: Colors.white,
                 onTap: _showAboutDialog, // Lance la modale avec le secret
+              ),
+              SpeedDialChild(
+                child: const Icon(Icons.flag), // Drapeau de fin
+                label: 'Finir Partie',
+                backgroundColor: Colors.red.shade900,
+                foregroundColor: Colors.white,
+                onTap: _endGame,
+              ),
+              SpeedDialChild(
+                child: const Icon(Icons.history),
+                label: 'Historique',
+                backgroundColor: Colors.blueGrey,
+                foregroundColor: Colors.white,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const GameHistoryPage()));
+                },
               ),
             ],
           ),

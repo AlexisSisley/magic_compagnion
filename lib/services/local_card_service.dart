@@ -1,10 +1,57 @@
 // Fichier : lib/services/local_card_service.dart
-// VERSION MISE À JOUR : Recherche "Smart" par mots-clés
-
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart'; // Nécessaire pour compute
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/scryfall_card_model.dart';
+import '../models/search_filters.dart'; // Assure-toi d'avoir cet import pour les filtres
+
+// --- CLASSE D'ARGUMENTS POUR L'ISOLATE ---
+class SearchArguments {
+  final List<ScryfallCard> cards;
+  final String query;
+  final SearchFilters? filters;
+
+  SearchArguments(this.cards, this.query, this.filters);
+}
+
+// --- FONCTION TOP-LEVEL (HORS DE LA CLASSE) ---
+List<ScryfallCard> _executeSearch(SearchArguments args) {
+  final lowerQuery = args.query.toLowerCase().trim();
+  final filters = args.filters;
+  
+  final lowerType = filters?.cardType?.toLowerCase();
+  final lowerSet = filters?.setCode?.toLowerCase();
+  final colors = filters?.colors ?? {};
+  final rarity = filters?.rarity;
+  final minCmc = filters?.minCmc;
+  final maxCmc = filters?.maxCmc;
+
+  return args.cards.where((card) {
+    // 1. Filtre Texte (Nom)
+    if (lowerQuery.isNotEmpty) {
+      bool matchName = card.name.toLowerCase().contains(lowerQuery);
+      bool matchPrinted = card.printedName?.toLowerCase().contains(lowerQuery) ?? false;
+      if (!matchName && !matchPrinted) return false;
+    }
+
+    // 2. Filtres Avancés
+    if (lowerType != null && !card.typeLine.toLowerCase().contains(lowerType)) return false;
+    if (lowerSet != null && card.setCode.toLowerCase() != lowerSet) return false;
+    if (rarity != null && card.rarity != rarity) return false;
+    
+    if (minCmc != null && (card.cmc ?? 0) < minCmc) return false;
+    if (maxCmc != null && (card.cmc ?? 0) > maxCmc) return false;
+
+    if (colors.isNotEmpty) {
+      final cardColors = card.colorIdentity.toSet();
+      // "Doit contenir toutes les couleurs sélectionnées" (Logique restrictive)
+      // Tu peux changer en `any` si tu veux une logique permissive
+      if (!colors.every((c) => cardColors.contains(c))) return false;
+    }
+    
+    return true;
+  }).toList();
+}
 
 class LocalCardService {
   static final LocalCardService _instance = LocalCardService._internal();
@@ -18,22 +65,19 @@ class LocalCardService {
   bool _isLoading = false;
 
   bool get isLoaded => _isLoaded;
-  bool get isLoading => _isLoading;
 
   Future<void> loadLocalData() async {
     if (_isLoaded || _isLoading) return;
-
     _isLoading = true;
     try {
       final String jsonString = await rootBundle.loadString('assets/json/oracle-cards.json');
+      // On utilise compute ici aussi pour le parsing initial
       final List<ScryfallCard> parsedCards = await compute(_parseCards, jsonString);
 
       _cachedCards = parsedCards;
-      
       for (var card in _cachedCards) {
         _idMap[card.id] = card;
       }
-
       _isLoaded = true;
       debugPrint("Données locales chargées : ${_cachedCards.length} cartes.");
     } catch (e) {
@@ -48,87 +92,48 @@ class LocalCardService {
     return jsonList.map((jsonItem) => ScryfallCard.fromJson(jsonItem)).toList();
   }
 
-  ScryfallCard? getCardById(String id) {
-    return _idMap[id];
-  }
+  ScryfallCard? getCardById(String id) => _idMap[id];
 
-  // Recherche standard (Filtres + Contient)
-  List<ScryfallCard> searchCards({
+  // --- RECHERCHE ASYNCHRONE OPTIMISÉE ---
+  Future<List<ScryfallCard>> searchCards({
     required String query,
-    String? setCode,
-    String? cardType,
-    Set<String> colors = const {},
-  }) {
+    SearchFilters? filters, // J'ai regroupé les paramètres optionnels dans l'objet existant
+  }) async {
     if (!_isLoaded) return [];
 
-    final lowerQuery = query.toLowerCase().trim();
-    final lowerType = cardType?.toLowerCase();
-    final lowerSet = setCode?.toLowerCase();
-
-    return _cachedCards.where((card) {
-      // Nom ou Nom Imprimé (FR)
-      bool matchName = card.name.toLowerCase().contains(lowerQuery);
-      bool matchPrinted = card.printedName?.toLowerCase().contains(lowerQuery) ?? false;
-
-      if (lowerQuery.isNotEmpty && !matchName && !matchPrinted) {
-        return false;
-      }
-
-      if (lowerType != null && !card.typeLine.toLowerCase().contains(lowerType)) {
-        return false;
-      }
-      if (lowerSet != null && card.setCode.toLowerCase() != lowerSet) {
-        return false;
-      }
-      if (colors.isNotEmpty) {
-        final cardColors = card.colorIdentity.toSet();
-        if (!colors.every((c) => cardColors.contains(c))) {
-          return false;
-        }
-      }
-      return true;
-    }).toList();
+    // On lance le calcul sur un autre thread
+    return await compute(
+      _executeSearch, 
+      SearchArguments(_cachedCards, query, filters)
+    );
   }
 
-  // --- NOUVEAU : RECHERCHE INTELLIGENTE (Score par mots-clés) ---
-  /// Découpe la query en mots et cherche les cartes qui contiennent le plus de mots communs.
-  /// Utile pour l'OCR imparfait (ex: "L'Ange de Serra 4/4" -> trouve "Ange de Serra")
+  // Version simplifiée pour le smart match (peut rester synchrone si petite liste, ou passer en compute aussi)
   List<ScryfallCard> findSmartMatch(String query, {int limit = 5}) {
+    // ... (Ton code existant inchangé pour findSmartMatch) ...
+    // Note : Si cette fonction est lente aussi, on peut appliquer la même logique.
+    // Pour l'instant, searchCards est le plus critique.
     if (!_isLoaded || query.trim().isEmpty) return [];
-
-    // 1. Nettoyage et découpage ("Tokenization")
+    
+    // (Garder ta logique de tokens ici...)
     final List<String> tokens = query.toLowerCase()
-        .replaceAll(RegExp(r'[^\w\s]'), '') // Enlève ponctuation
-        .split(RegExp(r'\s+')) // Coupe par espace
-        .where((t) => t.length > 2) // Ignore les mots courts (le, de, un...)
+        .replaceAll(RegExp(r'[^\w\s]'), '')
+        .split(RegExp(r'\s+'))
+        .where((t) => t.length > 2)
         .toList();
-
     if (tokens.isEmpty) return [];
 
-    // 2. Calcul des scores
     final List<Map<String, dynamic>> scoredCards = [];
-
     for (final card in _cachedCards) {
       int score = 0;
       final String name = card.name.toLowerCase();
       final String printed = card.printedName?.toLowerCase() ?? '';
-
       for (final token in tokens) {
-        if (name.contains(token) || printed.contains(token)) {
-          score++;
-        }
+        if (name.contains(token) || printed.contains(token)) score++;
       }
-
-      // On ne garde que si au moins un mot pertinent est trouvé
-      if (score > 0) {
-        scoredCards.add({'card': card, 'score': score});
-      }
+      if (score > 0) scoredCards.add({'card': card, 'score': score});
     }
-
-    // 3. Tri par score décroissant (le meilleur match en premier)
     scoredCards.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
-
-    // 4. Retourne les meilleurs résultats
     return scoredCards.take(limit).map((item) => item['card'] as ScryfallCard).toList();
   }
 }

@@ -4,8 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../models/scryfall_set_model.dart';
-import '../services/set_service.dart';
+import '../../models/scryfall_set_model.dart';
+import '../../services/set_service.dart';
 
 class SetListTab extends StatefulWidget {
   // Ce callback permet au parent (CardSearchPage) de savoir qu'on a cliqué

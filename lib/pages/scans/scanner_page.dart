@@ -5,11 +5,11 @@ import 'dart:async'; // Ajouté pour le Debounce
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart'; 
-import 'package:magic_companion/pages/card_detail_page.dart';
+import 'package:magic_companion/pages/cards/card_detail_page.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'scan_history_page.dart'; 
-import '../services/local_card_service.dart'; // Import du service
-import '../models/scryfall_card_model.dart'; // Import du modèle
+import '../../services/local_card_service.dart'; // Import du service
+import '../../models/scryfall_card_model.dart'; // Import du modèle
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
@@ -299,13 +299,17 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
+    _debounce = Timer(const Duration(milliseconds: 300), () async { // <-- async ajouté
       if (query.trim().length >= 2) {
-        setState(() {
-          _results = widget.localCardService.searchCards(query: query);
-        });
+        // Ajout du await
+        final results = await widget.localCardService.searchCards(query: query); 
+        if (mounted) {
+          setState(() {
+            _results = results;
+          });
+        }
       } else {
-        setState(() => _results = []);
+        if (mounted) setState(() => _results = []);
       }
     });
   }

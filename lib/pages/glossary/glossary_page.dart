@@ -6,7 +6,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../data/glossary_data.dart'; // Importer notre modèle (Keyword)
+import '../../data/glossary_data.dart'; // Importer notre modèle (Keyword)
 import 'glossary_detail_page.dart';
 
 class GlossaryPage extends StatefulWidget {

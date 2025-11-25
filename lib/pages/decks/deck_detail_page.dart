@@ -11,17 +11,17 @@ import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 
 // Import Models & Services
-import '../models/deck_model.dart';
-import '../models/scryfall_card_model.dart';
-import '../services/deck_service.dart';
-import '../services/collection_service.dart';
+import '../../models/deck_model.dart';
+import '../../models/scryfall_card_model.dart';
+import '../../services/deck_service.dart';
+import '../../services/collection_service.dart';
 
 // Import Widgets
-import '../widgets/decks/deck_stats_tab.dart';
-import '../widgets/decks/draw_test_simulator.dart';
-import '../widgets/decks/deck_card_list_tab.dart'; 
-import '../widgets/decks/deck_financial_sheet.dart';
-import '../widgets/decks/deck_card_picker.dart'; 
+import '../../widgets/decks/deck_stats_tab.dart';
+import '../../widgets/decks/draw_test_simulator.dart';
+import '../../widgets/decks/deck_card_list_tab.dart'; 
+import '../../widgets/decks/deck_financial_sheet.dart';
+import '../../widgets/decks/deck_card_picker.dart'; 
 
 const Map<String, Map<String, String>> kBasicLands = {
   'W': {'id': 'f5f80d82-d64c-466f-8874-9cfb00469f02', 'name': 'Plains'},

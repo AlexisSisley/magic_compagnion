@@ -4,11 +4,11 @@
 import 'dart:io'; // Pour afficher l'image depuis le chemin (File)
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../models/scan_history_model.dart';
-import '../services/scan_history_service.dart';
-import '../services/collection_service.dart';
+import '../../models/scan_history_model.dart';
+import '../../services/scan_history_service.dart';
+import '../../services/collection_service.dart';
 import 'package:intl/intl.dart';
-import 'card_detail_page.dart'; // Notre page de détail
+import '../cards/card_detail_page.dart'; // Notre page de détail
 
 class ScanHistoryPage extends StatefulWidget {
   const ScanHistoryPage({super.key});

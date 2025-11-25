@@ -8,9 +8,9 @@ import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:magic_companion/models/scryfall_card_model.dart';
-import 'package:magic_companion/pages/deck_detail_page.dart';
-import '../models/deck_model.dart';
-import '../services/deck_service.dart';
+import 'package:magic_companion/pages/decks/deck_detail_page.dart';
+import '../../models/deck_model.dart';
+import '../../services/deck_service.dart';
 
 const String _secondBreakfastDecklist = """
 Commander

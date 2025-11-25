@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
-import '../../pages/card_detail_page.dart';
+import '../../pages/cards/card_detail_page.dart';
 
 class DeckCardListTab extends StatefulWidget {
   final List<DeckCard> cardList;

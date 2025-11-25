@@ -32,6 +32,30 @@ android {
         resValue("string", "app_name", "Magic Companion")
     }
 
+    signingConfigs {
+        create("release") {
+            // 1. Essayer de lire les variables d'environnement (CI GitHub)
+            val envStorePass = System.getenv("KEYSTORE_STORE_PASSWORD")
+            val envKeyPass = System.getenv("KEYSTORE_KEY_PASSWORD")
+            val envKeyAlias = System.getenv("KEYSTORE_KEY_ALIAS")
+            val envStorePath = System.getenv("KEYSTORE_PATH")
+
+            if (envStorePass != null && envKeyPass != null && envKeyAlias != null && envStorePath != null) {
+                storeFile = file(envStorePath)
+                storePassword = envStorePass
+                keyAlias = envKeyAlias
+                keyPassword = envKeyPass
+            }
+            // 2. Sinon, utiliser le fichier local key.properties (Dev local)
+            else if (keystoreProperties["storePassword"] != null) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             // --- CONFIGURATION DEBUG ---
@@ -47,9 +71,12 @@ android {
         }
 
         getByName("release") {
-            // Votre CI utilise la signature de debug, ce qui est parfait
-            signingConfig = signingConfigs.getByName("debug")    
-            // Indique les fichiers de règles 
+            // Utilise la configuration "release" définie ci-dessus
+            signingConfig = signingConfigs.getByName("release")
+            
+            // Optimisation et obfuscation (optionnel mais recommandé)
+            isMinifyEnabled = true 
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

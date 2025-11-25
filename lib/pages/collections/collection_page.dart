@@ -2,20 +2,21 @@
 
 import 'dart:developer';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:share_plus/share_plus.dart'; 
 
-import '../models/scryfall_card_model.dart';
-import '../models/search_filters.dart';
-import 'card_detail_page.dart';
-import '../widgets/search/search_filter_modal.dart';
-import '../models/deck_model.dart'; 
-import '../services/collection_service.dart';
-import '../services/wishlist_service.dart';
-import '../services/local_card_service.dart'; // <-- Import du service local
+import '../../models/scryfall_card_model.dart';
+import '../../models/search_filters.dart';
+import '../cards/card_detail_page.dart';
+import '../../widgets/search/search_filter_modal.dart';
+import '../../models/deck_model.dart'; 
+import '../../services/collection_service.dart';
+import '../../services/wishlist_service.dart';
+import '../../services/local_card_service.dart'; // <-- Import du service local
 
 class CollectionPage extends StatefulWidget {
   const CollectionPage({super.key});
@@ -403,6 +404,52 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     );
     if (newFilters != null) { setState(() => _activeFilters = newFilters); }
   }  
+  Future<void> _copyForCardmarket() async {
+    if (_wishlist.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Wishlist vide !")));
+      return;
+    }
+
+    StringBuffer buffer = StringBuffer();
+    // Format Cardmarket: "Quantité Nom" (Le set est optionnel mais conseillé si possible, format MKM est parfois strict)
+    // Format le plus simple et compatible : "1 Black Lotus"
+    
+    for (var card in _wishlist) {
+      // Nettoyage du nom pour éviter les problèmes (ex: retirer les // pour les cartes doubles si besoin)
+      String cleanName = card.name.split(' // ')[0]; 
+      buffer.writeln("${card.quantity} $cleanName");
+    }
+
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          title: Text("Copié !", style: GoogleFonts.cinzel(color: Colors.green)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Votre liste est dans le presse-papier au format :", style: TextStyle(color: Colors.white70)),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                color: Colors.black,
+                child: Text("4 Sol Ring\n2 Arcane Signet\n...", style: GoogleFonts.robotoMono(color: Colors.yellow, fontSize: 12)),
+              ),
+              const SizedBox(height: 8),
+              const Text("Vous n'avez plus qu'à coller ça dans la section 'Wants > Bulk Import' de Cardmarket.", style: TextStyle(color: Colors.white70)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Génial"))
+          ],
+        )
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -542,20 +589,39 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
   }
 
   Widget _buildWishlistTab() {
-     return RefreshIndicator(
-        onRefresh: () => _loadData(forceLoading: false),
-        child: Column(
-          children: [
-             if (_hasCalculatedFinance) 
-                _buildFinancialHeader(
-                  title: "Coût Wishlist", value: _totalWishlistValue, 
-                  evoVal: null, evoPct: null,
-                  onDetailPressed: () => _showFinancialDetail(_wishlist, "Top Wishlist"),
+    return RefreshIndicator(
+      onRefresh: () => _loadData(forceLoading: false),
+      child: Column(
+        children: [
+          if (_hasCalculatedFinance)
+            _buildFinancialHeader(
+              title: "Coût Wishlist", value: _totalWishlistValue,
+              evoVal: null, evoPct: null,
+              onDetailPressed: () => _showFinancialDetail(_wishlist, "Top Wishlist"),
+            ),
+          
+          // --- NOUVEAU BOUTON ICI ---
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 50.0, vertical: 4.0),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.copy, size: 16),
+                label: const Text("Copier pour Cardmarket (Mass Import)"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.yellow.shade900.withOpacity(0.5),
+                  foregroundColor: Colors.white,
                 ),
-             Expanded(child: _buildListView(listSource: _wishlist, isWishlist: true, emptyMessage: "Wishlist vide.")),
-          ],
-        ),
-     );
+                onPressed: _copyForCardmarket,
+              ),
+            ),
+          ),
+          // ---------------------------
+
+          Expanded(child: _buildListView(listSource: _wishlist, isWishlist: true, emptyMessage: "Wishlist vide.")),
+        ],
+      ),
+    );
   }
 
   Widget _buildFinancialHeader({
