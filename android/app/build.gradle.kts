@@ -3,8 +3,11 @@ plugins {
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// 1. IMPORTS OBLIGATOIRES ICI
 import java.util.Properties
 import java.io.FileInputStream
+
 android {
     namespace = "com.example.magic_companion"
     compileSdk = 36
@@ -30,31 +33,32 @@ android {
 
     signingConfigs {
         create("release") {
-            // --- LOGIQUE DÉPLACÉE ICI POUR ÉVITER L'ERREUR DE SCOPE ---
-            
-            // 1. Récupération des variables d'environnement (CI GitHub)
+            // 2. RECUPERATION DES VARIABLES CI
             val envStorePass = System.getenv("KEYSTORE_STORE_PASSWORD")
             val envKeyPass = System.getenv("KEYSTORE_KEY_PASSWORD")
             val envKeyAlias = System.getenv("KEYSTORE_KEY_ALIAS")
             val envStorePath = System.getenv("KEYSTORE_PATH")
 
-            // 2. Tentative de chargement local (key.properties)
-            val keystoreProperties = java.util.Properties()
+            // 3. CHARGEMENT LOCAL (Si le fichier existe)
+            // Note: On utilise Properties() tout court, PAS java.util.Properties()
+            val keystoreProperties = Properties()
             val keystoreFile = rootProject.file("key.properties")
+            
             if (keystoreFile.exists()) {
-                keystoreProperties.load(java.io.FileInputStream(keystoreFile))
+                // Note: On utilise FileInputStream() tout court
+                keystoreProperties.load(FileInputStream(keystoreFile))
             }
 
-            // 3. Application de la configuration
+            // 4. LOGIQUE DE SELECTION
             if (envStorePass != null && envKeyPass != null && envKeyAlias != null && envStorePath != null) {
-                // Cas CI / GitHub Actions
+                // CI GitHub Actions
                 storeFile = file(envStorePath)
                 storePassword = envStorePass
                 keyAlias = envKeyAlias
                 keyPassword = envKeyPass
             }
             else if (keystoreProperties.getProperty("storePassword") != null) {
-                // Cas Développement Local (si key.properties existe)
+                // Local avec key.properties
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
                 storeFile = file(keystoreProperties.getProperty("storeFile"))
@@ -71,11 +75,10 @@ android {
         }
 
         getByName("release") {
-            // Utilise la config "release" définie juste au-dessus
+            // Utilise la config définie plus haut
             signingConfig = signingConfigs.getByName("release")
             
-            // Optimisations pour la production
-            isMinifyEnabled = true 
+            isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
