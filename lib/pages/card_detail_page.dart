@@ -1,5 +1,5 @@
 // Fichier : lib/pages/card_detail_page.dart
-// VERSION FINALE : Liste de Correspondances + Détection Set/Code
+// VERSION CORRIGÉE : Affichage direct si résultat unique
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -27,7 +27,6 @@ import '../services/local_card_service.dart';
 import '../models/scryfall_ruling.dart'; 
 import '../widgets/cards/versions_selector_sheet.dart';
 
-// Nouvel état 'selection' pour la liste de choix
 enum ResultPageState { loading, selection, success, error }
 
 class RecognitionResultPage extends StatefulWidget {
@@ -45,9 +44,7 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   ResultPageState _pageState = ResultPageState.loading;
   String _statusMessage = "Démarrage...";
   
-  // Liste des candidats potentiels (pour le choix utilisateur)
   List<ScryfallCard> _candidates = [];
-  // La carte finalement sélectionnée
   ScryfallCard? _foundCard;
   
   String _userLang = 'fr';
@@ -100,7 +97,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     super.dispose();
   }
 
-  // Nettoyage OCR
   String _cleanOcrText(String text) {
     String cleanedText = text;
     cleanedText = cleanedText.replaceAll('0', 'O'); 
@@ -121,8 +117,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
       textRecognizer.close();
 
-      // --- STRATÉGIE 1 : RECHERCHE PRÉCISE PAR CODE (SET + NUMÉRO) ---
-      // Ex: "WOE • 123" ou "M21/234"
       final RegExp collectorRegex = RegExp(r'([A-Z0-9]{3,4})[\s•\/\-]{1,3}([0-9]{1,4})');
       
       for (var block in recognizedText.blocks) {
@@ -130,16 +124,12 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
         if (match != null) {
           final String setCode = match.group(1)!;
           final String collectorNumber = match.group(2)!;
-          
-          // Si on trouve un code précis, on tente le "Golden Path" (Succès direct)
           bool success = await _fetchExactCard(setCode, collectorNumber);
           if (success) return; 
         }
       }
 
-      // --- STRATÉGIE 2 : RECHERCHE PAR TITRE (LISTE DE CHOIX) ---
       List<TextBlock> sortedBlocks = List.from(recognizedText.blocks);
-      // Tri par position verticale (le titre est en haut)
       sortedBlocks.sort((a, b) => a.boundingBox.top.compareTo(b.boundingBox.top));
 
       String? bestGuess;
@@ -151,7 +141,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
           if (text.length < 3) continue; 
           bool isTypeLine = badKeywords.any((k) => text.toLowerCase().contains(k));
           if (isTypeLine) continue;
-          
           bestGuess = text;
           break; 
         }
@@ -171,7 +160,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     }
   }
 
-  // Trouve une carte unique précise (Set + CN) -> Succès direct
   Future<bool> _fetchExactCard(String set, String cn) async {
     setState(() { _statusMessage = "Identification précise ($set #$cn)..."; });
     try {
@@ -181,11 +169,10 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
         _selectCard(ScryfallCard.fromJson(data));
         return true;
       }
-    } catch (e) { /* Échec, on continue */ }
+    } catch (e) { }
     return false;
   }
 
-  // Recherche "Fuzzy" ou "Search" -> Renvoie une LISTE
   Future<void> _searchForCandidates(String query) async {
     setState(() {
       _pageState = ResultPageState.loading;
@@ -195,11 +182,10 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
 
     bool foundApi = false;
 
-    // 1. API Scryfall (Recherche large pour avoir des candidats)
+    // 1. API Scryfall
     final connectivityResult = await (Connectivity().checkConnectivity());
     if (!connectivityResult.contains(ConnectivityResult.none)) {
       try {
-        // On utilise /cards/search au lieu de /named pour avoir une liste
         final encoded = Uri.encodeComponent(query);
         final response = await http.get(Uri.parse('https://api.scryfall.com/cards/search?q=$encoded&unique=cards'));
         
@@ -209,13 +195,20 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
           
           final List<ScryfallCard> apiResults = rawList
               .map((json) => ScryfallCard.fromJson(json))
-              .take(10) // On limite aux 10 meilleurs
+              .take(10)
               .toList();
 
           if (apiResults.isNotEmpty) {
+            // --- MODIFICATION INTELLIGENTE ICI ---
+            if (apiResults.length == 1) {
+               // Un seul résultat ? On affiche direct !
+               _selectCard(apiResults.first);
+               return;
+            }
+            
             setState(() {
               _candidates = apiResults;
-              _pageState = ResultPageState.selection; // -> On va vers la liste
+              _pageState = ResultPageState.selection; 
             });
             foundApi = true;
           }
@@ -223,29 +216,34 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       } catch (e) { print("Erreur API Search: $e"); }
     }
 
-    // 2. Fallback Local (Si API vide ou erreur)
+    // 2. Fallback Local
     if (!foundApi && _localCardService.isLoaded) {
       setState(() { _statusMessage = "Recherche locale..."; });
       
-      // On tente la recherche intelligente locale
       var localResults = _localCardService.findSmartMatch(query, limit: 10);
       
       if (localResults.isEmpty) {
-        // Tentative standard si smart échoue
         localResults = _localCardService.searchCards(query: query).take(10).toList();
       }
 
       if (localResults.isNotEmpty) {
+        // --- MODIFICATION INTELLIGENTE ICI ---
+        if (localResults.length == 1) {
+           // Un seul résultat local ? On affiche direct !
+           _selectCard(localResults.first);
+           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Résultat unique local")));
+           return;
+        }
+
         setState(() {
           _candidates = localResults;
-          _pageState = ResultPageState.selection; // -> On va vers la liste
+          _pageState = ResultPageState.selection; 
         });
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Résultats locaux (Mode Hors-ligne)")));
         return;
       }
     }
 
-    // Si toujours rien
     if (_candidates.isEmpty) {
       setState(() {
         _statusMessage = "Aucune carte trouvée pour \"$query\".";
@@ -254,7 +252,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     }
   }
 
-  // L'utilisateur a cliqué sur une carte de la liste
   void _selectCard(ScryfallCard card) {
     setState(() { 
       _foundCard = card; 
@@ -269,7 +266,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     _checkCardStatus();
   }
 
-  // --- UI : SWITCH ENTRE LES ÉTATS ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -299,7 +295,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       case ResultPageState.loading:
         return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text(_statusMessage, style: GoogleFonts.cinzel(color: Colors.white))]));
       
-      // --- NOUVEL ÉCRAN DE SÉLECTION ---
       case ResultPageState.selection:
         return Column(
           children: [
@@ -315,7 +310,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
                 separatorBuilder: (_, __) => const Divider(color: Colors.white10),
                 itemBuilder: (context, index) {
                   final card = _candidates[index];
-                  // Image miniature pour aider au choix
                   final imgUrl = card.smallImageUrl ?? card.imageUrl;
                   
                   return Card(
@@ -333,7 +327,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
                 },
               ),
             ),
-            // Bouton pour relancer une recherche manuelle si rien ne correspond
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: TextButton.icon(
@@ -348,13 +341,11 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
         );
 
       case ResultPageState.success:
-        // ... (Affichage détail inchangé) ...
         return SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + mediaQuery.padding.bottom + 80.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Image & Header
               Card(
                 color: Colors.black.withValues(alpha: 0.4),
                 elevation: 4.0,
@@ -399,9 +390,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     }
   }
 
-  // --- HELPERS INCHANGÉS (Pricing, Rules, etc.) ---
-  // (Je remets le code existant pour que le fichier soit complet)
-
   Widget _buildPriceInfo(Map<String, dynamic> prices) {
     final String priceEur = prices['eur'] ?? 'N/A';
     final String priceEurFoil = prices['eur_foil'] ?? 'N/A';
@@ -438,7 +426,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     }).toList());
   }
 
-  // Gestion Versions/Deck/Collections/Glossaire
   Future<void> _showVersionsModal() async {
     if (_foundCard == null) return;
     showModalBottomSheet(
@@ -449,19 +436,7 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   
   Future<void> _showDeckPicker() async {
     if (_foundCard == null) return;
-    showModalBottomSheet(
-      context: context, backgroundColor: Colors.transparent, isScrollControlled: true,
-      builder: (modalContext) {
-        return DeckPickerModal(
-          deckService: _deckService,
-          cardToAdd: _foundCard!,
-          onCardAdded: (deckName, cardName) {
-            if (!context.mounted) return;
-            _showFeedback('"$cardName" ajouté à "$deckName"', Colors.yellow.shade700);
-          },
-        );
-      },
-    );
+    showModalBottomSheet(context: context, backgroundColor: Colors.transparent, isScrollControlled: true, builder: (c) => DeckPickerModal(cardToAdd: _foundCard!, deckService: _deckService, onCardAdded: (d,c) => _showFeedback("Ajouté au deck $d", Colors.green)));
   }
 
   Future<void> _toggleWishlist() async {
