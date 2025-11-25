@@ -73,6 +73,9 @@ jobs:
         run: |
           echo "Décompression des données..."
           unzip assets/json/cards_data.zip -d assets/json/
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.PLAY_STORE_UPLOAD_KEY }}" | base64 --decode > android/app/upload-keystore.jks
 
       # 8. BUILD APK AVEC LA NOUVELLE VERSION
       - name: Build Release APK
@@ -81,6 +84,12 @@ jobs:
           BUILD_NUMBER=${{ steps.version_step.outputs.increment }}
           echo "BUILDING VERSION: $VERSION_NAME+$BUILD_NUMBER"
           flutter build apk --release --build-name=$VERSION_NAME --build-number=$BUILD_NUMBER
+        env:
+          # Ces variables sont maintenant requises par build.gradle.kts
+          KEYSTORE_PATH: "upload-keystore.jks"
+          KEYSTORE_KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
+          KEYSTORE_KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
 
       # 9. RENOMMAGE (Inspiré de ton exemple)
       # On renomme l'APK pour qu'il soit propre dans la release (ex: MagicCompagnion-v1.0.1.apk)
