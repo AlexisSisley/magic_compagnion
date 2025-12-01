@@ -172,7 +172,122 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
   }
 
   // --- ACTIONS ---
+  // AJOUT : Fonction d'importation de masse pour le deck
+  Future<void> _showBulkImportInDeck() async {
+    final TextEditingController importController = TextEditingController();
+    
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.5,
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text("Multi-Ajout (Import Texte)", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18)),
+                const Text("Format: '4 Sol Ring' ou 'Sol Ring'", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: TextField(
+                    controller: importController,
+                    maxLines: null, expands: true,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      filled: true, fillColor: Colors.black45,
+                      hintText: "Collez votre liste ici...",
+                      hintStyle: TextStyle(color: Colors.white24),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: () async {
+                     Navigator.pop(context);
+                     _processBulkDeckImport(importController.text);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
+                  child: const Text("Importer"),
+                )
+              ],
+            ),
+          ),
+        );
+      }
+    );
+  }
 
+  // AJOUT : Traitement de l'import
+  Future<void> _processBulkDeckImport(String text) async {
+     setState(() => _isLoading = true);
+     
+     // Parsing simple (Qty Name)
+     final RegExp regex = RegExp(r'^(\d+)?\s?x?\s?(.*)$');
+     final lines = text.split('\n').where((l) => l.trim().isNotEmpty);
+     
+     // On utilise l'API Collection "batch" pour retrouver les IDs Scryfall rapidement
+     // Note : C'est une astuce, on utilise l'endpoint collection pour résoudre les noms
+     List<Map<String, dynamic>> identifiers = [];
+     Map<String, int> quantities = {}; // Nom -> Qty demandée
+     
+     for(var line in lines) {
+       final match = regex.firstMatch(line.trim());
+       if (match != null) {
+         int q = int.tryParse(match.group(1) ?? '1') ?? 1;
+         String name = match.group(2)?.trim() ?? line;
+         identifiers.add({'name': name});
+         quantities[name.toLowerCase()] = q; // Clé en minuscule pour matcher plus tard
+       }
+     }
+
+     try {
+       // Appel API Scryfall Batch (Max 75, il faudrait boucler si > 75, version simple ici)
+       final response = await http.post(
+          Uri.parse('https://api.scryfall.com/cards/collection'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({'identifiers': identifiers.take(75).toList()}),
+       );
+
+       if (response.statusCode == 200) {
+         final data = json.decode(utf8.decode(response.bodyBytes));
+         final List<dynamic> found = data['data'] ?? [];
+         
+         for(var item in found) {
+           final card = ScryfallCard.fromJson(item);
+           // Retrouver la quantité
+           int qty = 1;
+           // On cherche une correspondance de nom
+           final key = quantities.keys.firstWhere((k) => card.name.toLowerCase().contains(k) || k.contains(card.name.toLowerCase()), orElse: () => "");
+           if (key.isNotEmpty) qty = quantities[key]!;
+
+           await _deckService.upsertCardInDeck(
+             deckId: _currentDeck.id, 
+             scryfallId: card.id, 
+             cardName: card.name, 
+             quantityToAdd: qty
+           );
+         }
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${found.length} cartes importées !"), backgroundColor: Colors.green));
+       }
+     } catch (e) {
+       log("Erreur Import: $e");
+     }
+
+     // Rafraichir
+     final updated = (await _deckService.loadDecks()).firstWhere((d) => d.id == _currentDeck.id);
+     _currentDeck = updated;
+     await _loadInitialData();
+     _calculateDeckValue();
+     setState(() => _isLoading = false);
+  }
   Future<void> _openCardPicker() async {
     final List<Map<String, dynamic>>? result = await showModalBottomSheet(
       context: context,
@@ -877,6 +992,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
                 case 'play': _openDrawSimulator(); break;
                 case 'legality': _checkLegality(); break;
                 case 'clear': _showClearDeckDialog(); break;
+                case 'bulk_import': _showBulkImportInDeck(); break;
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
@@ -887,6 +1003,16 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
                     const Icon(Icons.add_circle, color: Colors.yellow),
                     const SizedBox(width: 12),
                     Text('Ajouter des cartes', style: GoogleFonts.cinzel(color: Colors.white)),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'bulk_import',
+                child: Row(
+                  children: [
+                    const Icon(Icons.playlist_add, color: Colors.purpleAccent), // Icone différente
+                    const SizedBox(width: 12),
+                    Text('Import deck liste', style: GoogleFonts.cinzel(color: Colors.white)),
                   ],
                 ),
               ),

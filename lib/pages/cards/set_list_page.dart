@@ -6,6 +6,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/scryfall_set_model.dart';
 import '../../services/set_service.dart';
+import '../../services/collection_service.dart';
+import '../../services/local_card_service.dart';
 
 class SetListTab extends StatefulWidget {
   // Ce callback permet au parent (CardSearchPage) de savoir qu'on a cliqué
@@ -41,10 +43,35 @@ class _SetListTabState extends State<SetListTab> {
     'token': 'Tokens',
   };
 
+  final CollectionService _collectionService = CollectionService();
+  final LocalCardService _localCardService = LocalCardService();
+  Map<String, int> _ownedCountPerSet = {};
+
   @override
   void initState() {
     super.initState();
     _loadSets();
+    _calculateCompletion();
+  }
+
+  Future<void> _calculateCompletion() async {
+    // 1. Assurer que les données locales sont chargées pour avoir les Set Codes
+    await _localCardService.loadLocalData();
+    // 2. Charger la collection
+    final collection = await _collectionService.loadCollection();
+    
+    Map<String, int> counts = {};
+    
+    for (var deckCard in collection) {
+      // On cherche la carte dans la base locale pour avoir son Set Code
+      final scryfallCard = _localCardService.getCardById(deckCard.scryfallId);
+      if (scryfallCard != null) {
+        final code = scryfallCard.setCode.toLowerCase();
+        counts[code] = (counts[code] ?? 0) + 1; // On compte 1 par carte unique possédée
+      }
+    }
+    
+    if (mounted) setState(() => _ownedCountPerSet = counts);
   }
 
   Future<void> _loadSets() async {
@@ -155,27 +182,45 @@ class _SetListTabState extends State<SetListTab> {
     if (set.setType == 'core') typeColor = Colors.green.shade400;
     if (set.setType == 'masters') typeColor = Colors.purple.shade300;
 
+    final int owned = _ownedCountPerSet[set.code] ?? 0;
+    final int total = set.cardCount > 0 ? set.cardCount : 1;
+    final double percent = (owned / total).clamp(0.0, 1.0);
     return Card(
       color: Colors.black.withOpacity(0.4),
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: ListTile(
-        dense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        leading: Container(
-          width: 40, height: 40,
-          padding: const EdgeInsets.all(4),
-          child: set.iconSvgUri != null
-              ? SvgPicture.network(
-                  set.iconSvgUri!,
-                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                  placeholderBuilder: (_) => const Icon(Icons.broken_image, color: Colors.white24, size: 20),
-                )
-              : const Icon(Icons.circle, color: Colors.white24),
-        ),
-        title: Text(set.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-        subtitle: Text('${set.code.toUpperCase()} • ${set.releasedAt ?? ''} • ${set.cardCount} cartes', style: const TextStyle(color: Colors.white54, fontSize: 11)),
-        trailing: Icon(Icons.chevron_right, color: typeColor),
-        onTap: () => widget.onSetSelected(set), // <-- Appel du callback
+      child: Column( // Changé ListTile en Column pour ajouter la barre en bas
+        children: [
+          ListTile(
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            leading: Container(
+              width: 40, height: 40,
+              padding: const EdgeInsets.all(4),
+              child: set.iconSvgUri != null
+                  ? SvgPicture.network(
+                      set.iconSvgUri!,
+                      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                      placeholderBuilder: (_) => const Icon(Icons.broken_image, color: Colors.white24),
+                    )
+                  : const Icon(Icons.circle, color: Colors.white24),
+            ),
+            title: Text(set.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+            subtitle: Text('${set.code.toUpperCase()} • $owned/$total cartes', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            trailing: Icon(Icons.chevron_right, color: typeColor),
+            onTap: () => widget.onSetSelected(set),
+          ),
+          // AJOUT: Barre de progression
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: LinearProgressIndicator(
+              value: percent,
+              backgroundColor: Colors.white10,
+              color: owned == total ? Colors.green : Colors.blueAccent, // Vert si 100%
+              minHeight: 4,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          )
+        ],
       ),
     );
   }

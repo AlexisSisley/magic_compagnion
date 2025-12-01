@@ -567,12 +567,18 @@ class _DeckListPageState extends State<DeckListPage> {
             children: [
               Row(
                 children: [
-                  // Icône Type
-                  Icon(
-                    isCommander ? Icons.shield_outlined : Icons.style_outlined,
-                    color: isCommander ? Colors.yellow.shade700 : Colors.white70,
-                    size: 28,
-                  ),
+                  if (isCommander)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(20), // Rond pour le style Commander
+                          child: Image.network(
+                            // URL Magique de Scryfall pour avoir l'image crop par ID
+                            "https://api.scryfall.com/cards/${deck.commanderScryfallId}?format=image&version=art_crop",
+                            width: 50, height: 50, fit: BoxFit.cover,
+                            errorBuilder: (c,e,s) => Icon(Icons.shield_outlined, color: Colors.yellow.shade700, size: 28),
+                          ),
+                        )
+                      else
+                        Icon(Icons.style_outlined, color: Colors.white70, size: 28),
                   const SizedBox(width: 12),
                   // Nom
                   Expanded(
