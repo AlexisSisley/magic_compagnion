@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/game_history_model.dart';
-import 'package:magic_companion/pages/life_counter/game_history_page.dart';
 import 'package:magic_companion/pages/settings/dev_tools_page.dart';
 import 'package:magic_companion/pages/glossary/turn_guide_page.dart';
 import 'package:magic_companion/services/game_history_service.dart';
@@ -46,6 +45,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     _loadGame();
   }
 
+  // --- SAUVEGARDE & CHARGEMENT ---
   Future<void> _loadGame() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -93,6 +93,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     }
   }
 
+  // --- LOGIQUE JEU ---
   void _resetGame() {
     setState(() {
       _players = List.generate(
@@ -142,8 +143,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     });
     _saveGame();
   }
-
-  // (Les méthodes _pickStartingPlayer, _rollDice, et les dialogues raccourcis sont identiques à avant, je les inclus pour que le fichier soit complet)
+  
   Future<void> _pickStartingPlayer() async {
     if (_isSelectingStarter) return;
     setState(() { _isSelectingStarter = true; });
@@ -175,15 +175,153 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   }
 
   void _rollDice() {
-    final int result = Random().nextInt(20) + 1;
-    showDialog(context: context, builder: (context) => AlertDialog(backgroundColor: const Color(0xFF1A1A1A), content: Text('$result', textAlign: TextAlign.center, style: GoogleFonts.cinzel(color: result == 20 ? Colors.green : (result == 1 ? Colors.red : Colors.yellow), fontSize: 80, fontWeight: FontWeight.bold)), actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('OK', style: GoogleFonts.cinzel(color: Colors.white)))]));
+    final int result = Random().nextInt(20) + 1; // Un D20
+    
+    String title = 'Jet de D20';
+    String content = '$result';
+    Color contentColor = Colors.yellow.shade700;
+
+    if (result == 1) {
+      title = 'POUR FRODON !';
+      content = '$result ⚔️';
+      contentColor = Colors.red.shade400;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text(title, style: GoogleFonts.cinzel(color: Colors.white)),
+        content: Text(
+          content,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.cinzel(
+            color: contentColor,
+            fontSize: 80,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK', style: GoogleFonts.cinzel(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _showFormatSelector() { buildShowModalBottomSheet(context, (ctx) => Column(mainAxisSize: MainAxisSize.min, children: [ListTile(title: const Text('20 PV', style: TextStyle(color: Colors.white)), onTap: (){setState(()=>_startingLife=20);_resetGame();Navigator.pop(ctx);}),ListTile(title: const Text('40 PV (Commander)', style: TextStyle(color: Colors.white)), onTap: (){setState(()=>_startingLife=40);_resetGame();Navigator.pop(ctx);})])); }
-  void _showPlayerSelector() { buildShowModalBottomSheet(context, (ctx) => Wrap(children: [2,3,4,5,6,7,8].map((i) => ListTile(title: Text('$i Joueurs', style: const TextStyle(color: Colors.white)), onTap: (){setState(()=>_playerCount=i);_resetGame();Navigator.pop(ctx);})).toList())); }
-  void _showCommanderDamageSelector(Player attacker) {
-    showModalBottomSheet(context: context, backgroundColor: Colors.transparent, builder: (BuildContext context) { return Container(decoration: BoxDecoration(color: const Color(0xFF1A1A1A).withOpacity(0.9), borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16))), child: Padding(padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom), child: Wrap(children: <Widget>[ListTile(title: Text('Infliger des dégâts (Cmdt ${attacker.id + 1})', style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)), subtitle: Text('Sélectionnez une cible :', style: GoogleFonts.cinzel(color: Colors.white70))), ..._players.where((opponent) => opponent.id != attacker.id).map((opponent) { final damage = opponent.commanderDamageReceived[attacker.id] ?? 0; return ListTile(leading: Icon(Icons.shield, color: Color(opponent.colorValue)), title: Text('Au Joueur ${opponent.id + 1}', style: const TextStyle(color: Colors.white)), trailing: SizedBox(width: 150, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [IconButton(icon: const Icon(Icons.remove, color: Colors.white70), onPressed: () { _updateCommanderDamage(opponent.id, attacker.id, -1); Navigator.pop(context); _showCommanderDamageSelector(attacker); }), Text('$damage', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)), IconButton(icon: const Icon(Icons.add, color: Colors.white70), onPressed: () { _updateCommanderDamage(opponent.id, attacker.id, 1); Navigator.pop(context); _showCommanderDamageSelector(attacker); })]))); })]))); });
+  void _showFormatSelector() {
+    buildShowModalBottomSheet(
+      context,
+      (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            title: const Text('20 PV', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              setState(() => _startingLife = 20);
+              _resetGame();
+              Navigator.pop(ctx);
+            },
+          ),
+          ListTile(
+            title: const Text('40 PV (Commander)', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              setState(() => _startingLife = 40);
+              _resetGame();
+              Navigator.pop(ctx);
+            },
+          )
+        ],
+      ),
+    );
   }
+
+  void _showPlayerSelector() {
+    buildShowModalBottomSheet(
+      context,
+      (ctx) => Wrap(
+        children: [2, 3, 4, 5, 6, 7, 8].map((i) => ListTile(
+          title: Text('$i Joueurs', style: const TextStyle(color: Colors.white)),
+          onTap: () {
+            setState(() => _playerCount = i);
+            _resetGame();
+            Navigator.pop(ctx);
+          },
+        )).toList(),
+      ),
+    );
+  }
+  void buildShowModalBottomSheet(BuildContext context, Widget Function(BuildContext) builder) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewPadding.bottom),
+        child: builder(ctx),
+      ),
+    );
+  }
+  void _showCommanderDamageSelector(Player attacker) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A).withOpacity(0.9),
+            borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+          ),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom),
+            child: Wrap(
+              children: <Widget>[
+                ListTile(
+                  title: Text('Infliger des dégâts (Cmdt ${attacker.id + 1})', style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                  subtitle: Text('Sélectionnez une cible :', style: GoogleFonts.cinzel(color: Colors.white70)),
+                ),
+                ..._players.where((opponent) => opponent.id != attacker.id).map((opponent) {
+                  final damage = opponent.commanderDamageReceived[attacker.id] ?? 0;
+                  return ListTile(
+                    leading: Icon(Icons.shield, color: Color(opponent.colorValue)),
+                    title: Text('Au Joueur ${opponent.id + 1}', style: const TextStyle(color: Colors.white)),
+                    trailing: SizedBox(
+                      width: 150,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove, color: Colors.white70),
+                            onPressed: () {
+                              _updateCommanderDamage(opponent.id, attacker.id, -1);
+                              Navigator.pop(context);
+                              _showCommanderDamageSelector(attacker);
+                            },
+                          ),
+                          Text('$damage', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                          IconButton(
+                            icon: const Icon(Icons.add, color: Colors.white70),
+                            onPressed: () {
+                              _updateCommanderDamage(opponent.id, attacker.id, 1);
+                              Navigator.pop(context);
+                              _showCommanderDamageSelector(attacker);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                })
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ignore: unused_element
   Future<void> _showAboutDialog() async {
     PackageInfo packageInfo = await PackageInfo.fromPlatform();
     int tapCount = 0; 
@@ -304,21 +442,30 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
       }
     );
   }
-  void buildShowModalBottomSheet(BuildContext context, Widget Function(BuildContext) builder) { showModalBottomSheet(context: context, backgroundColor: const Color(0xFF1A1A1A), builder: builder); }
-
+  
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: Colors.white));
     
     // Menu central si >= 6 joueurs
-    final bool useCentralMenu = _playerCount >= 6;
+    final bool useCentralMenu = _playerCount >= 2;
 
     return Stack(
       children: [
         _buildBlockLayout(useCentralMenu),
         
         if (!useCentralMenu) ...[
-          Positioned(bottom: 16, right: 90, child: FloatingActionButton(heroTag: 'dice', onPressed: _rollDice, backgroundColor: Colors.black54, foregroundColor: Colors.white, child: const Icon(Icons.casino_outlined))),
+          Positioned(
+            bottom: 16, 
+            right: 90, 
+           child: FloatingActionButton(
+            heroTag: 'dice', 
+            onPressed: _rollDice, 
+            backgroundColor: Colors.black54, 
+            foregroundColor: Colors.white, 
+            child: const Icon(Icons.casino_outlined)
+            )
+          ),
           Positioned(bottom: 16, right: 16, child: _buildSpeedDial()),
         ]
       ],
@@ -327,47 +474,48 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
 
   // --- MOTEUR DE DISPOSITION EN BLOCS (SPLIT VIEW) ---
   Widget _buildBlockLayout(bool useCentralMenu) {
-    // On divise les joueurs en 2 groupes : Haut (Inversé) et Bas (Normal)
     int splitIndex = (_playerCount / 2).ceil(); 
     List<Player> topPlayers = _players.sublist(0, splitIndex);
     List<Player> bottomPlayers = _players.sublist(splitIndex, _playerCount);
 
+    // On supprime le RotatedBox global ici pour avoir un contrôle fin par joueur
     return Column(
       children: [
-        // GROUPE HAUT (Rotation 180°)
-        Expanded(
-          child: RotatedBox(
-            quarterTurns: 2, 
-            child: _buildPlayerRow(topPlayers),
-          ),
-        ),
+        Expanded(child: _buildPlayerRow(topPlayers, isTopRow: true)),
+        
+        if (useCentralMenu) _buildCentralMenuBar(),
+        if (!useCentralMenu) Container(height: 2, color: Colors.black),
 
-        // BARRE CENTRALE (si > 5 joueurs)
-        if (useCentralMenu)
-          _buildCentralMenuBar(),
-
-        // Séparateur fin (si pas de menu)
-        if (!useCentralMenu)
-          Container(height: 2, color: Colors.black),
-
-        // GROUPE BAS
-        Expanded(
-          child: _buildPlayerRow(bottomPlayers),
-        ),
+        Expanded(child: _buildPlayerRow(bottomPlayers, isTopRow: false)),
       ],
     );
   }
 
   // Génère une ligne de joueurs (qui s'adaptent en largeur)
-  Widget _buildPlayerRow(List<Player> players) {
+  Widget _buildPlayerRow(List<Player> players, {required bool isTopRow}) {
     return Row(
       children: players.map((player) {
+        // --- LOGIQUE DE ROTATION ---
+        int quarterTurns = 0;
+
+        if (_playerCount == 4) {
+          // Logique spécifique 4 joueurs (regarde vers le centre)
+          // 0, 1 (Top) | 2, 3 (Bottom)
+          // Gauche (0, 2) : 1 (90° Horaire)
+          // Droite (1, 3) : 3 (270° / 90° Anti-horaire)
+          bool isLeft = (player.id % 2 == 0);
+          quarterTurns = isLeft ? 1 : 3;
+        } else {
+          // Logique Standard (Haut inversé, Bas normal)
+          quarterTurns = isTopRow ? 2 : 0;
+        }
+
         return Expanded(
           child: Padding(
             padding: const EdgeInsets.all(2.0),
             child: PlayerZone(
               player: player,
-              isRotated: false, // La rotation est gérée par le RotatedBox parent
+              quarterTurns: quarterTurns, // On passe la rotation calculée
               isCommander: _startingLife == 40,
               isHighlighted: _highlightedPlayerId == player.id,
               onLifeChanged: (val) => _updateLife(player.id, val),

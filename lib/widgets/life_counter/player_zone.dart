@@ -9,7 +9,7 @@ class _FloatingNumber {
   final int id;
   final String text;
   final Color color;
-  double top = 20.0; // Position de départ ajustée
+  double top = 20.0;
   double opacity = 1.0;
 
   _FloatingNumber({required this.id, required this.text, required this.color});
@@ -22,13 +22,13 @@ class PlayerZone extends StatefulWidget {
     required this.onLifeChanged, 
     required this.onShowCommanderDamage,
     required this.onColorChanged,
-    this.isRotated = false,
+    this.quarterTurns = 0, // Remplacé isRotated par quarterTurns (0, 1, 2, 3)
     this.isCommander = false,
     this.isHighlighted = false,
   });
 
   final Player player;
-  final bool isRotated;
+  final int quarterTurns; // 0=0°, 1=90°, 2=180°, 3=270°
   final bool isCommander;
   final bool isHighlighted;
   final Function(int) onLifeChanged;
@@ -63,7 +63,6 @@ class _PlayerZoneState extends State<PlayerZone> {
     final number = _FloatingNumber(id: id, text: text, color: color);
     if(mounted) setState(() => _floatingNumbers.add(number));
 
-    // Animation vers le haut (plus courte pour être plus dynamique)
     Timer(const Duration(milliseconds: 50), () {
       if(mounted) setState(() { number.top = -50.0; number.opacity = 0.0; });
     });
@@ -103,6 +102,7 @@ class _PlayerZoneState extends State<PlayerZone> {
   Widget build(BuildContext context) {
     Color bgColor = Color(widget.player.colorValue);
 
+    // Contenu de la zone
     Widget content = Container(
       decoration: BoxDecoration(
         color: bgColor,
@@ -115,46 +115,41 @@ class _PlayerZoneState extends State<PlayerZone> {
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          // --- LAYOUT PRINCIPAL : Row pour diviser clairement les zones ---
+          // Row Flex pour la structure (Moins - Score - Plus)
           Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. ZONE MOINS (Gauche) - Prend tout l'espace disponible
+              // 1. MOINS
               Expanded(
+                flex: 1,
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () => _triggerChange(-1),
                     onLongPress: () => _triggerChange(-5),
                     splashColor: Colors.black12,
-                    highlightColor: Colors.black12,
                     child: Center(
-                      // Icône plus grosse et plus visible
-                      child: Icon(Icons.remove, color: Colors.white.withOpacity(0.6), size: 48),
+                      child: FittedBox(child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(Icons.remove, color: Colors.white.withOpacity(0.6), size: 48))),
                     ),
                   ),
                 ),
               ),
 
-              // 2. ZONE CENTRALE (Info Vie) - Taille Fixe
-              SizedBox(
-                width: 110, // Largeur fixe pour que le texte ne bouge pas les boutons
+              // 2. SCORE
+              Expanded(
+                flex: 1, 
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Score de vie (Taille réduite pour ne pas être "trop gros")
-                    Text(
-                      '${widget.player.life}',
-                      style: GoogleFonts.cinzel(
-                        fontSize: 60, // Réduit par rapport à avant
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        shadows: [const Shadow(blurRadius: 5, color: Colors.black45)]
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '${widget.player.life}',
+                          style: GoogleFonts.cinzel(fontSize: 60, fontWeight: FontWeight.bold, color: Colors.white, shadows: [const Shadow(blurRadius: 5, color: Colors.black45)]),
+                        ),
                       ),
-                      textAlign: TextAlign.center,
                     ),
-                    
-                    // Dégâts commandant (si activé)
                     if (widget.isCommander)
                       GestureDetector(
                         onTap: widget.onShowCommanderDamage,
@@ -162,9 +157,8 @@ class _PlayerZoneState extends State<PlayerZone> {
                           margin: const EdgeInsets.only(top: 4),
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(8)),
-                          child: Text(
-                            'CMD: ${widget.player.totalCommanderDamage}', 
-                            style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)
+                          child: FittedBox(
+                            child: Text('CMD: ${widget.player.totalCommanderDamage}', style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ),
@@ -172,18 +166,17 @@ class _PlayerZoneState extends State<PlayerZone> {
                 ),
               ),
 
-              // 3. ZONE PLUS (Droite) - Prend tout l'espace disponible
+              // 3. PLUS
               Expanded(
+                flex: 1,
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () => _triggerChange(1),
                     onLongPress: () => _triggerChange(5),
                     splashColor: Colors.black12,
-                    highlightColor: Colors.black12,
                     child: Center(
-                      // Icône plus grosse et plus visible
-                      child: Icon(Icons.add, color: Colors.white.withOpacity(0.6), size: 48),
+                      child: FittedBox(child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(Icons.add, color: Colors.white.withOpacity(0.6), size: 48))),
                     ),
                   ),
                 ),
@@ -191,7 +184,7 @@ class _PlayerZoneState extends State<PlayerZone> {
             ],
           ),
 
-          // 4. ANIMATIONS FLOTTANTES (Au dessus de tout)
+          // Animations
           Center(
             child: IgnorePointer(
               child: Stack(
@@ -203,27 +196,23 @@ class _PlayerZoneState extends State<PlayerZone> {
                   child: AnimatedOpacity(
                     duration: const Duration(milliseconds: 600),
                     opacity: n.opacity,
-                    child: Text(
-                      n.text, 
-                      style: GoogleFonts.cinzel(fontSize: 48, fontWeight: FontWeight.bold, color: n.color, shadows: [const Shadow(blurRadius: 4, color: Colors.black)])
-                    ),
+                    child: Text(n.text, style: GoogleFonts.cinzel(fontSize: 48, fontWeight: FontWeight.bold, color: n.color, shadows: [const Shadow(blurRadius: 4, color: Colors.black)])),
                   ),
                 )).toList(),
               ),
             ),
           ),
 
-          // 5. BOUTON PARAMÈTRES (Discret en haut à droite)
+          // Bouton Paramètres
           Positioned(
             top: 0, right: 0, 
             child: IconButton(
               icon: const Icon(Icons.palette, color: Colors.white24, size: 20),
               onPressed: _showColorPicker,
-              tooltip: "Changer la couleur",
             ),
           ),
           
-          // 6. OVERLAY SURBRILLANCE (Qui commence ?)
+          // Surbrillance
           if (widget.isHighlighted)
             Container(
               color: Colors.black45,
@@ -238,10 +227,10 @@ class _PlayerZoneState extends State<PlayerZone> {
       ),
     );
 
-    // Rotation si nécessaire
-    if (widget.isRotated) {
-      return Transform.rotate(angle: 3.14159, child: content);
-    }
-    return content;
+    // Rotation via RotatedBox (meilleure gestion du layout pour 90°)
+    return RotatedBox(
+      quarterTurns: widget.quarterTurns,
+      child: content,
+    );
   }
 }
