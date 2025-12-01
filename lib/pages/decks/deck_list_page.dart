@@ -123,8 +123,8 @@ class _DeckListPageState extends State<DeckListPage> {
   bool _isLoading = true;
   bool _isImporting = false;
   final TextEditingController _searchController = TextEditingController();
-  String _selectedType = 'Tous'; // 'Tous', 'Commander', 'Standard'
-  final Set<String> _selectedColors = {}; // {'W', 'U', ...}
+  String _selectedType = 'Tous';
+  final Set<String> _selectedColors = {}; 
 
   final Map<String, Color> _manaColors = {
     'W': Colors.yellow.shade100,
@@ -142,49 +142,35 @@ class _DeckListPageState extends State<DeckListPage> {
     _loadDecks();
   }
 
-  // Charger les decks depuis le service
   Future<void> _loadDecks() async {
     setState(() { _isLoading = true; });
-    
     final decks = await _deckService.loadDecks();
-    // Trie les decks par nom pour la cohérence
     decks.sort((a, b) => a.name.compareTo(b.name));
-    
     setState(() {
       _decks = decks;
       _isLoading = false;
     });
     _applyFilters();
   }
+
   void _applyFilters() {
     final query = _searchController.text.toLowerCase();
-    
     setState(() {
       _filteredDecks = _decks.where((deck) {
-        // 1. Filtre Nom
         if (!deck.name.toLowerCase().contains(query)) return false;
-
-        // 2. Filtre Type
         final bool isCommander = deck.commanderScryfallId != null;
         if (_selectedType == 'Commander' && !isCommander) return false;
         if (_selectedType == 'Standard' && isCommander) return false;
-
-        // 3. Filtre Couleurs (Si activé, le deck doit contenir AU MOINS une des couleurs)
-        // Vous pouvez changer la logique pour "DOIT CONTENIR TOUTES" selon préférence
         if (_selectedColors.isNotEmpty) {
-          // Si le deck n'a pas de couleurs définies, on ne l'affiche pas si on filtre
           if (deck.colors.isEmpty) return false;
-          
-          // Vérifie l'intersection
           final bool hasColor = deck.colors.any((c) => _selectedColors.contains(c));
           if (!hasColor) return false;
         }
-
         return true;
       }).toList();
     });
   }
-  // Supprimer un deck (avec confirmation)
+
   Future<void> _deleteDeck(String deckId) async {
     final bool? confirm = await showDialog(
       context: context,
@@ -195,21 +181,15 @@ class _DeckListPageState extends State<DeckListPage> {
         titleTextStyle: GoogleFonts.cinzel(color: Colors.white, fontSize: 20),
         contentTextStyle: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Annuler', style: GoogleFonts.cinzel(color: Colors.white70)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Supprimer', style: GoogleFonts.cinzel(color: Colors.red.shade300)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Annuler', style: GoogleFonts.cinzel(color: Colors.white70))),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: Text('Supprimer', style: GoogleFonts.cinzel(color: Colors.red.shade300))),
         ],
       ),
     );
 
     if (confirm == true) {
       await _deckService.deleteDeck(deckId);
-      _loadDecks(); // Rafraîchir la liste
+      _loadDecks();
     }
   }
 
@@ -308,16 +288,12 @@ class _DeckListPageState extends State<DeckListPage> {
                     final String deckName = nameController.text.trim();
                     final String deckList = listController.text.trim();
 
-                    // --- Logique de l'Easter Egg ---
                     if (deckName.toLowerCase() == 'second petit déjeuner' || deckName.toLowerCase() == 'second breakfast') {
                       Navigator.pop(context);
                       _importDeck("Nourriture et communauté", _secondBreakfastDecklist);
-                    }
-                    // --- Fin de l'Easter Egg ---
-                    
-                    else if (deckName.isNotEmpty && deckList.isNotEmpty) {
+                    } else if (deckName.isNotEmpty && deckList.isNotEmpty) {
                       Navigator.pop(context);
-                      _importDeck(deckName, deckList); // Importation normale
+                      _importDeck(deckName, deckList);
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -336,11 +312,9 @@ class _DeckListPageState extends State<DeckListPage> {
     );
   }
 
-  // --- Logique d'importation ---
   Future<void> _importDeck(String deckName, String decklistText) async {
     setState(() { _isImporting = true; _isLoading = true; });
 
-    // 1. Parser le texte
     List<Map<String, dynamic>> parsedMain = [];
     List<Map<String, dynamic>> parsedSide = [];
     String? commanderName;
@@ -367,7 +341,6 @@ class _DeckListPageState extends State<DeckListPage> {
     
     List<ScryfallCard> scryfallData = [];
     if (ids.isNotEmpty) {
-      // Chunking simplifié pour l'exemple
       final query = ids.take(75).map((n) => '!${json.encode(n)}').join(' OR ');
       try {
         final uri = Uri.parse('https://api.scryfall.com/cards/search?q=${Uri.encodeComponent(query)}&unique=cards');
@@ -381,25 +354,18 @@ class _DeckListPageState extends State<DeckListPage> {
 
     Set<String> deckColors = {};
     for (var sc in scryfallData) {
-      // Si c'est un commander, on prend ses couleurs, sinon on additionne tout
-      // Logique : Union de toutes les couleurs des cartes du mainboard
-      // (Note: pour un deck Commander précis, c'est l'identité du général, 
-      // mais "couleurs utilisées" est souvent l'union de tout).
       deckColors.addAll(sc.colorIdentity);
     }
-    // Ordonner WUBRG
     final order = {'W':0, 'U':1, 'B':2, 'R':3, 'G':4, 'C':5};
     final sortedColors = deckColors.toList()..sort((a,b) => (order[a]??9).compareTo(order[b]??9));
 
-    // 4. Création Deck
     await _deckService.createNewDeck(deckName);
     final decks = await _deckService.loadDecks();
     Deck newDeck = decks.firstWhere((d) => d.name == deckName);
     
-    newDeck.colors = sortedColors; // Sauvegarde des couleurs !
+    newDeck.colors = sortedColors; 
     newDeck.format = commanderName != null ? 'Commander' : 'Standard';
     
-    // Remplissage (Simplifié pour l'exemple, reprends ta logique complète de matching)
     newDeck.mainboard = parsedMain.map((p) => DeckCard(scryfallId: _findId(scryfallData, p['name']), name: p['name'], quantity: p['quantity'])).toList();
     newDeck.sideboard = parsedSide.map((p) => DeckCard(scryfallId: _findId(scryfallData, p['name']), name: p['name'], quantity: p['quantity'])).toList();
     
@@ -422,124 +388,139 @@ class _DeckListPageState extends State<DeckListPage> {
     } catch (e) { return "LOCAL:$name"; }
   }
 
-  
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Scaffold( // Ajout d'un Scaffold interne pour le FAB
-      backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showCreateDeckDialog,
-        backgroundColor: Colors.yellow.shade800,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: Text('Nouveau Deck', style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
-      ),
-      body: Column(
-        children: [
-          // En-tête + Filtres
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            color: Colors.black.withOpacity(0.3),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Mes Decks', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                    IconButton(
-                      icon: const Icon(Icons.file_upload_outlined, color: Colors.white),
-                      tooltip: 'Importer (Texte)',
-                      onPressed: _showImportDeckDialog,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Barre de recherche
-                TextField(
-                  controller: _searchController,
-                  style: GoogleFonts.cinzel(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Rechercher...',
-                    hintStyle: TextStyle(color: Colors.white54),
-                    prefixIcon: Icon(Icons.search, color: Colors.white70),
-                    filled: true, fillColor: Colors.black54,
-                    contentPadding: EdgeInsets.symmetric(vertical: 0),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Filtres (Format & Couleurs)
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
+    // UTILISATION DE STACK POUR FAB ET MENU DRAWER
+    return Stack(
+      children: [
+        Column(
+          children: [
+            // En-tête + Filtres
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              color: Colors.black.withOpacity(0.3),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Dropdown Type
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-                        child: DropdownButton<String>(
-                          value: _selectedType,
-                          dropdownColor: const Color(0xFF1A1A1A),
-                          underline: SizedBox(),
-                          icon: Icon(Icons.arrow_drop_down, color: Colors.white70),
-                          style: GoogleFonts.cinzel(color: Colors.white),
-                          items: ['Tous', 'Commander', 'Standard'].map((String value) {
-                            return DropdownMenuItem<String>(value: value, child: Text(value));
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) setState(() { _selectedType = val; _applyFilters(); });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Toggles Couleurs
-                      ..._manaColors.keys.map((color) {
-                        final isSelected = _selectedColors.contains(color);
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: InkWell(
-                            onTap: () {
-                              setState(() {
-                                if (isSelected) _selectedColors.remove(color); else _selectedColors.add(color);
-                                _applyFilters();
-                              });
-                            },
-                            child: Opacity(
-                              opacity: isSelected ? 1.0 : 0.3,
-                              child: _getManaIcon(color, size: 28),
-                            ),
+                      // --- MODIFICATION ICI : BOUTON MENU ---
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.menu, color: Colors.white70),
+                            onPressed: () => Scaffold.of(context).openDrawer(),
                           ),
-                        );
-                      }).toList(),
+                          const SizedBox(width: 8),
+                          Text('Mes Decks', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.file_upload_outlined, color: Colors.white),
+                        tooltip: 'Importer (Texte)',
+                        onPressed: _showImportDeckDialog,
+                      ),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-
-          // Liste des decks
-          Expanded(
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator())
-              : _filteredDecks.isEmpty
-                  ? Center(child: Text('Aucun deck trouvé.', style: GoogleFonts.cinzel(color: Colors.white54)))
-                  : ListView.builder(
-                      itemCount: _filteredDecks.length,
-                      padding: const EdgeInsets.only(bottom: 80), // Espace pour le FAB
-                      itemBuilder: (context, index) {
-                        return _buildDeckCard(_filteredDecks[index]);
-                      },
+                  const SizedBox(height: 12),
+                  // Barre de recherche
+                  TextField(
+                    controller: _searchController,
+                    style: GoogleFonts.cinzel(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Rechercher...',
+                      hintStyle: TextStyle(color: Colors.white54),
+                      prefixIcon: Icon(Icons.search, color: Colors.white70),
+                      filled: true, fillColor: Colors.black54,
+                      contentPadding: EdgeInsets.symmetric(vertical: 0),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Filtres (Format & Couleurs)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                          child: DropdownButton<String>(
+                            value: _selectedType,
+                            dropdownColor: const Color(0xFF1A1A1A),
+                            underline: SizedBox(),
+                            icon: Icon(Icons.arrow_drop_down, color: Colors.white70),
+                            style: GoogleFonts.cinzel(color: Colors.white),
+                            items: ['Tous', 'Commander', 'Standard'].map((String value) {
+                              return DropdownMenuItem<String>(value: value, child: Text(value));
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) setState(() { _selectedType = val; _applyFilters(); });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ..._manaColors.keys.map((color) {
+                          final isSelected = _selectedColors.contains(color);
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  if (isSelected) _selectedColors.remove(color); else _selectedColors.add(color);
+                                  _applyFilters();
+                                });
+                              },
+                              child: Opacity(
+                                opacity: isSelected ? 1.0 : 0.3,
+                                child: _getManaIcon(color, size: 28),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Liste des decks
+            Expanded(
+              child: _isLoading 
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredDecks.isEmpty
+                    ? Center(child: Text('Aucun deck trouvé.', style: GoogleFonts.cinzel(color: Colors.white54)))
+                    : ListView.builder(
+                        itemCount: _filteredDecks.length,
+                        padding: const EdgeInsets.only(bottom: 80),
+                        itemBuilder: (context, index) {
+                          return _buildDeckCard(_filteredDecks[index]);
+                        },
+                      ),
+            ),
+          ],
+        ),
+        // FAB POSITIONNÉ MANUELLEMENT (CAR PAS DE SCAFFOLD INTERNE)
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton.extended(
+            onPressed: _showCreateDeckDialog,
+            backgroundColor: Colors.yellow.shade800,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.add),
+            label: Text('Nouveau Deck', style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
+
   Widget _buildDeckCard(Deck deck) {
     final bool isCommander = deck.commanderScryfallId != null;
     final int cardCount = deck.mainboard.fold(0, (s, c) => s + c.quantity);
@@ -569,9 +550,8 @@ class _DeckListPageState extends State<DeckListPage> {
                 children: [
                   if (isCommander)
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(20), // Rond pour le style Commander
+                          borderRadius: BorderRadius.circular(20), 
                           child: Image.network(
-                            // URL Magique de Scryfall pour avoir l'image crop par ID
                             "https://api.scryfall.com/cards/${deck.commanderScryfallId}?format=image&version=art_crop",
                             width: 50, height: 50, fit: BoxFit.cover,
                             errorBuilder: (c,e,s) => Icon(Icons.shield_outlined, color: Colors.yellow.shade700, size: 28),
@@ -580,7 +560,6 @@ class _DeckListPageState extends State<DeckListPage> {
                       else
                         Icon(Icons.style_outlined, color: Colors.white70, size: 28),
                   const SizedBox(width: 12),
-                  // Nom
                   Expanded(
                     child: Text(
                       deck.name,
@@ -588,7 +567,6 @@ class _DeckListPageState extends State<DeckListPage> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  // Couleurs (Affichage des icônes)
                   if (deck.colors.isNotEmpty)
                     Row(
                       children: deck.colors.map((c) => Padding(
@@ -601,7 +579,6 @@ class _DeckListPageState extends State<DeckListPage> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  // Badge Format
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
@@ -619,7 +596,6 @@ class _DeckListPageState extends State<DeckListPage> {
                   const Spacer(),
                   Text('$cardCount cartes', style: GoogleFonts.cinzel(color: Colors.white38, fontSize: 12)),
                   const SizedBox(width: 16),
-                  // Bouton Supprimer
                   InkWell(
                     onTap: () => _deleteDeck(deck.id),
                     child: Icon(Icons.delete_outline, color: Colors.red.shade300.withOpacity(0.7), size: 20),
@@ -641,4 +617,3 @@ class _DeckListPageState extends State<DeckListPage> {
     );
   }
 }
-  

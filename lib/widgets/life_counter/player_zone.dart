@@ -1,41 +1,38 @@
 // Fichier : lib/widgets/life_counter/player_zone.dart
-// VERSION MISE À JOUR (Layout vertical/horizontal)
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/player_model.dart';
 
-// ... (La classe _FloatingNumber est inchangée) ...
 class _FloatingNumber {
   final int id;
   final String text;
   final Color color;
-  double top = 100.0;
+  double top = 20.0; // Position de départ ajustée
   double opacity = 1.0;
 
   _FloatingNumber({required this.id, required this.text, required this.color});
 }
 
-
 class PlayerZone extends StatefulWidget {
   const PlayerZone({
     super.key,
     required this.player,
-    required this.backgroundColor,
     required this.onLifeChanged, 
     required this.onShowCommanderDamage,
+    required this.onColorChanged,
     this.isRotated = false,
     this.isCommander = false,
-    this.isVertical = false, // <-- NOUVEAU PARAMÈTRE
+    this.isHighlighted = false,
   });
 
   final Player player;
-  final Color backgroundColor;
   final bool isRotated;
   final bool isCommander;
-  final bool isVertical; // <-- NOUVEAU PARAMÈTRE
-  final Function(int) onLifeChanged; 
+  final bool isHighlighted;
+  final Function(int) onLifeChanged;
+  final Function(Color) onColorChanged;
   final VoidCallback onShowCommanderDamage;
 
   @override
@@ -46,255 +43,205 @@ class _PlayerZoneState extends State<PlayerZone> {
   final List<_FloatingNumber> _floatingNumbers = [];
   int _nextNumberId = 0;
 
-  // Fonction pour déclencher le changement de vie ET l'animation
+  final List<Color> _colorOptions = [
+    Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
+    Colors.grey.shade800, Colors.purple.shade900, Colors.orange.shade900,
+    Colors.teal.shade900, Colors.pink.shade900, Colors.brown.shade800, 
+    Colors.indigo.shade900, Colors.blueGrey.shade800, Colors.black
+  ];
+
   void _triggerChange(int change) {
     widget.onLifeChanged(change);
     _showFloatingNumber(change);
   }
 
-  // Gère l'animation (inchangée)
   void _showFloatingNumber(int change) {
     final String text = (change > 0) ? '+$change' : '$change';
-    final Color color = (change > 0) ? Colors.green.shade300 : Colors.red.shade300;
+    final Color color = (change > 0) ? Colors.greenAccent : Colors.redAccent;
     final int id = _nextNumberId++;
 
     final number = _FloatingNumber(id: id, text: text, color: color);
-    setState(() {
-      _floatingNumbers.add(number);
+    if(mounted) setState(() => _floatingNumbers.add(number));
+
+    // Animation vers le haut (plus courte pour être plus dynamique)
+    Timer(const Duration(milliseconds: 50), () {
+      if(mounted) setState(() { number.top = -50.0; number.opacity = 0.0; });
     });
 
-    Timer(const Duration(milliseconds: 100), () {
-      setState(() {
-        number.top = 0.0;
-        number.opacity = 0.8;
-      });
+    Timer(const Duration(milliseconds: 600), () {
+      if(mounted) setState(() => _floatingNumbers.removeWhere((n) => n.id == id));
     });
+  }
 
-    Timer(const Duration(milliseconds: 1200), () {
-      setState(() {
-        _floatingNumbers.removeWhere((n) => n.id == id);
-      });
-    });
+  void _showColorPicker() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text("Couleur Joueur ${widget.player.id + 1}", style: GoogleFonts.cinzel(color: Colors.white)),
+        content: Wrap(
+          spacing: 12, runSpacing: 12,
+          alignment: WrapAlignment.center,
+          children: _colorOptions.map((c) => GestureDetector(
+            onTap: () { widget.onColorChanged(c); Navigator.pop(ctx); },
+            child: Container(
+              width: 45, height: 45,
+              decoration: BoxDecoration(
+                color: c, 
+                shape: BoxShape.circle, 
+                border: Border.all(color: Colors.white54, width: 2),
+                boxShadow: [BoxShadow(color: c.withOpacity(0.5), blurRadius: 8)]
+              ),
+            ),
+          )).toList(),
+        ),
+      )
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Le contenu principal est un Stack pour les animations et le fond
-    Widget mainContent = Stack(
-      clipBehavior: Clip.hardEdge,
-      children: [
-        Container(color: widget.backgroundColor),
-        
-        // Choisir le layout
-        widget.isVertical 
-            ? _buildVerticalLayout() 
-            : _buildHorizontalLayout(),
+    Color bgColor = Color(widget.player.colorValue);
 
-        // Les animations restent au-dessus de tout, au centre
-        Center(
-          child: IgnorePointer( // Ignore les clics sur les chiffres
-            child: Stack(
-              alignment: Alignment.center,
-              children: _floatingNumbers.map((number) {
-                return AnimatedPositioned(
-                  duration: const Duration(milliseconds: 1000),
-                  curve: Curves.easeOut,
-                  top: number.top,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 1000),
-                    opacity: number.opacity,
-                    child: Text(
-                      number.text,
+    Widget content = Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(18),
+        border: widget.isHighlighted 
+            ? Border.all(color: Colors.white, width: 4) 
+            : Border.all(color: Colors.white12, width: 1),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 4, offset: const Offset(2,2))]
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // --- LAYOUT PRINCIPAL : Row pour diviser clairement les zones ---
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 1. ZONE MOINS (Gauche) - Prend tout l'espace disponible
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _triggerChange(-1),
+                    onLongPress: () => _triggerChange(-5),
+                    splashColor: Colors.black12,
+                    highlightColor: Colors.black12,
+                    child: Center(
+                      // Icône plus grosse et plus visible
+                      child: Icon(Icons.remove, color: Colors.white.withOpacity(0.6), size: 48),
+                    ),
+                  ),
+                ),
+              ),
+
+              // 2. ZONE CENTRALE (Info Vie) - Taille Fixe
+              SizedBox(
+                width: 110, // Largeur fixe pour que le texte ne bouge pas les boutons
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Score de vie (Taille réduite pour ne pas être "trop gros")
+                    Text(
+                      '${widget.player.life}',
                       style: GoogleFonts.cinzel(
-                        fontSize: 48,
+                        fontSize: 60, // Réduit par rapport à avant
                         fontWeight: FontWeight.bold,
-                        color: number.color,
-                        shadows: [
-                          const Shadow(blurRadius: 4.0, color: Colors.black),
-                        ],
+                        color: Colors.white,
+                        shadows: [const Shadow(blurRadius: 5, color: Colors.black45)]
                       ),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ),
-      ],
-    );
-
-    // La rotation s'applique à l'ensemble
-    if (widget.isRotated) {
-      return Transform.rotate(
-        angle: 3.14159, // 180 degrés
-        child: mainContent,
-      );
-    }
-    return mainContent;
-  }
-
-  // --- NOUVEAU WIDGET : Layout vertical (pour 4+ joueurs) ---
-  Widget _buildVerticalLayout() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        // --- Bouton Plus ---
-        Expanded(
-          flex: 2, // Donne plus d'espace au tap
-          child: GestureDetector(
-            onTap: () => _triggerChange(1),
-            onLongPress: () => _triggerChange(5),
-            child: Container(
-              width: double.infinity,
-              color: Colors.transparent, // Zone de tap
-              child: const Icon(Icons.add, size: 50, color: Colors.white70),
-            ),
-          ),
-        ),
-        
-        // --- Zone Centrale ---
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // --- Vie ---
-            Text(
-              '${widget.player.life}',
-              style: GoogleFonts.cinzel(
-                fontSize: 80, // Police réduite pour le mode vertical
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                shadows: [
-                  Shadow(
-                    blurRadius: 10.0,
-                    color: Colors.black.withOpacity(0.5),
-                    offset: const Offset(2.0, 2.0),
-                  ),
-                ],
+                    
+                    // Dégâts commandant (si activé)
+                    if (widget.isCommander)
+                      GestureDetector(
+                        onTap: widget.onShowCommanderDamage,
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(8)),
+                          child: Text(
+                            'CMD: ${widget.player.totalCommanderDamage}', 
+                            style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            
-            // --- Bouton Dégâts de Commandant ---
-            if (widget.isCommander)
-              GestureDetector(
-                onTap: widget.onShowCommanderDamage,
-                child: Container(
-                  margin: const EdgeInsets.only(top: 8.0), // Espace
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'CDT: ${widget.player.totalCommanderDamage}', // Texte plus court
-                    style: GoogleFonts.cinzel(
-                      color: Colors.white,
-                      fontSize: 16, // Police un peu plus petite
-                      fontWeight: FontWeight.bold,
+
+              // 3. ZONE PLUS (Droite) - Prend tout l'espace disponible
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _triggerChange(1),
+                    onLongPress: () => _triggerChange(5),
+                    splashColor: Colors.black12,
+                    highlightColor: Colors.black12,
+                    child: Center(
+                      // Icône plus grosse et plus visible
+                      child: Icon(Icons.add, color: Colors.white.withOpacity(0.6), size: 48),
                     ),
                   ),
                 ),
               ),
-          ],
-        ),
-        
-        // --- Bouton Moins ---
-        Expanded(
-          flex: 2, // Donne plus d'espace au tap
-          child: GestureDetector(
-            onTap: () => _triggerChange(-1),
-            onLongPress: () => _triggerChange(-5),
-            child: Container(
-              width: double.infinity,
-              color: Colors.transparent, // Zone de tap
-              child: const Icon(Icons.remove, size: 50, color: Colors.white70),
-            ),
+            ],
           ),
-        ),
-      ],
-    );
-  }
 
-  // --- ANCIEN WIDGET : Layout horizontal (pour 1-3 joueurs) ---
-  Widget _buildHorizontalLayout() {
-    return Stack(
-      children: [
-        // --- Bouton Moins ---
-        Align(
-          alignment: Alignment.centerLeft,
-          child: GestureDetector(
-            onTap: () => _triggerChange(-1),
-            onLongPress: () => _triggerChange(-5),
-            child: Container(
-              width: 120,
-              height: double.infinity,
-              color: Colors.transparent,
-              child: const Icon(Icons.remove, size: 60, color: Colors.white70),
+          // 4. ANIMATIONS FLOTTANTES (Au dessus de tout)
+          Center(
+            child: IgnorePointer(
+              child: Stack(
+                alignment: Alignment.center,
+                children: _floatingNumbers.map((n) => AnimatedPositioned(
+                  duration: const Duration(milliseconds: 600),
+                  curve: Curves.easeOut,
+                  top: n.top, 
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 600),
+                    opacity: n.opacity,
+                    child: Text(
+                      n.text, 
+                      style: GoogleFonts.cinzel(fontSize: 48, fontWeight: FontWeight.bold, color: n.color, shadows: [const Shadow(blurRadius: 4, color: Colors.black)])
+                    ),
+                  ),
+                )).toList(),
+              ),
             ),
           ),
-        ),
-        
-        // --- Bouton Plus ---
-        Align(
-          alignment: Alignment.centerRight,
-          child: GestureDetector(
-            onTap: () => _triggerChange(1),
-            onLongPress: () => _triggerChange(5),
-            child: Container(
-              width: 120,
-              height: double.infinity,
-              color: Colors.transparent,
-              child: const Icon(Icons.add, size: 60, color: Colors.white70),
-            ),
-          ),
-        ),
-        
-        // --- Affichage Principal (Vie) ---
-        Center(
-          child: Text(
-            '${widget.player.life}',
-            style: GoogleFonts.cinzel(
-              fontSize: 104, // Grosse police pour le mode horizontal
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              shadows: [
-                Shadow(
-                  blurRadius: 10.0,
-                  color: Colors.black.withOpacity(0.5),
-                  offset: const Offset(2.0, 2.0),
-                ),
-              ],
-            ),
-          ),
-        ),
-        
-        // --- Bouton Dégâts de Commandant ---
-        if (widget.isCommander)
+
+          // 5. BOUTON PARAMÈTRES (Discret en haut à droite)
           Positioned(
-            top: 10,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: GestureDetector(
-                onTap: widget.onShowCommanderDamage,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'CDT Reçus : ${widget.player.totalCommanderDamage}',
-                    style: GoogleFonts.cinzel(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+            top: 0, right: 0, 
+            child: IconButton(
+              icon: const Icon(Icons.palette, color: Colors.white24, size: 20),
+              onPressed: _showColorPicker,
+              tooltip: "Changer la couleur",
             ),
           ),
-      ],
+          
+          // 6. OVERLAY SURBRILLANCE (Qui commence ?)
+          if (widget.isHighlighted)
+            Container(
+              color: Colors.black45,
+              alignment: Alignment.center,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(border: Border.all(color: Colors.white, width: 2), borderRadius: BorderRadius.circular(8)),
+                child: Text("Start ?", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              ),
+            )
+        ],
+      ),
     );
+
+    // Rotation si nécessaire
+    if (widget.isRotated) {
+      return Transform.rotate(angle: 3.14159, child: content);
+    }
+    return content;
   }
 }

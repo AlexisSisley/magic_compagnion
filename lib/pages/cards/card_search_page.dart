@@ -1,5 +1,4 @@
 // Fichier : lib/pages/cards/card_search_page.dart
-// VERSION CORRIGÉE : Fix du RangeError dans ListView.builder
 
 import 'dart:async'; 
 import 'package:flutter/material.dart';
@@ -50,8 +49,10 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
 
   final CollectionService _collectionService = CollectionService();
   final WishlistService _wishlistService = WishlistService();
+  
   List<DeckCard> _collection = [];
-  List<DeckCard> _wishlist = [];
+  // On stocke ici la totalité des cartes de TOUTES les wishlists pour vérifier l'état
+  List<DeckCard> _flatWishlist = [];
   
   // ignore: unused_field
   final RegExp _manaRegex = RegExp(r'\{([^}]+)\}');
@@ -128,9 +129,16 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
 
   Future<void> _loadLocalData() async {
     final collection = await _collectionService.loadCollection();
-    final wishlist = await _wishlistService.loadWishlist();
+    final wishlists = await _wishlistService.loadWishlists();
+    
+    // Aplatir toutes les wishlists en une seule liste pour la vérification rapide
+    final allWishlistCards = wishlists.expand((w) => w.cards).toList();
+
     if (mounted) {
-      setState(() { _collection = collection; _wishlist = wishlist; });
+      setState(() { 
+        _collection = collection; 
+        _flatWishlist = allWishlistCards; 
+      });
     }
   }
 
@@ -170,7 +178,6 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     }
   }
 
-  // --- NOUVELLE MÉTHODE DE RECHERCHE PRINCIPALE ---
   Future<void> _searchCards() async {
     if (_tabController.index != 0) _tabController.animateTo(0);
     final String query = _searchController.text.trim();
@@ -182,24 +189,19 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
 
     setState(() { _isLoading = true; _searchResults = []; _fullLocalResults = []; _nextPageUrl = null; _statusMessage = 'Recherche...'; });
 
-    // 1. PRIORITÉ LOCALE : Si on n'a pas de filtre d'édition, on commence par le local (plus rapide)
+    // 1. PRIORITÉ LOCALE
     if (_localCardService.isLoaded && _activeFilters.setCode == null) {
       bool localSuccess = await _performLocalSearch(query);
-      // Si on a trouvé des résultats en local, on s'arrête là pour l'instant
       if (localSuccess) return;
     }
 
-    // 2. APPEL API : Si filtre d'édition OU pas de résultat local
+    // 2. APPEL API
     bool apiSuccess = await _searchCardsApi(query);
 
-    // 3. FALLBACK : Si l'API échoue (404 ou Erreur) ET qu'on a la base locale chargée
+    // 3. FALLBACK
     if (!apiSuccess && _localCardService.isLoaded) {
-       // On relance une recherche locale en IGNORANT le filtre d'édition
-       // (car c'est souvent lui qui bloque si la base locale n'a pas l'extension demandée)
        setState(() { _statusMessage = "Erreur API. Recherche locale de secours..."; });
-       
        await _performLocalSearch(query, ignoreSetFilter: true);
-       
        if (mounted && _searchResults.isNotEmpty) {
          setState(() {
            _statusMessage = "${_searchResults.length} résultats (Mode Hors-Ligne / Fallback)";
@@ -208,11 +210,9 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     }
   }
 
-  // --- MÉTHODE DE RECHERCHE LOCALE EXTRAITE ---
   Future<bool> _performLocalSearch(String query, {bool ignoreSetFilter = false}) async {
     await Future.delayed(const Duration(milliseconds: 50));
     
-    // On ignore le setCode si demandé (pour le fallback)
     String? setCodeFilter = ignoreSetFilter ? null : _activeFilters.setCode;
     SearchFilters effectiveFilters = _activeFilters.copyWith(setCode: setCodeFilter);
     
@@ -221,7 +221,6 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
       filters: effectiveFilters,
     );
       
-    // Filtrage manuel des nouveaux champs (CMC/Rareté) sur les résultats locaux
     if (_activeFilters.minCmc != null || _activeFilters.maxCmc != null || _activeFilters.rarity != null) {
        results = results.where((c) {
          if (_activeFilters.minCmc != null && (c.cmc ?? 0) < _activeFilters.minCmc!) return false;
@@ -242,16 +241,14 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
           _statusMessage = '${results.length} cartes trouvées (Local)';
         });
       }
-      return true; // Succès
+      return true;
     }
-    return false; // Pas de résultat
+    return false;
   }
 
-  // --- MÉTHODE API MODIFIÉE (Retourne bool) ---
   Future<bool> _searchCardsApi(String query) async {
     final connectivityResult = await (Connectivity().checkConnectivity());
     if (connectivityResult.contains(ConnectivityResult.none)) { 
-      // Pas de connexion = Echec immédiat pour déclencher le fallback
       return false;
     }
 
@@ -297,15 +294,14 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
             if (_searchResults.isEmpty) { _statusMessage = 'Aucune carte trouvée (API).'; }
           });
         }
-        return true; // Succès API
+        return true;
       } else {
-        // Erreur API (404, 500...)
         if (mounted) setState(() { _isLoading = false; _statusMessage = 'Erreur API (${response.statusCode}).'; });
-        return false; // Echec API -> Déclenchera le fallback
+        return false;
       }
     } catch (e) {
       if (mounted) setState(() { _isLoading = false; _statusMessage = 'Erreur réseau'; });
-      return false; // Echec Réseau -> Déclenchera le fallback
+      return false;
     }
   }
 
@@ -500,14 +496,9 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     return ListView.builder(
       key: key,
       controller: _scrollController,
-      // +1 pour le loader potentiel
       itemCount: _searchResults.length + 1,
       padding: const EdgeInsets.only(bottom: 80), 
       itemBuilder: (context, index) {
-        
-        // --- FIX : Condition de sécurité ---
-        // On vérifie >= au lieu de == pour éviter les RangeError
-        // si _searchResults change pendant le build
         if (index >= _searchResults.length) {
           bool showLoader = false;
           if (_fullLocalResults.isNotEmpty && _searchResults.length < _fullLocalResults.length) showLoader = true;
@@ -515,7 +506,6 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
           return showLoader ? const Padding(padding: EdgeInsets.all(16.0), child: Center(child: CircularProgressIndicator())) : const SizedBox(height: 20);
         }
 
-        // Sécurité supplémentaire : Si l'index est invalide (devrait être couvert par >= ci-dessus mais sait-on jamais)
         if (index < 0) return const SizedBox();
 
         return _buildListTile(_searchResults[index]);
@@ -527,7 +517,9 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     final String cardName = card.name;
     final String? imageUrl = card.smallImageUrl ?? card.imageUrl;
     final String price = card.prices['eur'] ?? '--';
-    final bool inWishlist = _wishlist.any((c) => c.scryfallId == card.id);
+    
+    // Check if in flattened wishlist
+    final bool inWishlist = _flatWishlist.any((c) => c.scryfallId == card.id);
     final bool inCollection = _collection.any((c) => c.scryfallId == card.id);
 
     return Card(
@@ -600,11 +592,8 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2, childAspectRatio: 0.68, crossAxisSpacing: 10, mainAxisSpacing: 10,
       ),
-      // +1 pour le loader
       itemCount: _searchResults.length + 1, 
       itemBuilder: (context, index) {
-        
-        // --- FIX : Même correction pour la Grille ---
         if (index >= _searchResults.length) {
            bool showLoader = false;
            if (_fullLocalResults.isNotEmpty && _searchResults.length < _fullLocalResults.length) showLoader = true;
@@ -665,30 +654,38 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
   }
 
   Future<void> _toggleWishlist(String id, String name, bool currentState) async {
-    // 1. Mise à jour Optimiste (visuel immédiat)
+    // 1. Optimiste: Mise à jour immédiate UI (Ajout/Retrait liste plate)
     setState(() {
       if (currentState) {
-        _wishlist.removeWhere((c) => c.scryfallId == id);
+        _flatWishlist.removeWhere((c) => c.scryfallId == id);
       } else {
-        _wishlist.add(DeckCard(scryfallId: id, name: name, quantity: 1));
+        _flatWishlist.add(DeckCard(scryfallId: id, name: name, quantity: 1));
       }
     });
 
-    // 2. Sauvegarde réelle (attendre la fin)
+    // 2. Action réelle
     if (currentState) {
-      await _wishlistService.upsertCardInWishlist(scryfallId: id, cardName: name, absoluteQuantity: 0);
-      _showFeedback('Retiré de la Wishlist', Colors.red.shade700);
+      // Retrait: On cherche toutes les wishlists contenant cette carte et on la vire
+      final lists = await _wishlistService.loadWishlists();
+      for(var list in lists) {
+        if (list.cards.any((c) => c.scryfallId == id)) {
+          await _wishlistService.upsertCard(wishlistId: list.id, scryfallId: id, cardName: name, absoluteQuantity: 0);
+        }
+      }
+      _showFeedback('Retiré de toutes les Wishlists', Colors.red.shade700);
     } else {
-      await _wishlistService.upsertCardInWishlist(scryfallId: id, cardName: name, quantityToAdd: 1);
+      // Ajout: Liste par défaut
+      await _wishlistService.addCard(ScryfallCard(
+        id: id, name: name, oracleId: '', imageUrl: '', rulesText: '', typeLine: '', legalities: {}, prices: {}, lang: '', colorIdentity: [], setName: '', setCode: '', collectorNumber: '', rarity: 'common'
+      ), 1);
       _showFeedback('Ajouté à la Wishlist', Colors.blue.shade700);
     }
     
-    // 3. Resynchro (optionnel si la logique optimiste est fiable, mais utile pour être sûr)
+    // 3. Resynchro complète pour être sûr
     await _loadLocalData(); 
   }
 
   Future<void> _toggleCollection(String id, String name, bool currentState) async {
-    // 1. Mise à jour Optimiste
     setState(() {
       if (currentState) {
         _collection.removeWhere((c) => c.scryfallId == id);
@@ -697,7 +694,6 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
       }
     });
 
-    // 2. Sauvegarde réelle
     if (currentState) {
       await _collectionService.upsertCardInCollection(scryfallId: id, cardName: name, absoluteQuantity: 0);
       _showFeedback('Retiré de la collection', Colors.red.shade700);
@@ -706,7 +702,6 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
       _showFeedback('Ajouté à la collection', Colors.green.shade700);
     }
     
-    // 3. Resynchro
     await _loadLocalData(); 
   }
 

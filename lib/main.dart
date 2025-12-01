@@ -1,5 +1,4 @@
 // Fichier : lib/main.dart
-// VERSION MISE À JOUR : Ajout de l'entrée Paramètres dans le Drawer
 
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -13,7 +12,11 @@ import 'package:magic_companion/pages/scans/scanner_page.dart';
 import 'pages/life_counter/life_counter_page.dart';
 import 'pages/glossary/glossary_page.dart';
 import 'pages/decks/deck_list_page.dart';
-import 'pages/settings/settings_page.dart'; // <-- NOUVEL IMPORT
+import 'pages/settings/settings_page.dart';
+
+// Imports Services
+import 'services/backup_service.dart';
+import 'services/google_drive_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,8 +61,10 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _selectedIndex = 0; 
+  final GoogleDriveService _driveService = GoogleDriveService();
+  final BackupService _backupService = BackupService();
 
   static const List<Widget> _pages = <Widget>[
     LifeCounterPage(),
@@ -68,6 +73,112 @@ class _AppShellState extends State<AppShell> {
     DeckListPage(),
     CollectionPage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkDriveBackupOnStart());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Sauvegarde auto quand l'app passe en pause
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _performAutoBackup();
+    }
+  }
+
+  Future<void> _performAutoBackup() async {
+    if (_driveService.isSignedIn) {
+      print("Début sauvegarde automatique Drive...");
+      final jsonString = await _backupService.generateBackupJson();
+      await _driveService.uploadBackup(jsonString);
+    }
+  }
+
+  Future<void> _checkDriveBackupOnStart() async {
+    // Connexion silencieuse au démarrage
+    final signedIn = await _driveService.signIn(silent: true);
+    
+    if (signedIn) {
+      final backupFile = await _driveService.findBackupFile();
+      
+      if (backupFile != null && mounted) {
+        String dateStr = "Inconnue";
+        if (backupFile.modifiedTime != null) {
+          dateStr = "${backupFile.modifiedTime!.day}/${backupFile.modifiedTime!.month} à ${backupFile.modifiedTime!.hour}:${backupFile.modifiedTime!.minute}";
+        }
+
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1A1A1A),
+            title: Row(
+              children: [
+                const Icon(Icons.cloud_download, color: Colors.blueAccent),
+                const SizedBox(width: 10),
+                const Expanded(child: Text("Sauvegarde trouvée", style: TextStyle(color: Colors.white))),
+              ],
+            ),
+            content: Text(
+              "Une sauvegarde a été trouvée sur votre Google Drive datant du $dateStr.\nVoulez-vous la restaurer maintenant ?",
+              style: GoogleFonts.cinzel(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Ignorer", style: TextStyle(color: Colors.white54)),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  _restoreFromDrive(backupFile.id!);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
+                child: const Text("Restaurer", style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _restoreFromDrive(String fileId) async {
+    showDialog(
+      context: context, barrierDismissible: false,
+      builder: (c) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final jsonString = await _driveService.downloadBackup(fileId);
+      if (jsonString != null) {
+        await _backupService.restoreFromJson(jsonString);
+        if (mounted) {
+          Navigator.pop(context); 
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Restauration réussie !"), backgroundColor: Colors.green)
+          );
+          // Recharger l'app (retour accueil)
+          setState(() { _selectedIndex = 0; }); 
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur restauration : $e"), backgroundColor: Colors.red)
+        );
+      }
+    }
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -89,7 +200,7 @@ class _AppShellState extends State<AppShell> {
         ),
         Scaffold(
           backgroundColor: Colors.transparent,
-          drawer: _buildDrawer(context), // Menu latéral
+          drawer: _buildDrawer(context), 
           body: SafeArea(
             child: _pages.elementAt(_selectedIndex),
           ),
@@ -126,7 +237,8 @@ class _AppShellState extends State<AppShell> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                const Icon(Icons.auto_awesome, size: 48, color: Colors.white24),
+                // Logo
+                Image.asset('assets/icon.png', width: 60, height: 60, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.auto_awesome, size: 48, color: Colors.white24)),
                 const SizedBox(height: 16),
                 Text('Magic Companion', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                 Text('Outils & Références', style: GoogleFonts.cinzel(color: Colors.yellow.shade800, fontSize: 14)),
@@ -134,6 +246,61 @@ class _AppShellState extends State<AppShell> {
             ),
           ),
           
+          // --- INDICATEUR DE CONNEXION DRIVE ---
+          FutureBuilder<bool>(
+            future: _driveService.signIn(silent: true),
+            builder: (context, snapshot) {
+              final isConnected = snapshot.data ?? false;
+              final userEmail = _driveService.currentUser?.email;
+
+              // Cas Connecté
+              if (isConnected) {
+                return Container(
+                  color: Colors.green.withOpacity(0.1),
+                  child: ListTile(
+                    leading: const Icon(Icons.cloud_done, color: Colors.green),
+                    title: Text(userEmail ?? 'Compte Google', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 14)),
+                    subtitle: const Text('Sauvegarde auto active', style: TextStyle(color: Colors.greenAccent, fontSize: 10)),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.logout, color: Colors.white54, size: 20),
+                      tooltip: "Déconnecter",
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+                          backgroundColor: const Color(0xFF1A1A1A),
+                          title: const Text("Déconnexion", style: TextStyle(color: Colors.white)),
+                          content: const Text("Arrêter la sauvegarde automatique ?", style: TextStyle(color: Colors.white70)),
+                          actions: [
+                            TextButton(onPressed: ()=>Navigator.pop(c,false), child: const Text("Annuler")),
+                            TextButton(onPressed: ()=>Navigator.pop(c,true), child: const Text("Déconnecter", style: TextStyle(color: Colors.red))),
+                          ],
+                        ));
+                        if(confirm == true) {
+                          await _driveService.signOut();
+                          setState(() {});
+                        }
+                      },
+                    ),
+                  ),
+                );
+              } 
+              // Cas Déconnecté
+              else {
+                return ListTile(
+                  leading: const Icon(Icons.cloud_off, color: Colors.white54),
+                  title: Text('Connexion Drive', style: GoogleFonts.cinzel(color: Colors.white)),
+                  subtitle: const Text('Activer la sauvegarde auto', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                  onTap: () async {
+                    // Ici on lance la connexion interactive
+                    await _driveService.signIn(silent: false);
+                    setState(() {}); 
+                  },
+                );
+              }
+            }
+          ),
+          
+          const Divider(color: Colors.white10),
+
           ListTile(
             leading: const Icon(Icons.menu_book, color: Colors.white70),
             title: Text('Glossaire', style: GoogleFonts.cinzel(color: Colors.white)),
@@ -147,9 +314,6 @@ class _AppShellState extends State<AppShell> {
             },
           ),
           
-          const Divider(color: Colors.white10),
-
-          // --- NOUVEAU : BOUTON PARAMÈTRES ---
           ListTile(
             leading: const Icon(Icons.settings, color: Colors.white70),
             title: Text('Paramètres & Sauvegarde', style: GoogleFonts.cinzel(color: Colors.white)),

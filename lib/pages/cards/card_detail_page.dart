@@ -443,10 +443,25 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   Future<void> _toggleWishlist() async {
     if (_foundCard == null) return;
     setState(() => _inWishlist = !_inWishlist);
+    
     if (!_inWishlist) {
-      await _wishlistService.upsertCardInWishlist(scryfallId: _foundCard!.id, cardName: _foundCard!.name, absoluteQuantity: 0);
-      _showFeedback('Retiré de la Wishlist', Colors.red.shade700);
+      // Retrait: On parcourt toutes les listes pour le retirer
+      final lists = await _wishlistService.loadWishlists();
+      for (var list in lists) {
+        // On vérifie si la carte est dans cette liste
+        if (list.cards.any((c) => c.scryfallId == _foundCard!.id)) {
+          // On retire en mettant la quantité absolue à 0
+          await _wishlistService.upsertCard(
+            wishlistId: list.id,
+            scryfallId: _foundCard!.id,
+            cardName: _foundCard!.name,
+            absoluteQuantity: 0
+          );
+        }
+      }
+      _showFeedback('Retiré de vos Wishlists', Colors.red.shade700);
     } else {
+      // Ajout: On ajoute par défaut dans la première liste (ou liste par défaut)
       await _wishlistService.addCard(_foundCard!, 1);
       _showFeedback('Ajouté à la Wishlist', Colors.blue.shade700);
     }
@@ -486,12 +501,20 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
 
   Future<void> _checkCardStatus() async {
     if (_foundCard == null) return;
+    
+    // Chargement Collection
     final collection = await _collectionService.loadCollection();
-    final wishlist = await _wishlistService.loadWishlist();
+    
+    // Chargement Wishlists (Nouvelle version)
+    final wishlists = await _wishlistService.loadWishlists();
+    
     if (!mounted) return;
+    
     setState(() {
       _inCollection = collection.any((c) => c.scryfallId == _foundCard!.id);
-      _inWishlist = wishlist.any((c) => c.scryfallId == _foundCard!.id);
+      
+      // On vérifie si la carte est présente dans AU MOINS UNE des wishlists
+      _inWishlist = wishlists.any((w) => w.cards.any((c) => c.scryfallId == _foundCard!.id));
     });
   }
 
