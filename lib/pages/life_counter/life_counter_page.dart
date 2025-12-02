@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/game_history_model.dart';
 import 'package:magic_companion/pages/settings/dev_tools_page.dart';
 import 'package:magic_companion/pages/glossary/turn_guide_page.dart';
+import 'package:magic_companion/pages/tournaments/tournament_page.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -205,6 +206,92 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('OK', style: GoogleFonts.cinzel(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- SYSTÈME DE DÉS (D4, D6, D8, D10, D12, D20, D100) ---
+  
+  void _showDiceSelector() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("Lancer un dé", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [4, 6, 8, 10, 12, 20, 100].map((sides) {
+                  return ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white10,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.yellow.shade800)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _rollSpecificDice(sides);
+                    },
+                    child: Text("D$sides", style: GoogleFonts.cinzel(fontSize: 18, fontWeight: FontWeight.bold)),
+                  );
+                }).toList(),
+              )
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  void _rollSpecificDice(int sides) {
+    final int result = Random().nextInt(sides) + 1;
+    
+    String title = 'Résultat D$sides';
+    String content = '$result';
+    Color contentColor = Colors.yellow.shade700;
+
+    // EASTER EGG POUR FRODON (Uniquement sur le D20)
+    if (sides == 20 && result == 1) {
+      title = 'POUR FRODON !';
+      content = '$result ⚔️';
+      contentColor = Colors.red.shade400;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text(title, style: GoogleFonts.cinzel(color: Colors.white)),
+        content: Text(
+          content,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.cinzel(
+            color: contentColor,
+            fontSize: 80,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK', style: GoogleFonts.cinzel(color: Colors.white)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _rollSpecificDice(sides); // Relancer le même dé
+            },
+            child: Text('Relancer', style: GoogleFonts.cinzel(color: Colors.white54)),
           ),
         ],
       ),
@@ -460,7 +547,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
             right: 90, 
            child: FloatingActionButton(
             heroTag: 'dice', 
-            onPressed: _rollDice, 
+            onPressed: _showDiceSelector, 
             backgroundColor: Colors.black54, 
             foregroundColor: Colors.white, 
             child: const Icon(Icons.casino_outlined)
@@ -536,7 +623,9 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
         children: [
           IconButton(icon: const Icon(Icons.refresh, color: Colors.white70), onPressed: _resetGame),
           IconButton(icon: const Icon(Icons.casino, color: Colors.white70), onPressed: _rollDice),
+          IconButton(icon: const Icon(Icons.checklist_rtl_outlined, color: Colors.white70), onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const TurnGuidePage())); }),          
           Container(width: 50, height: 50, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black, border: Border.all(color: Colors.yellow.shade800, width: 2)), child: IconButton(icon: const Icon(Icons.play_arrow, color: Colors.yellow), onPressed: _pickStartingPlayer)),
+          IconButton(icon: const Icon(Icons.emoji_events, color: Colors.white70), onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const TournamentPage())); }),
           IconButton(icon: const Icon(Icons.people, color: Colors.white70), onPressed: _showPlayerSelector),
           IconButton(icon: const Icon(Icons.favorite, color: Colors.white70), onPressed: _showFormatSelector),
         ],
@@ -554,6 +643,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
         SpeedDialChild(child: const Icon(Icons.play_circle_fill), label: 'Qui commence ?', backgroundColor: Colors.amber.shade800, onTap: _pickStartingPlayer),
         SpeedDialChild(child: const Icon(Icons.favorite), label: 'Format', onTap: _showFormatSelector),
         SpeedDialChild(child: const Icon(Icons.people_alt), label: 'Joueurs', onTap: _showPlayerSelector),
+        SpeedDialChild(child: const Icon(Icons.emoji_events), label: 'Tournoi', backgroundColor: Colors.blueAccent, onTap: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const TournamentPage())); }),
         SpeedDialChild(child: const Icon(Icons.checklist_rtl_outlined), label: 'Phases du Tour', onTap: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const TurnGuidePage())); }),
         SpeedDialChild(child: const Icon(Icons.refresh), label: 'Reset', onTap: _resetGame),
         SpeedDialChild(child: const Icon(Icons.flag), label: 'Finir', backgroundColor: Colors.red.shade900, onTap: _endGame),

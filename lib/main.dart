@@ -9,6 +9,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:magic_companion/pages/cards/card_search_page.dart';
 import 'package:magic_companion/pages/collections/collection_page.dart';
 import 'package:magic_companion/pages/scans/scanner_page.dart';
+import 'package:magic_companion/pages/tools/hypergeometric_page.dart';
+import 'package:magic_companion/pages/tournaments/tournament_page.dart';
 import 'pages/life_counter/life_counter_page.dart';
 import 'pages/glossary/glossary_page.dart';
 import 'pages/decks/deck_list_page.dart';
@@ -221,7 +223,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
   }
 
-  // --- DRAWER MIS À JOUR ---
+  // --- DRAWER ---
   Widget _buildDrawer(BuildContext context) {
     return Drawer(
       backgroundColor: const Color(0xFF1A1A1A),
@@ -300,7 +302,25 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ),
           
           const Divider(color: Colors.white10),
-
+          // --- SECTION JEU ---
+          ListTile(
+            leading: const Icon(Icons.emoji_events_outlined, color: Colors.white70),
+            title: Text('Gestion Tournoi', style: GoogleFonts.cinzel(color: Colors.white)),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => TournamentPage()));
+            },
+          ),
+          // --- SECTION OUTILS ---
+          const Divider(color: Colors.white10),
+          ListTile(
+            leading: const Icon(Icons.calculate_outlined, color: Colors.white70),
+            title: Text('Calculateur Proba', style: GoogleFonts.cinzel(color: Colors.white)),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const HypergeometricPage()));
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.menu_book, color: Colors.white70),
             title: Text('Glossaire', style: GoogleFonts.cinzel(color: Colors.white)),
@@ -313,7 +333,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               )));
             },
           ),
-          
+          const Divider(color: Colors.white10),
           ListTile(
             leading: const Icon(Icons.settings, color: Colors.white70),
             title: Text('Paramètres & Sauvegarde', style: GoogleFonts.cinzel(color: Colors.white)),

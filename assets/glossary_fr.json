@@ -290,5 +290,30 @@
     "term": "Actions Spéciales",
     "definition": "Actions qu'un joueur peut effectuer quand il a la priorité mais qui n'utilisent pas la pile. La plus courante est : 'Jouer un terrain'. Retourner une créature face cachée (Morph) en est une autre.",
     "category": "6. Concepts Avancés"
+  },
+  {
+    "term": "Maîtrise de l'Eau (Waterbending)",
+    "definition": "Action mot-clé souvent associée à la couleur Bleue. Engagez une créature ciblée. Elle ne se dégage pas lors de la prochaine étape de dégagement de son contrôleur.",
+    "category": "Universes Beyond"
+  },
+  {
+    "term": "Maîtrise de la Terre (Earthbending)",
+    "definition": "Action mot-clé souvent associée à la couleur Verte ou Blanche. Mettez un marqueur +1/+1 sur une créature ciblée. Elle acquiert la vigilance et la portée jusqu'à la fin du tour.",
+    "category": "Universes Beyond"
+  },
+  {
+    "term": "Maîtrise du Feu (Firebending)",
+    "definition": "Action mot-clé souvent associée à la couleur Rouge. Cette source inflige 2 blessures à n'importe quelle cible. Si une créature subit des blessures de cette manière, elle ne peut pas bloquer ce tour-ci.",
+    "category": "Universes Beyond"
+  },
+  {
+    "term": "Maîtrise de l'Air (Airbending)",
+    "definition": "Action mot-clé souvent associée à la couleur Blanche ou Bleue. Renvoyez une créature ciblée (autre que celle-ci) dans la main de son propriétaire, ou donnez le Vol à une créature ciblée jusqu'à la fin du tour.",
+    "category": "Universes Beyond"
+  },
+  {
+    "term": "État d'Avatar",
+    "definition": "Capacité statique. Tant que vous avez subi des blessures ce tour-ci ou que vous avez moins de 10 points de vie, cette créature gagne +5/+5, le Vol, le Piétinement et la Protection contre toutes les couleurs.",
+    "category": "Universes Beyond"
   }
 ]
