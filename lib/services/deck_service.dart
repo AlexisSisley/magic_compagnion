@@ -28,12 +28,11 @@ class DeckService {
     await _saveDecksList(decks);
   }
 
-  // --- MISE À JOUR ICI ---
   Future<void> createNewDeck(String name) async {
     final newDeck = Deck(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
-      colors: [], // Initialisé vide
+      colors: [],
       format: 'Standard',
     );
     final decks = await loadDecks();
@@ -50,11 +49,6 @@ class DeckService {
     }
   }
 
-  // ... (Les méthodes addCardToDeck, upsertCardInDeck, updateCardQuantity, setCommander, clearDeck restent INCHANGÉES) ...
-  // Pour gagner de la place, je ne les remets pas car elles n'ont pas besoin de modif, 
-  // elles manipulent l'objet Deck qui a déjà été mis à jour via le modèle.
-  // Assurez-vous de garder le reste de votre fichier existant.
-
   Future<Deck> upsertCardInDeck({
     required String deckId,
     required String scryfallId,
@@ -63,10 +57,6 @@ class DeckService {
     int? absoluteQuantity,
     bool toSideboard = false,
   }) async {
-     // ... (Garder le code existant) ...
-     // Note : Idéalement, recalculer les couleurs ici serait bien, 
-     // mais pour la simplicité, on le fera à l'import ou via le DetailPage.
-     // Je remets le code minimal pour que ça compile si vous copiez-collez tout le fichier
     final decks = await loadDecks();
     final deck = decks.firstWhere((d) => d.id == deckId);
     final list = toSideboard ? deck.sideboard : deck.mainboard;
@@ -89,10 +79,17 @@ class DeckService {
     return deck;
   }
   
-  Future<Deck> setCommander(String deckId, String scryfallId) async {
+  // --- MISE À JOUR ICI : Slot (1 ou 2) ---
+  Future<Deck> setCommander(String deckId, String scryfallId, {int slot = 1}) async {
     final decks = await loadDecks();
     final deck = decks.firstWhere((d) => d.id == deckId);
-    deck.commanderScryfallId = scryfallId;
+    
+    if (slot == 2) {
+      deck.commanderSecondaryScryfallId = scryfallId;
+    } else {
+      deck.commanderScryfallId = scryfallId;
+    }
+    
     await updateDeck(deck);
     return deck;
   }
@@ -102,12 +99,13 @@ class DeckService {
     final deck = decks.firstWhere((d) => d.id == deckId);
     deck.mainboard = [];
     deck.sideboard = [];
+    deck.commanderScryfallId = null;
+    deck.commanderSecondaryScryfallId = null; // Clear aussi le partner
     await updateDeck(deck);
     return deck;
   }
   
   Future<void> addCardToDeck(String deckId, ScryfallCard cardFromApi, {bool toSideboard = false}) async {
-    // Wrapper simple vers upsert
     await upsertCardInDeck(deckId: deckId, scryfallId: cardFromApi.id, cardName: cardFromApi.name, quantityToAdd: 1, toSideboard: toSideboard);
   }
 }

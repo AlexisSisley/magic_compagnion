@@ -4,13 +4,13 @@ class DeckCard {
   final String scryfallId;
   final String name;
   int quantity;
-  int proxyQuantity; // <--- NOUVEAU : Nombre de proxies parmi la quantité totale
+  int proxyQuantity;
 
   DeckCard({
     required this.scryfallId,
     required this.name,
     required this.quantity,
-    this.proxyQuantity = 0, // Par défaut 0
+    this.proxyQuantity = 0,
   });
 
   Map<String, dynamic> toJson() => {
@@ -24,7 +24,7 @@ class DeckCard {
         scryfallId: json['scryfallId'],
         name: json['name'],
         quantity: json['quantity'],
-        proxyQuantity: json['proxyQuantity'] ?? 0, // Compatible avec les anciens JSON
+        proxyQuantity: json['proxyQuantity'] ?? 0,
       );
 }
 
@@ -34,6 +34,7 @@ class Deck {
   List<DeckCard> mainboard;
   List<DeckCard> sideboard;
   String? commanderScryfallId;
+  String? commanderSecondaryScryfallId; // <--- NOUVEAU : Pour les Partenaires / Backgrounds
   List<String> colors;
   String format;
 
@@ -43,6 +44,7 @@ class Deck {
     List<DeckCard>? mainboard,
     List<DeckCard>? sideboard,
     this.commanderScryfallId,
+    this.commanderSecondaryScryfallId, // <--- NOUVEAU
     List<String>? colors,
     this.format = 'Standard',
   })  : this.mainboard = mainboard ?? [],
@@ -55,6 +57,7 @@ class Deck {
         'mainboard': mainboard.map((c) => c.toJson()).toList(),
         'sideboard': sideboard.map((c) => c.toJson()).toList(),
         'commanderScryfallId': commanderScryfallId,
+        'commanderSecondaryScryfallId': commanderSecondaryScryfallId, // <--- NOUVEAU
         'colors': colors,
         'format': format,
       };
@@ -65,6 +68,7 @@ class Deck {
         mainboard: (json['mainboard'] as List).map((i) => DeckCard.fromJson(i)).toList(),
         sideboard: (json['sideboard'] as List).map((i) => DeckCard.fromJson(i)).toList(),
         commanderScryfallId: json['commanderScryfallId'],
+        commanderSecondaryScryfallId: json['commanderSecondaryScryfallId'], // <--- NOUVEAU
         colors: (json['colors'] as List?)?.map((e) => e.toString()).toList() ?? [],
         format: json['format'] ?? 'Standard',
       );

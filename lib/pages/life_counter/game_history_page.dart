@@ -1,3 +1,5 @@
+// Fichier : lib/pages/life_counter/game_history_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -53,7 +55,8 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
               itemBuilder: (context, index) {
                 final game = _history[index];
                 return Card(
-                  color: Colors.white.withOpacity(0.05),
+                  // CORRECTION ICI : Utilisation de withValues au lieu de withOpacity
+                  color: Colors.white.withValues(alpha: 0.05),
                   margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: ListTile(
                     leading: const Icon(Icons.emoji_events, color: Colors.yellow),

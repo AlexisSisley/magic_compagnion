@@ -27,8 +27,8 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   final GameHistoryService _gameHistoryService = GameHistoryService();
   
   List<Player> _players = [];
-  int _startingLife = 20;
-  int _playerCount = 2;
+  int _startingLife = 40; // Défaut Commander pour l'usage courant
+  int _playerCount = 4;
   bool _isLoading = true;
   
   int? _highlightedPlayerId;
@@ -46,12 +46,25 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     _loadGame();
   }
 
+  int _calculateDefaultRotation(int id, int totalPlayers) {
+    if (totalPlayers == 4) {
+      // Spécifique 4 joueurs : Gauche (0,2) = 1 (90°), Droite (1,3) = 3 (270°)
+      bool isLeft = (id % 2 == 0);
+      return isLeft ? 1 : 3;
+    } else {
+      // Standard : Haut = 2 (180°), Bas = 0 (0°)
+      int splitIndex = (totalPlayers / 2).ceil();
+      bool isTop = id < splitIndex;
+      return isTop ? 2 : 0;
+    }
+  }
+
   // --- SAUVEGARDE & CHARGEMENT ---
   Future<void> _loadGame() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _playerCount = prefs.getInt('playerCount') ?? 2;
-      _startingLife = prefs.getInt('startingLife') ?? 20;
+      _playerCount = prefs.getInt('playerCount') ?? 4;
+      _startingLife = prefs.getInt('startingLife') ?? 40;
 
       _players = List.generate(
         _playerCount,
@@ -59,6 +72,15 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
           final life = prefs.getInt('player_${index}_life') ?? _startingLife;
           final colorVal = prefs.getInt('player_${index}_color') ?? _defaultColors[index % _defaultColors.length].value;
           
+          final poison = prefs.getInt('player_${index}_poison') ?? 0;
+          final energy = prefs.getInt('player_${index}_energy') ?? 0;
+          final tax = prefs.getInt('player_${index}_tax') ?? 0;
+          final isMonarch = prefs.getBool('player_${index}_monarch') ?? false;
+          
+          // Chargement de la rotation (si existe, sinon calcul par défaut)
+          final savedRotation = prefs.getInt('player_${index}_rotation');
+          final rotation = savedRotation ?? _calculateDefaultRotation(index, _playerCount);
+
           Map<int, int> cmdDamage = {};
           if (_startingLife == 40) {
             for (int i = 0; i < _playerCount; i++) {
@@ -72,6 +94,11 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
             life: life,
             colorValue: colorVal,
             commanderDamageReceived: cmdDamage,
+            poison: poison,
+            energy: energy,
+            commanderCastCount: tax,
+            isMonarch: isMonarch,
+            quarterTurns: rotation, // <---
           );
         },
       );
@@ -87,6 +114,14 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     for (final player in _players) {
       await prefs.setInt('player_${player.id}_life', player.life);
       await prefs.setInt('player_${player.id}_color', player.colorValue);
+      await prefs.setInt('player_${player.id}_poison', player.poison);
+      await prefs.setInt('player_${player.id}_energy', player.energy);
+      await prefs.setInt('player_${player.id}_tax', player.commanderCastCount);
+      await prefs.setBool('player_${player.id}_monarch', player.isMonarch);
+      
+      // Sauvegarde rotation
+      await prefs.setInt('player_${player.id}_rotation', player.quarterTurns);
+
       for (final opponentId in player.commanderDamageReceived.keys) {
         final damage = player.commanderDamageReceived[opponentId]!;
         await prefs.setInt('player_${player.id}_cmd_from_$opponentId', damage);
@@ -110,9 +145,13 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
           return Player(
             id: index,
             life: _startingLife,
-            // Reset couleur par défaut
             colorValue: _defaultColors[index % _defaultColors.length].value,
             commanderDamageReceived: cmdDamage,
+            poison: 0,
+            energy: 0,
+            commanderCastCount: 0,
+            isMonarch: false,
+            quarterTurns: _calculateDefaultRotation(index, _playerCount), // Reset à la valeur par défaut logique
           );
         },
       );
@@ -134,7 +173,12 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     });
     _saveGame();
   }
-
+  void _updatePlayerRotation(int playerId, int newRotation) {
+    setState(() {
+      _players.firstWhere((p) => p.id == playerId).quarterTurns = newRotation;
+    });
+    _saveGame();
+  }
   void _updateCommanderDamage(int playerId, int opponentId, int change) {
     if (_isSelectingStarter) return;
     setState(() {
@@ -175,77 +219,39 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     }
   }
 
-  void _rollDice() {
-    final int result = Random().nextInt(20) + 1; // Un D20
-    
-    String title = 'Jet de D20';
-    String content = '$result';
-    Color contentColor = Colors.yellow.shade700;
-
-    if (result == 1) {
-      title = 'POUR FRODON !';
-      content = '$result ⚔️';
-      contentColor = Colors.red.shade400;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: Text(title, style: GoogleFonts.cinzel(color: Colors.white)),
-        content: Text(
-          content,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.cinzel(
-            color: contentColor,
-            fontSize: 80,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK', style: GoogleFonts.cinzel(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- SYSTÈME DE DÉS (D4, D6, D8, D10, D12, D20, D100) ---
+  // --- SYSTÈME DE DÉS COMPLET ---
   
   void _showDiceSelector() {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
+        // Liste des dés disponibles (2 = Coin Flip)
+        final List<int> diceTypes = [2, 4, 6, 8, 10, 12, 20, 100];
+
         return Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text("Lancer un dé", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                alignment: WrapAlignment.center,
-                children: [4, 6, 8, 10, 12, 20, 100].map((sides) {
-                  return ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white10,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.yellow.shade800)),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _rollSpecificDice(sides);
-                    },
-                    child: Text("D$sides", style: GoogleFonts.cinzel(fontSize: 18, fontWeight: FontWeight.bold)),
-                  );
-                }).toList(),
-              )
+              Text("Lancer un dé", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.0,
+                ),
+                itemCount: diceTypes.length,
+                itemBuilder: (context, index) {
+                  final sides = diceTypes[index];
+                  return _buildDiceButton(context, sides);
+                },
+              ),
             ],
           ),
         );
@@ -253,48 +259,72 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     );
   }
 
-  void _rollSpecificDice(int sides) {
-    final int result = Random().nextInt(sides) + 1;
-    
-    String title = 'Résultat D$sides';
-    String content = '$result';
-    Color contentColor = Colors.yellow.shade700;
-
-    // EASTER EGG POUR FRODON (Uniquement sur le D20)
-    if (sides == 20 && result == 1) {
-      title = 'POUR FRODON !';
-      content = '$result ⚔️';
-      contentColor = Colors.red.shade400;
+  Widget _buildDiceButton(BuildContext context, int sides) {
+    // ignore: unused_local_variable
+    String label = "D$sides";
+    IconData? icon;
+    // Choix d'icônes représentatives
+    if (sides == 2) {
+      label = "Pile/Face";
+      icon = Icons.monetization_on;
+    } else if (sides == 4) {
+      icon = Icons.change_history; // Triangle
+    } else if (sides == 6) {
+      icon = Icons.looks_6; 
+    } else if (sides == 8) {
+      icon = Icons.diamond; // Forme octaèdre
+    } else if (sides == 20) {
+      icon = Icons.casino; 
+    } else {
+       icon = Icons.all_out; // Générique pour les autres
     }
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: Text(title, style: GoogleFonts.cinzel(color: Colors.white)),
-        content: Text(
-          content,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.cinzel(
-            color: contentColor,
-            fontSize: 80,
-            fontWeight: FontWeight.bold,
-          ),
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white.withOpacity(0.05),
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12), 
+          side: BorderSide(color: Colors.yellow.shade800.withOpacity(0.5))
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK', style: GoogleFonts.cinzel(color: Colors.white)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _rollSpecificDice(sides); // Relancer le même dé
-            },
-            child: Text('Relancer', style: GoogleFonts.cinzel(color: Colors.white54)),
+        padding: EdgeInsets.zero,
+      ),
+      onPressed: () {
+        Navigator.pop(context);
+        _rollSpecificDice(sides);
+      },
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 24, color: Colors.white70),
+          const SizedBox(height: 4),
+          Text(
+            sides == 2 ? "COIN" : "D$sides", 
+            style: GoogleFonts.cinzel(fontSize: sides == 2 ? 10 : 14, fontWeight: FontWeight.bold)
           ),
         ],
       ),
+    );
+  }
+
+  // Fonction modifiée pour lancer l'animation
+  void _rollSpecificDice(int sides) {
+    // On calcule le résultat AVANT d'ouvrir la modale
+    final int finalResult = Random().nextInt(sides) + 1;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false, // On empêche de fermer pendant l'animation
+      builder: (context) {
+        return DiceRollAnimationDialog(
+          sides: sides,
+          finalResult: finalResult,
+          onReroll: () {
+            Navigator.pop(context);
+            _rollSpecificDice(sides);
+          },
+        );
+      }
     );
   }
 
@@ -305,7 +335,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            title: const Text('20 PV', style: TextStyle(color: Colors.white)),
+            title: const Text('20 PV (Standard/Modern)', style: TextStyle(color: Colors.white)),
             onTap: () {
               setState(() => _startingLife = 20);
               _resetGame();
@@ -547,7 +577,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
             right: 90, 
            child: FloatingActionButton(
             heroTag: 'dice', 
-            onPressed: _showDiceSelector, 
+            onPressed: _showDiceSelector, // Appel de la nouvelle modale
             backgroundColor: Colors.black54, 
             foregroundColor: Colors.white, 
             child: const Icon(Icons.casino_outlined)
@@ -565,49 +595,34 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     List<Player> topPlayers = _players.sublist(0, splitIndex);
     List<Player> bottomPlayers = _players.sublist(splitIndex, _playerCount);
 
-    // On supprime le RotatedBox global ici pour avoir un contrôle fin par joueur
     return Column(
       children: [
-        Expanded(child: _buildPlayerRow(topPlayers, isTopRow: true)),
-        
+        Expanded(child: _buildPlayerRow(topPlayers)),
         if (useCentralMenu) _buildCentralMenuBar(),
         if (!useCentralMenu) Container(height: 2, color: Colors.black),
-
-        Expanded(child: _buildPlayerRow(bottomPlayers, isTopRow: false)),
+        Expanded(child: _buildPlayerRow(bottomPlayers)),
       ],
     );
   }
 
   // Génère une ligne de joueurs (qui s'adaptent en largeur)
-  Widget _buildPlayerRow(List<Player> players, {required bool isTopRow}) {
+  Widget _buildPlayerRow(List<Player> players) {
     return Row(
       children: players.map((player) {
-        // --- LOGIQUE DE ROTATION ---
-        int quarterTurns = 0;
-
-        if (_playerCount == 4) {
-          // Logique spécifique 4 joueurs (regarde vers le centre)
-          // 0, 1 (Top) | 2, 3 (Bottom)
-          // Gauche (0, 2) : 1 (90° Horaire)
-          // Droite (1, 3) : 3 (270° / 90° Anti-horaire)
-          bool isLeft = (player.id % 2 == 0);
-          quarterTurns = isLeft ? 1 : 3;
-        } else {
-          // Logique Standard (Haut inversé, Bas normal)
-          quarterTurns = isTopRow ? 2 : 0;
-        }
-
+        // NOTE: On n'a plus besoin de calculer la rotation ici
+        // Elle est stockée dans player.quarterTurns et passée au widget via l'objet Player
+        
         return Expanded(
           child: Padding(
             padding: const EdgeInsets.all(2.0),
             child: PlayerZone(
               player: player,
-              quarterTurns: quarterTurns, // On passe la rotation calculée
               isCommander: _startingLife == 40,
               isHighlighted: _highlightedPlayerId == player.id,
               onLifeChanged: (val) => _updateLife(player.id, val),
               onShowCommanderDamage: () => _showCommanderDamageSelector(player),
               onColorChanged: (c) => _updatePlayerColor(player.id, c),
+              onRotationChanged: (newRot) => _updatePlayerRotation(player.id, newRot), // <--- Liaison callback
             ),
           ),
         );
@@ -622,7 +637,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           IconButton(icon: const Icon(Icons.refresh, color: Colors.white70), onPressed: _resetGame),
-          IconButton(icon: const Icon(Icons.casino, color: Colors.white70), onPressed: _rollDice),
+          IconButton(icon: const Icon(Icons.casino, color: Colors.white70), onPressed: _showDiceSelector), // Appel ici aussi
           IconButton(icon: const Icon(Icons.checklist_rtl_outlined, color: Colors.white70), onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const TurnGuidePage())); }),          
           Container(width: 50, height: 50, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black, border: Border.all(color: Colors.yellow.shade800, width: 2)), child: IconButton(icon: const Icon(Icons.play_arrow, color: Colors.yellow), onPressed: _pickStartingPlayer)),
           IconButton(icon: const Icon(Icons.emoji_events, color: Colors.white70), onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const TournamentPage())); }),
@@ -649,5 +664,206 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
         SpeedDialChild(child: const Icon(Icons.flag), label: 'Finir', backgroundColor: Colors.red.shade900, onTap: _endGame),
       ],
     );
+  }
+}
+
+// --- NOUVEAU WIDGET POUR L'ANIMATION DU DÉ ---
+
+class DiceRollAnimationDialog extends StatefulWidget {
+  final int sides;
+  final int finalResult;
+  final VoidCallback onReroll;
+
+  const DiceRollAnimationDialog({
+    super.key,
+    required this.sides,
+    required this.finalResult,
+    required this.onReroll,
+  });
+
+  @override
+  State<DiceRollAnimationDialog> createState() => _DiceRollAnimationDialogState();
+}
+
+class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  Timer? _spinTimer;
+  int _currentSpinValue = 1;
+  bool _isAnimating = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Durée de l'animation : 1.5 secondes
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+
+    // Courbe d'animation pour un effet de ralentissement à la fin
+    final CurvedAnimation curve = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+
+    // Rotation : fait plusieurs tours complets (multiplié par pi * 2)
+    _animation = Tween<double>(begin: 0, end: widget.sides == 2 ? pi * 10 : pi * 6).animate(curve);
+
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _spinTimer?.cancel();
+        setState(() {
+          _isAnimating = false;
+        });
+      }
+    });
+
+    // Démarrage de l'animation
+    _controller.forward();
+
+    // Si ce n'est pas une pièce, on fait défiler des chiffres aléatoires pendant que ça tourne
+    if (widget.sides > 2) {
+      _spinTimer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
+        setState(() {
+          _currentSpinValue = Random().nextInt(widget.sides) + 1;
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _spinTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.white.withOpacity(0.2))),
+      // On cache le titre pendant l'animation pour plus d'immersion
+      title: _isAnimating ? null : Center(child: Text(_getTitle(), style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 18))),
+      content: SizedBox(
+        height: 150,
+        child: Center(
+          child: _isAnimating ? _buildAnimatedView() : _buildFinalResultView(),
+        ),
+      ),
+      actions: _isAnimating ? [] : _buildActions(), // Pas de boutons pendant l'animation
+    );
+  }
+
+  // --- VUES PENDANT L'ANIMATION ---
+
+  Widget _buildAnimatedView() {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        // Animation Pile ou Face (Rotation sur l'axe Y - horizontal)
+        if (widget.sides == 2) {
+            // On détermine si on montre le côté pile ou face visuellement pendant la rotation
+            // C'est juste visuel, le vrai résultat est déjà calculé.
+            bool showHeads = (_animation.value / pi).floor() % 2 == 0;
+             return Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.001) // Perspective
+                ..rotateY(_animation.value),
+              child: Icon(
+                Icons.monetization_on, // Ou une icône différente pour pile/face si vous en avez
+                size: 100, 
+                color: showHeads ? Colors.amber : Colors.blueGrey.shade300
+              ),
+            );
+        }
+
+        // Animation des Dés (Rotation sur l'axe Z - comme une roue)
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Transform.rotate(
+              angle: _animation.value,
+              child: Icon(_getIconForDice(widget.sides), size: 100, color: Colors.white12),
+            ),
+            // Le chiffre qui change rapidement par dessus
+            Text(
+              '$_currentSpinValue',
+              style: GoogleFonts.cinzel(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 50,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+   IconData _getIconForDice(int sides) {
+    if (sides == 4) return Icons.change_history;
+    if (sides == 6) return Icons.looks_6;
+    if (sides == 8) return Icons.diamond;
+    if (sides == 20) return Icons.casino;
+    return Icons.all_out;
+  }
+
+
+  // --- VUE DU RÉSULTAT FINAL (Votre logique d'origine) ---
+
+  String _getTitle() {
+     if (widget.sides == 2) return "Pile ou Face";
+     // Easter Egg Frodon
+     if (widget.sides == 20 && widget.finalResult == 1) return 'POUR FRODON !';
+     return 'Résultat D${widget.sides}';
+  }
+
+  Widget _buildFinalResultView() {
+    String content = '${widget.finalResult}';
+    Color contentColor = Colors.yellow.shade700;
+    double fontSize = 80;
+
+    if (widget.sides == 2) {
+      content = widget.finalResult == 1 ? "FACE" : "PILE";
+      contentColor = widget.finalResult == 1 ? Colors.amber : Colors.blueGrey;
+      fontSize = 40;
+    }
+
+    // EASTER EGG POUR FRODON
+    if (widget.sides == 20 && widget.finalResult == 1) {
+      content = '${widget.finalResult} ⚔️';
+      contentColor = Colors.red.shade400;
+    }
+
+    return Text(
+      content,
+      textAlign: TextAlign.center,
+      style: GoogleFonts.cinzel(
+        color: contentColor,
+        fontSize: fontSize,
+        fontWeight: FontWeight.bold,
+        shadows: [BoxShadow(color: contentColor.withOpacity(0.5), blurRadius: 20)]
+      ),
+    );
+  }
+
+  List<Widget> _buildActions() {
+    return [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          TextButton.icon(
+            onPressed: widget.onReroll,
+            icon: const Icon(Icons.refresh, color: Colors.white54),
+            label: Text('Relancer', style: GoogleFonts.cinzel(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.white10),
+            child: Text('OK', style: GoogleFonts.cinzel(color: Colors.white)),
+          ),
+        ],
+      ),
+    ];
   }
 }

@@ -240,7 +240,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 // Logo
-                Image.asset('assets/icon.png', width: 60, height: 60, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.auto_awesome, size: 48, color: Colors.white24)),
+                Image.asset('assets/icone.png', width: 60, height: 60, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.auto_awesome, size: 48, color: Colors.white24)),
                 const SizedBox(height: 16),
                 Text('Magic Companion', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                 Text('Outils & Références', style: GoogleFonts.cinzel(color: Colors.yellow.shade800, fontSize: 14)),
@@ -352,7 +352,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 context: context, 
                 applicationName: 'Magic Companion',
                 applicationVersion: '1.0.0',
-                applicationIcon: const Icon(Icons.auto_awesome, size: 40),
+                applicationIcon: Image.asset('assets/icone.png', width: 60, height: 60, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.auto_awesome, size: 48, color: Colors.white24)),
                 children: [Text("Développé avec Flutter", style: GoogleFonts.cinzel())],
               );
             },
