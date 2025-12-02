@@ -79,7 +79,7 @@ class DeckService {
     return deck;
   }
   
-  // --- MISE À JOUR ICI : Slot (1 ou 2) ---
+  // --- MODIFICATION : On ne touche plus à la liste des cartes ici ---
   Future<Deck> setCommander(String deckId, String scryfallId, {int slot = 1}) async {
     final decks = await loadDecks();
     final deck = decks.firstWhere((d) => d.id == deckId);
@@ -93,6 +93,21 @@ class DeckService {
     await updateDeck(deck);
     return deck;
   }
+
+  // --- NOUVEAU : Pour retirer le statut ---
+  Future<Deck> unsetCommander(String deckId, {int slot = 1}) async {
+    final decks = await loadDecks();
+    final deck = decks.firstWhere((d) => d.id == deckId);
+    
+    if (slot == 2) {
+      deck.commanderSecondaryScryfallId = null;
+    } else {
+      deck.commanderScryfallId = null;
+    }
+    
+    await updateDeck(deck);
+    return deck;
+  }
   
   Future<Deck> clearDeck(String deckId) async {
     final decks = await loadDecks();
@@ -100,7 +115,7 @@ class DeckService {
     deck.mainboard = [];
     deck.sideboard = [];
     deck.commanderScryfallId = null;
-    deck.commanderSecondaryScryfallId = null; // Clear aussi le partner
+    deck.commanderSecondaryScryfallId = null;
     await updateDeck(deck);
     return deck;
   }

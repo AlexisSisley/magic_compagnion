@@ -11,9 +11,12 @@ class DeckCardListTab extends StatefulWidget {
   final List<DeckCard> cardList;
   final List<ScryfallCard> fullCardData;
   final List<DeckCard> collection;
+  // On passe maintenant les IDs des deux commandants
   final String? commanderId;
+  final String? partnerId;
+  
   final Function(DeckCard, int) onUpdateQuantity;
-  final Function(DeckCard) onSetCommander;
+  final Function(DeckCard) onSetCommander; // Gère Ajout ET Retrait
 
   const DeckCardListTab({
     super.key,
@@ -21,6 +24,7 @@ class DeckCardListTab extends StatefulWidget {
     required this.fullCardData,
     required this.collection,
     this.commanderId,
+    this.partnerId,
     required this.onUpdateQuantity,
     required this.onSetCommander,
   });
@@ -30,20 +34,16 @@ class DeckCardListTab extends StatefulWidget {
 }
 
 class _DeckCardListTabState extends State<DeckCardListTab> {
-  // État du Zoom : Double pour la fluidité du Slider
-  double _gridColumns = 3.0; 
-  double _lastScale = 1.0; // Pour mémoriser l'échelle du geste
+  double _gridColumns = 1.0; 
+  double _lastScale = 1.0;
 
-  // --- LOGIQUE PINCH TO ZOOM ---
   void _handleScaleUpdate(ScaleUpdateDetails details) {
     if (details.scale > 1.3 && _lastScale <= 1.0) {
-      // Zoom In (Agrandir les cartes -> Moins de colonnes)
       setState(() {
         if (_gridColumns > 1) _gridColumns--;
         _lastScale = details.scale;
       });
     } else if (details.scale < 0.7 && _lastScale >= 1.0) {
-      // Zoom Out (Rétrécir -> Plus de colonnes)
       setState(() {
         if (_gridColumns < 5) _gridColumns++;
         _lastScale = details.scale;
@@ -52,7 +52,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
   }
 
   void _handleScaleEnd(ScaleEndDetails details) {
-    _lastScale = 1.0; // Reset
+    _lastScale = 1.0;
   }
 
   @override
@@ -64,11 +64,10 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     }
 
     final groupedList = _buildGroupedList(widget.cardList);
-    final int currentCols = _gridColumns.round(); // Conversion en entier pour le GridView
+    final int currentCols = _gridColumns.round();
 
     return Column(
       children: [
-        // --- BARRE D'OUTILS (Infos + Slider) ---
         Container(
           color: Colors.black26,
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
@@ -79,11 +78,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                 style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
               ),
               const Spacer(),
-              
-              // Icône Liste (Zoom min)
               const Icon(Icons.view_agenda, size: 16, color: Colors.white54),
-              
-              // --- LE SLIDER DE CONTRÔLE ---
               SizedBox(
                 width: 130, 
                 child: SliderTheme(
@@ -96,7 +91,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                     value: _gridColumns,
                     min: 1,
                     max: 5,
-                    divisions: 4, // 5 positions: 1, 2, 3, 4, 5
+                    divisions: 4, 
                     activeColor: Colors.yellow.shade800,
                     inactiveColor: Colors.white24,
                     label: currentCols == 1 ? "Liste" : "$currentCols Col",
@@ -106,14 +101,11 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                   ),
                 ),
               ),
-              
-              // Icône Grille (Zoom max)
               const Icon(Icons.grid_view, size: 16, color: Colors.white54),
             ],
           ),
         ),
 
-        // --- LISTE PRINCIPALE ---
         Expanded(
           child: GestureDetector(
             onScaleUpdate: _handleScaleUpdate,
@@ -128,7 +120,6 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Titre de section (Créatures, Terrains...)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
                       child: Text(
@@ -136,8 +127,6 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                         style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ),
-                    
-                    // Choix de la vue : Liste ou Grille
                     currentCols == 1 
                         ? _buildGroupList(group.cards) 
                         : _buildGroupGrid(group.cards, currentCols),
@@ -151,21 +140,19 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     );
   }
 
-  // Vue Liste (1 colonne)
   Widget _buildGroupList(List<DeckCard> cards) {
     return Column(
       children: cards.map((card) => _buildItem(card, isGrid: false)).toList(),
     );
   }
 
-  // Vue Grille (2 à 5 colonnes)
   Widget _buildGroupGrid(List<DeckCard> cards, int cols) {
     return GridView.builder(
       shrinkWrap: true, 
-      physics: const NeverScrollableScrollPhysics(), // Scroll délégué au parent
+      physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: cols,
-        childAspectRatio: 0.68, // Ratio carte Magic standard
+        childAspectRatio: 0.68,
         crossAxisSpacing: 6,
         mainAxisSpacing: 6,
       ),
@@ -176,20 +163,22 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     );
   }
 
-  // Construction de la tuile (Liste ou Grille)
   Widget _buildItem(DeckCard card, {required bool isGrid}) {
-    final bool isCommander = widget.commanderId == card.scryfallId;
+    // Vérification si c'est un commandant ou partenaire
+    final bool isCommander = (widget.commanderId == card.scryfallId || widget.partnerId == card.scryfallId);
+    
     ScryfallCard? scryfallCard;
     try {
       if (!card.scryfallId.startsWith('LOCAL:')) {
         scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId);
       }
-    } catch (e) { /* Fallback */ }
+    } catch (e) { }
+    
     final bool isInCollection = widget.collection.any((c) => c.scryfallId == card.scryfallId);
 
     void onPlus() => widget.onUpdateQuantity(card, 1);
     void onMinus() => widget.onUpdateQuantity(card, -1);
-    void onLongPress() => _showCardOptions(context, card, isCommander);
+    void onLongPress() => _showCardOptions(context, card, isCommander); // Passe l'état actuel
     void onTap() {
       if (scryfallCard != null) {
         Navigator.push(context, MaterialPageRoute(
@@ -213,7 +202,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     }
   }
 
-  // --- MENU CONTEXTUEL (Appui long) ---
+  // --- MENU CONTEXTUEL ---
   void _showCardOptions(BuildContext context, DeckCard card, bool isAlreadyCommander) {
     showModalBottomSheet(
       context: context,
@@ -236,12 +225,20 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                 Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                 const Divider(color: Colors.white24),
                 
+                // OPTION COMMANDANT (Contextuelle)
                 ListTile(
-                  leading: Icon(Icons.star, color: isAlreadyCommander ? Colors.yellow : Colors.white70),
-                  title: Text(isAlreadyCommander ? 'Déjà Commandant' : 'Définir comme Commandant', style: GoogleFonts.cinzel(color: Colors.white)),
+                  leading: Icon(
+                    isAlreadyCommander ? Icons.person_remove : Icons.person_add, 
+                    color: isAlreadyCommander ? Colors.redAccent : Colors.yellow
+                  ),
+                  title: Text(
+                    isAlreadyCommander ? 'Retirer du statut Commandant' : 'Définir comme Commandant',
+                    style: GoogleFonts.cinzel(color: Colors.white)
+                  ),
                   onTap: () {
                     Navigator.pop(context);
-                    if (!isAlreadyCommander) widget.onSetCommander(card);
+                    // On renvoie l'action au parent qui gèrera la logique (set ou unset)
+                    widget.onSetCommander(card);
                   },
                 ),
                 

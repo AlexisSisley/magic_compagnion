@@ -4,7 +4,6 @@ import 'dart:developer';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
@@ -48,7 +47,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
   
   List<ScryfallCard> _fullCardData = [];
   List<DeckCard> _myCollection = [];
-  
   // ignore: unused_field
   double _totalDeckPrice = 0.0;
   // ignore: unused_field
@@ -92,7 +90,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
         .toSet()
         .toList();
 
-    // Ajouter les commandants aux IDs à charger
     if (_currentDeck.commanderScryfallId != null) uniqueIds.add(_currentDeck.commanderScryfallId!);
     if (_currentDeck.commanderSecondaryScryfallId != null) uniqueIds.add(_currentDeck.commanderSecondaryScryfallId!);
 
@@ -122,10 +119,8 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
       await Future.delayed(const Duration(milliseconds: 50));
     }
 
-    // Calcul des couleurs du deck
     final Set<String> computedColors = {};
     for (var card in loadedCards) {
-       // On ne compte que les couleurs des cartes dans le deck (ou les commandants)
        if (_currentDeck.mainboard.any((c) => c.scryfallId == card.id) || 
            card.id == _currentDeck.commanderScryfallId || 
            card.id == _currentDeck.commanderSecondaryScryfallId) {
@@ -149,7 +144,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
 
     for (var deckCard in allCards) {
       if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-      
       ScryfallCard? scryfallCard;
       try {
         scryfallCard = _fullCardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
@@ -163,8 +157,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     if (mounted) setState(() { _totalDeckPrice = total; });
   }
 
-  // --- ACTIONS ---
-
   Future<void> _updateQuantity(DeckCard card, int change) async {
     final updatedDeck = await _deckService.upsertCardInDeck(
       deckId: _currentDeck.id,
@@ -176,7 +168,25 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     _calculateDeckValue(); 
   }
 
+  // --- LOGIQUE COMMANDANT AJUSTÉE ---
   Future<void> _setCommanderLogic(DeckCard deckCard) async {
+    // 1. Cas : La carte est déjà commandant -> On propose de retirer
+    if (deckCard.scryfallId == _currentDeck.commanderScryfallId) {
+        await _deckService.unsetCommander(_currentDeck.id, slot: 1);
+        final d = (await _deckService.loadDecks()).firstWhere((d) => d.id == _currentDeck.id);
+        setState(() => _currentDeck = d);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Retiré du slot Commandant.')));
+        return;
+    }
+    if (deckCard.scryfallId == _currentDeck.commanderSecondaryScryfallId) {
+        await _deckService.unsetCommander(_currentDeck.id, slot: 2);
+        final d = (await _deckService.loadDecks()).firstWhere((d) => d.id == _currentDeck.id);
+        setState(() => _currentDeck = d);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Retiré du slot Partenaire.')));
+        return;
+    }
+
+    // 2. Cas : Nouvelle carte à définir
     if (deckCard.scryfallId.startsWith('LOCAL:')) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Carte locale : Impossible de définir comme Cdt.')));
       return;
@@ -192,14 +202,12 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
 
     if (!scryfallCard.typeLine.toLowerCase().contains('legendary') && 
         !scryfallCard.rulesText.toLowerCase().contains('can be your commander')) {
-       // On autorise si c'est légendaire ou si "can be your commander" (ex: Planeswalkers spécifiques)
        if (!scryfallCard.typeLine.toLowerCase().contains('legendary')) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Le commandant doit être une créature légendaire.')));
           return;
        }
     }
 
-    // Demander le slot (Principal ou Partenaire)
     int? slot = await showDialog<int>(
       context: context,
       builder: (ctx) => SimpleDialog(
@@ -220,24 +228,20 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
 
     if (slot == null) return;
 
-    // ignore: unused_local_variable
+    // Mise à jour (sans retirer du deck)
+    // ignore: unused_field, unused_local_variable
     final updatedDeck = await _deckService.setCommander(_currentDeck.id, scryfallCard.id, slot: slot);
     
-    // Si la carte était dans le mainboard, on la retire (car elle va en zone de commandement)
-    if (_currentDeck.mainboard.any((c) => c.scryfallId == scryfallCard.id)) {
-       await _deckService.upsertCardInDeck(deckId: _currentDeck.id, scryfallId: scryfallCard.id, cardName: scryfallCard.name, quantityToAdd: -1);
-    }
-
+    // On recharge pour avoir l'état frais
     final reloadedDeck = (await _deckService.loadDecks()).firstWhere((d) => d.id == _currentDeck.id);
     
     setState(() { _currentDeck = reloadedDeck; });
-    // Recharger les données pour être sûr d'avoir l'image du partenaire si nouveau
     await _loadFullCardData(); 
     
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"${scryfallCard.name}" défini en slot $slot.', style: GoogleFonts.cinzel())));
   }
 
-  // --- VALIDATION LÉGALITÉ AVEC PARTENAIRES ---
+  // --- VALIDATION AJUSTÉE ---
   Map<String, String> _validateDeckRules(List<ScryfallCard> cardData) {
     Map<String, String> results = {};
     const List<String> formats = ['standard', 'pioneer', 'modern', 'commander'];
@@ -247,12 +251,9 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
       try { return cardData.firstWhere((sc) => sc.id == id); } catch (e) { return null; }
     }
 
-    int mainCount = _currentDeck.mainboard.fold(0, (sum, c) => sum + c.quantity);
-    int commanderCount = 0;
-    if (_currentDeck.commanderScryfallId != null) commanderCount++;
-    if (_currentDeck.commanderSecondaryScryfallId != null) commanderCount++;
-
-    int totalDeckSize = mainCount + commanderCount;
+    // Le compte total est simplement le nombre de cartes dans la liste, 
+    // car le commandant EST dans la liste maintenant.
+    int totalDeckSize = _currentDeck.mainboard.fold(0, (sum, c) => sum + c.quantity);
 
     for (final format in formats) {
       String status = '✅ Légal';
@@ -267,7 +268,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
           continue; 
         }
         
-        // Vérification Identité Couleur
         Set<String> cmdColors = {};
         final c1 = getCard(_currentDeck.commanderScryfallId!);
         if (c1 != null) cmdColors.addAll(c1.colorIdentity);
@@ -286,11 +286,8 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
            }
         }
       } 
-      // Autres formats (Standard, Modern...)
       else {
-        // En format construits 60 cartes, le commander n'existe pas vraiment, 
-        // ou alors c'est du Brawl (qui n'est pas checké ici). On check juste le mainboard.
-        if (mainCount < 60) {
+        if (totalDeckSize < 60) {
            results[format] = '❌ < 60 cartes';
            continue;
         }
@@ -315,15 +312,9 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     return results;
   }
 
-  // --- UI ---
-
   @override
   Widget build(BuildContext context) {
-    // Calcul du compte total incluant les commandants pour l'affichage
     int mainCount = _currentDeck.mainboard.fold(0, (s,c)=>s+c.quantity);
-    int cmdCount = 0;
-    if (_currentDeck.commanderScryfallId != null) cmdCount++;
-    if (_currentDeck.commanderSecondaryScryfallId != null) cmdCount++;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
@@ -332,7 +323,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(_currentDeck.name, style: GoogleFonts.cinzel(fontWeight: FontWeight.w600, fontSize: 16)),
-            Text("${mainCount + cmdCount} cartes • ${_currentDeck.format}", style: const TextStyle(fontSize: 12, color: Colors.white70)),
+            Text("$mainCount cartes • ${_currentDeck.format}", style: const TextStyle(fontSize: 12, color: Colors.white70)),
           ],
         ),
         backgroundColor: Colors.black,
@@ -351,7 +342,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
         ),
         actions: [
           IconButton(icon: const Icon(Icons.add_circle, color: Colors.yellow), onPressed: _openCardPicker),
-          // Bouton menu simplifié
           PopupMenuButton<String>(
             onSelected: (val) {
                if(val == 'legality') { setState((){_isValidating=true;}); _showValidationResults(_validateDeckRules(_fullCardData)); setState((){_isValidating=false;}); }
@@ -372,7 +362,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
           ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : Column(
               children: [
-                _buildCommanderHeader(), // <--- NOUVEAU HEADER PARTENAIRES
+                _buildCommanderHeader(), 
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
@@ -382,6 +372,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
                         fullCardData: _fullCardData,
                         collection: _myCollection,
                         commanderId: _currentDeck.commanderScryfallId,
+                        partnerId: _currentDeck.commanderSecondaryScryfallId, // Ajout
                         onUpdateQuantity: _updateQuantity,
                         onSetCommander: _setCommanderLogic,
                       ),
@@ -390,6 +381,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
                         fullCardData: _fullCardData,
                         collection: _myCollection,
                         commanderId: null,
+                        partnerId: null,
                         onUpdateQuantity: (c, q) async {
                           await _deckService.upsertCardInDeck(deckId: _currentDeck.id, scryfallId: c.scryfallId, cardName: c.name, quantityToAdd: q, toSideboard: true);
                           final d = (await _deckService.loadDecks()).firstWhere((d)=>d.id==_currentDeck.id);
@@ -408,7 +400,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     );
   }
 
-  // --- HEADER COMMANDANTS (PARTENAIRES) ---
   Widget _buildCommanderHeader() {
     final c1Id = _currentDeck.commanderScryfallId;
     final c2Id = _currentDeck.commanderSecondaryScryfallId;
@@ -446,7 +437,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     String name = "Chargement...";
     try {
       final card = _fullCardData.firstWhere((c) => c.id == id);
-      // On préfère l'art crop pour l'en-tête
       imageUrl = "https://api.scryfall.com/cards/$id?format=image&version=art_crop";
       name = card.name;
     } catch(e) {}
@@ -484,7 +474,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     );
   }
 
-  // --- HELPERS (MODALES) --- (Repris de l'ancien fichier pour complétude)
   Future<void> _openCardPicker() async {
     final List<Map<String, dynamic>>? result = await showModalBottomSheet(
       context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (context) => const DeckCardPicker());
@@ -520,7 +509,4 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
      final d = (await _deckService.loadDecks()).firstWhere((d)=>d.id==_currentDeck.id);
      setState(() { _currentDeck = d; _fullCardData=[]; _totalDeckPrice=0; });
   }
-  
-  // ignore: unused_element
-  Widget _getManaIcon(String symbol) => SvgPicture.network('https://svgs.scryfall.io/card-symbols/${symbol.replaceAll(RegExp(r'[{}/]'),'').toUpperCase()}.svg', width: 14);
 }

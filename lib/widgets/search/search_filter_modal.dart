@@ -102,18 +102,31 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                 
                 // --- Types & Sets ---
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start, // Aligne en haut
                   children: [
+                    // 1. Le Dropdown (Type)
                     Expanded(
                       child: DropdownButtonFormField<String>(
+                        isExpanded: true, // Important pour éviter l'overflow horizontal
                         value: _selectedType,
                         hint: Text('Type...', style: GoogleFonts.cinzel(color: Colors.white54)),
                         dropdownColor: const Color(0xFF2A2A2A),
                         decoration: _buildInputDecoration(hintText: '', icon: Icons.category),
-                        items: _cardTypes.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(color: Colors.white)))).toList(),
+                        items: _cardTypes.map((t) => DropdownMenuItem(
+                          value: t,
+                          child: Text(
+                            t,
+                            style: const TextStyle(color: Colors.white),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        )).toList(),
                         onChanged: (v) => setState(() => _selectedType = v),
                       ),
                     ),
+                    
                     const SizedBox(width: 12),
+
+                    // 2. Le Champ Texte (Code Set) - Que vous aviez perdu
                     Expanded(
                       child: TextField(
                         controller: _setController,
