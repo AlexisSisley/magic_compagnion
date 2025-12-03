@@ -124,3 +124,15 @@ jobs:
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        
+      # 11. DÉPLOIEMENT FIREBASE (Nouveau !)
+      # On utilise l'APK généré et renommé à l'étape 9
+      - name: Upload to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CREDENTIALS }}
+          groups: testers
+          file: ${{ steps.rename_apk.outputs.apk_path }}
+          releaseNotes: "v${{ steps.version_step.outputs.version }} - ${{ steps.version_step.outputs.changelog }}"
