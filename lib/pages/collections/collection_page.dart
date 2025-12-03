@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:magic_companion/pages/collections/wishlist_tab.dart';
 import 'dart:convert';
 import 'package:share_plus/share_plus.dart';
 
@@ -14,12 +15,11 @@ import '../../models/wishlist_model.dart';
 import '../../services/collection_service.dart';
 import '../../services/wishlist_service.dart';
 import '../../services/local_card_service.dart';
+import '../../services/deck_service.dart'; 
 import '../../widgets/search/search_filter_modal.dart';
 
 import '../../widgets/collection/collection_list_tab.dart';
 import '../../widgets/collection/collection_sets_tab.dart';
-import '../../widgets/collection/quick_add_view.dart';
-import '../wishlists/wishlist_detail_page.dart';
 
 class CollectionPage extends StatefulWidget {
   const CollectionPage({super.key});
@@ -32,6 +32,7 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
   final CollectionService _collectionService = CollectionService();
   final WishlistService _wishlistService = WishlistService();
   final LocalCardService _localCardService = LocalCardService();
+  final DeckService _deckService = DeckService(); 
 
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
@@ -40,12 +41,14 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
   List<Wishlist> _wishlists = []; 
   List<ScryfallCard> _fullCardData = [];
   
-  bool _isLoading = true; // Chargement initial bloquant (juste la liste locale)
-  bool _isBackgroundLoading = false; // Chargement des prix/images (non bloquant)
-  
+  bool _isLoading = true; 
   // ignore: unused_field
-  bool _isImporting = false;
-  bool _isQuickAddMode = false;
+  bool _isImporting = false; // Restauré
+  
+  // --- NOUVEAU : Mode Sélection ---
+  bool _isSelectionMode = false;
+  final Set<String> _selectedCardIds = {}; 
+
   SearchFilters _activeFilters = SearchFilters();
   String _currentSort = 'Type';
 
@@ -66,10 +69,10 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
 
   void _handleTabSelection() {
     if (!_tabController.indexIsChanging) {
-      // Rafraichir si on arrive sur Wishlist (1) OU Éditions (2)
       if (_tabController.index == 1 || _tabController.index == 2) {
         _loadData(forceLoading: false);
       }
+      if (_isSelectionMode) _toggleSelectionMode();
     }
   }
 
@@ -81,38 +84,25 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     super.dispose();
   }
 
-  // --- CHARGEMENT DONNÉES OPTIMISÉ ---
+  // --- CHARGEMENT DONNÉES ---
   Future<void> _loadData({bool forceLoading = true}) async {
-    // 1. Afficher le loader bloquant uniquement si demandé (ex: premier lancement)
     if (forceLoading) setState(() => _isLoading = true);
 
-    // 2. Charger les listes locales (Très rapide : JSON local)
     await Future.wait([
       _collectionService.loadCollection().then((data) => _collection = data),
       _wishlistService.loadWishlists().then((data) => _wishlists = data),
     ]);
 
-    // 3. AFFICHER L'UI IMMÉDIATEMENT (On débloque l'interface ici !)
-    if (mounted) {
-      setState(() {
-        _isLoading = false; 
-        _isBackgroundLoading = true; // On indique que les prix chargent
-      });
-    }
-
-    // 4. TÂCHE DE FOND : Récupérer les données API (Lent)
-    // On s'assure d'abord que la DB locale est prête pour éviter d'appeler l'API pour rien
     if (!_localCardService.isLoaded) {
        await _localCardService.loadLocalData();
     }
 
-    await _loadFullCardData(); // Appel API ou Local DB Match
+    await _loadFullCardData(); 
     await _calculateFinancials();
 
-    // 5. Mise à jour finale (Apparition des prix et images)
     if (mounted) {
       setState(() {
-        _isBackgroundLoading = false;
+        _isLoading = false;
       });
     }
   }
@@ -130,7 +120,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     List<ScryfallCard> loadedCards = [];
     List<String> missingIds = [];
 
-    // Priorité à la base locale (Instantané)
     if (_localCardService.isLoaded) {
       for (String id in uniqueIds) {
         final localCard = _localCardService.getCardById(id);
@@ -144,7 +133,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
       missingIds = uniqueIds;
     }
 
-    // Appel API uniquement pour les cartes manquantes (Batch par 75)
     if (missingIds.isNotEmpty) {
       const int chunkSize = 75;
       for (var i = 0; i < missingIds.length; i += chunkSize) {
@@ -200,6 +188,7 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
 
   // --- ACTIONS ---
   
+  // RESTAURÉ : Modale Import Massif
   Future<void> _showBulkImportDialog() async {
     final TextEditingController importController = TextEditingController();
     await showModalBottomSheet(
@@ -233,6 +222,7 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     );
   }
 
+  // RESTAURÉ : Action Import Massif
   Future<void> _performBulkImport(String text) async {
     setState(() { _isLoading = true; _isImporting = true; });
     final lines = text.split('\n').where((s) => s.trim().isNotEmpty).toList();
@@ -269,115 +259,139 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     if (newFilters != null) setState(() => _activeFilters = newFilters);
   }
 
-  void _toggleQuickAddMode() {
+  // --- LOGIQUE DE SÉLECTION MULTIPLE ---
+
+  void _toggleSelectionMode() {
     setState(() {
-      _isQuickAddMode = !_isQuickAddMode;
-      if (!_isQuickAddMode) _searchController.clear();
+      _isSelectionMode = !_isSelectionMode;
+      _selectedCardIds.clear();
     });
-    if (!_isQuickAddMode) _loadData(forceLoading: false);
   }
 
-  Future<void> _showCreateWishlistDialog() async {
-    final controller = TextEditingController();
-    await showDialog(
-      context: context, 
-      builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text("Nouvelle Wishlist", style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: controller, 
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: "Nom (ex: Deck Commander)",
-            hintStyle: TextStyle(color: Colors.white38),
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(onPressed: ()=>Navigator.pop(c), child: const Text("Annuler", style: TextStyle(color: Colors.white54))),
-          ElevatedButton(
-            onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                await _wishlistService.createWishlist(controller.text);
-                Navigator.pop(c);
-                _loadData(forceLoading: false);
-              }
-            }, 
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
-            child: const Text("Créer", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold))
-          )
-        ],
-      )
-    );
-  }
-
-  void _showGlobalWishlistTopCards() {
-    List<Map<String, dynamic>> topCards = [];
-    for (var wishlist in _wishlists) {
-      for (var card in wishlist.cards) {
-        try {
-          final scryfallCard = _fullCardData.firstWhere((s) => s.id == card.scryfallId);
-          final double price = double.tryParse(scryfallCard.prices['eur'] ?? '0') ?? 0.0;
-          if (price > 0) {
-            topCards.add({
-              'name': scryfallCard.name,
-              'wishlistName': wishlist.name,
-              'price': price,
-              'quantity': card.quantity,
-              'image': scryfallCard.smallImageUrl,
-              'totalPrice': price * card.quantity,
-            });
-          }
-        } catch (e) { }
+  void _toggleCardSelection(String scryfallId) {
+    setState(() {
+      if (_selectedCardIds.contains(scryfallId)) {
+        _selectedCardIds.remove(scryfallId);
+      } else {
+        _selectedCardIds.add(scryfallId);
       }
-    }
-    topCards.sort((a, b) => (b['totalPrice'] as double).compareTo(a['totalPrice'] as double));
+    });
+  }
+
+  Future<void> _addSelectedToDeck() async {
+    if (_selectedCardIds.isEmpty) return;
+    final decks = await _deckService.loadDecks();
+    if (!mounted) return;
     
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) {
-          return Column(
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(top: 12, bottom: 20), decoration: BoxDecoration(color: Colors.grey, borderRadius: BorderRadius.circular(2)))),
-              Padding(padding: const EdgeInsets.symmetric(horizontal: 16.0), child: Text("Top Valeur (Global)", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
+              Text("Ajouter ${_selectedCardIds.length} cartes à...", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              Expanded(
-                child: topCards.isEmpty 
-                  ? Center(child: Text("Aucune carte avec prix.", style: GoogleFonts.cinzel(color: Colors.white38)))
-                  : ListView.separated(
-                      controller: scrollController,
-                      itemCount: topCards.length,
-                      separatorBuilder: (_,__) => const Divider(color: Colors.white10),
-                      itemBuilder: (ctx, i) {
-                        final item = topCards[i];
-                        return ListTile(
-                          leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: item['image'] != null ? Image.network(item['image'], width: 40, height: 56, fit: BoxFit.cover) : Container(width: 40, height: 56, color: Colors.grey[800], child: const Icon(Icons.image)),
-                          ),
-                          title: Text(item['name'], style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-                          subtitle: RichText(
-                            text: TextSpan(style: const TextStyle(color: Colors.white54, fontSize: 12), children: [const TextSpan(text: "Dans : "), TextSpan(text: "${item['wishlistName']}\n", style: const TextStyle(color: Colors.blueAccent)), TextSpan(text: "${item['quantity']}x  @ ${item['price']} €")]),
-                          ),
-                          trailing: Text("${(item['totalPrice'] as double).toStringAsFixed(2)} €", style: GoogleFonts.cinzel(color: Colors.yellow.shade700, fontWeight: FontWeight.bold, fontSize: 16)),
-                        );
-                      }
-                    ),
+              
+              ListTile(
+                leading: const Icon(Icons.add_circle, color: Colors.green),
+                title: Text("Nouveau Deck", style: GoogleFonts.cinzel(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  _createNewDeckAndAddCards();
+                },
               ),
+              const Divider(color: Colors.white24),
+              Expanded(
+                child: decks.isEmpty 
+                  ? Center(child: Text("Aucun deck existant.", style: GoogleFonts.cinzel(color: Colors.white54)))
+                  : ListView.builder(
+                      itemCount: decks.length,
+                      itemBuilder: (context, index) {
+                        final deck = decks[index];
+                        return ListTile(
+                          leading: const Icon(Icons.style, color: Colors.blueAccent),
+                          title: Text(deck.name, style: GoogleFonts.cinzel(color: Colors.white)),
+                          subtitle: Text("${deck.format} • ${deck.mainboard.length} cartes", style: const TextStyle(color: Colors.white54)),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _processAddCardsToDeck(deck.id, deck.name);
+                          },
+                        );
+                      },
+                    ),
+              )
             ],
-          );
-        }
+          ),
+        );
+      }
+    );
+  }
+
+  Future<void> _createNewDeckAndAddCards() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text("Nom du Deck", style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Annuler")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(c, controller.text), 
+            child: const Text("Créer")
+          ),
+        ],
       )
     );
+
+    if (name != null && name.isNotEmpty) {
+      await _deckService.createNewDeck(name);
+      final decks = await _deckService.loadDecks();
+      final newDeck = decks.last; 
+      _processAddCardsToDeck(newDeck.id, newDeck.name);
+    }
+  }
+
+  Future<void> _processAddCardsToDeck(String deckId, String deckName) async {
+    setState(() => _isLoading = true);
+    
+    int count = 0;
+    for (String id in _selectedCardIds) {
+      try {
+        final collectionCard = _collection.firstWhere((c) => c.scryfallId == id);
+        await _deckService.upsertCardInDeck(
+          deckId: deckId, 
+          scryfallId: id, 
+          cardName: collectionCard.name, 
+          quantityToAdd: 1
+        );
+        count++;
+      } catch (e) {
+        print("Erreur ajout carte $id : $e");
+      }
+    }
+
+    if (mounted) {
+      setState(() { 
+        _isLoading = false; 
+        _isSelectionMode = false; 
+        _selectedCardIds.clear(); 
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("$count cartes ajoutées à $deckName", style: GoogleFonts.cinzel()),
+        backgroundColor: Colors.green,
+      ));
+    }
   }
 
   @override
@@ -407,12 +421,18 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                     ),
                     Row(
                       children: [
-                        IconButton(
-                          icon: Icon(_isQuickAddMode ? Icons.close : Icons.flash_on),
-                          color: _isQuickAddMode ? Colors.red : Colors.yellow,
-                          onPressed: _toggleQuickAddMode,
-                        ),
+                        // BOUTON TOGGLE SÉLECTION
+                        if (_tabController.index == 0)
+                          IconButton(
+                            icon: Icon(_isSelectionMode ? Icons.check_box : Icons.check_box_outline_blank),
+                            color: _isSelectionMode ? Colors.greenAccent : Colors.white70,
+                            tooltip: "Sélectionner des cartes",
+                            onPressed: _toggleSelectionMode,
+                          ),
+                        
+                        // RESTAURÉ : Bouton Import Massif
                         IconButton(icon: const Icon(Icons.file_upload_outlined), color: Colors.yellow.shade700, onPressed: _showBulkImportDialog),
+                        
                         IconButton(icon: const Icon(Icons.share, color: Colors.white), onPressed: _exportCurrentList),
                       ],
                     ),
@@ -425,9 +445,9 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                   controller: _searchController,
                   style: GoogleFonts.cinzel(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: _isQuickAddMode ? 'Recherche rapide...' : 'Filtrer...',
+                    hintText: 'Rechercher / Filtrer...',
                     prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                    suffixIcon: _isQuickAddMode ? null : Row(
+                    suffixIcon: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(icon: const Icon(Icons.filter_list, color: Colors.white70), onPressed: _openFilterModal),
@@ -439,19 +459,12 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                       ],
                     ),
                     filled: true,
-                    fillColor: _isQuickAddMode ? Colors.yellow.withOpacity(0.1) : Colors.black.withOpacity(0.5),
+                    fillColor: Colors.black.withOpacity(0.5),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                   ),
-                  onChanged: (val) { if (!_isQuickAddMode) setState((){}); },
+                  onChanged: (val) => setState((){}),
                 ),
                 
-                // BARRE DE CHARGEMENT DISCRÈTE (Pour l'arrière-plan)
-                if (_isBackgroundLoading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 4.0),
-                    child: LinearProgressIndicator(minHeight: 2, color: Colors.yellow, backgroundColor: Colors.transparent),
-                  ),
-
                 TabBar(
                   controller: _tabController,
                   indicatorColor: Colors.yellow.shade800,
@@ -468,19 +481,11 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
 
           // CONTENU
           Expanded(
-            child: _isQuickAddMode
-              ? QuickAddView(
-                  query: _searchController.text,
-                  collection: _collection,
-                  onAdd: (c) => _collectionService.upsertCardInCollection(scryfallId: c.id, cardName: c.name, quantityToAdd: 1),
-                  onRemove: (c) => _collectionService.upsertCardInCollection(scryfallId: c.id, cardName: c.name, quantityToAdd: -1),
-                )
-              : _isLoading
+            child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: Colors.white))
                   : TabBarView(
                       controller: _tabController,
                       children: [
-                        // Onglet Collection
                         CollectionListTab(
                           cards: _collection,
                           fullCardData: _fullCardData,
@@ -492,188 +497,40 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                           evoVal: _evolutionValue,
                           evoPct: _evolutionPercent,
                           hasCalculatedFinance: _hasCalculatedFinance,
+                          isSelectionMode: _isSelectionMode,
+                          selectedIds: _selectedCardIds,
+                          onToggleSelection: _toggleCardSelection,
                           onRefresh: () => _loadData(forceLoading: false),
                           onUpdateQuantity: (c, q) async {
                              await _collectionService.upsertCardInCollection(scryfallId: c.scryfallId, cardName: c.name, quantityToAdd: q);
                              _calculateFinancials();
                           },
                         ),
-                        // Onglet Wishlists
-                        _buildWishlistsTab(),
-                        // Onglet Éditions
+                        // UTILISATION DU NOUVEAU WIDGET WISHLIST
+                        WishlistTab(
+                          wishlists: _wishlists,
+                          fullCardData: _fullCardData,
+                          totalValue: _totalWishlistValue,
+                          wishlistService: _wishlistService,
+                          onRefresh: () => _loadData(forceLoading: false),
+                        ),
                         CollectionSetsTab(
                           collection: _collection,
-                          onRefresh: () => _loadData(forceLoading: false), // Passer le callback pour le refresh
+                          onRefresh: () => _loadData(forceLoading: false),
                         ),
                       ],
                     ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildWishlistsTab() {
-    return Column(
-      children: [
-        // Header Financier Global
-        Container(
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.4),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.blue.shade900.withOpacity(0.5)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // FIX OVERFLOW : Expanded
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Total Wishlists", style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis),
-                    // FittedBox pour ajuster la taille du prix
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text("${_totalWishlistValue.toStringAsFixed(2)} €", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ),
-              // Partie Droite (Menu Popup)
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: Colors.white),
-                tooltip: "Actions Wishlist",
-                color: const Color(0xFF1A1A1A),
-                onSelected: (value) {
-                  if (value == 'create') _showCreateWishlistDialog();
-                  if (value == 'stats') _showGlobalWishlistTopCards();
-                },
-                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                  PopupMenuItem<String>(
-                    value: 'create',
-                    child: Row(
-                      children: [
-                        const Icon(Icons.add_circle, color: Colors.blueAccent),
-                        const SizedBox(width: 12),
-                        Text('Créer une liste', style: GoogleFonts.cinzel(color: Colors.white)),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem<String>(
-                    value: 'stats',
-                    child: Row(
-                      children: [
-                        const Icon(Icons.analytics_outlined, color: Colors.amber),
-                        const SizedBox(width: 12),
-                        Text('Analyse Globale', style: GoogleFonts.cinzel(color: Colors.white)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async => await _loadData(forceLoading: false),
-            color: Colors.yellow.shade800,
-            backgroundColor: const Color(0xFF1A1A1A),
-            child: _wishlists.isEmpty 
-              ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [SizedBox(height: MediaQuery.of(context).size.height * 0.5, child: Center(child: Text("Aucune wishlist créée.", style: GoogleFonts.cinzel(color: Colors.white38))))]
-                )
-              : ListView.builder(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: _wishlists.length,
-                  itemBuilder: (context, index) {
-                    final list = _wishlists[index];
-                    
-                    // --- LOGIQUE DE L'IMAGE DE COUVERTURE ---
-                    String? coverImageUrl;
-                    
-                    // 1. Choix manuel de l'utilisateur
-                    if (list.iconScryfallId != null) {
-                      try {
-                        final card = _fullCardData.firstWhere((s) => s.id == list.iconScryfallId);
-                        coverImageUrl = card.smallImageUrl ?? card.imageUrl;
-                      } catch(e) {}
-                    }
-                    
-                    // 2. Sinon : La carte la plus chère
-                    if (coverImageUrl == null && list.cards.isNotEmpty) {
-                      double maxPrice = -1.0;
-                      ScryfallCard? mostExpensive;
-                      
-                      for (var c in list.cards) {
-                        try {
-                          final sc = _fullCardData.firstWhere((s) => s.id == c.scryfallId);
-                          final price = double.tryParse(sc.prices['eur'] ?? '0') ?? 0.0;
-                          if (price > maxPrice) {
-                            maxPrice = price;
-                            mostExpensive = sc;
-                          }
-                        } catch (e) {}
-                      }
-                      
-                      if (mostExpensive != null) {
-                        coverImageUrl = mostExpensive.smallImageUrl ?? mostExpensive.imageUrl;
-                      }
-                    }
-
-                    return Card(
-                      color: Colors.white.withOpacity(0.05),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.white.withOpacity(0.1))),
-                      child: ListTile(
-                        // --- AFFICHAGE DE L'IMAGE DANS LE LEADING ---
-                        leading: Container(
-                          width: 50, // Un peu plus large pour voir l'image
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade900.withOpacity(0.3), 
-                            borderRadius: BorderRadius.circular(8), // Forme carte
-                            border: Border.all(color: Colors.white24)
-                          ),
-                          child: coverImageUrl != null 
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(coverImageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.broken_image, size: 20))
-                              )
-                            : const Icon(Icons.bookmark, color: Colors.blueAccent),
-                        ),
-                        title: Text(list.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-                        subtitle: Text("${list.totalCards} cartes", style: const TextStyle(color: Colors.white54)),
-                        trailing: const Icon(Icons.chevron_right, color: Colors.white24),
-                        onTap: () async {
-                          await Navigator.push(context, MaterialPageRoute(builder: (_) => WishlistDetailPage(wishlist: list)));
-                          _loadData(forceLoading: false);
-                        },
-                        onLongPress: () async {
-                           final del = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
-                             backgroundColor: const Color(0xFF1A1A1A),
-                             title: const Text("Supprimer la liste ?", style: TextStyle(color: Colors.white)),
-                             actions: [TextButton(onPressed: ()=>Navigator.pop(c, false), child: const Text("Non")), TextButton(onPressed: ()=>Navigator.pop(c, true), child: const Text("Oui", style: TextStyle(color: Colors.red)))],
-                           ));
-                           if(del == true) {
-                             await _wishlistService.deleteWishlist(list.id);
-                             _loadData(forceLoading: false);
-                           }
-                        },
-                      ),
-                    );
-                  },
-                ),
-          ),
-        ),
-      ],
+      floatingActionButton: (_isSelectionMode && _selectedCardIds.isNotEmpty)
+          ? FloatingActionButton.extended(
+              onPressed: _addSelectedToDeck,
+              backgroundColor: Colors.green.shade700,
+              icon: const Icon(Icons.add_to_photos),
+              label: Text("Ajouter au Deck (${_selectedCardIds.length})", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+            )
+          : null,
     );
   }
 }

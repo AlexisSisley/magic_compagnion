@@ -1,3 +1,5 @@
+// Fichier : lib/widgets/collection/collection_list_tab.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -20,6 +22,11 @@ class CollectionListTab extends StatefulWidget {
   final Function() onRefresh;
   final Function(DeckCard, int) onUpdateQuantity;
 
+  // --- Paramètres pour le mode sélection ---
+  final bool isSelectionMode;
+  final Set<String> selectedIds; // IDs sélectionnés
+  final Function(String)? onToggleSelection;
+
   const CollectionListTab({
     super.key,
     required this.cards,
@@ -34,6 +41,9 @@ class CollectionListTab extends StatefulWidget {
     this.hasCalculatedFinance = false,
     required this.onRefresh,
     required this.onUpdateQuantity,
+    this.isSelectionMode = false,
+    this.selectedIds = const {},
+    this.onToggleSelection,
   });
 
   @override
@@ -41,7 +51,6 @@ class CollectionListTab extends StatefulWidget {
 }
 
 class _CollectionListTabState extends State<CollectionListTab> {
-  // Feature Zoom : 1 = Liste, >1 = Grille
   double _gridColumns = 1.0; 
   double _lastScale = 1.0;
   final RegExp _manaPipRegex = RegExp(r'\{([WUBRGCTPXYZS0-9/]+)\}');
@@ -62,7 +71,6 @@ class _CollectionListTabState extends State<CollectionListTab> {
     }
   }
 
-  // --- NOUVEAU : MODALE FINANCIÈRE ---
   void _showFinancialDetail() {
     final String title = widget.isWishlist ? "Coût Wishlist" : "Valeur Collection";
     
@@ -147,8 +155,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
       },
     );
   }
-
-  // --- FILTRAGE & TRI ---
+  // --- FILTRAGE & TRI (Inchangé) ---
   List<DeckCard> _filterAndSortList() {
     List<DeckCard> filtered = widget.cards.where((card) {
       if (!card.name.toLowerCase().contains(widget.filterQuery.toLowerCase())) return false;
@@ -199,7 +206,6 @@ class _CollectionListTabState extends State<CollectionListTab> {
       return double.tryParse(sc.prices['eur'] ?? '0') ?? 0.0;
     } catch (e) { return 0.0; }
   }
-
   int _getCardColorIndex(String id) {
     try {
       final sc = widget.fullCardData.firstWhere((s) => s.id == id);
@@ -210,7 +216,6 @@ class _CollectionListTabState extends State<CollectionListTab> {
     } catch (e) { return 10; }
   }
 
-  // --- BUILD ---
   @override
   Widget build(BuildContext context) {
     final filteredList = _filterAndSortList();
@@ -221,23 +226,26 @@ class _CollectionListTabState extends State<CollectionListTab> {
       onRefresh: () async => widget.onRefresh(),
       child: Column(
         children: [
-          // 1. Header Financier
-          if (widget.hasCalculatedFinance)
+          // Header Financier (Masqué en mode sélection pour gagner de la place)
+          if (widget.hasCalculatedFinance && !widget.isSelectionMode)
             _buildFinancialHeader(
               title: widget.isWishlist ? "Coût Wishlist" : "Valeur Collection",
               value: widget.financialTotal,
               evoVal: widget.evoVal,
               evoPct: widget.evoPct,
-              onDetailPressed: _showFinancialDetail, // Appel de la modale ici
+              onDetailPressed: _showFinancialDetail,
             ),
 
-          // 2. Barre de Contrôle (Zoom)
+          // Barre de Contrôle Zoom
           Container(
             color: Colors.black.withOpacity(0.3),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Row(
               children: [
-                Text("${filteredList.length} cartes", style: GoogleFonts.cinzel(color: Colors.white54)),
+                if (widget.isSelectionMode)
+                   Text("${widget.selectedIds.length} sélectionnés", style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))
+                else
+                   Text("${filteredList.length} cartes", style: GoogleFonts.cinzel(color: Colors.white54)),
                 const Spacer(),
                 const Icon(Icons.view_agenda, size: 16, color: Colors.white54),
                 SizedBox(
@@ -257,7 +265,6 @@ class _CollectionListTabState extends State<CollectionListTab> {
             ),
           ),
 
-          // 3. Liste ou Grille (Contenu Principal)
           Expanded(
             child: GestureDetector(
               onScaleUpdate: _handleScaleUpdate,
@@ -271,8 +278,6 @@ class _CollectionListTabState extends State<CollectionListTab> {
       ),
     );
   }
-
-  // --- VUES (Flat vs Grouped) ---
 
   Widget _buildFlatView(List<DeckCard> list, int cols) {
     if (cols == 1) {
@@ -296,7 +301,6 @@ class _CollectionListTabState extends State<CollectionListTab> {
   }
 
   Widget _buildGroupedView(List<DeckCard> list, int cols) {
-    // 1. Grouper par Type
     Map<String, List<DeckCard>> groupedMap = {
       'Créatures': [], 'Planeswalkers': [], 'Sorts': [], 
       'Artefacts': [], 'Enchantements': [], 'Terrains': [], 'Autres': [],
@@ -358,84 +362,123 @@ class _CollectionListTabState extends State<CollectionListTab> {
     );
   }
 
-  // --- TUILES ---
-
+  // --- TUILE LISTE (CORRIGÉE AVEC BORDURE RARETÉ) ---
   Widget _buildCardTile(DeckCard card) {
     ScryfallCard? scryfallCard;
     try { scryfallCard = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId); } catch(e){}
     
-    final imageUrl = scryfallCard?.smallImageUrl;
-    final price = scryfallCard?.prices['eur'];
-    final rarity = scryfallCard?.rarity ?? 'common';
-    final borderColor = _getRarityColor(rarity);
+    final bool isSelected = widget.isSelectionMode && widget.selectedIds.contains(card.scryfallId);
+    
+    // Détermination de la couleur de bordure
+    Color borderColor;
+    if (isSelected) {
+      borderColor = Colors.green;
+    } else {
+      // Si pas sélectionné, on affiche la rareté
+      borderColor = _getRarityColor(scryfallCard?.rarity ?? 'common');
+    }
 
     return Card(
-      color: Colors.black.withOpacity(0.4),
+      color: isSelected ? Colors.green.withOpacity(0.2) : Colors.black.withOpacity(0.4),
       margin: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(6.0),
-        side: BorderSide(color: borderColor, width: 1.0),
+        // On applique la bordure ici
+        side: BorderSide(color: borderColor, width: isSelected ? 2.0 : 1.0),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
         onTap: () { 
-          if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
+          if (widget.isSelectionMode) {
+            widget.onToggleSelection?.call(card.scryfallId);
+          } else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
             Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: scryfallCard!.name))); 
           }
         },
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: imageUrl != null 
-            ? Image.network(imageUrl, width: 40, height: 56, fit: BoxFit.cover)
-            : Container(width: 40, height: 56, color: Colors.grey.shade800, child: const Icon(Icons.image_not_supported, size: 20)),
+        leading: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: scryfallCard?.smallImageUrl != null 
+                ? Image.network(scryfallCard!.smallImageUrl!, width: 40, height: 56, fit: BoxFit.cover)
+                : Container(width: 40, height: 56, color: Colors.grey.shade800),
+            ),
+            if (widget.isSelectionMode)
+              Positioned(
+                top: 0, left: 0, 
+                child: Container(
+                  color: Colors.black54, 
+                  child: Icon(isSelected ? Icons.check_box : Icons.check_box_outline_blank, color: isSelected ? Colors.greenAccent : Colors.white, size: 20)
+                ),
+              )
+          ],
         ),
         title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
              _buildManaCostRow(scryfallCard?.manaCost),
-             if (price != null) Text('$price €', style: TextStyle(color: Colors.yellow.shade700, fontSize: 12)),
+             if (scryfallCard?.prices['eur'] != null) Text('${scryfallCard!.prices['eur']} €', style: TextStyle(color: Colors.yellow.shade700, fontSize: 12)),
           ],
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.white54), onPressed: () => widget.onUpdateQuantity(card, -1)),
-            Text('${card.quantity}', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            IconButton(icon: const Icon(Icons.add_circle_outline, color: Colors.white54), onPressed: () => widget.onUpdateQuantity(card, 1)),
-          ],
-        ),
+        trailing: widget.isSelectionMode 
+          ? null 
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.white54), onPressed: () => widget.onUpdateQuantity(card, -1)),
+                Text('${card.quantity}', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                IconButton(icon: const Icon(Icons.add_circle_outline, color: Colors.white54), onPressed: () => widget.onUpdateQuantity(card, 1)),
+              ],
+            ),
       ),
     );
   }
 
+  // --- TUILE GRILLE (CORRIGÉE AVEC BORDURE RARETÉ) ---
   Widget _buildGridTile(DeckCard card) {
     ScryfallCard? scryfallCard;
     try { scryfallCard = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId); } catch(e){}
     
+    final bool isSelected = widget.isSelectionMode && widget.selectedIds.contains(card.scryfallId);
+    // ignore: unused_local_variable
     final rarity = scryfallCard?.rarity ?? 'common';
     final manaCost = scryfallCard?.manaCost;
-    final borderColor = _getRarityColor(rarity);
+    // Détermination de la couleur de bordure
+    Color borderColor;
+    double borderWidth = 1.0;
+
+    if (isSelected) {
+      borderColor = Colors.greenAccent;
+      borderWidth = 3.0;
+    } else {
+      borderColor = _getRarityColor(scryfallCard?.rarity ?? 'common');
+      // Pour les communes (transparente ou blanche faible), on garde 0 ou 1
+      borderWidth = borderColor == Colors.transparent ? 0.0 : 1.5; 
+    }
 
     return InkWell(
-      onTap: () { if (scryfallCard != null) Navigator.push(context, MaterialPageRoute(builder: (_) => RecognitionResultPage(cardName: scryfallCard!.name))); },
+      onTap: () { 
+        if (widget.isSelectionMode) {
+          widget.onToggleSelection?.call(card.scryfallId);
+        } else if (scryfallCard != null) {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => RecognitionResultPage(cardName: scryfallCard!.name))); 
+        }
+      },
       child: Card(
         clipBehavior: Clip.antiAlias,
-        // Bordure de rareté colorée
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10), 
-          side: BorderSide(color: borderColor, width: 3.0) 
+          side: BorderSide(color: borderColor, width: borderWidth)
         ),
         color: Colors.black,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // IMAGE
             if (scryfallCard?.smallImageUrl != null)
               Image.network(scryfallCard!.smallImageUrl!, fit: BoxFit.cover)
             else 
               Container(color: Colors.grey[800], child: const Center(child: Icon(Icons.image, color: Colors.white24))),
-            
             // FOND NOIR DÉGRADÉ EN BAS
             Positioned(
               bottom: 0, left: 0, right: 0, height: 50,
@@ -448,9 +491,16 @@ class _CollectionListTabState extends State<CollectionListTab> {
                 ),
               ),
             ),
-
-            // MANA (Haut Droite)
-            if (manaCost != null)
+            // Checkbox Overlay
+            if (widget.isSelectionMode)
+              Positioned(
+                top: 4, right: 4,
+                child: Container(
+                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                  child: Icon(isSelected ? Icons.check_circle : Icons.circle_outlined, color: isSelected ? Colors.greenAccent : Colors.white, size: 28),
+                ),
+              ),
+              if (manaCost != null)
               Positioned(
                 top: 4, right: 4,
                 child: Container(
@@ -459,17 +509,18 @@ class _CollectionListTabState extends State<CollectionListTab> {
                   child: _buildManaCostRow(manaCost, size: 10),
                 ),
               ),
-
-            // CONTRÔLES (Bas)
-            Positioned(
-              bottom: 0, left: 0, right: 0,
-              child: Container(
-                color: Colors.black87,
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    InkWell(
+            // Controls (Masqués en sélection)
+            if (!widget.isSelectionMode) ...[
+              Positioned(bottom: 0, left: 0, right: 0, height: 50, child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withOpacity(0.95), Colors.transparent])))),
+              Positioned(
+                bottom: 0, left: 0, right: 0,
+                child: Container(
+                  color: Colors.black87,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      InkWell(
                       onTap: () => widget.onUpdateQuantity(card, -1),
                       child: Container(
                         padding: const EdgeInsets.all(4),
@@ -489,24 +540,25 @@ class _CollectionListTabState extends State<CollectionListTab> {
                         child: const Icon(Icons.add, color: Colors.greenAccent, size: 16),
                       ),
                     ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            )
+              )
+            ]
           ],
         ),
       ),
     );
   }
 
-  // --- HELPERS VISUELS ---
+  // --- HELPERS VISUELS (RESTAURÉS) ---
 
   Color _getRarityColor(String rarity) {
     switch (rarity.toLowerCase()) {
-      case 'common': return Colors.white24;
-      case 'uncommon': return const Color(0xFFC0C0C0);
-      case 'rare': return const Color(0xFFFFD700);
-      case 'mythic': return const Color(0xFFFF4500);
+      case 'common': return Colors.white24; // Discret
+      case 'uncommon': return const Color(0xFFC0C0C0); // Argent
+      case 'rare': return const Color(0xFFFFD700); // Or
+      case 'mythic': return const Color(0xFFFF4500); // Orange/Rouge
       default: return Colors.transparent;
     }
   }
@@ -517,7 +569,6 @@ class _CollectionListTabState extends State<CollectionListTab> {
     final color = isPositive ? Colors.green.shade400 : Colors.red.shade400;
     final icon = isPositive ? Icons.trending_up : Icons.trending_down;
     final sign = isPositive ? '+' : '';
-
     return Container(
       margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
       padding: const EdgeInsets.all(12.0),
@@ -560,6 +611,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
              Text('Pas assez de données', style: GoogleFonts.cinzel(color: Colors.white38, fontSize: 10), textAlign: TextAlign.right),
 
           IconButton(icon: const Icon(Icons.analytics_outlined, color: Colors.white), onPressed: onDetailPressed),
+        
         ],
       ),
     );

@@ -1,5 +1,6 @@
 // Fichier : lib/main.dart
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 // Imports des pages
 import 'package:magic_companion/pages/cards/card_search_page.dart';
 import 'package:magic_companion/pages/collections/collection_page.dart';
+import 'package:magic_companion/pages/oracle/magic_oracle_page.dart';
 import 'package:magic_companion/pages/scans/scanner_page.dart';
 import 'package:magic_companion/pages/tools/hypergeometric_page.dart';
 import 'package:magic_companion/pages/tournaments/tournament_page.dart';
@@ -15,6 +17,7 @@ import 'pages/life_counter/life_counter_page.dart';
 import 'pages/glossary/glossary_page.dart';
 import 'pages/decks/deck_list_page.dart';
 import 'pages/settings/settings_page.dart';
+import 'firebase_options.dart';
 
 // Imports Services
 import 'services/backup_service.dart';
@@ -22,6 +25,9 @@ import 'services/google_drive_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   await initializeDateFormatting('fr_FR');
   runApp(const MagicCompanionApp());
 }
@@ -309,6 +315,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (context) => TournamentPage()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.auto_awesome, color: Colors.purpleAccent),
+            title: Text('Oracle (IA)', style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+            subtitle: const Text("Posez vos questions de règles", style: TextStyle(color: Colors.white38, fontSize: 10)),
+            tileColor: Colors.purple.withOpacity(0.1), // Mise en valeur subtile
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicOraclePage()));
             },
           ),
           // --- SECTION OUTILS ---

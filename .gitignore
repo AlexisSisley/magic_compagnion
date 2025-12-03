@@ -36,6 +36,7 @@ migrate_working_dir/
 *.keystore
 keystore_base64.txt
 key.properties
+service-account.json
 
 # Symbolication related
 app.*.symbols

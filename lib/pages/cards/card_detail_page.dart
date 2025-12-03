@@ -1,5 +1,5 @@
-// Fichier : lib/pages/card_detail_page.dart
-// VERSION CORRIGÉE : Affichage direct si résultat unique
+// Fichier : lib/pages/cards/card_detail_page.dart
+// VERSION CORRIGÉE : Support Multi-Wishlists avec Sélecteur
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -199,9 +199,7 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
               .toList();
 
           if (apiResults.isNotEmpty) {
-            // --- MODIFICATION INTELLIGENTE ICI ---
             if (apiResults.length == 1) {
-               // Un seul résultat ? On affiche direct !
                _selectCard(apiResults.first);
                return;
             }
@@ -228,9 +226,7 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       }
 
       if (localResults.isNotEmpty) {
-        // --- MODIFICATION INTELLIGENTE ICI ---
         if (localResults.length == 1) {
-           // Un seul résultat local ? On affiche direct !
            _selectCard(localResults.first);
            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Résultat unique local")));
            return;
@@ -440,17 +436,113 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     showModalBottomSheet(context: context, backgroundColor: Colors.transparent, isScrollControlled: true, builder: (c) => DeckPickerModal(cardToAdd: _foundCard!, deckService: _deckService, onCardAdded: (d,c) => _showFeedback("Ajouté au deck $d", Colors.green)));
   }
 
+  // --- NOUVEAU SELECTEUR DE WISHLIST ---
+  Future<String?> _showWishlistSelector() async {
+    final wishlists = await _wishlistService.loadWishlists();
+    if (!mounted) return null;
+
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true,
+      // Ajout de SafeArea pour éviter la barre de navigation système
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: Container(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text("Choisir une Wishlist", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.add_circle, color: Colors.greenAccent),
+                    title: Text("Créer une nouvelle liste", style: GoogleFonts.cinzel(color: Colors.white)),
+                    onTap: () async {
+                      // 1. Ouvrir le dialogue de création par-dessus
+                      final name = await _showCreateWishlistDialog();
+                      // 2. Si un nom a été saisi, on récupère l'ID de la nouvelle liste
+                      if (name != null && mounted) {
+                        final updatedLists = await _wishlistService.loadWishlists();
+                        try {
+                          final newList = updatedLists.lastWhere((w) => w.name == name);
+                          // 3. On ferme le sélecteur en renvoyant l'ID
+                          Navigator.pop(context, newList.id); 
+                        } catch (_) {
+                          Navigator.pop(context);
+                        }
+                      }
+                    },
+                  ),
+                  const Divider(color: Colors.white24),
+                  Expanded(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: wishlists.length,
+                      itemBuilder: (context, index) {
+                        final list = wishlists[index];
+                        return ListTile(
+                          leading: const Icon(Icons.bookmark_border, color: Colors.blueAccent),
+                          title: Text(list.name, style: const TextStyle(color: Colors.white)),
+                          subtitle: Text("${list.totalCards} cartes", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          onTap: () => Navigator.pop(context, list.id),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    );
+  }
+
+  Future<String?> _showCreateWishlistDialog() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text("Nouvelle Liste", style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(hintText: "Nom de la liste"),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Annuler")),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.isNotEmpty) {
+                await _wishlistService.createWishlist(controller.text);
+                if (mounted) Navigator.pop(c, controller.text);
+              }
+            },
+            child: const Text("Créer"),
+          )
+        ],
+      )
+    );
+  }
+
   Future<void> _toggleWishlist() async {
     if (_foundCard == null) return;
-    setState(() => _inWishlist = !_inWishlist);
     
-    if (!_inWishlist) {
-      // Retrait: On parcourt toutes les listes pour le retirer
+    // Si la carte est déjà présente, le bouton sert à retirer (de TOUTES les listes par sécurité/simplicité)
+    // Ou alors on pourrait afficher un menu pour retirer d'une liste spécifique, mais restons simple.
+    if (_inWishlist) {
+      setState(() => _inWishlist = false);
+      
       final lists = await _wishlistService.loadWishlists();
       for (var list in lists) {
-        // On vérifie si la carte est dans cette liste
         if (list.cards.any((c) => c.scryfallId == _foundCard!.id)) {
-          // On retire en mettant la quantité absolue à 0
           await _wishlistService.upsertCard(
             wishlistId: list.id,
             scryfallId: _foundCard!.id,
@@ -461,9 +553,27 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       }
       _showFeedback('Retiré de vos Wishlists', Colors.red.shade700);
     } else {
-      // Ajout: On ajoute par défaut dans la première liste (ou liste par défaut)
-      await _wishlistService.addCard(_foundCard!, 1);
-      _showFeedback('Ajouté à la Wishlist', Colors.blue.shade700);
+      // AJOUT : On ouvre le sélecteur
+      final targetListId = await _showWishlistSelector();
+      
+      if (targetListId != null) {
+        // Si l'utilisateur a créé une nouvelle liste, l'ID pourrait ne pas être passé directement
+        // car _showWishlistSelector retourne un Future<String?>.
+        // Mais dans mon implémentation ci-dessus, si "Créer" est cliqué, on ferme le sheet, on crée,
+        // et il faudrait idéalement retourner l'ID de la nouvelle liste. 
+        // Pour faire simple dans _showWishlistSelector j'ai mis un retour simplifié.
+        // Corrigeons le flux :
+        
+        await _wishlistService.upsertCard(
+          wishlistId: targetListId,
+          scryfallId: _foundCard!.id,
+          cardName: _foundCard!.name,
+          quantityToAdd: 1
+        );
+        
+        setState(() => _inWishlist = true);
+        _showFeedback('Ajouté à la Wishlist', Colors.blue.shade700);
+      }
     }
   }
 

@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "652618372904",
+    "firebase_url": "https://magic-companion-rag-default-rtdb.firebaseio.com",
+    "project_id": "magic-companion-rag",
+    "storage_bucket": "magic-companion-rag.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:652618372904:android:c746e4a151ec7df072e21d",
+        "android_client_info": {
+          "package_name": "com.example.magic_companion"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-aSFvjLaAkqW0prTQt19368Qhkmoh4nE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,5 +1,8 @@
 plugins {
     id("com.android.application")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services")
+    // END: FlutterFire Configuration
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -69,7 +72,10 @@ android {
 
     buildTypes {
         getByName("debug") {
-            applicationIdSuffix = ".debug"
+            // CORRECTION: Retirer cette ligne permet au build d'utiliser l'ID de base.
+            // Remettez-la SEULEMENT si vous avez enregistré .debug dans Firebase !
+            // applicationIdSuffix = ".debug"
+            
             resValue("string", "app_name", "Magic Dev 🛠️")
             signingConfig = signingConfigs.getByName("debug")
         }

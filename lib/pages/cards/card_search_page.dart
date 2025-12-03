@@ -1,4 +1,5 @@
 // Fichier : lib/pages/cards/card_search_page.dart
+// VERSION CORRIGÉE : Sélecteur Wishlist (SafeArea)
 
 import 'dart:async'; 
 import 'package:flutter/material.dart';
@@ -465,11 +466,11 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
                 )
                else if (_searchController.text.isNotEmpty)
                  IconButton(
-                    icon: const Icon(Icons.clear, color: Colors.white54),
-                    onPressed: () {
-                       _searchController.clear();
-                       setState(() { _searchResults = []; _fullLocalResults = []; _nextPageUrl = null; }); 
-                    },
+                   icon: const Icon(Icons.clear, color: Colors.white54),
+                   onPressed: () {
+                      _searchController.clear();
+                      setState(() { _searchResults = []; _fullLocalResults = []; _nextPageUrl = null; }); 
+                   },
                  ),
               
               IconButton(
@@ -518,8 +519,10 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     final String? imageUrl = card.smallImageUrl ?? card.imageUrl;
     final String price = card.prices['eur'] ?? '--';
     
-    // Check if in flattened wishlist
-    final bool inWishlist = _flatWishlist.any((c) => c.scryfallId == card.id);
+    // MODIFICATION: Check if in flattened wishlist BY NAME (to ignore edition)
+    final bool inWishlist = _flatWishlist.any((c) => c.name == cardName);
+    
+    // Collection remains strict by ID (usually we collect specific prints)
     final bool inCollection = _collection.any((c) => c.scryfallId == card.id);
 
     return Card(
@@ -653,35 +656,139 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     Navigator.push(context, MaterialPageRoute(builder: (context) => RecognitionResultPage(cardName: cardName))).then((_) => _loadLocalData()); 
   }
 
-  Future<void> _toggleWishlist(String id, String name, bool currentState) async {
-    // 1. Optimiste: Mise à jour immédiate UI (Ajout/Retrait liste plate)
-    setState(() {
-      if (currentState) {
-        _flatWishlist.removeWhere((c) => c.scryfallId == id);
-      } else {
-        _flatWishlist.add(DeckCard(scryfallId: id, name: name, quantity: 1));
-      }
-    });
+  // --- NOUVEAU SELECTEUR DE WISHLIST (Même méthode que CardDetail) ---
+  Future<String?> _showWishlistSelector() async {
+    final wishlists = await _wishlistService.loadWishlists();
+    if (!mounted) return null;
 
-    // 2. Action réelle
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: Container(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text("Choisir une Wishlist", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.add_circle, color: Colors.greenAccent),
+                    title: Text("Créer une nouvelle liste", style: GoogleFonts.cinzel(color: Colors.white)),
+                    onTap: () async {
+                      final name = await _showCreateWishlistDialog();
+                      if (name != null && mounted) {
+                        final updatedLists = await _wishlistService.loadWishlists();
+                        try {
+                          final newList = updatedLists.lastWhere((w) => w.name == name);
+                          Navigator.pop(context, newList.id);
+                        } catch (_) {
+                          Navigator.pop(context);
+                        }
+                      }
+                    },
+                  ),
+                  const Divider(color: Colors.white24),
+                  Expanded(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: wishlists.length,
+                      itemBuilder: (context, index) {
+                        final list = wishlists[index];
+                        return ListTile(
+                          leading: const Icon(Icons.bookmark_border, color: Colors.blueAccent),
+                          title: Text(list.name, style: const TextStyle(color: Colors.white)),
+                          subtitle: Text("${list.totalCards} cartes", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          onTap: () => Navigator.pop(context, list.id),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    );
+  }
+
+  Future<String?> _showCreateWishlistDialog() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text("Nouvelle Liste", style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(hintText: "Nom de la liste"),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Annuler")),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.isNotEmpty) {
+                await _wishlistService.createWishlist(controller.text);
+                if (mounted) Navigator.pop(c, controller.text);
+              }
+            },
+            child: const Text("Créer"),
+          )
+        ],
+      )
+    );
+  }
+
+  // LOGIQUE MODIFIÉE : Si currentState est TRUE, on retire. Sinon, on ouvre le sélecteur.
+  Future<void> _toggleWishlist(String id, String name, bool currentState) async {
     if (currentState) {
-      // Retrait: On cherche toutes les wishlists contenant cette carte et on la vire
+      // Retrait: On cherche toutes les wishlists contenant cette carte (par NOM) et on la vire
+      setState(() {
+        _flatWishlist.removeWhere((c) => c.name == name);
+      });
+
       final lists = await _wishlistService.loadWishlists();
       for(var list in lists) {
-        if (list.cards.any((c) => c.scryfallId == id)) {
-          await _wishlistService.upsertCard(wishlistId: list.id, scryfallId: id, cardName: name, absoluteQuantity: 0);
+        var cardsToRemove = list.cards.where((c) => c.name == name).toList();
+        for (var c in cardsToRemove) {
+           await _wishlistService.upsertCard(
+             wishlistId: list.id, 
+             scryfallId: c.scryfallId, 
+             cardName: name, 
+             absoluteQuantity: 0
+           );
         }
       }
       _showFeedback('Retiré de toutes les Wishlists', Colors.red.shade700);
     } else {
-      // Ajout: Liste par défaut
-      await _wishlistService.addCard(ScryfallCard(
-        id: id, name: name, oracleId: '', imageUrl: '', rulesText: '', typeLine: '', legalities: {}, prices: {}, lang: '', colorIdentity: [], setName: '', setCode: '', collectorNumber: '', rarity: 'common'
-      ), 1);
-      _showFeedback('Ajouté à la Wishlist', Colors.blue.shade700);
+      // AJOUT AVEC SELECTEUR
+      final targetListId = await _showWishlistSelector();
+      if (targetListId != null) {
+        // Optimiste UI
+        setState(() {
+          _flatWishlist.add(DeckCard(scryfallId: id, name: name, quantity: 1));
+        });
+
+        // Appel Service
+        await _wishlistService.upsertCard(
+          wishlistId: targetListId,
+          scryfallId: id,
+          cardName: name,
+          quantityToAdd: 1
+        );
+        _showFeedback('Ajouté à la Wishlist', Colors.blue.shade700);
+      }
     }
     
-    // 3. Resynchro complète pour être sûr
     await _loadLocalData(); 
   }
 
