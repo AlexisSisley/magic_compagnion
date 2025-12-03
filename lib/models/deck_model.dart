@@ -5,12 +5,14 @@ class DeckCard {
   final String name;
   int quantity;
   int proxyQuantity;
+  bool isFoil; // <--- NOUVEAU
 
   DeckCard({
     required this.scryfallId,
     required this.name,
     required this.quantity,
     this.proxyQuantity = 0,
+    this.isFoil = false, // Défaut false
   });
 
   Map<String, dynamic> toJson() => {
@@ -18,6 +20,7 @@ class DeckCard {
         'name': name,
         'quantity': quantity,
         'proxyQuantity': proxyQuantity,
+        'isFoil': isFoil, // <--- Sauvegarde
       };
 
   factory DeckCard.fromJson(Map<String, dynamic> json) => DeckCard(
@@ -25,16 +28,20 @@ class DeckCard {
         name: json['name'],
         quantity: json['quantity'],
         proxyQuantity: json['proxyQuantity'] ?? 0,
+        isFoil: json['isFoil'] ?? false, // <--- Chargement (rétrocompatible)
       );
 }
 
+// ... (Le reste de la classe Deck reste inchangé)
 class Deck {
+  // ... Copiez le reste de la classe Deck telle quelle si besoin, 
+  // mais seule la classe DeckCard change ici.
   String id;
   String name;
   List<DeckCard> mainboard;
   List<DeckCard> sideboard;
   String? commanderScryfallId;
-  String? commanderSecondaryScryfallId; // <--- NOUVEAU : Pour les Partenaires / Backgrounds
+  String? commanderSecondaryScryfallId;
   List<String> colors;
   String format;
 
@@ -44,7 +51,7 @@ class Deck {
     List<DeckCard>? mainboard,
     List<DeckCard>? sideboard,
     this.commanderScryfallId,
-    this.commanderSecondaryScryfallId, // <--- NOUVEAU
+    this.commanderSecondaryScryfallId,
     List<String>? colors,
     this.format = 'Standard',
   })  : this.mainboard = mainboard ?? [],
@@ -57,7 +64,7 @@ class Deck {
         'mainboard': mainboard.map((c) => c.toJson()).toList(),
         'sideboard': sideboard.map((c) => c.toJson()).toList(),
         'commanderScryfallId': commanderScryfallId,
-        'commanderSecondaryScryfallId': commanderSecondaryScryfallId, // <--- NOUVEAU
+        'commanderSecondaryScryfallId': commanderSecondaryScryfallId,
         'colors': colors,
         'format': format,
       };
@@ -68,7 +75,7 @@ class Deck {
         mainboard: (json['mainboard'] as List).map((i) => DeckCard.fromJson(i)).toList(),
         sideboard: (json['sideboard'] as List).map((i) => DeckCard.fromJson(i)).toList(),
         commanderScryfallId: json['commanderScryfallId'],
-        commanderSecondaryScryfallId: json['commanderSecondaryScryfallId'], // <--- NOUVEAU
+        commanderSecondaryScryfallId: json['commanderSecondaryScryfallId'],
         colors: (json['colors'] as List?)?.map((e) => e.toString()).toList() ?? [],
         format: json['format'] ?? 'Standard',
       );

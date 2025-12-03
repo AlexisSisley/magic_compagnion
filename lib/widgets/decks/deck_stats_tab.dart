@@ -1,11 +1,11 @@
 // Fichier : lib/widgets/decks/deck_stats_tab.dart
-// VERSION MISE À JOUR : Analyseur de Mana (Sources vs Besoins)
+// VERSION MISE À JOUR : Répartition Couleurs par Type (Stacked Bar Chart)
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:magic_companion/models/deck_model.dart';
-import 'package:magic_companion/models/scryfall_card_model.dart';
+import '../../models/deck_model.dart';
+import '../../models/scryfall_card_model.dart';
 
 class DeckStatsTab extends StatefulWidget {
   final List<DeckCard> mainboard;
@@ -22,29 +22,36 @@ class DeckStatsTab extends StatefulWidget {
 }
 
 class _DeckStatsTabState extends State<DeckStatsTab> {
+  // Données existantes
   late Map<int, int> _manaCurveData;
   late Map<String, int> _cardTypeData;
-  late Map<String, int> _pipCountData; // Besoins
-  late Map<String, int> _sourceCountData; // Sources (Terrains)
+  late Map<String, int> _pipCountData; 
+  late Map<String, int> _sourceCountData; 
+  
+  // --- NOUVELLE DONNÉE ---
+  // Structure: { "Creatures": { "G": 10, "R": 5 }, "Instants": { "U": 4 } ... }
+  late Map<String, Map<String, int>> _colorByTypeData; 
 
   final List<Color> _pieColors = [
-    Colors.blue.shade700,
-    Colors.red.shade700,
-    Colors.green.shade700,
-    Colors.grey.shade700,
-    Colors.purple.shade700,
-    Colors.orange.shade700,
-    Colors.yellow.shade800,
+    Colors.blue.shade700, Colors.red.shade700, Colors.green.shade700,
+    Colors.grey.shade700, Colors.purple.shade700, Colors.orange.shade700, Colors.yellow.shade800,
   ];
 
   final Map<String, Color> _manaColors = {
-      'W': const Color(0xFFF0F2C0), // Blanc crème
-      'U': const Color(0xFF4287f5), // Bleu
-      'B': const Color(0xFF333333), // Noir (Gris foncé pour visibilité)
-      'R': const Color(0xFFeb4034), // Rouge
-      'G': const Color(0xFF4caf50), // Vert
-      'C': const Color(0xFF9e9e9e), // Incolore
-    };
+      'W': const Color(0xFFF0F2C0), 
+      'U': const Color(0xFF4287f5), 
+      'B': const Color(0xFF333333), 
+      'R': const Color(0xFFeb4034), 
+      'G': const Color(0xFF4caf50), 
+      'C': const Color(0xFF9e9e9e), 
+      'M': const Color(0xFFD4AF37), // Or pour Multicolore
+  };
+
+  // Ordre d'affichage des segments dans la barre (du bas vers le haut)
+  final List<String> _colorOrder = ['W', 'U', 'B', 'R', 'G', 'C', 'M'];
+
+  double _averageCmc = 0.0;
+  double _totalPrice = 0.0;
 
   @override
   void initState() {
@@ -52,14 +59,14 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     _calculateStats();
   }
   
-  double _averageCmc = 0.0;
-  double _totalPrice = 0.0;
-
   void _calculateStats() {
     _manaCurveData = _calculateManaCurve();
     _cardTypeData = _calculateCardTypes();
     _pipCountData = _calculatePipCount();
-    _sourceCountData = _calculateLandSources(); // Calcul des sources
+    _sourceCountData = _calculateLandSources();
+    
+    // --- NOUVEAU CALCUL ---
+    _colorByTypeData = _calculateColorByType();
 
     double totalCmc = 0;
     int totalNonLandCards = 0;
@@ -84,7 +91,45 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     _averageCmc = totalNonLandCards > 0 ? totalCmc / totalNonLandCards : 0.0;
   }
 
-  // --- CALCULS EXISTANTS ---
+  // --- NOUVEAU CALCUL : COULEUR PAR TYPE ---
+  Map<String, Map<String, int>> _calculateColorByType() {
+    Map<String, Map<String, int>> data = {};
+
+    for (final deckCard in widget.mainboard) {
+      String type = "Autres";
+      List<String> colors = [];
+      
+      try {
+        if (deckCard.scryfallId.startsWith('LOCAL:')) {
+           type = _getPrimaryType(deckCard.name);
+           colors = []; // Local = Incolore par défaut ou à déduire
+        } else {
+          final scryfallCard = widget.cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
+          type = _getPrimaryType(scryfallCard.typeLine);
+          colors = scryfallCard.colorIdentity; // Ou scryfallCard.colors si dispo dans le modèle
+        }
+      } catch (e) { type = _getPrimaryType(deckCard.name); }
+
+      // Détermination de la catégorie de couleur
+      String colorKey = 'C';
+      if (colors.isEmpty) {
+        colorKey = 'C';
+      } else if (colors.length > 1) {
+        colorKey = 'M'; // Multicolore
+      } else {
+        colorKey = colors.first;
+      }
+
+      data.putIfAbsent(type, () => {});
+      data[type]![colorKey] = (data[type]![colorKey] ?? 0) + deckCard.quantity;
+    }
+    
+    // Nettoyage des types vides
+    data.removeWhere((key, value) => value.isEmpty);
+    return data;
+  }
+
+  // --- ANCIENS CALCULS (Inchangés) ---
   Map<int, int> _calculateManaCurve() {
     Map<int, int> curve = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0};
     for (final deckCard in widget.mainboard) {
@@ -106,7 +151,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
   Map<String, int> _calculateCardTypes() {
     Map<String, int> types = {};
     for (final deckCard in widget.mainboard) {
-      String type = "Autre";
+      String type = "Autres";
       try {
         if (deckCard.scryfallId.startsWith('LOCAL:')) {
            type = _getPrimaryType(deckCard.name);
@@ -142,7 +187,6 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     return pipCount;
   }
 
-  // --- NOUVEAU CALCUL : SOURCES DE MANA ---
   Map<String, int> _calculateLandSources() {
     Map<String, int> sources = {'W': 0, 'U': 0, 'B': 0, 'R': 0, 'G': 0, 'C': 0};
     for (final deckCard in widget.mainboard) {
@@ -151,20 +195,15 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
         final scryfallCard = widget.cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
         if (scryfallCard.typeLine.toLowerCase().contains('land')) {
            if (scryfallCard.colorIdentity.isEmpty) {
-             // Terrain produisant de l'incolore (approximation)
              sources['C'] = (sources['C'] ?? 0) + deckCard.quantity;
            } else {
-             // Terrain coloré
              for (var color in scryfallCard.colorIdentity) {
                if (sources.containsKey(color)) {
                  sources[color] = (sources[color] ?? 0) + deckCard.quantity;
                }
              }
            }
-        } else if (scryfallCard.typeLine.toLowerCase().contains('artifact') && (scryfallCard.oracleId == '56db0954-55e5-469f-9e39-034105eb3e96' || scryfallCard.name.contains('Signet') || scryfallCard.name.contains('Sol Ring'))) {
-           // Bonus: Ajout simple des Artefacts à mana connus (Sol Ring, Signets...)
-           // Pour une app parfaite, il faudrait parser le texte, mais c'est complexe.
-           // Ici on compte juste Sol Ring comme source incolore
+        } else if (scryfallCard.typeLine.toLowerCase().contains('artifact') && (scryfallCard.name.contains('Signet') || scryfallCard.name.contains('Sol Ring') || scryfallCard.name.contains('Arcane Signet'))) {
            if (scryfallCard.name.contains('Sol Ring')) sources['C'] = (sources['C'] ?? 0) + deckCard.quantity;
         }
       } catch (e) { }
@@ -181,8 +220,9 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     if (lowerType.contains('land')) return 'Terrains';
     if (lowerType.contains('artifact')) return 'Artefacts';
     if (lowerType.contains('enchantment')) return 'Enchantements';
-    if (lowerType.contains('instant')) return 'Sorts';
-    if (lowerType.contains('sorcery')) return 'Sorts';
+    if (lowerType.contains('instant')) return 'Instant';
+    if (lowerType.contains('sorcery')) return 'Rituels';
+    if (lowerType.contains('battle')) return 'Batailles';
     return 'Autres';
   }
 
@@ -203,6 +243,16 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
           ),
           
           const SizedBox(height: 16),
+          
+          // --- NOUVEAU GRAPHIQUE ---
+          _buildStatsCard(
+            title: "Couleurs par Type",
+            subtitle: "Répartition des couleurs pour chaque type de carte",
+            child: _buildColorByTypeChart(),
+            height: 250,
+          ),
+
+          const SizedBox(height: 16),
           _buildStatsCard(
             title: "Courbe de Mana",
             child: _buildManaCurveChart(),
@@ -218,6 +268,8 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
       ),
     );
   }
+
+  // --- WIDGETS ---
 
   Widget _buildSummaryCard() {
     return Card(
@@ -268,21 +320,111 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     );
   }
 
-  // --- NOUVEAU GRAPHIQUE : ANALYSEUR DE MANA ---
+  // --- NOUVEAU GRAPHIQUE STACKED ---
+  Widget _buildColorByTypeChart() {
+    if (_colorByTypeData.isEmpty) return _buildEmptyChartState("Pas assez de données.");
+
+    final types = _colorByTypeData.keys.toList()..sort();
+    
+    // Trouver la valeur Y max (la somme max d'une colonne)
+    double maxY = 0;
+    for (var type in types) {
+      double sum = 0;
+      _colorByTypeData[type]!.forEach((_, v) => sum += v);
+      if (sum > maxY) maxY = sum;
+    }
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: maxY * 1.1, // Marge en haut
+        gridData: FlGridData(
+          show: true, 
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (v) => FlLine(color: Colors.white10, strokeWidth: 1)
+        ),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 30,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index < 0 || index >= types.length) return const SizedBox();
+                // Affiche les 3 premières lettres du type (ex: CRE, INS, LAN)
+                String label = types[index];
+                if (label.length > 4) label = label.substring(0, 4); 
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(label.toUpperCase(), style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                );
+              },
+            ),
+          ),
+        ),
+        barGroups: List.generate(types.length, (index) {
+          final type = types[index];
+          final colorCounts = _colorByTypeData[type]!;
+          
+          // Création des segments empilés (Rods)
+          List<BarChartRodStackItem> rodStackItems = [];
+          double currentY = 0;
+
+          // On empile dans un ordre précis pour que les couleurs soient toujours au même endroit
+          for (var colorKey in _colorOrder) {
+            final count = colorCounts[colorKey] ?? 0;
+            if (count > 0) {
+              rodStackItems.add(
+                BarChartRodStackItem(currentY, currentY + count, _manaColors[colorKey]!)
+              );
+              currentY += count;
+            }
+          }
+
+          return BarChartGroupData(
+            x: index,
+            barRods: [
+              BarChartRodData(
+                toY: currentY,
+                rodStackItems: rodStackItems,
+                width: 20,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ],
+          );
+        }),
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final type = types[group.x];
+              // On retrouve la couleur touchée (c'est un peu tricky avec fl_chart stacked)
+              // Pour simplifier, on affiche le total du type
+              int total = _colorByTypeData[type]!.values.fold(0, (a, b) => a + b);
+              return BarTooltipItem(
+                "$type\nTotal: $total",
+                const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildManaAnalysisChart() {
     final colors = ['W', 'U', 'B', 'R', 'G', 'C'];
     final List<BarChartGroupData> barGroups = [];
-    
-    // Trouve la valeur max pour l'échelle
     double maxY = 0;
     
     for (int i = 0; i < colors.length; i++) {
       final colorKey = colors[i];
       final needs = _pipCountData[colorKey]?.toDouble() ?? 0;
       final sources = _sourceCountData[colorKey]?.toDouble() ?? 0;
-      
-      if (needs == 0 && sources == 0) continue; // On n'affiche pas les couleurs inutilisées
-      
+      if (needs == 0 && sources == 0) continue;
       if (needs > maxY) maxY = needs;
       if (sources > maxY) maxY = sources;
 
@@ -290,20 +432,16 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
         BarChartGroupData(
           x: i,
           barRods: [
-            // Barre 1 : Besoins (Pips) - Transparente ou Hachurée
             BarChartRodData(
               toY: needs,
               color: _manaColors[colorKey]!.withOpacity(0.3),
-              width: 12,
-              borderRadius: BorderRadius.circular(2),
+              width: 12, borderRadius: BorderRadius.circular(2),
               borderSide: BorderSide(color: _manaColors[colorKey]!, width: 1)
             ),
-            // Barre 2 : Sources (Terrains) - Pleine
             BarChartRodData(
               toY: sources,
               color: _manaColors[colorKey]!,
-              width: 12,
-              borderRadius: BorderRadius.circular(2),
+              width: 12, borderRadius: BorderRadius.circular(2),
             ),
           ],
         ),
@@ -316,28 +454,19 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
         maxY: maxY * 1.1,
-        gridData: FlGridData(
-          show: true, 
-          drawVerticalLine: false, 
-          getDrawingHorizontalLine: (v) => FlLine(color: Colors.white10, strokeWidth: 1)
-        ),
+        gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (v) => FlLine(color: Colors.white10, strokeWidth: 1)),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, meta) {
+            sideTitles: SideTitles(showTitles: true, getTitlesWidget: (value, meta) {
                 final index = value.toInt();
                 if (index >= 0 && index < colors.length) {
                   final c = colors[index];
                   if ((_pipCountData[c] ?? 0) == 0 && (_sourceCountData[c] ?? 0) == 0) return const SizedBox();
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(c, style: GoogleFonts.cinzel(color: _manaColors[c], fontWeight: FontWeight.bold)),
-                  );
+                  return Padding(padding: const EdgeInsets.only(top: 8.0), child: Text(c, style: GoogleFonts.cinzel(color: _manaColors[c], fontWeight: FontWeight.bold)));
                 }
                 return const SizedBox();
               },
@@ -349,7 +478,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
           touchTooltipData: BarTouchTooltipData(
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final colorKey = colors[group.x];
-              final isSource = rodIndex == 1; // 2ème barre
+              final isSource = rodIndex == 1; 
               return BarTooltipItem(
                 isSource ? "Sources: ${rod.toY.toInt()}" : "Pips: ${rod.toY.toInt()}",
                 TextStyle(color: _manaColors[colorKey], fontWeight: FontWeight.bold)
@@ -361,7 +490,6 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     );
   }
 
-  // --- GRAPHIQUES EXISTANTS ---
   Widget _buildManaCurveChart() {
     if (_manaCurveData.values.every((v) => v == 0)) return _buildEmptyChartState("Aucune donnée.");
     return BarChart(

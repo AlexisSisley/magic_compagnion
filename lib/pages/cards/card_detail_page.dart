@@ -98,10 +98,11 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   }
 
   String _cleanOcrText(String text) {
-    String cleanedText = text;
-    cleanedText = cleanedText.replaceAll('0', 'O'); 
-    cleanedText = cleanedText.replaceAll(RegExp(r'\b(W|U|B|R|G|O|X|Y|Z)\b', caseSensitive: false), '');
-    cleanedText = cleanedText.replaceAll(RegExp(r'[{}<>()\[\].,:;]'), '');
+    String cleanedText = text.toUpperCase();
+    // cleanedText = cleanedText.replaceAll('0', 'O'); 
+    // cleanedText = cleanedText.replaceAll(RegExp(r'\b(W|U|B|R|G|O|X|Y|Z)\b', caseSensitive: false), '');
+    // cleanedText = cleanedText.replaceAll(RegExp(r'[{}<>()\[\].,:;]'), '');
+    cleanedText = cleanedText.replaceAll(RegExp(r'[\[\].,:;]'), ' ');
     cleanedText = cleanedText.replaceAll(RegExp(r'\s+'), ' ').trim();
     return cleanedText;
   }
@@ -117,30 +118,43 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
       textRecognizer.close();
 
-      final RegExp collectorRegex = RegExp(r'([A-Z0-9]{3,4})[\s•\/\-]{1,3}([0-9]{1,4})');
+      // final RegExp collectorRegex = RegExp(r'([A-Z0-9]{3,4})[\s•\/\-]{1,3}([0-9]{1,4})');
+      // Cherche : 3-5 Lettres/Chiffres + Séparateur + 1-4 Chiffres (et optionnellement une lettre)
+      final RegExp collectorRegex = RegExp(r'\b([A-Z0-9]{3,5})[\s•\/\-]{1,3}([0-9]{1,4}[a-z]?)\b');
       
+      // On cherche d'abord le pattern "SET CODE + NUMBER" (souvent en bas à gauche)
       for (var block in recognizedText.blocks) {
-        final match = collectorRegex.firstMatch(block.text);
+        // On nettoie un peu le bloc pour aider la regex
+        String blockText = block.text.replaceAll('\n', ' ');
+        final match = collectorRegex.firstMatch(blockText);
+        
         if (match != null) {
           final String setCode = match.group(1)!;
           final String collectorNumber = match.group(2)!;
+          
+          setState(() { _statusMessage = "Code détecté : $setCode #$collectorNumber"; });
+          
           bool success = await _fetchExactCard(setCode, collectorNumber);
           if (success) return; 
         }
       }
 
+      // Si la regex échoue, on cherche le titre (bestGuess)
       List<TextBlock> sortedBlocks = List.from(recognizedText.blocks);
       sortedBlocks.sort((a, b) => a.boundingBox.top.compareTo(b.boundingBox.top));
 
       String? bestGuess;
       const List<String> badKeywords = ['créature', 'creature', 'artefact', 'artifact', 'enchantment', 'instant', 'sorcery', 'land', 'token', 'legendary'];
 
-      for (int i = 0; i < sortedBlocks.length && i < 4; i++) {
+      for (int i = 0; i < sortedBlocks.length && i < 5; i++) { // On regarde un peu plus bas (5 blocs)
         for (var line in sortedBlocks[i].lines) {
-          String text = _cleanOcrText(line.text);
+          String text = _cleanOcrText(line.text); // Utilise notre fonction simple
           if (text.length < 3) continue; 
           bool isTypeLine = badKeywords.any((k) => text.toLowerCase().contains(k));
           if (isTypeLine) continue;
+          
+          // Heuristique simple : si c'est tout en majuscule, c'est probablement pas le titre (souvent le cas pour les types)
+          // Mais attention aux cartes anciennes. On garde le premier candidat valide.
           bestGuess = text;
           break; 
         }

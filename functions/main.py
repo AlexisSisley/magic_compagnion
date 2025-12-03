@@ -1,94 +1,108 @@
 from firebase_functions import https_fn
 from firebase_admin import initialize_app, firestore
+import requests  # Pour appeler Scryfall
 
-# On initialise Firebase Admin au niveau global
 app = initialize_app()
 db = None
 
+def get_card_text(query):
+    """
+    Tente de trouver une carte Magic mentionnée dans la question via Scryfall.
+    """
+    # On nettoie un peu la requête pour aider la recherche floue
+    clean_query = query.replace("?", "").replace(".", "").strip()
+    
+    # Appel API Scryfall (Recherche floue/intelligente)
+    url = f"https://api.scryfall.com/cards/named?fuzzy={clean_query}"
+    
+    try:
+        response = requests.get(url, timeout=2)
+        if response.status_code == 200:
+            card = response.json()
+            name = card.get('name')
+            
+            # Gestion des faces multiples
+            if 'card_faces' in card:
+                text = "\n//\n".join([f"{f.get('name')}: {f.get('oracle_text')}" for f in card['card_faces']])
+            else:
+                text = card.get('oracle_text', '')
+                
+            type_line = card.get('type_line', '')
+            return f"CARTE TROUVÉE : {name}\nTYPE : {type_line}\nTEXTE : {text}"
+    except Exception:
+        pass # Si on ne trouve pas ou erreur réseau, on ignore silencieusement
+    
+    return None
+
 @https_fn.on_call()
 def ask_oracle(req: https_fn.CallableRequest) -> any:
-    """
-    Fonction Oracle RAG : Répond aux questions sur Magic en utilisant Firestore Vector Search + Gemini.
-    """
     global db
     
-    # --- IMPORTS DIFFÉRÉS (LAZY LOADING) ---
-    # On importe tout ici pour éviter les crashs au déploiement
     import vertexai
     from vertexai.language_models import TextEmbeddingModel
     from vertexai.generative_models import GenerativeModel
     
-    # --- CORRECTION IMPORT ROBUSTE ---
-    # On cherche DistanceMeasure à plusieurs endroits pour être sûr de le trouver
+    # Import robuste de DistanceMeasure
     try:
-        # Essai 1 : Racine (Standard)
         from google.cloud.firestore import DistanceMeasure
     except ImportError:
         try:
-            # Essai 2 : Sous-module Vector (Versions récentes)
             from google.cloud.firestore_v1.vector import DistanceMeasure
         except ImportError:
-            # Essai 3 : Base (Interne)
             from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
 
     query_text = req.data.get("query")
     
     if not query_text:
-        return {"response": "Le mana est faible... Pose une vraie question."}
+        return {"response": "Le mana est faible..."}
 
     try:
-        # Initialisation DB si pas encore fait (Cold Start)
         if db is None:
             db = firestore.client()
 
-        # Initialisation Vertex AI
         vertexai.init(location="us-central1")
-        
-        # Chargement des modèles
         embedding_model = TextEmbeddingModel.from_pretrained("text-embedding-004")
         gen_model = GenerativeModel("gemini-1.5-flash")
 
-        # 1. Vectorisation de la question (Embedding)
+        # --- ÉTAPE 1 : RECHERCHE DE CARTE (NOUVEAU) ---
+        # On regarde si Scryfall connaît une carte qui porte le nom de la recherche
+        # (Ou un mot clé important de la phrase)
+        card_context = get_card_text(query_text)
+        
+        # --- ÉTAPE 2 : RECHERCHE DE RÈGLES (VECTORIELLE) ---
         embeddings = embedding_model.get_embeddings([query_text])
         query_vector = embeddings[0].values
 
-        # 2. Recherche Vectorielle (RAG) dans Firestore
         collection = db.collection("magic_rules")
-        
         vector_query = collection.find_nearest(
             vector_field="embedding",
             query_vector=query_vector,
             distance_measure=DistanceMeasure.COSINE,
             limit=5
         )
-        
         docs = vector_query.get()
+        rules_context = "\n".join([f"- {doc.to_dict().get('content', '')}" for doc in docs])
+
+        # --- ÉTAPE 3 : ASSEMBLAGE DU PROMPT ---
+        final_context = f"RÈGLES OFFICIELLES :\n{rules_context}"
         
-        if not docs:
-            return {"response": "Je ne trouve rien dans les archives à ce sujet."}
+        if card_context:
+            final_context += f"\n\nCONTEXTE CARTE IDENTIFIÉE :\n{card_context}"
 
-        # Assemblage du contexte
-        context_text = "\n\n".join([f"- {doc.to_dict().get('content', '')}" for doc in docs])
-
-        # 3. Prompt pour Gemini
         prompt = f"""
-        Tu es l'Oracle de Magic: The Gathering.
-        Utilise UNIQUEMENT le contexte ci-dessous pour répondre à la question du joueur.
-        Si la réponse n'est pas dans le contexte, dis que tu ne sais pas.
-        Cite les numéros de règles si possible.
-
+        Tu es l'Oracle de Magic. Réponds à la question en utilisant le contexte ci-dessous.
+        Si une carte est identifiée dans le contexte, explique son interaction précise avec les règles citées.
+        
         CONTEXTE :
-        {context_text}
+        {final_context}
 
-        QUESTION :
+        QUESTION JOUEUR :
         {query_text}
         """
 
-        # 4. Génération
         response = gen_model.generate_content(prompt)
-        
         return {"response": response.text}
 
     except Exception as e:
-        print(f"Erreur Oracle: {e}")
-        return {"response": f"Une perturbation dans l'éther m'empêche de répondre. ({str(e)})"}
+        print(f"Erreur: {e}")
+        return {"response": "Erreur interne de l'Oracle."}

@@ -18,23 +18,36 @@ class ScannerPage extends StatefulWidget {
   State<ScannerPage> createState() => _ScannerPageState();
 }
 
-class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
+class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   
   CameraController? _controller;
-  final LocalCardService _localCardService = LocalCardService(); // Instance du service
+  final LocalCardService _localCardService = LocalCardService();
   
   bool _isCameraInitialized = false;
   bool _isPermissionDenied = false;
   String _errorMessage = "";
   bool _isFlashOn = false;
 
+  // Animation pour la ligne de scan
+  late AnimationController _scanAnimationController;
+  late Animation<double> _scanAnimation;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); 
     _initializeCamera();
-    // On s'assure que les données locales sont prêtes pour la recherche manuelle
     _localCardService.loadLocalData();
+
+    // Init Animation
+    _scanAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    
+    _scanAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _scanAnimationController, curve: Curves.easeInOut)
+    );
   }
 
   @override
@@ -155,7 +168,8 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _controller?.dispose(); 
+    _controller?.dispose();
+    _scanAnimationController.dispose(); 
     super.dispose();
   }
 
@@ -257,28 +271,17 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   }
 
   Widget _buildCardOverlay() {
-    return Center(
-      child: Container(
-        width: 280, 
-        height: 390, 
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.yellow.withValues(alpha: 0.5), width: 2),
-          borderRadius: BorderRadius.circular(15), 
-        ),
-        child: Column(
-          children: [
-            Container(
-              height: 60,
-              decoration: BoxDecoration(
-                color: Colors.yellow.withValues(alpha: 0.1),
-                border: Border(bottom: BorderSide(color: Colors.yellow.withValues(alpha: 0.3))),
-              ),
-              child: Center(child: Icon(Icons.title, color: Colors.yellow.withValues(alpha: 0.5))),
-            ),
-            const Expanded(child: SizedBox()),
-          ],
-        ),
-      ),
+    return AnimatedBuilder(
+      animation: _scanAnimation,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: ScannerOverlayPainter(
+            scanValue: _scanAnimation.value,
+            borderColor: Colors.yellow.shade700,
+          ),
+          child: Container(),
+        );
+      },
     );
   }
 }
@@ -396,5 +399,81 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
         ),
       ),
     );
+  }
+}
+
+class ScannerOverlayPainter extends CustomPainter {
+  final double scanValue;
+  final Color borderColor;
+
+  ScannerOverlayPainter({required this.scanValue, required this.borderColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    // Dimensions de la zone de scan (Ratio Carte Magic ~ 63x88mm)
+    final double cardWidth = size.width * 0.75;
+    final double cardHeight = cardWidth * 1.4; 
+    
+    final double left = (size.width - cardWidth) / 2;
+    final double top = (size.height - cardHeight) / 2;
+    final Rect scanRect = Rect.fromLTWH(left, top, cardWidth, cardHeight);
+    final RRect scanRRect = RRect.fromRectAndRadius(scanRect, const Radius.circular(12));
+
+    // 1. Fond sombre semi-transparent avec "trou"
+    final Path backgroundPath = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final Path cutoutPath = Path()
+      ..addRRect(scanRRect);
+    
+    final Path overlayPath = Path.combine(
+      PathOperation.difference,
+      backgroundPath,
+      cutoutPath,
+    );
+
+    paint.color = Colors.black.withOpacity(0.6); // Assombrissement
+    canvas.drawPath(overlayPath, paint);
+
+    // 2. Bordure
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    
+    canvas.drawRRect(scanRRect, borderPaint);
+
+    // 3. Coins décoratifs (Style "Viseur")
+    final cornerPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+
+    double cornerSize = 20;
+    // Coin Haut-Gauche
+    canvas.drawPath(Path()..moveTo(left, top + cornerSize)..lineTo(left, top)..lineTo(left + cornerSize, top), cornerPaint);
+    // Coin Haut-Droite
+    canvas.drawPath(Path()..moveTo(left + cardWidth, top + cornerSize)..lineTo(left + cardWidth, top)..lineTo(left + cardWidth - cornerSize, top), cornerPaint);
+    // Coin Bas-Gauche
+    canvas.drawPath(Path()..moveTo(left, top + cardHeight - cornerSize)..lineTo(left, top + cardHeight)..lineTo(left + cornerSize, top + cardHeight), cornerPaint);
+    // Coin Bas-Droite
+    canvas.drawPath(Path()..moveTo(left + cardWidth, top + cardHeight - cornerSize)..lineTo(left + cardWidth, top + cardHeight)..lineTo(left + cardWidth - cornerSize, top + cardHeight), cornerPaint);
+
+    // 4. Ligne de Scan (Laser)
+    final double scanY = top + (cardHeight * scanValue);
+    final laserPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [borderColor.withOpacity(0), borderColor, borderColor.withOpacity(0)],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromLTWH(left, scanY, cardWidth, 4));
+    
+    canvas.drawRect(Rect.fromLTWH(left, scanY, cardWidth, 2), laserPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant ScannerOverlayPainter oldDelegate) {
+    return oldDelegate.scanValue != scanValue;
   }
 }

@@ -523,8 +523,23 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
               final qtySelected = _selectedQuantities[deckCard.scryfallId] ?? 0;
               
               final scryfallCard = _localCardService.getCardById(deckCard.scryfallId) ?? 
-                  ScryfallCard(id: deckCard.scryfallId, oracleId: '', name: deckCard.name, imageUrl: '', rulesText: '', typeLine: '', legalities: {}, prices: {}, lang: 'en', colorIdentity: [], setName: '', setCode: '', collectorNumber: '', rarity: 'common');
-
+                  ScryfallCard(
+                    id: deckCard.scryfallId, 
+                    oracleId: '', 
+                    name: deckCard.name, 
+                    imageUrl: '', 
+                    rulesText: '', 
+                    typeLine: '', 
+                    legalities: {}, 
+                    prices: {}, 
+                    lang: 'en', 
+                    colorIdentity: [], 
+                    setName: '', 
+                    setCode: '', 
+                    collectorNumber: '', 
+                    rarity: 'common',
+                    purchaseUris: {} // <--- AJOUTÉ
+                  );
               return _buildRichCardTile(
                 card: scryfallCard,
                 quantity: qtySelected,

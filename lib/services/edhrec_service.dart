@@ -4,19 +4,31 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class EdhrecService {
-  // L'API EDHRec utilise des "slugs" (noms formatés)
-  // Ex: "Atraxa, Praetors' Voice" -> "atraxa-praetors-voice"
   
+  // Correction de la génération du Slug pour EDHRec
   String _formatSlug(String name) {
+    // 1. Minuscule
     String slug = name.toLowerCase();
-    // slug = slug.replaceAll(RegExp(r"['\",\.]"), ")); // Enlever ponctuation
-    slug = slug.replaceAll(RegExp(r"\s+"), "-"); // Espaces -> tirets
-    slug = slug.replaceAll(RegExp(r"//.*"), ""); // Gérer les cartes doubles (garder 1ère face)
-    if (slug.endsWith("-")) slug = slug.substring(0, slug.length - 1);
+    
+    // 2. Gestion des cartes doubles (ex: "Jace // Jace") -> On garde la face avant
+    if (slug.contains('//')) {
+      slug = slug.split('//')[0];
+    }
+
+    // 3. Enlever tout ce qui n'est pas lettre, chiffre, espace ou tiret
+    // Cela enlève les apostrophes ('), virgules (,), points (.) etc.
+    // Ex: "Niv-Mizzet, Parun" -> "niv-mizzet parun"
+    slug = slug.replaceAll(RegExp(r"[^a-z0-9\s\-]"), ""); 
+    
+    // 4. Nettoyer les espaces (Trim + Remplacement par tirets)
+    // Ex: "niv-mizzet parun" -> "niv-mizzet-parun"
+    slug = slug.trim().replaceAll(RegExp(r"\s+"), "-");
+    
     return slug;
   }
 
-  Future<List<String>> getRecommendations(String commanderName) async {
+  // Retourne maintenant une Map organisée par catégories
+  Future<Map<String, List<String>>> getRecommendations(String commanderName) async {
     final slug = _formatSlug(commanderName);
     final url = Uri.parse("https://json.edhrec.com/pages/commanders/$slug.json");
 
@@ -26,36 +38,51 @@ class EdhrecService {
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         
-        // Structure EDHRec : container -> json_dict -> cardlists -> [ {header: "High Synergy", cardviews: [...] } ]
         if (!data.containsKey('container') || !data['container'].containsKey('json_dict')) {
-          return [];
+          return {};
         }
 
         final cardLists = data['container']['json_dict']['cardlists'] as List<dynamic>;
-        List<String> suggestedCardNames = [];
+        Map<String, List<String>> categorizedSuggestions = {};
 
-        // On cible les sections pertinentes
-        final sectionsOfInterest = ["High Synergy Cards", "Top Cards", "Creatures", "Instants", "Sorceries"];
+        // Mapping des sections EDHRec vers nos titres
+        final sectionsMap = {
+          "High Synergy Cards": "🔥 Haute Synergie",
+          "Top Cards": "🏆 Top Cartes",
+          "Creatures": "🐉 Créatures",
+          "Instants": "⚡ Éphémères",
+          "Sorceries": "📜 Rituels",
+          "Artifacts": "💎 Artefacts",
+          "Enchantments": "✨ Enchantements",
+          "Lands": "🏔️ Terrains",
+          "Planeswalkers": "🧙 Planeswalkers",
+        };
 
         for (var section in cardLists) {
-          if (sectionsOfInterest.contains(section['header'])) {
+          final header = section['header'];
+          if (sectionsMap.containsKey(header)) {
+            final String categoryTitle = sectionsMap[header]!;
             final cards = section['cardviews'] as List<dynamic>;
+            
+            List<String> cardNames = [];
             for (var card in cards) {
-              // EDHRec donne le nom de la carte
-              suggestedCardNames.add(card['name']);
+              cardNames.add(card['name']);
+            }
+            
+            if (cardNames.isNotEmpty) {
+              categorizedSuggestions[categoryTitle] = cardNames;
             }
           }
         }
         
-        // On dédoublonne
-        return suggestedCardNames.toSet().toList();
+        return categorizedSuggestions;
       } else {
-        print("Erreur EDHRec: ${response.statusCode}");
-        return [];
+        print("Erreur EDHRec ($slug): ${response.statusCode}");
+        return {};
       }
     } catch (e) {
       print("Exception EDHRec: $e");
-      return [];
+      return {};
     }
   }
 }

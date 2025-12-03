@@ -25,7 +25,6 @@ List<ScryfallCard> _executeSearch(SearchArguments args) {
   final rarity = filters?.rarity;
   final minCmc = filters?.minCmc;
   final maxCmc = filters?.maxCmc;
-
   return args.cards.where((card) {
     // 1. Filtre Texte (Nom)
     if (lowerQuery.isNotEmpty) {
@@ -59,7 +58,8 @@ class LocalCardService {
   LocalCardService._internal();
 
   List<ScryfallCard> _cachedCards = [];
-  final Map<String, ScryfallCard> _idMap = {}; 
+  final Map<String, ScryfallCard> _idMap = {};
+  final Map<String, ScryfallCard> _nameMap = {};
   
   bool _isLoaded = false;
   bool _isLoading = false;
@@ -77,6 +77,15 @@ class LocalCardService {
       _cachedCards = parsedCards;
       for (var card in _cachedCards) {
         _idMap[card.id] = card;
+        String lowerName = card.name.toLowerCase();
+        _nameMap[lowerName] = card;
+        if (lowerName.contains(' // ')) {
+          final parts = lowerName.split(' // ');
+          if (parts.isNotEmpty) {
+            // On fait pointer "fire" vers la carte complète "Fire // Ice"
+            _nameMap[parts[0].trim()] = card;
+          }
+        }
       }
       _isLoaded = true;
       debugPrint("Données locales chargées : ${_cachedCards.length} cartes.");
@@ -93,6 +102,7 @@ class LocalCardService {
   }
 
   ScryfallCard? getCardById(String id) => _idMap[id];
+  ScryfallCard? getCardByName(String name) => _nameMap[name.toLowerCase().trim()]; // Ajout du trim() par sécurité
 
   // --- RECHERCHE ASYNCHRONE OPTIMISÉE ---
   Future<List<ScryfallCard>> searchCards({
@@ -110,9 +120,6 @@ class LocalCardService {
 
   // Version simplifiée pour le smart match (peut rester synchrone si petite liste, ou passer en compute aussi)
   List<ScryfallCard> findSmartMatch(String query, {int limit = 5}) {
-    // ... (Ton code existant inchangé pour findSmartMatch) ...
-    // Note : Si cette fonction est lente aussi, on peut appliquer la même logique.
-    // Pour l'instant, searchCards est le plus critique.
     if (!_isLoaded || query.trim().isEmpty) return [];
     
     // (Garder ta logique de tokens ici...)

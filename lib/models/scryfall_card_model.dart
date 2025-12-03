@@ -1,5 +1,4 @@
 // Fichier : lib/models/scryfall_card_model.dart
-// VERSION MISE À JOUR : Ajout du champ 'rarity'
 
 class ScryfallCard {
   final String id;
@@ -20,9 +19,10 @@ class ScryfallCard {
   final String setName;
   final String setCode;
   final String collectorNumber;
+  final String rarity; 
   
-  // --- NOUVEAU CHAMP ---
-  final String rarity; // common, uncommon, rare, mythic, special...
+  // --- NOUVEAU : Liens d'achat ---
+  final Map<String, String> purchaseUris;
 
   ScryfallCard({
     required this.id,
@@ -42,7 +42,8 @@ class ScryfallCard {
     required this.setName,
     required this.setCode,
     required this.collectorNumber,
-    required this.rarity, // Ajouté au constructeur
+    required this.rarity, 
+    required this.purchaseUris, // Ajoutez ceci
   });
 
   factory ScryfallCard.fromJson(Map<String, dynamic> json) {
@@ -75,6 +76,9 @@ class ScryfallCard {
     final List<String> identity = (json['color_identity'] as List? ?? [])
         .map((e) => e.toString())
         .toList();
+        
+    // --- Extraction des liens ---
+    final Map<String, String> uris = Map<String, String>.from(json['purchase_uris'] ?? {});
 
     return ScryfallCard(
       id: json['id'],
@@ -94,8 +98,8 @@ class ScryfallCard {
       setName: json['set_name'] ?? 'Unknown Set',
       setCode: json['set'] ?? '',
       collectorNumber: json['collector_number'] ?? '',
-      // Récupération de la rareté avec valeur par défaut
       rarity: json['rarity'] ?? 'common', 
+      purchaseUris: uris, // Ajoutez ceci
     );
   }
 }
