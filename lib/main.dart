@@ -2,9 +2,11 @@
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:magic_companion/chat_screen.dart';
 
 // Imports des pages
 import 'package:magic_companion/pages/cards/card_search_page.dart';
@@ -29,7 +31,11 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await initializeDateFormatting('fr_FR');
-  runApp(const MagicCompanionApp());
+  runApp(
+    const ProviderScope(
+      child:  MagicCompanionApp(),
+    )
+  );
 }
 
 class MagicCompanionApp extends StatelessWidget {
@@ -318,13 +324,23 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.auto_awesome, color: Colors.purpleAccent),
+            leading: const Icon(Icons.all_inclusive, color: Colors.purpleAccent),
             title: Text('Oracle (IA)', style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
             subtitle: const Text("Posez vos questions de règles", style: TextStyle(color: Colors.white38, fontSize: 10)),
             tileColor: Colors.purple.withOpacity(0.1), // Mise en valeur subtile
             onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicOraclePage()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.menu_book, color: Colors.orangeAccent),
+            title: Text('Grimoire Code', style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+            subtitle: const Text("Interrogez votre codebase", style: TextStyle(color: Colors.white38, fontSize: 10)),
+            tileColor: Colors.green.withOpacity(0.1),
+            onTap: () {
+              Navigator.pop(context); // Ferme le menu
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatScreen()));
             },
           ),
           // --- SECTION OUTILS ---

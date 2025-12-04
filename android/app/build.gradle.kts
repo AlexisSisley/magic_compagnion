@@ -74,7 +74,7 @@ android {
         getByName("debug") {
             // CORRECTION: Retirer cette ligne permet au build d'utiliser l'ID de base.
             // Remettez-la SEULEMENT si vous avez enregistré .debug dans Firebase !
-            // applicationIdSuffix = ".debug"
+            applicationIdSuffix = ".debug"
             
             resValue("string", "app_name", "Magic Dev 🛠️")
             signingConfig = signingConfigs.getByName("debug")
