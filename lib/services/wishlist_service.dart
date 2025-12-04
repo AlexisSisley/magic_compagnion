@@ -14,16 +14,11 @@ class WishlistService {
 
   Future<List<Wishlist>> loadWishlists() async {
     final prefs = await SharedPreferences.getInstance();
-    
-    // 1. Vérifier si on doit migrer les anciennes données
     if (prefs.containsKey(_oldWishlistKey) && !prefs.containsKey(_wishlistsKey)) {
       await _migrateLegacyData(prefs);
     }
-
-    // 2. Charger les nouvelles données
     final String? jsonStr = prefs.getString(_wishlistsKey);
     if (jsonStr == null) {
-      // Si vide, on crée une liste par défaut
       final defaultList = Wishlist(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         name: "Ma Wishlist",
@@ -33,7 +28,6 @@ class WishlistService {
       await _saveWishlists([defaultList]);
       return [defaultList];
     }
-
     final List<dynamic> decoded = json.decode(jsonStr);
     return decoded.map((e) => Wishlist.fromJson(e)).toList();
   }
@@ -115,12 +109,12 @@ class WishlistService {
     required String scryfallId,
     required String cardName,
     int? quantityToAdd,     
-    int? absoluteQuantity,  
+    int? absoluteQuantity,
+    bool? isFoil, // <--- NOUVEAU PARAMÈTRE
   }) async {
     final lists = await loadWishlists();
-    if (lists.isEmpty) return; // Sécurité
+    if (lists.isEmpty) return;
 
-    // Trouve la bonne liste ou la première par défaut
     final index = (wishlistId != null) 
         ? lists.indexWhere((w) => w.id == wishlistId)
         : 0;
@@ -129,13 +123,17 @@ class WishlistService {
 
     final targetList = lists[index];
     
-    // Logique d'ajout (similaire à l'ancien service)
     try {
       final existingCard = targetList.cards.firstWhere((c) => c.scryfallId == scryfallId);
       int newQuantity = existingCard.quantity;
       
       if (quantityToAdd != null) newQuantity += quantityToAdd;
       else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
+
+      // Mise à jour du Foil si fourni
+      if (isFoil != null) {
+        existingCard.isFoil = isFoil;
+      }
 
       if (newQuantity <= 0) targetList.cards.remove(existingCard);
       else existingCard.quantity = newQuantity;
@@ -146,12 +144,18 @@ class WishlistService {
       else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
 
       if (newQuantity > 0) {
-        targetList.cards.add(DeckCard(scryfallId: scryfallId, name: cardName, quantity: newQuantity));
+        targetList.cards.add(DeckCard(
+          scryfallId: scryfallId, 
+          name: cardName, 
+          quantity: newQuantity,
+          isFoil: isFoil ?? false // <--- Init avec la valeur
+        ));
       }
     }
 
     await _saveWishlists(lists);
   }
+  
   Future<void> setWishlistIcon(String wishlistId, String? scryfallId) async {
     final lists = await loadWishlists();
     final index = lists.indexWhere((w) => w.id == wishlistId);

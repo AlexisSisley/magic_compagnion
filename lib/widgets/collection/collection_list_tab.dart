@@ -1,8 +1,10 @@
 // Fichier : lib/widgets/collection/collection_list_tab.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../models/search_filters.dart';
@@ -21,11 +23,13 @@ class CollectionListTab extends StatefulWidget {
   final bool hasCalculatedFinance;
   final Function() onRefresh;
   final Function(DeckCard, int) onUpdateQuantity;
+  final Function(DeckCard)? onToggleFoil; 
 
-  // --- Paramètres pour le mode sélection ---
+  // --- MODE SÉLECTION ---
   final bool isSelectionMode;
-  final Set<String> selectedIds; // IDs sélectionnés
+  final Set<String> selectedIds;
   final Function(String)? onToggleSelection;
+  final VoidCallback? onToggleSelectionMode;
 
   const CollectionListTab({
     super.key,
@@ -41,9 +45,11 @@ class CollectionListTab extends StatefulWidget {
     this.hasCalculatedFinance = false,
     required this.onRefresh,
     required this.onUpdateQuantity,
+    this.onToggleFoil,
     this.isSelectionMode = false,
     this.selectedIds = const {},
     this.onToggleSelection,
+    this.onToggleSelectionMode, // <--- NOUVEAU
   });
 
   @override
@@ -55,6 +61,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
   double _lastScale = 1.0;
   final RegExp _manaPipRegex = RegExp(r'\{([WUBRGCTPXYZS0-9/]+)\}');
 
+  
   void _handleScaleUpdate(ScaleUpdateDetails details) {
     if (details.scale > 1.3 && _lastScale <= 1.0) {
       // Zoom In
@@ -155,7 +162,92 @@ class _CollectionListTabState extends State<CollectionListTab> {
       },
     );
   }
+
+  Future<void> _launchURL(String? url) async {
+    if (url == null) return;
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossible d'ouvrir le lien.")));
+    }
+  }
+  Future<void> _exportAndOpenCardmarket() async {
+     // 1. Génération de la liste textuelle
+     StringBuffer sb = StringBuffer();
+     for(var c in widget.cards) {
+        // Format simple accepté par le Mass Entry : "Qté Nom"
+        sb.writeln("${c.quantity} ${c.name}");
+     }
+     
+     // 2. Copie dans le presse-papier
+     await Clipboard.setData(ClipboardData(text: sb.toString()));
+     
+     // 3. Feedback utilisateur
+     if (mounted) {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+         content: Text("Liste copiée ! Collez-la dans Cardmarket (Mass Entry)."),
+         backgroundColor: Colors.blueAccent,
+         duration: Duration(seconds: 3),
+       ));
+     }
+     
+     // 4. Ouverture de la page Mass Entry de Cardmarket
+     _launchURL("https://www.cardmarket.com/en/Magic/Wants/MassEntry");
+  }
+  // --- MODIFICATION : Menu Contextuel ---
+  void _showCardOptions(DeckCard card, ScryfallCard? scryfallCard) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+                subtitle: Text(scryfallCard?.setName ?? "", style: const TextStyle(color: Colors.white54)),
+              ),
+              const Divider(color: Colors.white24),
+              
+              // Option FOIL (Seulement si le callback est fourni, ex: Wishlist)
+              if (widget.onToggleFoil != null)
+                ListTile(
+                  leading: Icon(Icons.star, color: card.isFoil ? Colors.amber : Colors.white24),
+                  title: Text(card.isFoil ? "Retirer version Foil" : "Passer en Foil", style: const TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onToggleFoil!(card);
+                  },
+                ),
+
+              // Option CARDMARKET
+              if (scryfallCard?.purchaseUris['cardmarket'] != null)
+                ListTile(
+                  leading: const Icon(Icons.shopping_cart, color: Colors.blueAccent),
+                  title: const Text("Voir sur Cardmarket", style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _launchURL(scryfallCard!.purchaseUris['cardmarket']);
+                  },
+                ),
+                
+              ListTile(
+                leading: const Icon(Icons.info_outline, color: Colors.white70),
+                title: const Text("Détails complets", style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: card.name)));
+                },
+              ),
+            ],
+          ),
+        );
+      }
+    );
+  }
   // --- FILTRAGE & TRI (Inchangé) ---
+  // ignore: unused_element
   List<DeckCard> _filterAndSortList() {
     List<DeckCard> filtered = widget.cards.where((card) {
       if (!card.name.toLowerCase().contains(widget.filterQuery.toLowerCase())) return false;
@@ -206,6 +298,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
       return double.tryParse(sc.prices['eur'] ?? '0') ?? 0.0;
     } catch (e) { return 0.0; }
   }
+
   int _getCardColorIndex(String id) {
     try {
       final sc = widget.fullCardData.firstWhere((s) => s.id == id);
@@ -218,9 +311,9 @@ class _CollectionListTabState extends State<CollectionListTab> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredList = _filterAndSortList();
+    final filteredList = widget.cards; // _filterAndSortList(); 
     final int currentCols = _gridColumns.round();
-    final bool isGrouped = widget.currentSort == 'Type'; 
+    final bool isGrouped = widget.currentSort == 'Type';
 
     return RefreshIndicator(
       onRefresh: () async => widget.onRefresh(),
@@ -242,6 +335,19 @@ class _CollectionListTabState extends State<CollectionListTab> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Row(
               children: [
+                if (widget.onToggleSelectionMode != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12.0),
+                    child: InkWell(
+                      onTap: widget.onToggleSelectionMode,
+                      borderRadius: BorderRadius.circular(4),
+                      child: Icon(
+                        widget.isSelectionMode ? Icons.check_box : Icons.check_box_outline_blank, 
+                        color: widget.isSelectionMode ? Colors.greenAccent : Colors.white54,
+                        size: 22
+                      ),
+                    ),
+                  ),
                 if (widget.isSelectionMode)
                    Text("${widget.selectedIds.length} sélectionnés", style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))
                 else
@@ -369,13 +475,18 @@ class _CollectionListTabState extends State<CollectionListTab> {
     
     final bool isSelected = widget.isSelectionMode && widget.selectedIds.contains(card.scryfallId);
     
-    // Détermination de la couleur de bordure
     Color borderColor;
     if (isSelected) {
       borderColor = Colors.green;
     } else {
-      // Si pas sélectionné, on affiche la rareté
       borderColor = _getRarityColor(scryfallCard?.rarity ?? 'common');
+    }
+
+    // Prix à afficher (Foil ou Normal)
+    String priceDisplay = '--';
+    if (scryfallCard != null) {
+      String key = card.isFoil ? 'eur_foil' : 'eur';
+      priceDisplay = scryfallCard.prices[key] ?? scryfallCard.prices['eur'] ?? '--';
     }
 
     return Card(
@@ -383,7 +494,6 @@ class _CollectionListTabState extends State<CollectionListTab> {
       margin: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(6.0),
-        // On applique la bordure ici
         side: BorderSide(color: borderColor, width: isSelected ? 2.0 : 1.0),
       ),
       child: ListTile(
@@ -391,10 +501,15 @@ class _CollectionListTabState extends State<CollectionListTab> {
         onTap: () { 
           if (widget.isSelectionMode) {
             widget.onToggleSelection?.call(card.scryfallId);
-          } else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
-            Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: scryfallCard!.name))); 
+          } else {
+            // Au clic simple, on peut ouvrir le détail ou le menu rapide
+            // Pour l'instant, gardons le détail classique, le menu est sur LongPress
+            if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
+               Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: scryfallCard!.name))); 
+            }
           }
         },
+        onLongPress: () => _showCardOptions(card, scryfallCard), // <--- MENU CONTEXTUEL ICI
         leading: Stack(
           children: [
             ClipRRect(
@@ -406,19 +521,26 @@ class _CollectionListTabState extends State<CollectionListTab> {
             if (widget.isSelectionMode)
               Positioned(
                 top: 0, left: 0, 
+                child: Container(color: Colors.black54, child: Icon(isSelected ? Icons.check_box : Icons.check_box_outline_blank, color: isSelected ? Colors.greenAccent : Colors.white, size: 20))
+              ),
+            // INDICATEUR FOIL
+            if (card.isFoil)
+              Positioned(
+                bottom: 0, right: 0,
                 child: Container(
-                  color: Colors.black54, 
-                  child: Icon(isSelected ? Icons.check_box : Icons.check_box_outline_blank, color: isSelected ? Colors.greenAccent : Colors.white, size: 20)
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                  child: const Icon(Icons.star, color: Colors.amber, size: 12),
                 ),
-              )
+              ),
           ],
         ),
-        title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16)),
+        title: Text(card.name, style: GoogleFonts.cinzel(color: card.isFoil ? Colors.amber.shade100 : Colors.white, fontSize: 16)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
              _buildManaCostRow(scryfallCard?.manaCost),
-             if (scryfallCard?.prices['eur'] != null) Text('${scryfallCard!.prices['eur']} €', style: TextStyle(color: Colors.yellow.shade700, fontSize: 12)),
+             Text('$priceDisplay €', style: TextStyle(color: Colors.yellow.shade700, fontSize: 12)),
           ],
         ),
         trailing: widget.isSelectionMode 
@@ -569,6 +691,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
     final color = isPositive ? Colors.green.shade400 : Colors.red.shade400;
     final icon = isPositive ? Icons.trending_up : Icons.trending_down;
     final sign = isPositive ? '+' : '';
+    
     return Container(
       margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
       padding: const EdgeInsets.all(12.0),
@@ -583,6 +706,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Partie GAUCHE : Titre + Valeur
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -591,6 +715,8 @@ class _CollectionListTabState extends State<CollectionListTab> {
               Text('${value.toStringAsFixed(2)} €', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
             ],
           ),
+          
+          // Partie MILIEU : Evolution (si dispo)
           if (hasEvolution)
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -610,8 +736,24 @@ class _CollectionListTabState extends State<CollectionListTab> {
           else if (title.contains('Collection'))
              Text('Pas assez de données', style: GoogleFonts.cinzel(color: Colors.white38, fontSize: 10), textAlign: TextAlign.right),
 
-          IconButton(icon: const Icon(Icons.analytics_outlined, color: Colors.white), onPressed: onDetailPressed),
-        
+          // Partie DROITE : Boutons d'action
+          Row(
+            children: [
+               // --- BOUTON PANIER (Seulement pour Wishlist) ---
+               if (widget.isWishlist)
+                 IconButton(
+                   icon: const Icon(Icons.shopping_cart_checkout, color: Colors.blueAccent),
+                   tooltip: "Acheter sur Cardmarket (Copier liste)",
+                   onPressed: _exportAndOpenCardmarket, 
+                 ),
+               
+               // Bouton Analytics existant
+               IconButton(
+                 icon: const Icon(Icons.analytics_outlined, color: Colors.white), 
+                 onPressed: onDetailPressed
+               ),
+            ],
+          )
         ],
       ),
     );

@@ -420,16 +420,7 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                       ],
                     ),
                     Row(
-                      children: [
-                        // BOUTON TOGGLE SÉLECTION
-                        if (_tabController.index == 0)
-                          IconButton(
-                            icon: Icon(_isSelectionMode ? Icons.check_box : Icons.check_box_outline_blank),
-                            color: _isSelectionMode ? Colors.greenAccent : Colors.white70,
-                            tooltip: "Sélectionner des cartes",
-                            onPressed: _toggleSelectionMode,
-                          ),
-                        
+                      children: [                        
                         // RESTAURÉ : Bouton Import Massif
                         IconButton(icon: const Icon(Icons.file_upload_outlined), color: Colors.yellow.shade700, onPressed: _showBulkImportDialog),
                         
@@ -500,6 +491,7 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                           isSelectionMode: _isSelectionMode,
                           selectedIds: _selectedCardIds,
                           onToggleSelection: _toggleCardSelection,
+                          onToggleSelectionMode: _toggleSelectionMode,
                           onRefresh: () => _loadData(forceLoading: false),
                           onUpdateQuantity: (c, q) async {
                              await _collectionService.upsertCardInCollection(scryfallId: c.scryfallId, cardName: c.name, quantityToAdd: q);

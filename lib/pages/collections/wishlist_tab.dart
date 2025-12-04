@@ -1,10 +1,13 @@
+// Fichier : lib/pages/collections/wishlist_tab.dart
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart'; // <--- Import ajouté
 import '../../models/scryfall_card_model.dart';
 import '../../models/wishlist_model.dart';
 import '../../services/wishlist_service.dart';
-import '../../pages/cards/card_detail_page.dart'; // Pour RecognitionResultPage
-import '../../pages/wishlists/wishlist_detail_page.dart'; // Pour WishlistDetailPage
+import '../../pages/cards/card_detail_page.dart';
+import '../../pages/wishlists/wishlist_detail_page.dart';
 
 class WishlistTab extends StatefulWidget {
   final List<Wishlist> wishlists;
@@ -80,6 +83,57 @@ class _WishlistTabState extends State<WishlistTab> {
     }
   }
 
+  // Helper pour lancer l'URL
+  Future<void> _launchURL(String? url) async {
+    if (url == null) return;
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossible d'ouvrir le lien.")));
+    }
+  }
+
+  // Menu contextuel pour le Top 10
+  void _showTopCardOptions(ScryfallCard card) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+                subtitle: Text(card.setName, style: const TextStyle(color: Colors.white54)),
+              ),
+              const Divider(color: Colors.white24),
+              
+              if (card.purchaseUris['cardmarket'] != null)
+                ListTile(
+                  leading: const Icon(Icons.shopping_cart, color: Colors.blueAccent),
+                  title: const Text("Voir sur Cardmarket", style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _launchURL(card.purchaseUris['cardmarket']);
+                  },
+                ),
+                
+              ListTile(
+                leading: const Icon(Icons.info_outline, color: Colors.white70),
+                title: const Text("Détails complets", style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: card.name)));
+                },
+              ),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
   // --- UI ---
 
   @override
@@ -87,22 +141,16 @@ class _WishlistTabState extends State<WishlistTab> {
     // 1. Calcul des Top Cartes (Globales)
     final Map<String, ScryfallCard> uniqueCardsMap = {};
     
-    // On parcourt toutes les wishlists pour agréger les cartes
     for (var list in widget.wishlists) {
       for (var card in list.cards) {
         try {
-          // On cherche les données Scryfall complètes (prix, image)
           final sc = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId);
-          // On utilise une map pour éviter les doublons
           uniqueCardsMap[sc.id] = sc; 
-        } catch(e) {
-          // Ignorer si données manquantes
-        }
+        } catch(e) { /* */ }
       }
     }
 
     final List<ScryfallCard> sortedCards = uniqueCardsMap.values.toList();
-    // Tri par prix décroissant
     sortedCards.sort((a, b) {
       final pA = double.tryParse(a.prices['eur'] ?? '0') ?? 0.0;
       final pB = double.tryParse(b.prices['eur'] ?? '0') ?? 0.0;
@@ -172,6 +220,9 @@ class _WishlistTabState extends State<WishlistTab> {
                    onTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (context) => RecognitionResultPage(cardName: card.name)));
                    },
+                   // NOUVEAU : Appui long pour le menu Cardmarket
+                   onLongPress: () => _showTopCardOptions(card),
+                   
                    child: Container(
                      width: 100,
                      margin: const EdgeInsets.only(right: 8),
@@ -226,14 +277,12 @@ class _WishlistTabState extends State<WishlistTab> {
                     final list = widget.wishlists[index];
                     String? coverImageUrl;
                     
-                    // Récupération de l'image de couverture
                     if (list.iconScryfallId != null) {
                       try {
                         final card = widget.fullCardData.firstWhere((s) => s.id == list.iconScryfallId);
                         coverImageUrl = card.smallImageUrl ?? card.imageUrl;
                       } catch(e) {}
                     }
-                    // Fallback sur la première carte
                     if (coverImageUrl == null && list.cards.isNotEmpty) {
                       try {
                          final cId = list.cards.first.scryfallId;

@@ -84,7 +84,13 @@ class _WishlistDetailPageState extends State<WishlistDetailPage> {
     for (var c in _currentWishlist.cards) {
       try {
         final sc = _fullCardData.firstWhere((s) => s.id == c.scryfallId);
-        final price = double.tryParse(sc.prices['eur'] ?? '0') ?? 0.0;
+        
+        // Si la carte est Foil, on cherche le prix foil, sinon normal
+        // Si le prix foil n'existe pas, on fallback sur le normal
+        String priceKey = c.isFoil ? 'eur_foil' : 'eur';
+        final priceStr = sc.prices[priceKey] ?? sc.prices['eur'] ?? '0';
+        
+        final price = double.tryParse(priceStr) ?? 0.0;
         total += price * c.quantity;
       } catch (e) { /* */ }
     }
@@ -232,6 +238,25 @@ class _WishlistDetailPageState extends State<WishlistDetailPage> {
                   financialTotal: _totalValue,
                   hasCalculatedFinance: false,
                   onRefresh: _loadData,
+                  onToggleFoil: (card) async {
+                    // Inverse l'état
+                    bool newFoilState = !card.isFoil;
+                    
+                    // Sauvegarde
+                    await _wishlistService.upsertCard(
+                      wishlistId: _currentWishlist.id,
+                      scryfallId: card.scryfallId,
+                      cardName: card.name,
+                      // On ne change pas la quantité, juste le booléen
+                      isFoil: newFoilState
+                    );
+                    
+                    // Rafraichissement local
+                    final updatedLists = await _wishlistService.loadWishlists();
+                    final updatedList = updatedLists.firstWhere((w) => w.id == _currentWishlist.id);
+                    setState(() => _currentWishlist = updatedList);
+                    _calculateValue(); // Recalcule le prix total (Foil vs Normal)
+                  },
                   onUpdateQuantity: (card, qty) async {
                     await _wishlistService.upsertCard(
                       wishlistId: _currentWishlist.id,
