@@ -14,6 +14,29 @@ permissions:
   contents: write
 
 jobs:
+  # --- 1. NOUVEAU JOB : VÉRIFICATION PYTHON ---
+  check-backend:
+    name: Check Python Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend_rag
+          pip install fastapi uvicorn langchain-chroma langchain-ollama flake8
+
+      - name: Lint with Flake8
+        run: |
+          # Vérifie les erreurs de syntaxe fatales (E9, F63, F7, F82)
+          flake8 backend_rag --count --select=E9,F63,F7,F82 --show-source --statistics
+          
   build-and-release:
     name: Calculate Version & Build
     runs-on: ubuntu-latest
