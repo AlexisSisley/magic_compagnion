@@ -50,3 +50,6 @@ app.*.map.json
 /android/app/release
 assets/json/*.json
 !assets/json/data.zip
+
+backend_rag/chroma_db/
+backend_rag/venv
