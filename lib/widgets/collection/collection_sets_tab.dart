@@ -28,11 +28,11 @@ class CollectionSetsTab extends StatefulWidget {
 class _CollectionSetsTabState extends State<CollectionSetsTab> {
   final SetService _setService = SetService();
   final LocalCardService _localCardService = LocalCardService();
-  final WishlistService _wishlistService = WishlistService(); // Service Wishlist
+  final WishlistService _wishlistService = WishlistService(); 
   
   List<ScryfallSet> _sets = [];
   Map<String, int> _ownedCounts = {};
-  Map<String, int> _wishlistCounts = {}; // Compteur Wishlist par set
+  Map<String, int> _wishlistCounts = {}; 
   
   bool _isLoading = true;
 
@@ -66,35 +66,51 @@ class _CollectionSetsTabState extends State<CollectionSetsTab> {
   }
 
   Future<void> _calculate() async {
-    // 1. Calcul des cartes possédées (Synchrone car venant du widget parent)
-    Map<String, int> owned = {};
+    // FIX: Utilisation de Set<String> pour compter les IDs uniques et non la quantité totale
+    Map<String, Set<String>> uniqueOwnedPerSet = {};
+    Map<String, Set<String>> uniqueWishedPerSet = {};
+
+    // 1. Analyse Collection
     for (var card in widget.collection) {
       final local = _localCardService.getCardById(card.scryfallId);
       if (local != null) {
-        owned[local.setCode] = (owned[local.setCode] ?? 0) + 1;
+        uniqueOwnedPerSet.putIfAbsent(local.setCode, () => {});
+        uniqueOwnedPerSet[local.setCode]!.add(local.id);
       }
     }
 
-    // 2. Calcul des cartes en Wishlist (Asynchrone)
-    Map<String, int> wished = {};
+    // 2. Analyse Wishlists
     final wishlists = await _wishlistService.loadWishlists();
-    
-    // On parcourt toutes les cartes de toutes les wishlists
-    // (On utilise un Set d'IDs par set pour ne pas compter les doublons si une carte est dans 2 wishlists différentes)
     for (var list in wishlists) {
       for (var card in list.cards) {
         final local = _localCardService.getCardById(card.scryfallId);
         if (local != null) {
-          // On incrémente le compteur pour ce set
-          wished[local.setCode] = (wished[local.setCode] ?? 0) + 1;
+          // On ne compte dans la barre "Wishlist" (Bleu) que si on ne l'a pas déjà en Collection (Orange)
+          bool alreadyOwned = uniqueOwnedPerSet[local.setCode]?.contains(local.id) ?? false;
+          if (!alreadyOwned) {
+            uniqueWishedPerSet.putIfAbsent(local.setCode, () => {});
+            uniqueWishedPerSet[local.setCode]!.add(local.id);
+          }
         }
       }
     }
 
+    // 3. Conversion en entiers pour l'affichage
+    Map<String, int> finalOwned = {};
+    Map<String, int> finalWished = {};
+
+    uniqueOwnedPerSet.forEach((setCode, ids) {
+      finalOwned[setCode] = ids.length;
+    });
+    
+    uniqueWishedPerSet.forEach((setCode, ids) {
+      finalWished[setCode] = ids.length;
+    });
+
     if (mounted) {
       setState(() {
-        _ownedCounts = owned;
-        _wishlistCounts = wished;
+        _ownedCounts = finalOwned;
+        _wishlistCounts = finalWished;
       });
     }
   }
@@ -122,7 +138,7 @@ class _CollectionSetsTabState extends State<CollectionSetsTab> {
           
           final int owned = _ownedCounts[set.code] ?? 0;
           final int wished = _wishlistCounts[set.code] ?? 0;
-          final int total = set.cardCount > 0 ? set.cardCount : 1; // Évite division par 0
+          final int total = set.cardCount > 0 ? set.cardCount : 1;
 
           return Card(
             color: Colors.white.withOpacity(0.05),
@@ -142,7 +158,6 @@ class _CollectionSetsTabState extends State<CollectionSetsTab> {
                   ListTile(
                     leading: SizedBox(width: 40, child: SvgPicture.network(set.iconSvgUri ?? '', colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn))),
                     title: Text(set.name, style: GoogleFonts.cinzel(color: Colors.white)),
-                    // Sous-titre avec détail : Possédés + Wishlist / Total
                     subtitle: RichText(
                       text: TextSpan(
                         style: const TextStyle(color: Colors.white54, fontSize: 12),
@@ -157,7 +172,6 @@ class _CollectionSetsTabState extends State<CollectionSetsTab> {
                     trailing: const Icon(Icons.chevron_right, color: Colors.white24),
                   ),
                   
-                  // --- BARRE DE PROGRESSION DUO (Orange + Bleu) ---
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: _buildMultiProgressBar(total, owned, wished),
@@ -172,8 +186,6 @@ class _CollectionSetsTabState extends State<CollectionSetsTab> {
   }
 
   Widget _buildMultiProgressBar(int total, int owned, int wished) {
-    // Calcul des proportions pour les Flex
-    // On s'assure que owned + wished ne dépasse pas total (visuellement)
     int displayOwned = owned;
     int displayWished = wished;
     
@@ -187,36 +199,21 @@ class _CollectionSetsTabState extends State<CollectionSetsTab> {
     int empty = total - displayOwned - displayWished;
     if (empty < 0) empty = 0;
 
-    // Si total est 0 (bug API ou autre), on affiche une barre vide
     if (total == 0) return const SizedBox(height: 4);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(2),
       child: Container(
         height: 4,
-        color: Colors.white10, // Couleur de fond (partie vide)
+        color: Colors.white10,
         child: Row(
           children: [
-            // Partie 1 : Cartes Possédées (Orange)
             if (displayOwned > 0)
-              Expanded(
-                flex: displayOwned,
-                child: Container(color: Colors.orangeAccent),
-              ),
-            
-            // Partie 2 : Cartes Wishlist (Bleu) - À la suite
+              Expanded(flex: displayOwned, child: Container(color: Colors.orangeAccent)),
             if (displayWished > 0)
-              Expanded(
-                flex: displayWished,
-                child: Container(color: Colors.blueAccent),
-              ),
-            
-            // Partie 3 : Vide (Remplissage)
+              Expanded(flex: displayWished, child: Container(color: Colors.blueAccent)),
             if (empty > 0)
-              Expanded(
-                flex: empty,
-                child: Container(color: Colors.transparent),
-              ),
+              Expanded(flex: empty, child: Container(color: Colors.transparent)),
           ],
         ),
       ),

@@ -11,6 +11,7 @@ import '../../models/scryfall_card_model.dart';
 import '../../services/collection_service.dart';
 import '../../services/wishlist_service.dart';
 import '../../pages/cards/card_detail_page.dart';
+import 'set_stats_page.dart'; // Pour les stats globales du set
 
 class SetDetailPage extends StatefulWidget {
   final ScryfallSet set;
@@ -29,20 +30,17 @@ class SetDetailPage extends StatefulWidget {
 }
 
 class _SetDetailPageState extends State<SetDetailPage> {
-  // Données brutes
   List<ScryfallCard> _allCards = [];
-  // Données affichées
   List<ScryfallCard> _displayedCards = [];
   
   bool _isLoading = true;
-  Set<String> _ownedIds = {}; 
-  Set<String> _wishlistIds = {}; 
-  Set<String> _selectedIds = {}; 
   
-  Map<String, int> _rarityCounts = {
-    'common': 0, 'uncommon': 0, 'rare': 0, 'mythic': 0
-  };
-
+  // Sets pour savoir ce qu'on possède : Stocke "ID_NORMAL" ou "ID_FOIL"
+  Set<String> _ownedKeys = {}; 
+  Set<String> _wishlistKeys = {}; 
+  Set<String> _selectedKeys = {}; // Clé composite : "scryfallId|foil" ou "scryfallId|normal"
+  
+  Map<String, int> _rarityCounts = {'common': 0, 'uncommon': 0, 'rare': 0, 'mythic': 0};
   final Set<String> _selectedRarities = {}; 
   final Set<String> _selectedColors = {};   
 
@@ -52,16 +50,29 @@ class _SetDetailPageState extends State<SetDetailPage> {
     _loadSetCards();
   }
 
-  // --- CHARGEMENT ---
+  // --- LOGIQUE CLÉ UNIQUE ---
+  String _makeKey(String id, bool isFoil) => "$id|${isFoil ? 'foil' : 'normal'}";
+
   Future<void> _loadSetCards() async {
     setState(() => _isLoading = true);
 
+    // 1. Chargement Collection avec distinction Foil
     final col = await widget.collectionService.loadCollection();
-    _ownedIds = col.map((c) => c.scryfallId).toSet();
+    _ownedKeys.clear();
+    for (var c in col) {
+      _ownedKeys.add(_makeKey(c.scryfallId, c.isFoil));
+    }
 
+    // 2. Chargement Wishlists
     final wishlists = await widget.wishlistService.loadWishlists();
-    _wishlistIds = wishlists.expand((w) => w.cards).map((c) => c.scryfallId).toSet();
+    _wishlistKeys.clear();
+    for (var w in wishlists) {
+      for (var c in w.cards) {
+        _wishlistKeys.add(_makeKey(c.scryfallId, c.isFoil));
+      }
+    }
 
+    // 3. Récupération Cartes API
     List<ScryfallCard> accumulator = [];
     String? nextPageUrl = 'https://api.scryfall.com/cards/search?q=e:${widget.set.code}&unique=prints&order=set';
 
@@ -98,12 +109,10 @@ class _SetDetailPageState extends State<SetDetailPage> {
     }
   }
 
-  // --- FILTRES ---
   void _applyFilters() {
     setState(() {
       _displayedCards = _allCards.where((card) {
         if (_selectedRarities.isNotEmpty && !_selectedRarities.contains(card.rarity.toLowerCase())) return false;
-        
         if (_selectedColors.isNotEmpty) {
           bool matchColor = false;
           if (_selectedColors.contains('C') && card.colorIdentity.isEmpty) matchColor = true;
@@ -134,23 +143,31 @@ class _SetDetailPageState extends State<SetDetailPage> {
   }
 
   // --- SÉLECTION ---
-  void _toggleSelection(String cardId) {
+  void _toggleSelection(String id, bool isFoil) {
+    final key = _makeKey(id, isFoil);
     setState(() {
-      if (_selectedIds.contains(cardId)) _selectedIds.remove(cardId); else _selectedIds.add(cardId);
+      if (_selectedKeys.contains(key)) _selectedKeys.remove(key); else _selectedKeys.add(key);
     });
   }
 
   void _selectAllMissingFiltered() {
-    final missingInView = _displayedCards.where((c) => !_ownedIds.contains(c.id)).map((c) => c.id).toSet();
-    setState(() => _selectedIds.addAll(missingInView));
+    // Sélectionne toutes les versions Normales ET Foil qui manquent dans la vue actuelle
+    for (var c in _displayedCards) {
+      final keyNormal = _makeKey(c.id, false);
+      // ignore: unused_local_variable
+      final keyFoil = _makeKey(c.id, true);
+      
+      if (!_ownedKeys.contains(keyNormal)) _selectedKeys.add(keyNormal);
+      // On n'ajoute pas auto les foils pour ne pas tout polluer, 
+      // ou on pourrait le faire si l'utilisateur le veut vraiment. 
+      // Pour l'instant, on sélectionne juste les normales manquantes pour le "Select All".
+    }
+    setState(() {});
   }
 
-  void _clearSelection() => setState(() => _selectedIds.clear());
+  void _clearSelection() => setState(() => _selectedKeys.clear());
 
   // --- ACTIONS ---
-
-  /// Affiche une modale pour choisir la wishlist de destination
-  /// Retourne l'ID de la wishlist choisie, ou null si annulé.
   Future<String?> _askWishlistDestination() async {
     final wishlists = await widget.wishlistService.loadWishlists();
     final String setName = widget.set.name;
@@ -162,50 +179,24 @@ class _SetDetailPageState extends State<SetDetailPage> {
           backgroundColor: const Color(0xFF1A1A1A),
           title: Text("Ajouter à...", style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
           children: [
-            // Option 1 : Créer une nouvelle liste pour ce set
             SimpleDialogOption(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               onPressed: () async {
-                // On crée la liste
                 await widget.wishlistService.createWishlist(setName);
-                // On recharge pour récupérer son ID (c'est la dernière créée)
                 final updatedLists = await widget.wishlistService.loadWishlists();
                 final newList = updatedLists.lastWhere((w) => w.name == setName, orElse: () => updatedLists.last);
-                
                 if (mounted) Navigator.pop(context, newList.id);
               },
-              child: Row(
-                children: [
-                  const Icon(Icons.add_circle, color: Colors.greenAccent),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      "Nouvelle : $setName",
-                      style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
+              child: Row(children: [const Icon(Icons.add_circle, color: Colors.greenAccent), const SizedBox(width: 12), Expanded(child: Text("Nouvelle : $setName", style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis))]),
             ),
             const Divider(color: Colors.white24),
-            // Option 2 : Listes existantes
             if (wishlists.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text("Aucune liste existante.", style: TextStyle(color: Colors.white54)),
-              )
+              const Padding(padding: EdgeInsets.all(16.0), child: Text("Aucune liste existante.", style: TextStyle(color: Colors.white54)))
             else
               ...wishlists.map((w) => SimpleDialogOption(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 onPressed: () => Navigator.pop(context, w.id),
-                child: Row(
-                  children: [
-                    const Icon(Icons.folder_open, color: Colors.blueAccent),
-                    const SizedBox(width: 12),
-                    Text(w.name, style: GoogleFonts.cinzel(color: Colors.white70)),
-                  ],
-                ),
+                child: Row(children: [const Icon(Icons.folder_open, color: Colors.blueAccent), const SizedBox(width: 12), Text(w.name, style: GoogleFonts.cinzel(color: Colors.white70))]),
               )),
           ],
         );
@@ -214,55 +205,76 @@ class _SetDetailPageState extends State<SetDetailPage> {
   }
 
   Future<void> _addSelectedTo(bool toCollection) async {
-    if (_selectedIds.isEmpty) return;
-
+    if (_selectedKeys.isEmpty) return;
     String? targetWishlistId;
-
-    // Si c'est pour la Wishlist, on demande où mettre les cartes
     if (!toCollection) {
       targetWishlistId = await _askWishlistDestination();
-      if (targetWishlistId == null) return; // Annulé par l'utilisateur
+      if (targetWishlistId == null) return;
     }
 
     setState(() => _isLoading = true);
-    
     int count = 0;
-    final cardsToAdd = _allCards.where((c) => _selectedIds.contains(c.id)).toList();
 
-    for (var card in cardsToAdd) {
-      if (toCollection) {
-        await widget.collectionService.addCard(card, 1);
-      } else {
-        // Ajout à la wishlist spécifique
-        await widget.wishlistService.upsertCard(
-          wishlistId: targetWishlistId,
-          scryfallId: card.id,
-          cardName: card.name,
-          quantityToAdd: 1
-        );
+    // Traitement des clés sélectionnées
+    for (String key in _selectedKeys) {
+      final parts = key.split('|');
+      final id = parts[0];
+      final isFoil = parts[1] == 'foil';
+      
+      try {
+        final card = _allCards.firstWhere((c) => c.id == id);
+        
+        if (toCollection) {
+          // Ajout avec le bon flag Foil
+          await widget.collectionService.addCard(card, 1, isFoil: isFoil);
+        } else {
+          await widget.wishlistService.upsertCard(
+            wishlistId: targetWishlistId, 
+            scryfallId: card.id, 
+            cardName: card.name, 
+            quantityToAdd: 1,
+            isFoil: isFoil
+          );
+        }
+        count++;
+      } catch (e) {
+        // Carte introuvable (rare)
       }
-      count++;
     }
     
-    // Rafraichissement des indicateurs
+    // Rafraichissement
     if (toCollection) {
       final col = await widget.collectionService.loadCollection();
-      _ownedIds = col.map((c) => c.scryfallId).toSet();
+      _ownedKeys.clear();
+      for (var c in col) _ownedKeys.add(_makeKey(c.scryfallId, c.isFoil));
     } else {
       final w = await widget.wishlistService.loadWishlists();
-      _wishlistIds = w.expand((l) => l.cards).map((c) => c.scryfallId).toSet();
+      _wishlistKeys.clear();
+      for (var l in w) {
+        for (var c in l.cards) _wishlistKeys.add(_makeKey(c.scryfallId, c.isFoil));
+      }
     }
 
-    setState(() { _isLoading = false; _selectedIds.clear(); });
+    setState(() { _isLoading = false; _selectedKeys.clear(); });
     if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$count cartes ajoutées !"), backgroundColor: Colors.green));
   }
 
-  // --- UI ---
+  void _openStats() async {
+    final fullCollection = await widget.collectionService.loadCollection();
+    final setCollection = fullCollection.where((dc) => _allCards.any((sc) => sc.id == dc.scryfallId)).toList();
+
+    if (!mounted) return;
+    Navigator.push(context, MaterialPageRoute(
+      builder: (context) => SetStatsPage(targetSet: widget.set, myCollection: setCollection, fullSetData: _allCards)
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Calcul des totaux (uniques)
     final int totalSetCount = _allCards.length;
-    final int totalOwned = _allCards.where((c) => _ownedIds.contains(c.id)).length;
-    final int totalMissing = totalSetCount - totalOwned;
+    final int totalOwnedUnique = _allCards.where((c) => _ownedKeys.contains(_makeKey(c.id, false)) || _ownedKeys.contains(_makeKey(c.id, true))).length;
+    final int totalMissing = totalSetCount - totalOwnedUnique;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
@@ -271,15 +283,16 @@ class _SetDetailPageState extends State<SetDetailPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.set.name, style: GoogleFonts.cinzel(fontSize: 16)),
-            Text("${widget.set.code.toUpperCase()} • ${_displayedCards.length} affichées", style: GoogleFonts.roboto(fontSize: 12, color: Colors.white70)),
+            Text("${widget.set.code.toUpperCase()} • ${_displayedCards.length} cartes", style: GoogleFonts.roboto(fontSize: 12, color: Colors.white70)),
           ],
         ),
         backgroundColor: Colors.black,
         actions: [
-          if (_selectedIds.isNotEmpty)
+          if (!_isLoading) IconButton(icon: const Icon(Icons.pie_chart, color: Colors.blueAccent), tooltip: "Statistiques du Set", onPressed: _openStats),
+          if (_selectedKeys.isNotEmpty)
              IconButton(icon: const Icon(Icons.deselect), tooltip: "Tout désélectionner", onPressed: _clearSelection)
           else if (!_isLoading)
-            IconButton(icon: const Icon(Icons.select_all), tooltip: "Sélectionner les manquantes (visibles)", onPressed: _selectAllMissingFiltered),
+            IconButton(icon: const Icon(Icons.select_all), tooltip: "Sélectionner les manquantes (Normales)", onPressed: _selectAllMissingFiltered),
         ],
       ),
       body: _isLoading 
@@ -296,18 +309,107 @@ class _SetDetailPageState extends State<SetDetailPage> {
                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                        crossAxisCount: 3, childAspectRatio: 0.7, crossAxisSpacing: 8, mainAxisSpacing: 8
                      ),
-                     itemCount: _displayedCards.length,
-                     itemBuilder: (context, index) => _buildCardTile(_displayedCards[index]),
+                     // "Double" le nombre d'items pour afficher Normal ET Foil
+                     itemCount: _displayedCards.length * 2,
+                     itemBuilder: (context, index) {
+                       final cardIndex = index ~/ 2;
+                       final isFoilSlot = index % 2 == 1;
+                       return _buildCardTile(_displayedCards[cardIndex], isFoilSlot);
+                     },
                    ),
                ),
             ],
           ),
-      bottomNavigationBar: _selectedIds.isNotEmpty ? _buildBottomActionAmount() : null,
+      bottomNavigationBar: _selectedKeys.isNotEmpty ? _buildBottomActionAmount() : null,
     );
   }
 
   // --- WIDGETS ---
 
+  Widget _buildCardTile(ScryfallCard card, bool isFoilSlot) {
+    final String key = _makeKey(card.id, isFoilSlot);
+    final bool isOwned = _ownedKeys.contains(key);
+    final bool isSelected = _selectedKeys.contains(key);
+    final bool isWanted = _wishlistKeys.contains(key);
+
+    // Vérifie si le prix foil existe pour griser le slot s'il n'existe pas
+    // (Une carte sans version foil ne devrait pas être cliquable en mode foil)
+    final bool foilAvailable = isFoilSlot ? (card.prices['eur_foil'] != null || card.prices['usd_foil'] != null) : true;
+
+    if (isFoilSlot && !foilAvailable) {
+      // Slot vide ou désactivé pour les cartes qui n'existent pas en foil
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.02),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.white10)
+        ),
+        child: const Center(child: Icon(Icons.block, color: Colors.white10)),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => _toggleSelection(card.id, isFoilSlot),
+      onLongPress: () {
+        Navigator.push(context, MaterialPageRoute(builder: (context) => RecognitionResultPage(cardName: card.name)));
+      },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Opacity(
+            opacity: isSelected ? 1.0 : (isOwned ? 1.0 : 0.4),
+            child: Card(
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6), 
+                side: isSelected 
+                  ? BorderSide(color: Colors.yellow.shade700, width: 3) 
+                  : (isOwned ? BorderSide(color: Colors.green.shade800, width: 2) : BorderSide.none)
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.network(card.smallImageUrl ?? '', fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(color: Colors.grey[800], child: const Icon(Icons.image_not_supported))),
+                  // Effet visuel FOIL
+                  if (isFoilSlot)
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft, end: Alignment.bottomRight,
+                          colors: [Colors.transparent, Colors.purple.withOpacity(0.3), Colors.transparent, Colors.amber.withOpacity(0.3)],
+                          stops: const [0.0, 0.4, 0.6, 1.0]
+                        )
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          
+          if (isSelected)
+            Positioned(top: 4, right: 4, child: Container(decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle), child: const Icon(Icons.check_circle, color: Colors.yellow, size: 24))),
+          if (isOwned && !isSelected)
+             Positioned(top: 4, left: 4, child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.inventory_2, color: Colors.green, size: 16))),
+          if (isWanted && !isSelected && !isOwned)
+             Positioned(top: 4, right: 4, child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: Icon(Icons.star, color: Colors.blue.shade400, size: 16))),
+
+          // Badge Foil / Normal
+          Positioned(
+            bottom: 4, right: 4, 
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), 
+              decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white24)), 
+              child: Text(isFoilSlot ? "FOIL" : "NORM", style: TextStyle(color: isFoilSlot ? Colors.amberAccent : Colors.white, fontSize: 9, fontWeight: FontWeight.bold))
+            )
+          ),
+          
+          Positioned(bottom: 4, left: 4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)), child: Text("#${card.collectorNumber}", style: const TextStyle(color: Colors.white, fontSize: 10)))),
+        ],
+      ),
+    );
+  }
+
+  // ... (Le reste des widgets : _buildBottomActionAmount, _buildQuickFilters, etc. reste inchangé)
   Widget _buildBottomActionAmount() {
     return Container(
       decoration: BoxDecoration(
@@ -321,83 +423,25 @@ class _SetDetailPageState extends State<SetDetailPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Flexible(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                   Icon(Icons.style, color: Colors.yellow.shade800, size: 20),
-                   const SizedBox(width: 8),
-                   Flexible(
-                     child: Text("${_selectedIds.length} carte(s)", style: GoogleFonts.cinzel(color: const Color(0xFFE0E0E0), fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis),
-                   ),
-                ],
-              ),
-            ),
+            Flexible(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.style, color: Colors.yellow.shade800, size: 20), const SizedBox(width: 8), Flexible(child: Text("${_selectedKeys.length} carte(s)", style: GoogleFonts.cinzel(color: const Color(0xFFE0E0E0), fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis))])),
             const SizedBox(width: 8),
-            Row(
-              children: [
+            Row(children: [
                 ElevatedButton.icon(
                   onPressed: () => _addSelectedTo(false), 
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E3A8A), foregroundColor: const Color(0xFFBFDBFE), 
-                    side: BorderSide(color: Colors.blue.shade300.withOpacity(0.3)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    elevation: 4,
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A), foregroundColor: const Color(0xFFBFDBFE), side: BorderSide(color: Colors.blue.shade300.withOpacity(0.3)), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), elevation: 4),
                   icon: const Icon(Icons.star, size: 16),
                   label: Text("Wishlist", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold, fontSize: 13)),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton.icon(
                   onPressed: () => _addSelectedTo(true), 
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF064E3B), foregroundColor: const Color(0xFFA7F3D0),
-                    side: BorderSide(color: Colors.green.shade300.withOpacity(0.3)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    elevation: 4,
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF064E3B), foregroundColor: const Color(0xFFA7F3D0), side: BorderSide(color: Colors.green.shade300.withOpacity(0.3)), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), elevation: 4),
                   icon: const Icon(Icons.inventory_2, size: 16),
                   label: Text("Collect.", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold, fontSize: 13)),
                 ),
-              ],
-            )
+            ])
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildCardTile(ScryfallCard card) {
-    final bool isOwned = _ownedIds.contains(card.id);
-    final bool isSelected = _selectedIds.contains(card.id);
-    final bool isWanted = _wishlistIds.contains(card.id);
-
-    return GestureDetector(
-      onTap: () => _toggleSelection(card.id),
-      onLongPress: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => RecognitionResultPage(cardName: card.name)));
-      },
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Opacity(
-            opacity: isSelected ? 1.0 : (isOwned ? 1.0 : 0.4),
-            child: Card(
-              clipBehavior: Clip.antiAlias,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: isSelected ? BorderSide(color: Colors.yellow.shade700, width: 3) : (isOwned ? BorderSide(color: Colors.green.shade800, width: 2) : BorderSide.none)),
-              child: Image.network(card.smallImageUrl ?? '', fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(color: Colors.grey[800], child: const Icon(Icons.image_not_supported))),
-            ),
-          ),
-          if (isSelected)
-            Positioned(top: 4, right: 4, child: Container(decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle), child: const Icon(Icons.check_circle, color: Colors.yellow, size: 24))),
-           if (isOwned && !isSelected)
-             Positioned(top: 4, left: 4, child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.inventory_2, color: Colors.green, size: 16))),
-           
-           if (isWanted && !isSelected && !isOwned)
-             Positioned(top: 4, right: 4, child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: Icon(Icons.star, color: Colors.blue.shade400, size: 16))),
-
-            Positioned(bottom: 4, right: 4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)), child: Text("#${card.collectorNumber}", style: const TextStyle(color: Colors.white, fontSize: 10)))),
-        ],
       ),
     );
   }

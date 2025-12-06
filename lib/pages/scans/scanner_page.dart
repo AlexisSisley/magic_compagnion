@@ -1,15 +1,16 @@
-// Fichier : lib/pages/scanner_page.dart
-// VERSION MISE À JOUR : Ajout Recherche Manuelle (Fallback Local)
+// Fichier : lib/pages/scans/scanner_page.dart
+// CORRECTION : Fix Race Condition permission caméra + ResolutionPreset
 
-import 'dart:async'; // Ajouté pour le Debounce
+import 'dart:async';
+import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart'; 
 import 'package:magic_companion/pages/cards/card_detail_page.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'scan_history_page.dart'; 
-import '../../services/local_card_service.dart'; // Import du service
-import '../../models/scryfall_card_model.dart'; // Import du modèle
+import '../../services/local_card_service.dart';
+import '../../models/scryfall_card_model.dart';
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
@@ -25,6 +26,8 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
   
   bool _isCameraInitialized = false;
   bool _isPermissionDenied = false;
+  // ignore: unused_field
+  bool _isInitializing = false; // Verrou pour éviter la double initialisation
   String _errorMessage = "";
   bool _isFlashOn = false;
 
@@ -36,7 +39,10 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); 
+    
+    // On lance l'initialisation. Le verrou _isInitializing gérera les conflits.
     _initializeCamera();
+    
     _localCardService.loadLocalData();
 
     // Init Animation
@@ -52,49 +58,64 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
     final CameraController? cameraController = _controller;
 
+    // Si l'app passe en pause (background ou autre app), on libère la caméra
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
-      if (cameraController != null) {
-        cameraController.dispose();
+      if (cameraController != null && cameraController.value.isInitialized) {
+        // On ne dispose pas immédiatement pour éviter les soucis si c'est juste un switch rapide,
+        // mais c'est une bonne pratique de libérer les ressources.
+        // Ici, on marque juste comme non initialisé pour forcer le rebuild UI.
         if (mounted) setState(() => _isCameraInitialized = false);
+        cameraController.dispose(); // Libération réelle
+        _controller = null;
       }
-    } else if (state == AppLifecycleState.resumed) {
-      if (cameraController == null || !cameraController.value.isInitialized) {
+    } 
+    // Si l'app reprend
+    else if (state == AppLifecycleState.resumed) {
+      // On ne relance l'init que si on n'est pas déjà en train de le faire
+      // et que le controller est null ou non initialisé.
+      if (!_isInitializing && (_controller == null || !_controller!.value.isInitialized)) {
          _initializeCamera();
       }
     }
   }
 
   Future<void> _initializeCamera() async {
-    if (mounted) {
-      setState(() {
-        _isCameraInitialized = false;
-        _isPermissionDenied = false;
-        _errorMessage = "";
-      });
-    }
-    
-    if (_controller != null) await _controller!.dispose();
-  
-    var status = await Permission.camera.request();
-    if (!status.isGranted) {
-      if (mounted) {
-        setState(() {
-          _isPermissionDenied = true;
-          _errorMessage = "Permission caméra refusée.";
-        });
-      }
-      return;
-    }
+    if (_isInitializing) return; // Sécurité anti-conflit
+    _isInitializing = true;
 
     try {
+      // 1. Vérification Permission
+      var status = await Permission.camera.status;
+      if (!status.isGranted) {
+        status = await Permission.camera.request();
+        if (!status.isGranted) {
+          if (mounted) {
+            setState(() {
+              _isPermissionDenied = true;
+              _errorMessage = "Permission caméra refusée. Veuillez l'activer dans les paramètres.";
+              _isInitializing = false;
+            });
+          }
+          return;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _isPermissionDenied = false;
+          _errorMessage = "";
+        });
+      }
+
+      // 2. Récupération Caméras
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
          if (mounted) setState(() {
             _isPermissionDenied = true;
-            _errorMessage = "Aucune caméra disponible.";
+            _errorMessage = "Aucune caméra détectée.";
+            _isInitializing = false;
           });
         return;
       }
@@ -104,24 +125,38 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
           orElse: () => cameras.first
       );
       
-      _controller = CameraController(
+      // 3. Création Controller
+      // IMPORTANT : Utiliser ResolutionPreset.high au lieu de .max pour la stabilité sur Android
+      final controller = CameraController(
         firstCamera,
-        ResolutionPreset.max, 
+        ResolutionPreset.high, 
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.jpeg,
+        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.jpeg : ImageFormatGroup.bgra8888,
       );
       
-      await _controller!.initialize();
-      await _controller!.setFlashMode(FlashMode.off);
+      _controller = controller;
 
-      if (mounted) setState(() => _isCameraInitialized = true);
+      // 4. Initialisation effective
+      await controller.initialize();
+      await controller.setFlashMode(FlashMode.off);
+
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = true;
+          _isInitializing = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isPermissionDenied = true;
-          _errorMessage = "Erreur caméra: ${e.toString()}";
+          _errorMessage = "Erreur caméra: $e";
+          _isInitializing = false;
         });
       }
+      print("Erreur Init Caméra: $e");
+    } finally {
+      _isInitializing = false;
     }
   }
 
@@ -155,7 +190,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
     }
   }
 
-  // --- NOUVEAU : MODALE DE RECHERCHE MANUELLE ---
   void _showManualSearch() {
     showModalBottomSheet(
       context: context,
@@ -178,14 +212,13 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text('Scanner HD', style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
+        title: Text('Scanner', style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
         backgroundColor: Colors.black.withValues(alpha: 0.5),
         elevation: 0, 
         actions: [
-          // Bouton Recherche Manuelle
           IconButton(
             icon: const Icon(Icons.search, color: Colors.white),
-            tooltip: "Recherche manuelle (si OCR échoue)",
+            tooltip: "Recherche manuelle",
             onPressed: _showManualSearch,
           ),
           IconButton(
@@ -201,7 +234,34 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
 
   Widget _buildCameraPreview() {
     if (_isPermissionDenied) {
-      return Center(child: Text(_errorMessage, style: GoogleFonts.cinzel(color: Colors.red.shade300)));
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.no_photography, size: 64, color: Colors.redAccent),
+              const SizedBox(height: 16),
+              Text(
+                "Accès caméra requis", 
+                style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage.isEmpty ? "Veuillez autoriser l'accès." : _errorMessage,
+                style: const TextStyle(color: Colors.white70),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _initializeCamera,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+                child: const Text("Réessayer"),
+              )
+            ],
+          ),
+        )
+      );
     }
     
     if (_isCameraInitialized && _controller != null && _controller!.value.isInitialized) {
@@ -253,7 +313,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
   }
 
   Future<void> _onTakePicture() async {
-    if (_controller == null || !_controller!.value.isInitialized) return;
+    if (_controller == null || !_controller!.value.isInitialized || _isInitializing) return;
     try {
       final XFile picture = await _controller!.takePicture();
       if (!mounted) return; 
@@ -286,7 +346,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
   }
 }
 
-// --- SOUS-WIDGET : MODALE DE RECHERCHE ---
+// --- SOUS-WIDGET : MODALE DE RECHERCHE (Inchangé) ---
 class _ManualSearchModal extends StatefulWidget {
   final LocalCardService localCardService;
   const _ManualSearchModal({required this.localCardService});
@@ -302,9 +362,8 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () async { // <-- async ajouté
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
       if (query.trim().length >= 2) {
-        // Ajout du await
         final results = await widget.localCardService.searchCards(query: query); 
         if (mounted) {
           setState(() {
@@ -382,8 +441,7 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
                           subtitle: Text(card.typeLine, style: const TextStyle(color: Colors.white54, fontSize: 12)),
                           trailing: const Icon(Icons.chevron_right, color: Colors.white24),
                           onTap: () {
-                            Navigator.pop(context); // Ferme la modale
-                            // Navigue vers la page de détail comme si on avait scanné
+                            Navigator.pop(context);
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -402,6 +460,7 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
   }
 }
 
+// --- PAINTER POUR L'OVERLAY (Inchangé) ---
 class ScannerOverlayPainter extends CustomPainter {
   final double scanValue;
   final Color borderColor;
@@ -412,7 +471,6 @@ class ScannerOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..style = PaintingStyle.fill;
 
-    // Dimensions de la zone de scan (Ratio Carte Magic ~ 63x88mm)
     final double cardWidth = size.width * 0.75;
     final double cardHeight = cardWidth * 1.4; 
     
@@ -421,22 +479,14 @@ class ScannerOverlayPainter extends CustomPainter {
     final Rect scanRect = Rect.fromLTWH(left, top, cardWidth, cardHeight);
     final RRect scanRRect = RRect.fromRectAndRadius(scanRect, const Radius.circular(12));
 
-    // 1. Fond sombre semi-transparent avec "trou"
-    final Path backgroundPath = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-    final Path cutoutPath = Path()
-      ..addRRect(scanRRect);
+    final Path backgroundPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final Path cutoutPath = Path()..addRRect(scanRRect);
     
-    final Path overlayPath = Path.combine(
-      PathOperation.difference,
-      backgroundPath,
-      cutoutPath,
-    );
+    final Path overlayPath = Path.combine(PathOperation.difference, backgroundPath, cutoutPath);
 
-    paint.color = Colors.black.withOpacity(0.6); // Assombrissement
+    paint.color = Colors.black.withOpacity(0.6);
     canvas.drawPath(overlayPath, paint);
 
-    // 2. Bordure
     final borderPaint = Paint()
       ..color = borderColor
       ..style = PaintingStyle.stroke
@@ -444,7 +494,6 @@ class ScannerOverlayPainter extends CustomPainter {
     
     canvas.drawRRect(scanRRect, borderPaint);
 
-    // 3. Coins décoratifs (Style "Viseur")
     final cornerPaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
@@ -452,16 +501,11 @@ class ScannerOverlayPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     double cornerSize = 20;
-    // Coin Haut-Gauche
     canvas.drawPath(Path()..moveTo(left, top + cornerSize)..lineTo(left, top)..lineTo(left + cornerSize, top), cornerPaint);
-    // Coin Haut-Droite
     canvas.drawPath(Path()..moveTo(left + cardWidth, top + cornerSize)..lineTo(left + cardWidth, top)..lineTo(left + cardWidth - cornerSize, top), cornerPaint);
-    // Coin Bas-Gauche
     canvas.drawPath(Path()..moveTo(left, top + cardHeight - cornerSize)..lineTo(left, top + cardHeight)..lineTo(left + cornerSize, top + cardHeight), cornerPaint);
-    // Coin Bas-Droite
     canvas.drawPath(Path()..moveTo(left + cardWidth, top + cardHeight - cornerSize)..lineTo(left + cardWidth, top + cardHeight)..lineTo(left + cardWidth - cornerSize, top + cardHeight), cornerPaint);
 
-    // 4. Ligne de Scan (Laser)
     final double scanY = top + (cardHeight * scanValue);
     final laserPaint = Paint()
       ..shader = LinearGradient(
@@ -473,7 +517,5 @@ class ScannerOverlayPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant ScannerOverlayPainter oldDelegate) {
-    return oldDelegate.scanValue != scanValue;
-  }
+  bool shouldRepaint(covariant ScannerOverlayPainter oldDelegate) => oldDelegate.scanValue != scanValue;
 }

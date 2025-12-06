@@ -24,56 +24,68 @@ class CollectionService {
     await prefs.setString(_collectionKey, json.encode(jsonList));
   }
 
+  /// Ajoute ou modifie une carte dans la collection.
+  /// Supporte maintenant la distinction Foil / Non-Foil.
   Future<List<DeckCard>> upsertCardInCollection({
     required String scryfallId,
     required String cardName,
     int? quantityToAdd,     
-    int? absoluteQuantity,  
+    int? absoluteQuantity,
+    bool isFoil = false, // <--- NOUVEAU PARAMÈTRE
   }) async {
     final collection = await loadCollection();
-    _upsertInMemory(collection, scryfallId, cardName, quantityToAdd, absoluteQuantity);
+    _upsertInMemory(collection, scryfallId, cardName, quantityToAdd, absoluteQuantity, isFoil: isFoil);
     await _saveCollection(collection);
     return collection;
   }
 
-  // Helper privé pour ne pas sauvegarder à chaque boucle lors d'un batch
-  void _upsertInMemory(List<DeckCard> collection, String scryfallId, String cardName, int? qtyAdd, int? absQty) {
+  // Helper privé
+  void _upsertInMemory(List<DeckCard> collection, String scryfallId, String cardName, int? qtyAdd, int? absQty, {bool isFoil = false}) {
     try {
-      final existingCard = collection.firstWhere((c) => c.scryfallId == scryfallId);
+      // On cherche une carte avec le même ID ET la même finition (Foil/Normal)
+      final existingCard = collection.firstWhere(
+        (c) => c.scryfallId == scryfallId && c.isFoil == isFoil
+      );
+      
       int newQuantity = existingCard.quantity;
       if (qtyAdd != null) newQuantity += qtyAdd;
       else if (absQty != null) newQuantity = absQty;
 
       if (newQuantity <= 0) collection.remove(existingCard); 
       else existingCard.quantity = newQuantity; 
+      
     } catch (e) {
+      // Pas trouvée, on crée une nouvelle entrée
       int newQuantity = 0;
       if (qtyAdd != null) newQuantity = qtyAdd;
       else if (absQty != null) newQuantity = absQty;
+      
       if (newQuantity > 0) {
-        collection.add(DeckCard(scryfallId: scryfallId, name: cardName, quantity: newQuantity));
+        collection.add(DeckCard(
+          scryfallId: scryfallId, 
+          name: cardName, 
+          quantity: newQuantity,
+          isFoil: isFoil // <--- Stockage de l'info Foil
+        ));
       }
     }
   }
   
-   Future<void> addCard(ScryfallCard card, int quantity) async {
-      await upsertCardInCollection(scryfallId: card.id, cardName: card.name, quantityToAdd: quantity);
+   Future<void> addCard(ScryfallCard card, int quantity, {bool isFoil = false}) async {
+      await upsertCardInCollection(
+        scryfallId: card.id, 
+        cardName: card.name, 
+        quantityToAdd: quantity,
+        isFoil: isFoil
+      );
    }
 
-   // --- NOUVEAU : IMPORTATION DE MASSE (BATCH) ---
-   
-   /// Prend une liste de noms de cartes (ex: ["Sol Ring", "Mountain", ...])
-   /// Et les ajoute à la collection en gérant la limite de 75 cartes par appel.
+   // --- IMPORTATION DE MASSE ---
    Future<Map<String, int>> importBatchCards(List<String> rawNames) async {
      final collection = await loadCollection();
      int addedCount = 0;
      int errorCount = 0;
 
-     // 1. Nettoyage et dédoublonnage des noms pour l'appel API
-     // On garde la quantité demandée pour chaque nom si possible, 
-     // mais ici on suppose une liste de noms simples. Si la liste est "2 Sol Ring", il faut parser avant.
-     
-     // Parsing simple : "4 Sol Ring" -> {name: "Sol Ring", qty: 4}
      final RegExp regex = RegExp(r'^(\d+)?\s?x?\s?(.*)$');
      Map<String, int> cardsToFetch = {};
      
@@ -90,14 +102,12 @@ class CollectionService {
 
      final List<String> uniqueNames = cardsToFetch.keys.toList();
 
-     // 2. Chunking (Paquets de 75)
+     // Chunking (Paquets de 75)
      const int chunkSize = 75;
      for (var i = 0; i < uniqueNames.length; i += chunkSize) {
        final end = (i + chunkSize < uniqueNames.length) ? i + chunkSize : uniqueNames.length;
        final batchNames = uniqueNames.sublist(i, end);
 
-       // Construction de la requête "identifiers"
-       // Scryfall accepte { "name": "Sol Ring" }
        final identifiers = batchNames.map((name) => {'name': name}).toList();
        
        try {
@@ -113,11 +123,6 @@ class CollectionService {
            
            for (var cardJson in foundCards) {
              final scCard = ScryfallCard.fromJson(cardJson);
-             // On retrouve la quantité demandée initialement
-             // Attention: Scryfall peut renvoyer un nom légèrement différent (ex: "Sol Ring" -> "Sol Ring")
-             // On essaie de mapper le nom retourné avec notre map d'entrée
-             
-             // Astuce : On cherche dans notre map la clé qui est contenue dans le nom Scryfall ou inversement
              String originalKey = cardsToFetch.keys.firstWhere(
                (k) => scCard.name.toLowerCase().contains(k.toLowerCase()) || k.toLowerCase().contains(scCard.name.toLowerCase()),
                orElse: () => scCard.name
@@ -125,7 +130,8 @@ class CollectionService {
              
              int qtyToAdd = cardsToFetch[originalKey] ?? 1;
              
-             _upsertInMemory(collection, scCard.id, scCard.name, qtyToAdd, null);
+             // Par défaut, l'import de masse ajoute en Non-Foil
+             _upsertInMemory(collection, scCard.id, scCard.name, qtyToAdd, null, isFoil: false);
              addedCount += qtyToAdd;
            }
          } else {
@@ -136,22 +142,66 @@ class CollectionService {
          errorCount += batchNames.length;
        }
        
-       // Pause pour respecter l'API
        await Future.delayed(const Duration(milliseconds: 100));
      }
 
      await _saveCollection(collection);
-     
      return {'added': addedCount, 'errors': errorCount};
    }
 
-   // ... (Garder les méthodes recordDailyValue et getEvolutionSince inchangées) ...
-   // Je les omets ici pour la brièveté, mais assure-toi qu'elles restent dans ton fichier.
+    // Gestion de l'historique financier (inchangé)
     Future<void> recordDailyValue(double totalValue) async {
-      // (Ton code existant)
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      final todayKey = "${now.year}-${now.month}-${now.day}";
+      
+      String? jsonHistory = prefs.getString('collection_value_history');
+      Map<String, dynamic> history = jsonHistory != null ? json.decode(jsonHistory) : {};
+      
+      history[todayKey] = totalValue;
+      
+      // Nettoyage > 30 jours
+      final sortedKeys = history.keys.toList()..sort();
+      if (sortedKeys.length > 30) {
+        for (int i = 0; i < sortedKeys.length - 30; i++) {
+          history.remove(sortedKeys[i]);
+        }
+      }
+      
+      await prefs.setString('collection_value_history', json.encode(history));
     }
+
     Future<Map<String, double>?> getEvolutionSince(int daysAgo) async {
-       // (Ton code existant)
-       return null; 
+       final prefs = await SharedPreferences.getInstance();
+       String? jsonHistory = prefs.getString('collection_value_history');
+       if (jsonHistory == null) return null;
+       
+       Map<String, dynamic> history = json.decode(jsonHistory);
+       if (history.isEmpty) return null;
+
+       final sortedKeys = history.keys.toList()..sort();
+       final String todayKey = sortedKeys.last;
+       final double currentValue = (history[todayKey] as num).toDouble();
+       
+       // Trouver la date la plus proche il y a X jours
+       int targetIndex = sortedKeys.length - 1 - daysAgo;
+       if (targetIndex < 0) targetIndex = 0;
+       
+       final String pastKey = sortedKeys[targetIndex];
+       final double pastValue = (history[pastKey] as num).toDouble();
+       
+       double diffValue = currentValue - pastValue;
+       double diffPercentage = pastValue > 0 ? (diffValue / pastValue) * 100 : 0.0;
+       
+       return {
+         'currentValue': currentValue,
+         'pastValue': pastValue,
+         'diffValue': diffValue,
+         'diffPercentage': diffPercentage
+       };
+    }
+
+    Future<void> clearCollection() async {
+      await _saveCollection([]);
     }
 }

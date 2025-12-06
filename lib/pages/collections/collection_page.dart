@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:magic_companion/pages/collections/global_stats_page.dart';
 import 'package:magic_companion/pages/collections/wishlist_tab.dart';
 import 'dart:convert';
 import 'package:share_plus/share_plus.dart';
@@ -259,6 +260,43 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     if (newFilters != null) setState(() => _activeFilters = newFilters);
   }
 
+  void _openStatsPage() {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => GlobalStatsPage(
+      collection: _collection,
+      fullCardData: _fullCardData,
+      totalValue: _totalCollectionValue,
+    )));
+  }
+
+  Future<void> _showClearCollectionDialog() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text("Vider la Collection ?", style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text("Attention, cette action supprimera définitivement toutes les cartes de votre collection. Êtes-vous sûr ?", style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Annuler")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
+            child: const Text("Tout Supprimer", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      )
+    );
+
+    if (confirm == true) {
+      await _collectionService.clearCollection();
+      setState(() {
+        _collection = [];
+        _totalCollectionValue = 0;
+        _evolutionValue = 0;
+        _evolutionPercent = 0;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Collection vidée."), backgroundColor: Colors.red));
+    }
+  }
   // --- LOGIQUE DE SÉLECTION MULTIPLE ---
 
   void _toggleSelectionMode() {
@@ -420,8 +458,18 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                       ],
                     ),
                     Row(
-                      children: [                        
-                        // RESTAURÉ : Bouton Import Massif
+                      children: [   
+                        if (_tabController.index == 0)
+                          IconButton(
+                            icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+                            tooltip: "Vider la collection",
+                            onPressed: _showClearCollectionDialog,
+                          ),                     
+                        IconButton(
+                          icon: const Icon(Icons.bar_chart, color: Colors.blueAccent),
+                          tooltip: "Statistiques Globales",
+                          onPressed: _openStatsPage,
+                        ),
                         IconButton(icon: const Icon(Icons.file_upload_outlined), color: Colors.yellow.shade700, onPressed: _showBulkImportDialog),
                         
                         IconButton(icon: const Icon(Icons.share, color: Colors.white), onPressed: _exportCurrentList),
@@ -494,7 +542,19 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                           onToggleSelectionMode: _toggleSelectionMode,
                           onRefresh: () => _loadData(forceLoading: false),
                           onUpdateQuantity: (c, q) async {
-                             await _collectionService.upsertCardInCollection(scryfallId: c.scryfallId, cardName: c.name, quantityToAdd: q);
+                             // upsertCardInCollection retourne la liste mise à jour
+                             final updatedList = await _collectionService.upsertCardInCollection(
+                               scryfallId: c.scryfallId, 
+                               cardName: c.name, 
+                               quantityToAdd: q
+                             );
+                             
+                             // IMPORTANT : On met à jour l'état local pour rafraîchir l'interface
+                             // Si qté = 0, la carte n'est plus dans updatedList, donc elle disparaît
+                             setState(() {
+                               _collection = updatedList;
+                             });
+                             
                              _calculateFinancials();
                           },
                         ),
