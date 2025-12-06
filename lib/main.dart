@@ -1,6 +1,7 @@
 // Fichier : lib/main.dart
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -333,16 +334,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicOraclePage()));
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.menu_book, color: Colors.orangeAccent),
-            title: Text('Grimoire Code', style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: const Text("Interrogez votre codebase", style: TextStyle(color: Colors.white38, fontSize: 10)),
-            tileColor: Colors.green.withOpacity(0.1),
-            onTap: () {
-              Navigator.pop(context); // Ferme le menu
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatScreen()));
-            },
-          ),
+          if (kDebugMode)
+            ListTile(
+              leading: const Icon(Icons.menu_book, color: Colors.orangeAccent),
+              title: Text('Grimoire Code', style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: const Text("Interrogez votre codebase", style: TextStyle(color: Colors.white38, fontSize: 10)),
+              tileColor: Colors.green.withOpacity(0.1),
+              onTap: () {
+                Navigator.pop(context); // Ferme le menu
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatScreen()));
+              },
+            ),
           // --- SECTION OUTILS ---
           const Divider(color: Colors.white10),
           ListTile(
