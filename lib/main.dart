@@ -8,6 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:magic_companion/chat_screen.dart';
+import 'package:package_info_plus/package_info_plus.dart'; // <--- IMPORT AJOUTÉ
 
 // Imports des pages
 import 'package:magic_companion/pages/cards/card_search_page.dart';
@@ -201,6 +202,47 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     });
   }
 
+  /// NOUVELLE FONCTION : Affiche le dialogue "À propos" dynamique
+  /// Récupère la version générée par GitHub Actions via package_info_plus
+  Future<void> _showAppAboutDialog(BuildContext context) async {
+    // Récupère les infos du build (VersionName et BuildNumber injectés par GitHub)
+    final PackageInfo info = await PackageInfo.fromPlatform();
+
+    if (!context.mounted) return;
+
+    showAboutDialog(
+      context: context,
+      applicationName: 'Magic Companion',
+      // Affiche la version du tag (ex: v1.0.1) et le numéro de build
+      applicationVersion: 'v${info.version} (Build ${info.buildNumber})',
+      applicationIcon: Image.asset(
+        'assets/icone.png', 
+        width: 60, 
+        height: 60, 
+        fit: BoxFit.contain,
+        errorBuilder: (c, e, s) => const Icon(Icons.auto_awesome, size: 48, color: Colors.white24),
+      ),
+      applicationLegalese: '© 2025 - Compagnon non-officiel',
+      children: [
+        const SizedBox(height: 24),
+        Text(
+          "Développé avec Flutter et Passion.",
+          style: GoogleFonts.cinzel(color: Colors.white70),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          "Ce projet utilise l'API Scryfall pour les données de cartes. "
+          "Les informations textuelles et graphiques littérales et artistiques "
+          "présentées sur ce site au sujet de Magic: The Gathering, y compris les images de cartes, "
+          "le mana, et le symbole Tap sont la propriété de Wizards of the Coast, LLC.",
+          style: TextStyle(color: Colors.white30, fontSize: 10),
+        ),
+        const SizedBox(height: 12),
+        // Le bouton "Afficher les licences" est ajouté automatiquement par Flutter ici
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -377,18 +419,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             },
           ),
 
+          // --- BOUTON À PROPOS MIS À JOUR ---
           ListTile(
             leading: const Icon(Icons.info_outline, color: Colors.white30),
-            title: Text('À propos', style: GoogleFonts.cinzel(color: Colors.white54)),
+            title: Text('À propos & Licences', style: GoogleFonts.cinzel(color: Colors.white54)),
             onTap: () {
               Navigator.pop(context);
-              showAboutDialog(
-                context: context, 
-                applicationName: 'Magic Companion',
-                applicationVersion: '1.0.0',
-                applicationIcon: Image.asset('assets/icone.png', width: 60, height: 60, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.auto_awesome, size: 48, color: Colors.white24)),
-                children: [Text("Développé avec Flutter", style: GoogleFonts.cinzel())],
-              );
+              // Appel de la nouvelle fonction dynamique
+              _showAppAboutDialog(context);
             },
           ),
         ],

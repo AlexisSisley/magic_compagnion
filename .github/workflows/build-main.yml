@@ -40,6 +40,7 @@ jobs:
   build-and-release:
     name: Calculate Version & Build
     runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.head_commit.message, 'skip') }}
 
     steps:
       # 1. Récupérer le code (avec l'historique complet pour calculer la version)
@@ -48,17 +49,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 2. CALCUL DE LA VERSION (Cœur de ta demande)
+      # 2. CALCUL DE LA VERSION (Modifié selon tes critères)
       - name: Calculate Semantic Version
         id: version_step
         uses: PaulHatch/semantic-version@v5.4.0
         with:
           tag_prefix: "v"
           version_format: "${major}.${minor}.${patch}"
-          # Détection explicite des changements majeurs et mineurs
-          major_pattern: "(BREAKING CHANGE|feat!|fix!|refactor!)"
+          
+          # --- TES RÈGLES DE VERSIONNING ---
+          # 1. Major : Si le commit contient "refactor" ou "BREAKING CHANGE"
+          major_pattern: "(refactor|BREAKING CHANGE)" 
+          
+          # 2. Minor : Si le commit contient "feat"
           minor_pattern: "^(feat|Feat)"
-          bump_each_commit: false
+          
+          # 3. Patch : Par défaut pour tout autre commit (fix, docs, etc.)
+          bump_each_commit: true 
+          
           search_commit_body: true
           user_format_type: csv
 
