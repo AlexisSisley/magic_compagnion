@@ -1,5 +1,5 @@
 // Fichier : lib/pages/cards/card_detail_page.dart
-// VERSION CORRIGÉE : Support Multi-Wishlists avec Sélecteur
+// VERSION CORRIGÉE : SafeArea ajouté sur la modale Collection
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -59,8 +59,11 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   final WishlistService _wishlistService = WishlistService();
   final LocalCardService _localCardService = LocalCardService();
   
-  bool _inWishlist = false;
-  bool _inCollection = false;
+  // États locaux pour l'affichage (Counts)
+  int _collectionNormalCount = 0;
+  int _collectionFoilCount = 0;
+  bool _inWishlist = false; // Juste un indicateur global
+
   // ignore: unused_field
   String _currentDisplayLang = 'fr';
 
@@ -99,9 +102,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
 
   String _cleanOcrText(String text) {
     String cleanedText = text.toUpperCase();
-    // cleanedText = cleanedText.replaceAll('0', 'O'); 
-    // cleanedText = cleanedText.replaceAll(RegExp(r'\b(W|U|B|R|G|O|X|Y|Z)\b', caseSensitive: false), '');
-    // cleanedText = cleanedText.replaceAll(RegExp(r'[{}<>()\[\].,:;]'), '');
     cleanedText = cleanedText.replaceAll(RegExp(r'[\[\].,:;]'), ' ');
     cleanedText = cleanedText.replaceAll(RegExp(r'\s+'), ' ').trim();
     return cleanedText;
@@ -118,43 +118,32 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
       textRecognizer.close();
 
-      // final RegExp collectorRegex = RegExp(r'([A-Z0-9]{3,4})[\s•\/\-]{1,3}([0-9]{1,4})');
-      // Cherche : 3-5 Lettres/Chiffres + Séparateur + 1-4 Chiffres (et optionnellement une lettre)
       final RegExp collectorRegex = RegExp(r'\b([A-Z0-9]{3,5})[\s•\/\-]{1,3}([0-9]{1,4}[a-z]?)\b');
       
-      // On cherche d'abord le pattern "SET CODE + NUMBER" (souvent en bas à gauche)
       for (var block in recognizedText.blocks) {
-        // On nettoie un peu le bloc pour aider la regex
         String blockText = block.text.replaceAll('\n', ' ');
         final match = collectorRegex.firstMatch(blockText);
-        
         if (match != null) {
           final String setCode = match.group(1)!;
           final String collectorNumber = match.group(2)!;
-          
           setState(() { _statusMessage = "Code détecté : $setCode #$collectorNumber"; });
-          
           bool success = await _fetchExactCard(setCode, collectorNumber);
           if (success) return; 
         }
       }
 
-      // Si la regex échoue, on cherche le titre (bestGuess)
       List<TextBlock> sortedBlocks = List.from(recognizedText.blocks);
       sortedBlocks.sort((a, b) => a.boundingBox.top.compareTo(b.boundingBox.top));
 
       String? bestGuess;
       const List<String> badKeywords = ['créature', 'creature', 'artefact', 'artifact', 'enchantment', 'instant', 'sorcery', 'land', 'token', 'legendary'];
 
-      for (int i = 0; i < sortedBlocks.length && i < 5; i++) { // On regarde un peu plus bas (5 blocs)
+      for (int i = 0; i < sortedBlocks.length && i < 5; i++) { 
         for (var line in sortedBlocks[i].lines) {
-          String text = _cleanOcrText(line.text); // Utilise notre fonction simple
+          String text = _cleanOcrText(line.text); 
           if (text.length < 3) continue; 
           bool isTypeLine = badKeywords.any((k) => text.toLowerCase().contains(k));
           if (isTypeLine) continue;
-          
-          // Heuristique simple : si c'est tout en majuscule, c'est probablement pas le titre (souvent le cas pour les types)
-          // Mais attention aux cartes anciennes. On garde le premier candidat valide.
           bestGuess = text;
           break; 
         }
@@ -196,7 +185,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
 
     bool foundApi = false;
 
-    // 1. API Scryfall
     final connectivityResult = await (Connectivity().checkConnectivity());
     if (!connectivityResult.contains(ConnectivityResult.none)) {
       try {
@@ -217,7 +205,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
                _selectCard(apiResults.first);
                return;
             }
-            
             setState(() {
               _candidates = apiResults;
               _pageState = ResultPageState.selection; 
@@ -228,12 +215,9 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       } catch (e) { print("Erreur API Search: $e"); }
     }
 
-    // 2. Fallback Local
     if (!foundApi && _localCardService.isLoaded) {
       setState(() { _statusMessage = "Recherche locale..."; });
-      
       var localResults = _localCardService.findSmartMatch(query, limit: 10);
-      
       if (localResults.isEmpty) {
         final searchResult = await _localCardService.searchCards(query: query);
         localResults = searchResult.take(10).toList();
@@ -242,15 +226,12 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       if (localResults.isNotEmpty) {
         if (localResults.length == 1) {
            _selectCard(localResults.first);
-           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Résultat unique local")));
            return;
         }
-
         setState(() {
           _candidates = localResults;
           _pageState = ResultPageState.selection; 
         });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Résultats locaux (Mode Hors-ligne)")));
         return;
       }
     }
@@ -277,8 +258,41 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     _checkCardStatus();
   }
 
+  Future<void> _checkCardStatus() async {
+    if (_foundCard == null) return;
+    final collection = await _collectionService.loadCollection();
+    final wishlists = await _wishlistService.loadWishlists();
+    
+    // Compter les versions Foil et Normal
+    int normal = 0;
+    int foil = 0;
+    
+    for (var c in collection) {
+      if (c.scryfallId == _foundCard!.id) {
+        if (c.isFoil) foil += c.quantity;
+        else normal += c.quantity;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _collectionNormalCount = normal;
+        _collectionFoilCount = foil;
+        _inWishlist = wishlists.any((w) => w.cards.any((c) => c.scryfallId == _foundCard!.id));
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Calcul de l'icône Collection dynamique
+    IconData collIcon = Icons.inventory_2_outlined;
+    Color collColor = Colors.white;
+    if (_collectionNormalCount > 0 || _collectionFoilCount > 0) {
+      collIcon = Icons.inventory_2;
+      collColor = Colors.green.shade400;
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
       appBar: AppBar(
@@ -287,8 +301,14 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
         actions: [
           if (_pageState == ResultPageState.success) ...[
             IconButton(icon: const Icon(Icons.style, color: Colors.white), onPressed: _showVersionsModal),
-            IconButton(icon: Icon(_inWishlist ? Icons.star : Icons.star_border_outlined, color: _inWishlist ? Colors.blue.shade400 : Colors.white), onPressed: _toggleWishlist),
-            IconButton(icon: Icon(_inCollection ? Icons.inventory_2 : Icons.inventory_2_outlined, color: _inCollection ? Colors.green.shade400 : Colors.white), onPressed: _toggleCollection)
+            IconButton(
+              icon: Icon(_inWishlist ? Icons.star : Icons.star_border_outlined, color: _inWishlist ? Colors.blue.shade400 : Colors.white),
+              onPressed: _openWishlistManager
+            ),
+            IconButton(
+              icon: Icon(collIcon, color: collColor), 
+              onPressed: _openCollectionManager
+            )
           ]
         ],
       ),
@@ -322,7 +342,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
                 itemBuilder: (context, index) {
                   final card = _candidates[index];
                   final imgUrl = card.smallImageUrl ?? card.imageUrl;
-                  
                   return Card(
                     color: Colors.white.withValues(alpha: 0.05),
                     child: ListTile(
@@ -338,16 +357,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
                 },
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TextButton.icon(
-                icon: const Icon(Icons.search, color: Colors.white54),
-                label: const Text("Ce n'est pas dans la liste ? Chercher manuellement", style: TextStyle(color: Colors.white54)),
-                onPressed: () {
-                  setState(() => _pageState = ResultPageState.error);
-                },
-              ),
-            )
           ],
         );
 
@@ -401,6 +410,250 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     }
   }
 
+  // --- GESTION COLLECTION (MODALE) ---
+  void _openCollectionManager() {
+    if (_foundCard == null) return;
+    
+    // États locaux temporaires pour la modale
+    int tempNormal = _collectionNormalCount;
+    int tempFoil = _collectionFoilCount;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            // --- AJOUT SAFEREA ICI ---
+            return SafeArea(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                height: 350,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Gérer ma Collection", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 24),
+                    
+                    // Ligne Normal
+                    _buildQuantityRow(
+                      "Normal", 
+                      tempNormal, 
+                      Colors.white, 
+                      () { setModalState(() => tempNormal = (tempNormal - 1).clamp(0, 99)); },
+                      () { setModalState(() => tempNormal++); }
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Ligne Foil
+                    _buildQuantityRow(
+                      "Foil (Brillant)", 
+                      tempFoil, 
+                      Colors.amber, 
+                      () { setModalState(() => tempFoil = (tempFoil - 1).clamp(0, 99)); },
+                      () { setModalState(() => tempFoil++); }
+                    ),
+                    
+                    const Spacer(),
+                    
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          // Sauvegarde Normal
+                          await _collectionService.upsertCardInCollection(
+                            scryfallId: _foundCard!.id, 
+                            cardName: _foundCard!.name, 
+                            absoluteQuantity: tempNormal,
+                            isFoil: false
+                          );
+                          // Sauvegarde Foil
+                          await _collectionService.upsertCardInCollection(
+                            scryfallId: _foundCard!.id, 
+                            cardName: _foundCard!.name, 
+                            absoluteQuantity: tempFoil,
+                            isFoil: true
+                          );
+                          
+                          Navigator.pop(context);
+                          _checkCardStatus();
+                          _showFeedback("Collection mise à jour", Colors.green);
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, padding: const EdgeInsets.symmetric(vertical: 16)),
+                        child: Text("ENREGISTRER", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+                      ),
+                    )
+                  ],
+                ),
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
+  // --- GESTION WISHLIST (MODALE) ---
+  void _openWishlistManager() async {
+    if (_foundCard == null) return;
+    
+    // 1. Choix de la liste
+    final targetListId = await _showWishlistSelector();
+    if (targetListId == null) return;
+
+    // 2. Choix Foil / Normal via dialogue simple
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text("Ajouter à la Wishlist", style: GoogleFonts.cinzel(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text("Version Normale", style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.style, color: Colors.white),
+              onTap: () {
+                _addToWishlistAction(targetListId, false);
+                Navigator.pop(ctx);
+              },
+            ),
+            ListTile(
+              title: const Text("Version Foil", style: TextStyle(color: Colors.amber)),
+              leading: const Icon(Icons.star, color: Colors.amber),
+              onTap: () {
+                _addToWishlistAction(targetListId, true);
+                Navigator.pop(ctx);
+              },
+            ),
+          ],
+        ),
+      )
+    );
+  }
+
+  Future<void> _addToWishlistAction(String listId, bool isFoil) async {
+    await _wishlistService.upsertCard(
+      wishlistId: listId,
+      scryfallId: _foundCard!.id,
+      cardName: _foundCard!.name,
+      quantityToAdd: 1,
+      isFoil: isFoil
+    );
+    _checkCardStatus();
+    _showFeedback("Ajouté à la Wishlist (${isFoil ? 'Foil' : 'Normal'})", Colors.blueAccent);
+  }
+
+  Widget _buildQuantityRow(String label, int value, Color color, VoidCallback onMinus, VoidCallback onPlus) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(label.contains("Foil") ? Icons.star : Icons.style, color: color),
+              const SizedBox(width: 12),
+              Text(label, style: GoogleFonts.cinzel(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          Row(
+            children: [
+              IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.white54), onPressed: onMinus),
+              SizedBox(width: 30, child: Text("$value", textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))),
+              IconButton(icon: const Icon(Icons.add_circle, color: Colors.greenAccent), onPressed: onPlus),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  // --- RESTE DU CODE (Sélecteurs existants, affichage prix, règles...) ---
+  
+  Future<String?> _showWishlistSelector() async {
+    final wishlists = await _wishlistService.loadWishlists();
+    if (!mounted) return null;
+
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: Container(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(padding: const EdgeInsets.all(16.0), child: Text("Choisir une Wishlist", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
+                  ListTile(
+                    leading: const Icon(Icons.add_circle, color: Colors.greenAccent),
+                    title: Text("Créer une nouvelle liste", style: GoogleFonts.cinzel(color: Colors.white)),
+                    onTap: () async {
+                      final name = await _showCreateWishlistDialog();
+                      if (name != null && mounted) {
+                        final updatedLists = await _wishlistService.loadWishlists();
+                        try {
+                          final newList = updatedLists.lastWhere((w) => w.name == name);
+                          Navigator.pop(context, newList.id); 
+                        } catch (_) { Navigator.pop(context); }
+                      }
+                    },
+                  ),
+                  const Divider(color: Colors.white24),
+                  Expanded(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: wishlists.length,
+                      itemBuilder: (context, index) {
+                        final list = wishlists[index];
+                        return ListTile(
+                          leading: const Icon(Icons.bookmark_border, color: Colors.blueAccent),
+                          title: Text(list.name, style: const TextStyle(color: Colors.white)),
+                          subtitle: Text("${list.totalCards} cartes", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          onTap: () => Navigator.pop(context, list.id),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    );
+  }
+
+  Future<String?> _showCreateWishlistDialog() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text("Nouvelle Liste", style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(hintText: "Nom de la liste"),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Annuler")),
+          ElevatedButton(onPressed: () async { if (controller.text.isNotEmpty) { await _wishlistService.createWishlist(controller.text); if (mounted) Navigator.pop(c, controller.text); } }, child: const Text("Créer"))
+        ],
+      )
+    );
+  }
+
+  // --- HELPERS EXISTANTS ---
   Widget _buildPriceInfo(Map<String, dynamic> prices) {
     final String priceEur = prices['eur'] ?? 'N/A';
     final String priceEurFoil = prices['eur_foil'] ?? 'N/A';
@@ -450,159 +703,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     showModalBottomSheet(context: context, backgroundColor: Colors.transparent, isScrollControlled: true, builder: (c) => DeckPickerModal(cardToAdd: _foundCard!, deckService: _deckService, onCardAdded: (d,c) => _showFeedback("Ajouté au deck $d", Colors.green)));
   }
 
-  // --- NOUVEAU SELECTEUR DE WISHLIST ---
-  Future<String?> _showWishlistSelector() async {
-    final wishlists = await _wishlistService.loadWishlists();
-    if (!mounted) return null;
-
-    return showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
-      isScrollControlled: true,
-      // Ajout de SafeArea pour éviter la barre de navigation système
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-            child: Container(
-              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text("Choisir une Wishlist", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.add_circle, color: Colors.greenAccent),
-                    title: Text("Créer une nouvelle liste", style: GoogleFonts.cinzel(color: Colors.white)),
-                    onTap: () async {
-                      // 1. Ouvrir le dialogue de création par-dessus
-                      final name = await _showCreateWishlistDialog();
-                      // 2. Si un nom a été saisi, on récupère l'ID de la nouvelle liste
-                      if (name != null && mounted) {
-                        final updatedLists = await _wishlistService.loadWishlists();
-                        try {
-                          final newList = updatedLists.lastWhere((w) => w.name == name);
-                          // 3. On ferme le sélecteur en renvoyant l'ID
-                          Navigator.pop(context, newList.id); 
-                        } catch (_) {
-                          Navigator.pop(context);
-                        }
-                      }
-                    },
-                  ),
-                  const Divider(color: Colors.white24),
-                  Expanded(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: wishlists.length,
-                      itemBuilder: (context, index) {
-                        final list = wishlists[index];
-                        return ListTile(
-                          leading: const Icon(Icons.bookmark_border, color: Colors.blueAccent),
-                          title: Text(list.name, style: const TextStyle(color: Colors.white)),
-                          subtitle: Text("${list.totalCards} cartes", style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                          onTap: () => Navigator.pop(context, list.id),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }
-    );
-  }
-
-  Future<String?> _showCreateWishlistDialog() async {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text("Nouvelle Liste", style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: "Nom de la liste"),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Annuler")),
-          ElevatedButton(
-            onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                await _wishlistService.createWishlist(controller.text);
-                if (mounted) Navigator.pop(c, controller.text);
-              }
-            },
-            child: const Text("Créer"),
-          )
-        ],
-      )
-    );
-  }
-
-  Future<void> _toggleWishlist() async {
-    if (_foundCard == null) return;
-    
-    // Si la carte est déjà présente, le bouton sert à retirer (de TOUTES les listes par sécurité/simplicité)
-    // Ou alors on pourrait afficher un menu pour retirer d'une liste spécifique, mais restons simple.
-    if (_inWishlist) {
-      setState(() => _inWishlist = false);
-      
-      final lists = await _wishlistService.loadWishlists();
-      for (var list in lists) {
-        if (list.cards.any((c) => c.scryfallId == _foundCard!.id)) {
-          await _wishlistService.upsertCard(
-            wishlistId: list.id,
-            scryfallId: _foundCard!.id,
-            cardName: _foundCard!.name,
-            absoluteQuantity: 0
-          );
-        }
-      }
-      _showFeedback('Retiré de vos Wishlists', Colors.red.shade700);
-    } else {
-      // AJOUT : On ouvre le sélecteur
-      final targetListId = await _showWishlistSelector();
-      
-      if (targetListId != null) {
-        // Si l'utilisateur a créé une nouvelle liste, l'ID pourrait ne pas être passé directement
-        // car _showWishlistSelector retourne un Future<String?>.
-        // Mais dans mon implémentation ci-dessus, si "Créer" est cliqué, on ferme le sheet, on crée,
-        // et il faudrait idéalement retourner l'ID de la nouvelle liste. 
-        // Pour faire simple dans _showWishlistSelector j'ai mis un retour simplifié.
-        // Corrigeons le flux :
-        
-        await _wishlistService.upsertCard(
-          wishlistId: targetListId,
-          scryfallId: _foundCard!.id,
-          cardName: _foundCard!.name,
-          quantityToAdd: 1
-        );
-        
-        setState(() => _inWishlist = true);
-        _showFeedback('Ajouté à la Wishlist', Colors.blue.shade700);
-      }
-    }
-  }
-
-  Future<void> _toggleCollection() async {
-    if (_foundCard == null) return;
-    setState(() => _inCollection = !_inCollection);
-    if (!_inCollection) {
-      await _collectionService.upsertCardInCollection(scryfallId: _foundCard!.id, cardName: _foundCard!.name, absoluteQuantity: 0);
-      _showFeedback('Retiré de la collection', Colors.red.shade700);
-    } else {
-      await _collectionService.addCard(_foundCard!, 1);
-      _showFeedback('Ajouté à la collection', Colors.green.shade700);
-    }
-  }
-
   void _showFeedback(String message, Color color) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message, style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)), backgroundColor: color, duration: const Duration(seconds: 1)));
@@ -621,25 +721,6 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       }
     } catch (e) { }
     if(mounted) setState(() { _isLoadingRulings = false; });
-  }
-
-  Future<void> _checkCardStatus() async {
-    if (_foundCard == null) return;
-    
-    // Chargement Collection
-    final collection = await _collectionService.loadCollection();
-    
-    // Chargement Wishlists (Nouvelle version)
-    final wishlists = await _wishlistService.loadWishlists();
-    
-    if (!mounted) return;
-    
-    setState(() {
-      _inCollection = collection.any((c) => c.scryfallId == _foundCard!.id);
-      
-      // On vérifie si la carte est présente dans AU MOINS UNE des wishlists
-      _inWishlist = wishlists.any((w) => w.cards.any((c) => c.scryfallId == _foundCard!.id));
-    });
   }
 
   Keyword? _findKeyword(String word) {

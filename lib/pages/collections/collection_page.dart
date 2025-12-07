@@ -44,9 +44,9 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
   
   bool _isLoading = true; 
   // ignore: unused_field
-  bool _isImporting = false; // Restauré
+  bool _isImporting = false;
   
-  // --- NOUVEAU : Mode Sélection ---
+  // --- Mode Sélection ---
   bool _isSelectionMode = false;
   final Set<String> _selectedCardIds = {}; 
 
@@ -158,20 +158,33 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     _fullCardData = loadedCards;
   }
 
+  // --- MODIFICATION MAJEURE ICI POUR LA GESTION PRIX FOIL ---
   Future<void> _calculateFinancials() async {
-    double getPrice(String id) {
+    
+    // Fonction helper pour récupérer le bon prix
+    double getPrice(String id, bool isFoil) {
       try {
         final c = _fullCardData.firstWhere((s) => s.id == id);
-        return double.tryParse(c.prices['eur'] ?? '0') ?? 0.0;
+        
+        // Si la carte est Foil dans la collection, on cherche le prix Foil
+        if (isFoil) {
+          return double.tryParse(c.prices['eur_foil'] ?? c.prices['eur'] ?? '0') ?? 0.0;
+        } else {
+          return double.tryParse(c.prices['eur'] ?? '0') ?? 0.0;
+        }
       } catch (e) { return 0.0; }
     }
     
-    _totalCollectionValue = _collection.fold(0.0, (sum, c) => sum + (getPrice(c.scryfallId) * c.quantity));
+    // Calcul Collection
+    _totalCollectionValue = _collection.fold(0.0, (sum, c) {
+      return sum + (getPrice(c.scryfallId, c.isFoil) * c.quantity);
+    });
     
+    // Calcul Wishlist
     _totalWishlistValue = 0.0;
     for (var list in _wishlists) {
       for (var c in list.cards) {
-        _totalWishlistValue += (getPrice(c.scryfallId) * c.quantity);
+        _totalWishlistValue += (getPrice(c.scryfallId, c.isFoil) * c.quantity);
       }
     }
 
@@ -189,7 +202,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
 
   // --- ACTIONS ---
   
-  // RESTAURÉ : Modale Import Massif
   Future<void> _showBulkImportDialog() async {
     final TextEditingController importController = TextEditingController();
     await showModalBottomSheet(
@@ -223,7 +235,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     );
   }
 
-  // RESTAURÉ : Action Import Massif
   Future<void> _performBulkImport(String text) async {
     setState(() { _isLoading = true; _isImporting = true; });
     final lines = text.split('\n').where((s) => s.trim().isNotEmpty).toList();
@@ -241,13 +252,13 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
       sb.writeln("=== Mes Wishlists ===");
       for(var w in _wishlists) {
         sb.writeln("\n[${w.name}]");
-        for(var c in w.cards) sb.writeln("${c.quantity} ${c.name}");
+        for(var c in w.cards) sb.writeln("${c.quantity} ${c.name} ${c.isFoil ? '(Foil)' : ''}");
       }
       Share.share(sb.toString());
     } else {
       if (_collection.isEmpty) return;
       StringBuffer sb = StringBuffer();
-      for (var c in _collection) sb.writeln("${c.quantity} ${c.name}");
+      for (var c in _collection) sb.writeln("${c.quantity} ${c.name} ${c.isFoil ? '(Foil)' : ''}");
       Share.share(sb.toString());
     }
   }
@@ -297,7 +308,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Collection vidée."), backgroundColor: Colors.red));
     }
   }
-  // --- LOGIQUE DE SÉLECTION MULTIPLE ---
 
   void _toggleSelectionMode() {
     setState(() {
@@ -402,7 +412,6 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
 
   Future<void> _processAddCardsToDeck(String deckId, String deckName) async {
     setState(() => _isLoading = true);
-    
     int count = 0;
     for (String id in _selectedCardIds) {
       try {
@@ -525,6 +534,7 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                   : TabBarView(
                       controller: _tabController,
                       children: [
+                        // --- ONGLET COLLECTION ---
                         CollectionListTab(
                           cards: _collection,
                           fullCardData: _fullCardData,
@@ -541,24 +551,46 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                           onToggleSelection: _toggleCardSelection,
                           onToggleSelectionMode: _toggleSelectionMode,
                           onRefresh: () => _loadData(forceLoading: false),
+                          // Callback pour update quantité (gère aussi la suppression si qté = 0)
                           onUpdateQuantity: (c, q) async {
-                             // upsertCardInCollection retourne la liste mise à jour
                              final updatedList = await _collectionService.upsertCardInCollection(
                                scryfallId: c.scryfallId, 
                                cardName: c.name, 
-                               quantityToAdd: q
+                               quantityToAdd: q,
+                               isFoil: c.isFoil // Important pour cibler la bonne version
                              );
-                             
-                             // IMPORTANT : On met à jour l'état local pour rafraîchir l'interface
-                             // Si qté = 0, la carte n'est plus dans updatedList, donc elle disparaît
-                             setState(() {
-                               _collection = updatedList;
-                             });
-                             
+                             setState(() { _collection = updatedList; });
                              _calculateFinancials();
                           },
+                          // --- CALLBACK POUR PASSER FOIL/NON-FOIL ---
+                          onToggleFoil: (c) async {
+                            // On inverse l'état Foil
+                            // Note : Cela crée une NOUVELLE entrée dans la collection si la version opposée n'existe pas
+                            // Ou incrémente l'existante. C'est un peu complexe à faire en un clic.
+                            // Pour simplifier ici : on change juste le flag de la carte en cours.
+                            
+                            // 1. Retirer 1 de la carte actuelle
+                            await _collectionService.upsertCardInCollection(
+                              scryfallId: c.scryfallId,
+                              cardName: c.name,
+                              quantityToAdd: -1,
+                              isFoil: c.isFoil
+                            );
+                            
+                            // 2. Ajouter 1 dans la version opposée
+                            final updatedList = await _collectionService.upsertCardInCollection(
+                              scryfallId: c.scryfallId,
+                              cardName: c.name,
+                              quantityToAdd: 1,
+                              isFoil: !c.isFoil // Inverse
+                            );
+                            
+                            setState(() { _collection = updatedList; });
+                            _calculateFinancials();
+                          },
                         ),
-                        // UTILISATION DU NOUVEAU WIDGET WISHLIST
+                        
+                        // --- ONGLET WISHLIST ---
                         WishlistTab(
                           wishlists: _wishlists,
                           fullCardData: _fullCardData,
@@ -566,6 +598,8 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                           wishlistService: _wishlistService,
                           onRefresh: () => _loadData(forceLoading: false),
                         ),
+                        
+                        // --- ONGLET SETS ---
                         CollectionSetsTab(
                           collection: _collection,
                           onRefresh: () => _loadData(forceLoading: false),
