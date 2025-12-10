@@ -151,6 +151,8 @@ class _SetDetailPageState extends State<SetDetailPage> {
   }
 
   void _selectAllMissingFiltered() {
+    // final missingInView = _displayedCards.where((c) => !_ownedIds.contains(c.id)).map((c) => c.id).toSet();
+    // setState(() => _selectedIds.addAll(missingInView));
     // Sélectionne toutes les versions Normales ET Foil qui manquent dans la vue actuelle
     for (var c in _displayedCards) {
       final keyNormal = _makeKey(c.id, false);
@@ -158,9 +160,7 @@ class _SetDetailPageState extends State<SetDetailPage> {
       final keyFoil = _makeKey(c.id, true);
       
       if (!_ownedKeys.contains(keyNormal)) _selectedKeys.add(keyNormal);
-      // On n'ajoute pas auto les foils pour ne pas tout polluer, 
-      // ou on pourrait le faire si l'utilisateur le veut vraiment. 
-      // Pour l'instant, on sélectionne juste les normales manquantes pour le "Select All".
+      if (!_ownedKeys.contains(keyFoil)) _selectedKeys.add(keyFoil);
     }
     setState(() {});
   }
