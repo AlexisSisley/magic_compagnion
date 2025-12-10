@@ -34,6 +34,10 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   int? _highlightedPlayerId;
   bool _isSelectingStarter = false;
 
+  Timer? _gameTimer;
+  Duration _gameDuration = Duration.zero;
+  bool _isGameActive = false;
+
   final List<Color> _defaultColors = [
     Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
     Colors.purple.shade900, Colors.orange.shade900, Colors.teal.shade900,
@@ -44,6 +48,46 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   void initState() {
     super.initState();
     _loadGame();
+  }
+
+  @override
+  void dispose() {
+    _gameTimer?.cancel();
+    super.dispose();
+  }
+
+  // --- LOGIQUE TIMER ---
+  void _startGame() {
+    _gameTimer?.cancel();
+    setState(() {
+      _isGameActive = true;
+      _gameDuration = Duration.zero;
+    });
+    
+    _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _gameDuration += const Duration(seconds: 1);
+        });
+      }
+    });
+  }
+
+  void _stopGame() {
+    _gameTimer?.cancel();
+    setState(() {
+      _isGameActive = false;
+    });
+  }
+
+  String _formatDuration(Duration d) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String minutes = twoDigits(d.inMinutes.remainder(60));
+    String seconds = twoDigits(d.inSeconds.remainder(60));
+    if (d.inHours > 0) {
+      return "${d.inHours}:$minutes"; // H:MM
+    }
+    return "$minutes:$seconds"; // MM:SS
   }
 
   int _calculateDefaultRotation(int id, int totalPlayers) {
@@ -98,7 +142,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
             energy: energy,
             commanderCastCount: tax,
             isMonarch: isMonarch,
-            quarterTurns: rotation, // <---
+            quarterTurns: rotation, 
           );
         },
       );
@@ -131,7 +175,9 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
 
   // --- LOGIQUE JEU ---
   void _resetGame() {
+    _stopGame(); // Arrête le chrono au reset
     setState(() {
+      _gameDuration = Duration.zero; // Remet le chrono à 0
       _players = List.generate(
         _playerCount,
         (index) {
@@ -151,14 +197,15 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
             energy: 0,
             commanderCastCount: 0,
             isMonarch: false,
-            quarterTurns: _calculateDefaultRotation(index, _playerCount), // Reset à la valeur par défaut logique
+            quarterTurns: _calculateDefaultRotation(index, _playerCount),
           );
         },
       );
     });
     _saveGame();
   }
-
+  
+  // ---- Update point -----
   void _updateLife(int playerId, int change) {
     if (_isSelectingStarter) return;
     setState(() {
@@ -173,12 +220,14 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     });
     _saveGame();
   }
+
   void _updatePlayerRotation(int playerId, int newRotation) {
     setState(() {
       _players.firstWhere((p) => p.id == playerId).quarterTurns = newRotation;
     });
     _saveGame();
   }
+
   void _updateCommanderDamage(int playerId, int opponentId, int change) {
     if (_isSelectingStarter) return;
     setState(() {
@@ -213,7 +262,20 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
               Text("JOUEUR ${winnerId + 1}", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
             ],
           ),
-          actions: [ElevatedButton(onPressed: () { Navigator.pop(context); setState(() { _highlightedPlayerId = null; _isSelectingStarter = false; }); }, style: ElevatedButton.styleFrom(backgroundColor: Color(_players[winnerId].colorValue)), child: const Text("C'est parti !", style: TextStyle(color: Colors.white)))]
+          actions: [
+            ElevatedButton(
+              onPressed: () { 
+                Navigator.pop(context); 
+                setState(() { 
+                  _highlightedPlayerId = null; 
+                  _isSelectingStarter = false; 
+                });
+                _startGame(); // <--- LANCE LE CHRONO ICI
+              }, 
+              style: ElevatedButton.styleFrom(backgroundColor: Color(_players[winnerId].colorValue)), 
+              child: const Text("C'est parti !", style: TextStyle(color: Colors.white))
+            )
+          ]
         ),
       );
     }
@@ -370,6 +432,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
       ),
     );
   }
+
   void buildShowModalBottomSheet(BuildContext context, Widget Function(BuildContext) builder) {
     showModalBottomSheet(
       context: context,
@@ -380,6 +443,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
       ),
     );
   }
+
   void _showCommanderDamageSelector(Player attacker) {
     showModalBottomSheet(
       context: context,
@@ -525,6 +589,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   }
 
   void _endGame() {
+    // On met en pause le timer visuellement (optionnel, mais sympa)
     showDialog(
       context: context,
       builder: (context) {
@@ -547,10 +612,14 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
                   );
                   await _gameHistoryService.addGame(newItem);
                   
-                  Navigator.pop(context); 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Partie enregistrée dans l'historique !"), backgroundColor: Colors.green)
-                  );
+                  _stopGame(); 
+                  
+                  if (mounted) {
+                    Navigator.pop(context); 
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Partie enregistrée dans l'historique !"), backgroundColor: Colors.green)
+                    );
+                  }
                 },
               );
             }).toList(),
@@ -639,7 +708,35 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
           IconButton(icon: const Icon(Icons.refresh, color: Colors.white70), onPressed: _resetGame),
           IconButton(icon: const Icon(Icons.casino, color: Colors.white70), onPressed: _showDiceSelector), // Appel ici aussi
           IconButton(icon: const Icon(Icons.checklist_rtl_outlined, color: Colors.white70), onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const TurnGuidePage())); }),          
-          Container(width: 50, height: 50, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black, border: Border.all(color: Colors.yellow.shade800, width: 2)), child: IconButton(icon: const Icon(Icons.play_arrow, color: Colors.yellow), onPressed: _pickStartingPlayer)),
+          InkWell(
+            onTap: _isGameActive ? _endGame : _pickStartingPlayer,
+            borderRadius: BorderRadius.circular(50),
+            child: Container(
+              width: 50, height: 50,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle, 
+                color: Colors.black, 
+                border: Border.all(
+                  color: _isGameActive ? Colors.redAccent : Colors.yellow.shade800, 
+                  width: 2
+                )
+              ),
+              child: _isGameActive 
+                ? FittedBox( // S'assure que le texte rentre
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _formatDuration(_gameDuration), 
+                      style: GoogleFonts.robotoMono( // Police Monospace pour éviter que les chiffres bougent
+                        color: Colors.white, 
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12
+                      )
+                    ),
+                  )
+                : const Icon(Icons.play_arrow, color: Colors.yellow),
+            ),
+          ),
           IconButton(icon: const Icon(Icons.emoji_events, color: Colors.white70), onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const TournamentPage())); }),
           IconButton(icon: const Icon(Icons.people, color: Colors.white70), onPressed: _showPlayerSelector),
           IconButton(icon: const Icon(Icons.favorite, color: Colors.white70), onPressed: _showFormatSelector),
@@ -815,6 +912,7 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
      if (widget.sides == 2) return "Pile ou Face";
      // Easter Egg Frodon
      if (widget.sides == 20 && widget.finalResult == 1) return 'POUR FRODON !';
+     if (widget.sides == 20 && widget.finalResult == 20) return 'FUS RO DAH !!! 🐉';
      return 'Résultat D${widget.sides}';
   }
 
@@ -833,6 +931,11 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
     if (widget.sides == 20 && widget.finalResult == 1) {
       content = '${widget.finalResult} ⚔️';
       contentColor = Colors.red.shade400;
+    }
+    // EASTER EGG FUS RO DAH
+    if (widget.sides == 20 && widget.finalResult == 20) {
+      content = '${widget.finalResult} 💨';
+      contentColor = Colors.cyanAccent; 
     }
 
     return Text(

@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart'; // NÉCESSITE image_picker dans pubspec.yaml
+import 'package:image_picker/image_picker.dart'; 
 import '../../models/player_model.dart';
 
 enum CounterMode { life, poison, energy, commanderTax }
@@ -378,19 +378,22 @@ class _PlayerZoneState extends State<PlayerZone> {
           ),
           Positioned(
             bottom: 8, left: 0, right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildMiniCounter(CounterMode.poison, widget.player.poison),
-                const SizedBox(width: 8),
-                _buildMiniCounter(CounterMode.energy, widget.player.energy),
-                if (widget.isCommander) ...[
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildMiniCounter(CounterMode.poison, widget.player.poison),
                   const SizedBox(width: 8),
-                  _buildMiniCounter(CounterMode.commanderTax, widget.player.commanderCastCount),
-                  const SizedBox(width: 8),
-                  _buildCmdDamageIndicator(),
-                ]
-              ],
+                  _buildMiniCounter(CounterMode.energy, widget.player.energy),
+                  if (widget.isCommander) ...[
+                    const SizedBox(width: 8),
+                    _buildMiniCounter(CounterMode.commanderTax, widget.player.commanderCastCount),
+                    const SizedBox(width: 8),
+                    _buildCmdDamageIndicator(),
+                  ]
+                ],
+              ),
             ),
           ),
           if (widget.isHighlighted)

@@ -42,6 +42,15 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
             onPressed: () async {
                await _service.clearHistory();
                _load();
+               // EASTER EGG HARRY POTTER
+               if (mounted) {
+                 ScaffoldMessenger.of(context).showSnackBar(
+                   SnackBar(
+                     content: Text("Méfaits accomplis (Historique effacé) ⚡", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+                     backgroundColor: Colors.purple.shade900,
+                   )
+                 );
+               }
             },
           )
         ],

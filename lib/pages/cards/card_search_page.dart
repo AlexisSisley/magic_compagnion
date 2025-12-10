@@ -1,5 +1,5 @@
 // Fichier : lib/pages/cards/card_search_page.dart
-// VERSION CORRIGÉE : Sélecteur Wishlist (SafeArea)
+// VERSION CORRIGÉE : Sélecteur Wishlist (SafeArea) + Skyrim Loader
 
 import 'dart:async'; 
 import 'package:flutter/material.dart';
@@ -18,6 +18,9 @@ import '../../models/scryfall_set_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/local_card_service.dart';
 import 'card_detail_page.dart';
+
+// --- IMPORT DU NOUVEAU WIDGET ---
+import '../../widgets/search/skyrim_sneak_loader.dart';
 
 class CardSearchPage extends StatefulWidget {
   const CardSearchPage({super.key});
@@ -292,7 +295,8 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
           setState(() {
             _isLoading = false;
             _searchResults = apiResults;
-            if (_searchResults.isEmpty) { _statusMessage = 'Aucune carte trouvée (API).'; }
+            // Easter Egg Star Wars
+            if (_searchResults.isEmpty) { _statusMessage = 'Ce ne sont pas les cartes que vous recherchez... 👋🤖'; }
           });
         }
         return true;
@@ -489,7 +493,11 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
   }
 
   Widget _buildResultsList({Key? key}) {
-    if (_isLoading) { return const Center(child: CircularProgressIndicator()); }
+    // --- ICI: ON REMPLACE LE LOADER PAR SKYRIM ---
+    if (_isLoading) { 
+      return const Center(child: SkyrimSneakLoader()); // <--- CHANGEMENT
+    }
+    
     if (_searchResults.isEmpty) {
       return Center(child: Padding(padding: const EdgeInsets.all(16.0), child: Text(_statusMessage, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16), textAlign: TextAlign.center)));
     }
@@ -583,7 +591,11 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
   }
 
   Widget _buildResultsGrid({Key? key}) {
-    if (_isLoading) { return const Center(child: CircularProgressIndicator()); }
+    // --- ICI AUSSI: ON REMPLACE LE LOADER PAR SKYRIM ---
+    if (_isLoading) { 
+      return const Center(child: SkyrimSneakLoader()); // <--- CHANGEMENT
+    }
+    
     if (_searchResults.isEmpty) {
       return Center(child: Text(_statusMessage, style: GoogleFonts.cinzel(color: Colors.white70)));
     }

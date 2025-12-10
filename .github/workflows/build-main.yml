@@ -166,4 +166,11 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CREDENTIALS }}
           groups: testers
           file: ${{ steps.rename_apk.outputs.apk_path }}
-          releaseNotes: "v${{ steps.version_step.outputs.version }} - ${{ steps.version_step.outputs.changelog }}"
+          releaseNotes: |
+            v${{ steps.version_step.outputs.version }}
+            
+            CHANGELOG AUTOMATIQUE :
+            ${{ steps.version_step.outputs.changelog }}
+            
+            DÉTAIL DU DERNIER COMMIT :
+            ${{ github.event.head_commit.message }}
