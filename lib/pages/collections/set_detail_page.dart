@@ -338,14 +338,15 @@ class _SetDetailPageState extends State<SetDetailPage> {
 
     if (isFoilSlot && !foilAvailable) {
       // Slot vide ou désactivé pour les cartes qui n'existent pas en foil
-      return Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.02),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.white10)
-        ),
-        child: const Center(child: Icon(Icons.block, color: Colors.white10)),
-      );
+      // return Container(
+      //   decoration: BoxDecoration(
+      //     color: Colors.white.withOpacity(0.02),
+      //     borderRadius: BorderRadius.circular(6),
+      //     border: Border.all(color: Colors.white10)
+      //   ),
+      //   child: const Center(child: Icon(Icons.block, color: Colors.white10)),
+      // );
+      return const SizedBox.shrink();
     }
 
     return GestureDetector(
