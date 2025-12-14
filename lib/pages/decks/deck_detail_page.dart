@@ -22,7 +22,7 @@ import '../../widgets/decks/deck_suggestions_tab.dart';
 import '../../widgets/decks/deck_card_list_tab.dart'; 
 import '../../widgets/decks/deck_financial_sheet.dart';
 import '../../widgets/decks/deck_card_picker.dart'; 
-import '../../widgets/decks/deck_share_preview.dart'; // <--- NOUVEAU WIDGET
+import '../../widgets/decks/deck_share_preview.dart';
 
 class DeckDetailPage extends StatefulWidget {
   final Deck deck;
@@ -233,9 +233,8 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"${scryfallCard.name}" défini en slot $slot.', style: GoogleFonts.cinzel())));
   }
 
-  // --- NOUVEAU : PARTAGE EN IMAGE ---
+  // --- PARTAGE EN IMAGE ---
   Future<void> _captureAndShare() async {
-    // 1. Afficher le dialogue avec la prévisualisation
     await showDialog(
       context: context,
       builder: (dialogContext) {
@@ -243,7 +242,7 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
           backgroundColor: const Color(0xFF1A1A1A),
           title: Text("Aperçu à partager", style: GoogleFonts.cinzel(color: Colors.white)),
           content: SingleChildScrollView(
-            child: RepaintBoundary( // C'est ici qu'on capture
+            child: RepaintBoundary(
               key: _shareKey,
               child: DeckSharePreview(
                 deck: _currentDeck,
@@ -260,19 +259,16 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
               style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
               onPressed: () async {
                 try {
-                  // 2. Capture
                   RenderRepaintBoundary boundary = _shareKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-                  ui.Image image = await boundary.toImage(pixelRatio: 2.0); // HD
+                  ui.Image image = await boundary.toImage(pixelRatio: 2.0); 
                   ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
                   Uint8List pngBytes = byteData!.buffer.asUint8List();
 
-                  // 3. Sauvegarde fichier temp
                   final tempDir = await getTemporaryDirectory();
                   final file = await File('${tempDir.path}/deck_share.png').create();
                   await file.writeAsBytes(pngBytes);
 
-                  // 4. Partage
-                  if (mounted) Navigator.pop(dialogContext); // Fermer le dialogue
+                  if (mounted) Navigator.pop(dialogContext); 
                   await Share.shareXFiles([XFile(file.path)], text: "Mon Deck : ${_currentDeck.name}");
                   
                 } catch (e) {
@@ -294,7 +290,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     sb.writeln("");
     
     if (_currentDeck.commanderScryfallId != null) {
-       // Note : Création manuelle d'un ScryfallCard avec les champs requis (y compris purchaseUris vide)
        final cmd = _fullCardData.firstWhere(
          (c) => c.id == _currentDeck.commanderScryfallId, 
          orElse: () => ScryfallCard(
@@ -321,12 +316,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     Map<String, String> results = {};
     const List<String> formats = ['standard', 'pioneer', 'modern', 'commander'];
     
-    // ignore: unused_element
-    ScryfallCard? getCard(String id) {
-      if (id.startsWith('LOCAL:')) return null;
-      try { return cardData.firstWhere((sc) => sc.id == id); } catch (e) { return null; }
-    }
-
     int totalDeckSize = _currentDeck.mainboard.fold(0, (sum, c) => sum + c.quantity);
 
     for (final format in formats) {
@@ -337,7 +326,32 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
       } 
       results[format] = status;
     }
+
+    // --- EASTER EGG SKYRIM ---
+    // Ajout d'un format fictif pour la blague
+    results['Bordeciel (Whiterun)'] = '🏹 Interdit (Arrow in the knee)';
+
     return results;
+  }
+
+  // --- MODIFICATION ICI : SAFE AREA POUR ANDROID ---
+  void _showValidationResults(Map<String, String> results) {
+    showModalBottomSheet(
+      context: context, 
+      backgroundColor: const Color(0xFF1A1A1A), 
+      builder: (context) => SafeArea( // Ajout du SafeArea ici
+        child: Container(
+          padding: const EdgeInsets.all(16), 
+          child: Column(
+            mainAxisSize: MainAxisSize.min, 
+            children: results.entries.map((e) => ListTile(
+              title: Text(e.key, style: const TextStyle(color: Colors.white)), 
+              trailing: Text(e.value, style: TextStyle(color: e.value.contains('✅') ? Colors.green : Colors.red))
+            )).toList()
+          )
+        ),
+      )
+    );
   }
 
   @override
@@ -355,7 +369,6 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
           ],
         ),
         backgroundColor: Colors.black,
-        // --- NOUVEAU DESIGN TABBAR ---
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(50),
           child: Container(
@@ -363,22 +376,16 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
             child: TabBar(
               controller: _tabController,
               isScrollable: true,
-              // Style "Capsule"
-              indicator: BoxDecoration(
-                // borderRadius: BorderRadius.circular(8),
+              indicator: const BoxDecoration(
                 border: Border(bottom: BorderSide(color: Colors.orange, width: 1)),
               ),
               indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent, // Retire la ligne par défaut
-              
+              dividerColor: Colors.transparent,
               labelColor: Colors.white,
               labelStyle: GoogleFonts.cinzel(fontWeight: FontWeight.bold),
-              
               unselectedLabelColor: Colors.white54,
               unselectedLabelStyle: GoogleFonts.cinzel(),
-              
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              
               tabs: [
                 Tab(text: 'Main ($mainCount)'),
                 Tab(text: 'Side (${_currentDeck.sideboard.fold(0, (s,c)=>s+c.quantity)})'),
@@ -392,16 +399,20 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
           IconButton(icon: const Icon(Icons.add_circle, color: Colors.yellow), onPressed: _openCardPicker),
           PopupMenuButton<String>(
             onSelected: (val) {
-               if(val == 'legality') { setState((){_isValidating=true;}); _showValidationResults(_validateDeckRules(_fullCardData)); setState((){_isValidating=false;}); }
+               if(val == 'legality') { 
+                 setState((){_isValidating=true;}); 
+                 _showValidationResults(_validateDeckRules(_fullCardData)); 
+                 setState((){_isValidating=false;}); 
+               }
                if(val == 'finance') _showFinancialAnalysis();
-               if(val == 'share_text') _shareDeckText(); // Option Texte
-               if(val == 'share_image') _captureAndShare(); // Option Image
+               if(val == 'share_text') _shareDeckText(); 
+               if(val == 'share_image') _captureAndShare(); 
                if(val == 'clear') _showClearDeckDialog();
             },
             itemBuilder: (ctx) => [
               const PopupMenuItem(value: 'finance', child: Row(children: [Icon(Icons.euro, size: 18), SizedBox(width: 8), Text('Finance')])),
               const PopupMenuItem(value: 'legality', child: Row(children: [Icon(Icons.gavel, size: 18), SizedBox(width: 8), Text('Légalité')])),
-              const PopupMenuItem(value: 'share_image', child: Row(children: [Icon(Icons.image, size: 18), SizedBox(width: 8), Text('Partager (Image)')])), // <--- NOUVEAU
+              const PopupMenuItem(value: 'share_image', child: Row(children: [Icon(Icons.image, size: 18), SizedBox(width: 8), Text('Partager (Image)')])), 
               const PopupMenuItem(value: 'share_text', child: Row(children: [Icon(Icons.text_fields, size: 18), SizedBox(width: 8), Text('Partager (Texte)')])),
               const PopupMenuItem(value: 'clear', child: Row(children: [Icon(Icons.delete, color: Colors.red, size: 18), SizedBox(width: 8), Text('Vider', style: TextStyle(color: Colors.red))])),
             ]
@@ -543,13 +554,23 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (context) => DeckFinancialSheet(deck: _currentDeck, fullCardData: _fullCardData, collection: _myCollection));
   }
   
-  void _showValidationResults(Map<String, String> results) {
-    showModalBottomSheet(context: context, backgroundColor: const Color(0xFF1A1A1A), builder: (context) => Container(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, children: results.entries.map((e) => ListTile(title: Text(e.key, style: const TextStyle(color: Colors.white)), trailing: Text(e.value, style: TextStyle(color: e.value.startsWith('❌')?Colors.red:Colors.green)))).toList())));
-  }
-  
   Future<void> _showClearDeckDialog() async {
+     // On vérifie s'il y avait des cartes avant de vider pour la blague
+     bool hadCards = _currentDeck.mainboard.isNotEmpty;
+
      await _deckService.clearDeck(_currentDeck.id);
      final d = (await _deckService.loadDecks()).firstWhere((d)=>d.id==_currentDeck.id);
+     
      setState(() { _currentDeck = d; _fullCardData=[]; _totalDeckPrice=0; });
+
+     // EASTER EGG STAR WARS
+     if (mounted && hadCards) {
+       ScaffoldMessenger.of(context).showSnackBar(
+         SnackBar(
+           content: Text("L'Ordre 66 a été exécuté. (Deck vidé)", style: GoogleFonts.cinzel(color: Colors.redAccent)),
+           backgroundColor: Colors.black,
+         )
+       );
+     }
   }
 }

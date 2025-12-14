@@ -8,7 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:magic_companion/chat_screen.dart';
-import 'package:package_info_plus/package_info_plus.dart'; // <--- IMPORT AJOUTÉ
+import 'package:package_info_plus/package_info_plus.dart';
 
 // Imports des pages
 import 'package:magic_companion/pages/cards/card_search_page.dart';
@@ -18,6 +18,7 @@ import 'package:magic_companion/pages/scans/scanner_page.dart';
 import 'package:magic_companion/pages/tools/hypergeometric_page.dart';
 import 'package:magic_companion/pages/tournaments/tournament_page.dart';
 import 'pages/life_counter/life_counter_page.dart';
+import 'pages/life_counter/game_history_page.dart'; // <--- IMPORT AJOUTÉ
 import 'pages/glossary/glossary_page.dart';
 import 'pages/decks/deck_list_page.dart';
 import 'pages/settings/settings_page.dart';
@@ -202,10 +203,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     });
   }
 
-  /// NOUVELLE FONCTION : Affiche le dialogue "À propos" dynamique
-  /// Récupère la version générée par GitHub Actions via package_info_plus
   Future<void> _showAppAboutDialog(BuildContext context) async {
-    // Récupère les infos du build (VersionName et BuildNumber injectés par GitHub)
     final PackageInfo info = await PackageInfo.fromPlatform();
 
     if (!context.mounted) return;
@@ -213,7 +211,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     showAboutDialog(
       context: context,
       applicationName: 'Magic Companion',
-      // Affiche la version du tag (ex: v1.0.1) et le numéro de build
       applicationVersion: 'v${info.version} (Build ${info.buildNumber})',
       applicationIcon: Image.asset(
         'assets/icone.png', 
@@ -237,8 +234,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           "le mana, et le symbole Tap sont la propriété de Wizards of the Coast, LLC.",
           style: TextStyle(color: Colors.white30, fontSize: 10),
         ),
-        const SizedBox(height: 12),
-        // Le bouton "Afficher les licences" est ajouté automatiquement par Flutter ici
       ],
     );
   }
@@ -310,7 +305,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               final isConnected = snapshot.data ?? false;
               final userEmail = _driveService.currentUser?.email;
 
-              // Cas Connecté
               if (isConnected) {
                 return Container(
                   color: Colors.green.withOpacity(0.1),
@@ -340,14 +334,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   ),
                 );
               } 
-              // Cas Déconnecté
               else {
                 return ListTile(
                   leading: const Icon(Icons.cloud_off, color: Colors.white54),
                   title: Text('Connexion Drive', style: GoogleFonts.cinzel(color: Colors.white)),
                   subtitle: const Text('Activer la sauvegarde auto', style: TextStyle(color: Colors.white38, fontSize: 10)),
                   onTap: () async {
-                    // Ici on lance la connexion interactive
                     await _driveService.signIn(silent: false);
                     setState(() {}); 
                   },
@@ -358,6 +350,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           
           const Divider(color: Colors.white10),
           // --- SECTION JEU ---
+          ListTile(
+            leading: const Icon(Icons.history, color: Colors.white70), // <--- NOUVELLE ENTRÉE
+            title: Text('Historique Parties', style: GoogleFonts.cinzel(color: Colors.white)),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const GameHistoryPage()));
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.emoji_events_outlined, color: Colors.white70),
             title: Text('Gestion Tournoi', style: GoogleFonts.cinzel(color: Colors.white)),
@@ -370,7 +370,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             leading: const Icon(Icons.all_inclusive, color: Colors.purpleAccent),
             title: Text('Oracle (IA)', style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
             subtitle: const Text("Posez vos questions de règles", style: TextStyle(color: Colors.white38, fontSize: 10)),
-            tileColor: Colors.purple.withOpacity(0.1), // Mise en valeur subtile
+            tileColor: Colors.purple.withOpacity(0.1),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (context) => const MagicOraclePage()));
@@ -383,7 +383,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               subtitle: const Text("Interrogez votre codebase", style: TextStyle(color: Colors.white38, fontSize: 10)),
               tileColor: Colors.green.withOpacity(0.1),
               onTap: () {
-                Navigator.pop(context); // Ferme le menu
+                Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatScreen()));
               },
             ),
@@ -419,13 +419,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             },
           ),
 
-          // --- BOUTON À PROPOS MIS À JOUR ---
+          // --- BOUTON À PROPOS ---
           ListTile(
             leading: const Icon(Icons.info_outline, color: Colors.white30),
             title: Text('À propos & Licences', style: GoogleFonts.cinzel(color: Colors.white54)),
             onTap: () {
               Navigator.pop(context);
-              // Appel de la nouvelle fonction dynamique
               _showAppAboutDialog(context);
             },
           ),

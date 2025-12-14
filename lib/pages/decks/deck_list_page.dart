@@ -525,87 +525,151 @@ class _DeckListPageState extends State<DeckListPage> {
     final bool isCommander = deck.commanderScryfallId != null;
     final int cardCount = deck.mainboard.fold(0, (s, c) => s + c.quantity);
 
-    return Card(
-      color: Colors.black.withOpacity(0.4),
-      margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.0),
-        side: BorderSide(
-          color: isCommander ? Colors.yellow.shade800.withOpacity(0.6) : Colors.white12,
-          width: 1,
+    // ON ENVELOPPE TOUT DANS UN DISMISSIBLE
+    return Dismissible(
+      key: Key(deck.id),
+      direction: DismissDirection.startToEnd, // Glisser de gauche à droite
+      
+      // --- EASTER EGG VISUEL STAR WARS ---
+      background: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+        padding: const EdgeInsets.only(left: 20),
+        decoration: BoxDecoration(
+          color: Colors.red.shade900,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.centerLeft,
+        child: Row(
+          children: [
+            // Icône de main ou éclair
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(Icons.back_hand, color: Colors.white, size: 30), // La main
+                Icon(Icons.flash_on, color: Colors.blueAccent.shade100, size: 40), // L'éclair de force
+              ],
+            ),
+            const SizedBox(width: 12),
+            Text(
+              "USE THE FORCE", 
+              style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.5)
+            ),
+          ],
         ),
       ),
-      child: InkWell(
-        onTap: () async {
-          await Navigator.push(context, MaterialPageRoute(builder: (_) => DeckDetailPage(deck: deck)));
-          _loadDecks();
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  if (isCommander)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(20), 
-                          child: Image.network(
-                            "https://api.scryfall.com/cards/${deck.commanderScryfallId}?format=image&version=art_crop",
-                            width: 50, height: 50, fit: BoxFit.cover,
-                            errorBuilder: (c,e,s) => Icon(Icons.shield_outlined, color: Colors.yellow.shade700, size: 28),
-                          ),
-                        )
-                      else
-                        Icon(Icons.style_outlined, color: Colors.white70, size: 28),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      deck.name,
-                      style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (deck.colors.isNotEmpty)
-                    Row(
-                      children: deck.colors.map((c) => Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: _getManaIcon(c, size: 16),
-                      )).toList(),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isCommander ? Colors.yellow.shade900.withOpacity(0.3) : Colors.grey.shade800,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      isCommander ? 'COMMANDER' : 'STANDARD',
-                      style: GoogleFonts.cinzel(
-                        color: isCommander ? Colors.yellow.shade200 : Colors.white70,
-                        fontSize: 10, fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Text('$cardCount cartes', style: GoogleFonts.cinzel(color: Colors.white38, fontSize: 12)),
-                  const SizedBox(width: 16),
-                  InkWell(
-                    onTap: () => _deleteDeck(deck.id),
-                    child: Icon(Icons.delete_outline, color: Colors.red.shade300.withOpacity(0.7), size: 20),
-                  ),
-                ],
-              )
+      
+      // Confirmation avant suppression
+      confirmDismiss: (direction) async {
+        return await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1A1A1A),
+            title: Text('Exécuter l\'Ordre 66 ?', style: GoogleFonts.cinzel(color: Colors.white)),
+            content: const Text('Voulez-vous vraiment supprimer ce deck ?', style: TextStyle(color: Colors.white70)),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+              TextButton(onPressed: () => Navigator.pop(context, true), child: Text('Supprimer', style: TextStyle(color: Colors.red.shade300))),
             ],
           ),
+        );
+      },
+      
+      // Action une fois supprimé
+      onDismissed: (direction) {
+        _deckService.deleteDeck(deck.id);
+        // Pas besoin de _loadDecks() ici car on l'enlève visuellement, 
+        // mais pour être sûr de la synchro :
+        setState(() {
+            _decks.removeWhere((d) => d.id == deck.id);
+            _applyFilters();
+          });
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Deck supprimé par la Force.")));
+        },
+
+      // --- CONTENU ORIGINAL (La Card) ---
+      child: Card(
+        color: Colors.black.withOpacity(0.4),
+        margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
+          side: BorderSide(
+            color: isCommander ? Colors.yellow.shade800.withOpacity(0.6) : Colors.white12,
+            width: 1,
+          ),
         ),
-      ),
+        child: InkWell(
+          onTap: () async {
+            await Navigator.push(context, MaterialPageRoute(builder: (_) => DeckDetailPage(deck: deck)));
+            _loadDecks();
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (isCommander)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.network(
+                          "https://api.scryfall.com/cards/${deck.commanderScryfallId}?format=image&version=art_crop",
+                          width: 50, height: 50, fit: BoxFit.cover,
+                          errorBuilder: (c,e,s) => Icon(Icons.shield_outlined, color: Colors.yellow.shade700, size: 28),
+                        ),
+                      )
+                    else
+                      Icon(Icons.style_outlined, color: Colors.white70, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        deck.name,
+                        style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (deck.colors.isNotEmpty)
+                      Row(
+                        children: deck.colors.map((c) => Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: _getManaIcon(c, size: 16),
+                        )).toList(),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isCommander ? Colors.yellow.shade900.withOpacity(0.3) : Colors.grey.shade800,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        isCommander ? 'COMMANDER' : 'STANDARD',
+                        style: GoogleFonts.cinzel(
+                          color: isCommander ? Colors.yellow.shade200 : Colors.white70,
+                          fontSize: 10, fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text('$cardCount cartes', style: GoogleFonts.cinzel(color: Colors.white38, fontSize: 12)),
+                    const SizedBox(width: 16),
+                    // On garde le bouton poubelle au cas où l'utilisateur ne devine pas le swipe
+                    InkWell(
+                      onTap: () => _deleteDeck(deck.id),
+                      child: Icon(Icons.delete_outline, color: Colors.red.shade300.withOpacity(0.7), size: 20),
+                    ),
+                  ],
+                )
+              ],
+            ),
+          ),
+        ),
+      )
     );
   }
   
