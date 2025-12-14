@@ -1,15 +1,19 @@
 // Fichier : lib/models/search_filters.dart
-// VERSION MISE À JOUR : Ajout CMC et Rareté
 
 class SearchFilters {
   final String? setCode;
   final String? cardType;
   final Set<String> colors;
   
-  // --- NOUVEAUX FILTRES ---
   final double? minCmc;
   final double? maxCmc;
-  final String? rarity; // 'common', 'uncommon', 'rare', 'mythic'
+  final String? rarity; 
+  final String? keyword;
+  
+  // --- NOUVEAUX CHAMPS UX ---
+  final String sortType; // 'name', 'price', 'cmc', 'type', 'date'
+  final bool sortAscending;
+  final Set<String> tags; // Filtre par tags utilisateur
 
   SearchFilters({
     this.setCode,
@@ -18,6 +22,10 @@ class SearchFilters {
     this.minCmc,
     this.maxCmc,
     this.rarity,
+    this.keyword,
+    this.sortType = 'name',
+    this.sortAscending = true,
+    this.tags = const {},
   });
 
   SearchFilters copyWith({
@@ -27,6 +35,10 @@ class SearchFilters {
     double? minCmc,
     double? maxCmc,
     String? rarity,
+    String? keyword,
+    String? sortType,
+    bool? sortAscending,
+    Set<String>? tags,
   }) {
     return SearchFilters(
       setCode: setCode ?? this.setCode,
@@ -35,6 +47,10 @@ class SearchFilters {
       minCmc: minCmc ?? this.minCmc,
       maxCmc: maxCmc ?? this.maxCmc,
       rarity: rarity ?? this.rarity,
+      keyword: keyword ?? this.keyword,
+      sortType: sortType ?? this.sortType,
+      sortAscending: sortAscending ?? this.sortAscending,
+      tags: tags ?? this.tags,
     );
   }
 }

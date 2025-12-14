@@ -8,10 +8,19 @@ import 'dart:convert';
 
 import '../../models/scryfall_set_model.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../models/search_filters.dart';
 import '../../services/collection_service.dart';
 import '../../services/wishlist_service.dart';
 import '../../pages/cards/card_detail_page.dart';
-import 'set_stats_page.dart'; // Pour les stats globales du set
+import 'set_stats_page.dart';
+
+// --- CLASSE UTILITAIRE POUR L'AFFICHAGE ---
+class SetCardDisplayItem {
+  final ScryfallCard card;
+  final bool isFoil;
+
+  SetCardDisplayItem(this.card, this.isFoil);
+}
 
 class SetDetailPage extends StatefulWidget {
   final ScryfallSet set;
@@ -30,19 +39,24 @@ class SetDetailPage extends StatefulWidget {
 }
 
 class _SetDetailPageState extends State<SetDetailPage> {
+  // --- DONNÉES ---
   List<ScryfallCard> _allCards = [];
-  List<ScryfallCard> _displayedCards = [];
-  
+  List<SetCardDisplayItem> _gridItems = []; 
   bool _isLoading = true;
   
-  // Sets pour savoir ce qu'on possède : Stocke "ID_NORMAL" ou "ID_FOIL"
+  // --- ÉTATS ---
   Set<String> _ownedKeys = {}; 
   Set<String> _wishlistKeys = {}; 
-  Set<String> _selectedKeys = {}; // Clé composite : "scryfallId|foil" ou "scryfallId|normal"
+  Set<String> _selectedKeys = {}; 
   
   Map<String, int> _rarityCounts = {'common': 0, 'uncommon': 0, 'rare': 0, 'mythic': 0};
-  final Set<String> _selectedRarities = {}; 
-  final Set<String> _selectedColors = {};   
+
+  // --- FILTRES ---
+  final TextEditingController _searchController = TextEditingController();
+  SearchFilters _activeFilters = SearchFilters();
+  String _sortBy = 'number';
+  bool _sortAsc = true;
+  bool _hideOwned = false;
 
   @override
   void initState() {
@@ -50,29 +64,30 @@ class _SetDetailPageState extends State<SetDetailPage> {
     _loadSetCards();
   }
 
-  // --- LOGIQUE CLÉ UNIQUE ---
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   String _makeKey(String id, bool isFoil) => "$id|${isFoil ? 'foil' : 'normal'}";
 
   Future<void> _loadSetCards() async {
     setState(() => _isLoading = true);
 
-    // 1. Chargement Collection avec distinction Foil
+    // 1. Collection
     final col = await widget.collectionService.loadCollection();
     _ownedKeys.clear();
-    for (var c in col) {
-      _ownedKeys.add(_makeKey(c.scryfallId, c.isFoil));
-    }
+    for (var c in col) _ownedKeys.add(_makeKey(c.scryfallId, c.isFoil));
 
-    // 2. Chargement Wishlists
+    // 2. Wishlists
     final wishlists = await widget.wishlistService.loadWishlists();
     _wishlistKeys.clear();
     for (var w in wishlists) {
-      for (var c in w.cards) {
-        _wishlistKeys.add(_makeKey(c.scryfallId, c.isFoil));
-      }
+      for (var c in w.cards) _wishlistKeys.add(_makeKey(c.scryfallId, c.isFoil));
     }
 
-    // 3. Récupération Cartes API
+    // 3. API
     List<ScryfallCard> accumulator = [];
     String? nextPageUrl = 'https://api.scryfall.com/cards/search?q=e:${widget.set.code}&unique=prints&order=set';
 
@@ -100,7 +115,7 @@ class _SetDetailPageState extends State<SetDetailPage> {
         setState(() {
           _allCards = accumulator;
           _rarityCounts = counts;
-          _applyFilters();
+          _applyFiltersAndSort();
           _isLoading = false;
         });
       }
@@ -109,40 +124,91 @@ class _SetDetailPageState extends State<SetDetailPage> {
     }
   }
 
-  void _applyFilters() {
+  void _applyFiltersAndSort() {
+    final query = _searchController.text.toLowerCase().trim();
+    
+    List<ScryfallCard> filtered = _allCards.where((card) {
+      // 1. Recherche Texte
+      if (query.isNotEmpty) {
+        bool matchName = card.name.toLowerCase().contains(query);
+        bool matchNum = card.collectorNumber.toLowerCase() == query;
+        if (!matchName && !matchNum) return false;
+      }
+
+      // 2. Masquer les possédées
+      if (_hideOwned) {
+         final keyNormal = _makeKey(card.id, false);
+         final keyFoil = _makeKey(card.id, true);
+         bool isOwned = _ownedKeys.contains(keyNormal) || _ownedKeys.contains(keyFoil);
+         if (isOwned) return false;
+      }
+
+      // 3. Type
+      if (_activeFilters.cardType != null && !card.typeLine.toLowerCase().contains(_activeFilters.cardType!.toLowerCase())) return false;
+      
+      // 4. Rareté
+      if (_activeFilters.rarity != null && card.rarity.toLowerCase() != _activeFilters.rarity!.toLowerCase()) return false;
+      
+      // 5. Couleurs (W, U, B, R, G, C, M)
+      if (_activeFilters.colors.isNotEmpty) {
+        final cardColors = card.colorIdentity.toSet();
+        
+        bool wantsColorless = _activeFilters.colors.contains('C');
+        bool wantsMulti = _activeFilters.colors.contains('M');
+        Set<String> standardColors = _activeFilters.colors.where((c) => !['C', 'M'].contains(c)).toSet();
+
+        bool match = false;
+        
+        // Logique "OU"
+        if (wantsColorless && cardColors.isEmpty) match = true;
+        if (wantsMulti && cardColors.length > 1) match = true;
+        if (standardColors.isNotEmpty && cardColors.any((c) => standardColors.contains(c))) match = true;
+
+        if (!match) return false;
+      }
+
+      return true;
+    }).toList();
+
+    filtered.sort((a, b) {
+      int result = 0;
+      switch (_sortBy) {
+        case 'name': result = a.name.compareTo(b.name); break;
+        case 'rarity':
+          final rarities = {'mythic': 3, 'rare': 2, 'uncommon': 1, 'common': 0};
+          result = (rarities[a.rarity] ?? 0).compareTo(rarities[b.rarity] ?? 0);
+          break;
+        case 'price':
+          double pA = double.tryParse(a.prices['eur'] ?? '0') ?? 0;
+          double pB = double.tryParse(b.prices['eur'] ?? '0') ?? 0;
+          result = pA.compareTo(pB);
+          break;
+        case 'number':
+        default:
+          int nA = int.tryParse(a.collectorNumber) ?? 9999;
+          int nB = int.tryParse(b.collectorNumber) ?? 9999;
+          result = (nA == nB) ? a.collectorNumber.compareTo(b.collectorNumber) : nA.compareTo(nB);
+          break;
+      }
+      return _sortAsc ? result : -result;
+    });
+
+    List<SetCardDisplayItem> newGridItems = [];
+    for (var card in filtered) {
+      bool hasNormal = card.prices['eur'] != null || card.prices['usd'] != null;
+      bool hasFoil = card.prices['eur_foil'] != null || card.prices['usd_foil'] != null;
+      if (!hasNormal && !hasFoil) hasNormal = true;
+
+      if (hasNormal) newGridItems.add(SetCardDisplayItem(card, false));
+      if (hasFoil) newGridItems.add(SetCardDisplayItem(card, true));
+    }
+
     setState(() {
-      _displayedCards = _allCards.where((card) {
-        if (_selectedRarities.isNotEmpty && !_selectedRarities.contains(card.rarity.toLowerCase())) return false;
-        if (_selectedColors.isNotEmpty) {
-          bool matchColor = false;
-          if (_selectedColors.contains('C') && card.colorIdentity.isEmpty) matchColor = true;
-          else if (_selectedColors.contains('M') && card.colorIdentity.length > 1) matchColor = true;
-          else {
-            for (var color in _selectedColors) {
-              if (['W','U','B','R','G'].contains(color) && card.colorIdentity.contains(color)) {
-                matchColor = true;
-                break;
-              }
-            }
-          }
-          if (!matchColor) return false;
-        }
-        return true;
-      }).toList();
+      _gridItems = newGridItems;
     });
   }
-
-  void _toggleRarityFilter(String rarity) {
-    if (_selectedRarities.contains(rarity)) _selectedRarities.remove(rarity); else _selectedRarities.add(rarity);
-    _applyFilters();
-  }
-
-  void _toggleColorFilter(String colorSymbol) {
-    if (_selectedColors.contains(colorSymbol)) _selectedColors.remove(colorSymbol); else _selectedColors.add(colorSymbol);
-    _applyFilters();
-  }
-
-  // --- SÉLECTION ---
+  
+  // --- ACTIONS DE SÉLECTION ---
   void _toggleSelection(String id, bool isFoil) {
     final key = _makeKey(id, isFoil);
     setState(() {
@@ -151,71 +217,76 @@ class _SetDetailPageState extends State<SetDetailPage> {
   }
 
   void _selectAllMissingFiltered() {
-    // final missingInView = _displayedCards.where((c) => !_ownedIds.contains(c.id)).map((c) => c.id).toSet();
-    // setState(() => _selectedIds.addAll(missingInView));
-    // Sélectionne toutes les versions Normales ET Foil qui manquent dans la vue actuelle
-    for (var c in _displayedCards) {
-      final keyNormal = _makeKey(c.id, false);
-      // ignore: unused_local_variable
-      final keyFoil = _makeKey(c.id, true);
-      
-      if (!_ownedKeys.contains(keyNormal)) _selectedKeys.add(keyNormal);
-      if (!_ownedKeys.contains(keyFoil)) _selectedKeys.add(keyFoil);
+    for (var item in _gridItems) {
+      final key = _makeKey(item.card.id, item.isFoil);
+      if (!_ownedKeys.contains(key)) _selectedKeys.add(key);
     }
     setState(() {});
   }
 
   void _clearSelection() => setState(() => _selectedKeys.clear());
 
-  // --- ACTIONS ---
-  Future<String?> _askWishlistDestination() async {
-    final wishlists = await widget.wishlistService.loadWishlists();
-    final String setName = widget.set.name;
-
-    return showDialog<String>(
-      context: context,
-      builder: (context) {
-        return SimpleDialog(
-          backgroundColor: const Color(0xFF1A1A1A),
-          title: Text("Ajouter à...", style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-          children: [
-            SimpleDialogOption(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              onPressed: () async {
-                await widget.wishlistService.createWishlist(setName);
-                final updatedLists = await widget.wishlistService.loadWishlists();
-                final newList = updatedLists.lastWhere((w) => w.name == setName, orElse: () => updatedLists.last);
-                if (mounted) Navigator.pop(context, newList.id);
-              },
-              child: Row(children: [const Icon(Icons.add_circle, color: Colors.greenAccent), const SizedBox(width: 12), Expanded(child: Text("Nouvelle : $setName", style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis))]),
-            ),
-            const Divider(color: Colors.white24),
-            if (wishlists.isEmpty)
-              const Padding(padding: EdgeInsets.all(16.0), child: Text("Aucune liste existante.", style: TextStyle(color: Colors.white54)))
-            else
-              ...wishlists.map((w) => SimpleDialogOption(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                onPressed: () => Navigator.pop(context, w.id),
-                child: Row(children: [const Icon(Icons.folder_open, color: Colors.blueAccent), const SizedBox(width: 12), Text(w.name, style: GoogleFonts.cinzel(color: Colors.white70))]),
-              )),
-          ],
-        );
-      },
-    );
-  }
+  // --- ACTIONS PRINCIPALES (Ajout/Retrait) ---
 
   Future<void> _addSelectedTo(bool toCollection) async {
     if (_selectedKeys.isEmpty) return;
+    
     String? targetWishlistId;
     if (!toCollection) {
       targetWishlistId = await _askWishlistDestination();
-      if (targetWishlistId == null) return;
+      if (targetWishlistId == null) return; 
     }
 
     setState(() => _isLoading = true);
     int count = 0;
 
-    // Traitement des clés sélectionnées
+    for (String key in _selectedKeys) {
+      final parts = key.split('|');
+      final id = parts[0];
+      final isFoil = parts[1] == 'foil';
+      try {
+        final card = _allCards.firstWhere((c) => c.id == id);
+        if (toCollection) {
+          await widget.collectionService.addCard(card, 1, isFoil: isFoil);
+        } else {
+          await widget.wishlistService.upsertCard(
+            wishlistId: targetWishlistId, 
+            scryfallId: card.id, cardName: card.name, 
+            quantityToAdd: 1, isFoil: isFoil
+          );
+        }
+        count++;
+      } catch (e) { /* */ }
+    }
+    
+    await _refreshKeys();
+    setState(() { _isLoading = false; _selectedKeys.clear(); });
+    if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$count cartes ajoutées !", style: GoogleFonts.cinzel()), backgroundColor: Colors.green));
+  }
+
+  Future<void> _removeSelectedFrom(bool fromCollection) async {
+    if (_selectedKeys.isEmpty) return;
+
+    final String targetName = fromCollection ? "votre Collection" : "toutes vos Wishlists";
+    
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (c) => _buildThemedDialog(
+        context: c,
+        title: "Retirer des cartes ?",
+        content: "Vous êtes sur le point de retirer ${_selectedKeys.length} cartes de $targetName.\nCette action est irréversible.",
+        icon: Icons.delete_forever,
+        iconColor: Colors.redAccent,
+        confirmText: "RETIRER",
+        confirmColor: Colors.red.shade900,
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    int count = 0;
+
     for (String key in _selectedKeys) {
       final parts = key.split('|');
       final id = parts[0];
@@ -224,45 +295,306 @@ class _SetDetailPageState extends State<SetDetailPage> {
       try {
         final card = _allCards.firstWhere((c) => c.id == id);
         
-        if (toCollection) {
-          // Ajout avec le bon flag Foil
-          await widget.collectionService.addCard(card, 1, isFoil: isFoil);
-        } else {
-          await widget.wishlistService.upsertCard(
-            wishlistId: targetWishlistId, 
-            scryfallId: card.id, 
-            cardName: card.name, 
-            quantityToAdd: 1,
-            isFoil: isFoil
+        if (fromCollection) {
+          await widget.collectionService.upsertCardInCollection(
+            scryfallId: id, cardName: card.name, 
+            absoluteQuantity: 0, isFoil: isFoil
           );
+        } else {
+          final lists = await widget.wishlistService.loadWishlists();
+          for(var list in lists) {
+             await widget.wishlistService.upsertCard(
+               wishlistId: list.id, scryfallId: id, cardName: card.name, 
+               absoluteQuantity: 0, isFoil: isFoil
+             );
+          }
         }
         count++;
-      } catch (e) {
-        // Carte introuvable (rare)
-      }
-    }
-    
-    // Rafraichissement
-    if (toCollection) {
-      final col = await widget.collectionService.loadCollection();
-      _ownedKeys.clear();
-      for (var c in col) _ownedKeys.add(_makeKey(c.scryfallId, c.isFoil));
-    } else {
-      final w = await widget.wishlistService.loadWishlists();
-      _wishlistKeys.clear();
-      for (var l in w) {
-        for (var c in l.cards) _wishlistKeys.add(_makeKey(c.scryfallId, c.isFoil));
-      }
+      } catch(e) { /* */ }
     }
 
+    await _refreshKeys();
     setState(() { _isLoading = false; _selectedKeys.clear(); });
-    if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$count cartes ajoutées !"), backgroundColor: Colors.green));
+    if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$count cartes retirées !", style: GoogleFonts.cinzel()), backgroundColor: Colors.redAccent));
+  }
+
+  Future<void> _refreshKeys() async {
+    final col = await widget.collectionService.loadCollection();
+    _ownedKeys.clear();
+    for (var c in col) _ownedKeys.add(_makeKey(c.scryfallId, c.isFoil));
+
+    final w = await widget.wishlistService.loadWishlists();
+    _wishlistKeys.clear();
+    for (var l in w) for (var c in l.cards) _wishlistKeys.add(_makeKey(c.scryfallId, c.isFoil));
+  }
+
+  Future<String?> _askWishlistDestination() async {
+    final wishlists = await widget.wishlistService.loadWishlists();
+    final String setName = widget.set.name;
+
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border(top: BorderSide(color: Colors.yellow.shade800, width: 2)),
+          ),
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text("Choisir une Wishlist", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              ),
+              const Divider(color: Colors.white10, height: 1),
+              
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), shape: BoxShape.circle),
+                  child: const Icon(Icons.add, color: Colors.greenAccent),
+                ),
+                title: Text("Nouvelle liste : $setName", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                onTap: () async {
+                  await widget.wishlistService.createWishlist(setName);
+                  final updatedLists = await widget.wishlistService.loadWishlists();
+                  final newList = updatedLists.lastWhere((w) => w.name == setName);
+                  if (mounted) Navigator.pop(context, newList.id);
+                },
+              ),
+              const Divider(color: Colors.white10),
+              
+              Expanded(
+                child: ListView.separated(
+                  itemCount: wishlists.length,
+                  separatorBuilder: (_,__) => const Divider(color: Colors.white10, height: 1),
+                  itemBuilder: (context, index) {
+                    final w = wishlists[index];
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                      leading: const Icon(Icons.bookmark_border, color: Colors.blueAccent),
+                      title: Text(w.name, style: GoogleFonts.cinzel(color: Colors.white70)),
+                      subtitle: Text("${w.totalCards} cartes", style: const TextStyle(color: Colors.white30, fontSize: 12)),
+                      onTap: () => Navigator.pop(context, w.id),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // --- MODALE DE FILTRES ---
+  void _openFilterModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return SafeArea( // <--- CORRECTION : Ajout du SafeArea ici
+          child: StatefulBuilder(
+            builder: (context, setModalState) {
+              return Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: Colors.yellow.shade800, width: 2)),
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text("Filtres du Set", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                    const SizedBox(height: 20),
+                    
+                    // --- 1. COULEURS (ICONES MANA) ---
+                    Text("Couleurs", style: GoogleFonts.cinzel(color: Colors.white70)),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 12, runSpacing: 10, alignment: WrapAlignment.center,
+                      children: [
+                        _buildManaIconBtn('W', setModalState),
+                        _buildManaIconBtn('U', setModalState),
+                        _buildManaIconBtn('B', setModalState),
+                        _buildManaIconBtn('R', setModalState),
+                        _buildManaIconBtn('G', setModalState),
+                        _buildManaIconBtn('C', setModalState),
+                        _buildManaIconBtn('M', setModalState, isMulti: true), // Gold for Multi
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // --- 2. TYPES ---
+                    Text("Type de carte", style: GoogleFonts.cinzel(color: Colors.white70)),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8, runSpacing: 8,
+                      children: ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Land', 'Planeswalker'].map((type) {
+                        final isSelected = _activeFilters.cardType == type;
+                        return ChoiceChip(
+                          label: Text(type),
+                          selected: isSelected,
+                          onSelected: (val) {
+                            setModalState(() {
+                              _activeFilters = _activeFilters.copyWith(cardType: val ? type : null);
+                            });
+                          },
+                          selectedColor: Colors.yellow.shade900,
+                          backgroundColor: Colors.black45,
+                          labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.white70),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // --- 3. OPTIONS ---
+                    Text("Options d'affichage", style: GoogleFonts.cinzel(color: Colors.white70)),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _activeFilters.rarity,
+                            decoration: const InputDecoration(labelText: "Rareté", filled: true, fillColor: Colors.black45),
+                            dropdownColor: const Color(0xFF2A2A2A),
+                            items: [
+                              const DropdownMenuItem(value: null, child: Text("Toutes")),
+                              const DropdownMenuItem(value: 'common', child: Text("Commune")),
+                              const DropdownMenuItem(value: 'uncommon', child: Text("Unco")),
+                              const DropdownMenuItem(value: 'rare', child: Text("Rare")),
+                              const DropdownMenuItem(value: 'mythic', child: Text("Mythique")),
+                            ],
+                            onChanged: (val) => setModalState(() => _activeFilters = _activeFilters.copyWith(rarity: val)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilterChip(
+                            label: const Text("Masquer possédées"),
+                            selected: _hideOwned,
+                            onSelected: (val) => setModalState(() => _hideOwned = val),
+                            selectedColor: Colors.green.withOpacity(0.3),
+                            checkmarkColor: Colors.greenAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 30),
+                    ElevatedButton(
+                      onPressed: () {
+                        _applyFiltersAndSort();
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800, padding: const EdgeInsets.symmetric(vertical: 16)),
+                      child: Text("APPLIQUER", style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+                    )
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  // --- BOUTON MANA ICON ---
+  Widget _buildManaIconBtn(String code, StateSetter setModalState, {bool isMulti = false}) {
+    final isSelected = _activeFilters.colors.contains(code);
+    
+    // Pour M (Multi), on utilise un cercle doré car pas de symbole svg standard
+    // Pour les autres, on utilise le SVG Scryfall
+    Widget content;
+    if (isMulti) {
+      content = Container(
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: [Color(0xFFE6D68F), Color(0xFFC7A94E)], // Or
+            begin: Alignment.topLeft, end: Alignment.bottomRight
+          )
+        ),
+        child: Center(child: Text("M", style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16))),
+      );
+    } else {
+      content = SvgPicture.network(
+        'https://svgs.scryfall.io/card-symbols/$code.svg',
+        placeholderBuilder: (_) => CircleAvatar(backgroundColor: Colors.grey, child: Text(code)),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () {
+        setModalState(() {
+          final newColors = Set<String>.from(_activeFilters.colors);
+          if (isSelected) newColors.remove(code); else newColors.add(code);
+          _activeFilters = _activeFilters.copyWith(colors: newColors);
+        });
+      },
+      child: Opacity(
+        opacity: isSelected ? 1.0 : 0.4, // Grisé si non sélectionné
+        child: Container(
+          width: 40, height: 40,
+          decoration: isSelected 
+            ? BoxDecoration(
+                shape: BoxShape.circle, 
+                boxShadow: [BoxShadow(color: Colors.white.withOpacity(0.3), blurRadius: 10)]
+              ) 
+            : null,
+          child: content,
+        ),
+      ),
+    );
+  }
+
+  // --- HELPER DIALOGUE STYLISÉ ---
+  Widget _buildThemedDialog({
+    required BuildContext context,
+    required String title,
+    required String content,
+    required IconData icon,
+    required Color iconColor,
+    required String confirmText,
+    required Color confirmColor,
+  }) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: iconColor.withOpacity(0.5), width: 1.5)),
+      title: Row(
+        children: [
+          Icon(icon, color: iconColor),
+          const SizedBox(width: 12),
+          Expanded(child: Text(title, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
+        ],
+      ),
+      content: Text(content, style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.4)),
+      actionsPadding: const EdgeInsets.all(16),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: Text("Annuler", style: GoogleFonts.cinzel(color: Colors.white54))),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(backgroundColor: confirmColor, foregroundColor: Colors.white, elevation: 4),
+          child: Text(confirmText, style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+        ),
+      ],
+    );
   }
 
   void _openStats() async {
     final fullCollection = await widget.collectionService.loadCollection();
     final setCollection = fullCollection.where((dc) => _allCards.any((sc) => sc.id == dc.scryfallId)).toList();
-
     if (!mounted) return;
     Navigator.push(context, MaterialPageRoute(
       builder: (context) => SetStatsPage(targetSet: widget.set, myCollection: setCollection, fullSetData: _allCards)
@@ -271,7 +603,6 @@ class _SetDetailPageState extends State<SetDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Calcul des totaux (uniques)
     final int totalSetCount = _allCards.length;
     final int totalOwnedUnique = _allCards.where((c) => _ownedKeys.contains(_makeKey(c.id, false)) || _ownedKeys.contains(_makeKey(c.id, true))).length;
     final int totalMissing = totalSetCount - totalOwnedUnique;
@@ -283,16 +614,16 @@ class _SetDetailPageState extends State<SetDetailPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.set.name, style: GoogleFonts.cinzel(fontSize: 16)),
-            Text("${widget.set.code.toUpperCase()} • ${_displayedCards.length} cartes", style: GoogleFonts.roboto(fontSize: 12, color: Colors.white70)),
+            Text("${widget.set.code.toUpperCase()} • ${_gridItems.length} items", style: GoogleFonts.roboto(fontSize: 12, color: Colors.white70)),
           ],
         ),
         backgroundColor: Colors.black,
         actions: [
-          if (!_isLoading) IconButton(icon: const Icon(Icons.pie_chart, color: Colors.blueAccent), tooltip: "Statistiques du Set", onPressed: _openStats),
+          if (!_isLoading) IconButton(icon: const Icon(Icons.pie_chart, color: Colors.amber), tooltip: "Stats", onPressed: _openStats),
           if (_selectedKeys.isNotEmpty)
-             IconButton(icon: const Icon(Icons.deselect), tooltip: "Tout désélectionner", onPressed: _clearSelection)
+             IconButton(icon: const Icon(Icons.deselect), onPressed: _clearSelection)
           else if (!_isLoading)
-            IconButton(icon: const Icon(Icons.select_all), tooltip: "Sélectionner les manquantes (Normales)", onPressed: _selectAllMissingFiltered),
+            IconButton(icon: const Icon(Icons.select_all), onPressed: _selectAllMissingFiltered),
         ],
       ),
       body: _isLoading 
@@ -300,21 +631,82 @@ class _SetDetailPageState extends State<SetDetailPage> {
         : Column(
             children: [
                _buildStatsHeader(totalMissing, totalSetCount),
-               _buildQuickFilters(),
+               
+               // --- BARRE DE CONTRÔLE ---
+               Container(
+                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                 color: Colors.black.withOpacity(0.3),
+                 child: Row(
+                   children: [
+                     Expanded(
+                       child: Container(
+                         height: 40,
+                         decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                         child: TextField(
+                           controller: _searchController,
+                           style: const TextStyle(color: Colors.white),
+                           decoration: const InputDecoration(
+                             hintText: "Rechercher...",
+                             hintStyle: TextStyle(color: Colors.white54, fontSize: 14),
+                             border: InputBorder.none,
+                             prefixIcon: Icon(Icons.search, color: Colors.white54, size: 20),
+                             contentPadding: EdgeInsets.symmetric(vertical: 10),
+                           ),
+                           onChanged: (_) => _applyFiltersAndSort(),
+                         ),
+                       ),
+                     ),
+                     const SizedBox(width: 8),
+                     
+                     // BOUTON FILTRE (Mis à jour avec indicateur actif)
+                     Container(
+                       decoration: BoxDecoration(
+                         color: (_activeFilters.colors.isNotEmpty || _activeFilters.cardType != null || _hideOwned) ? Colors.yellow.shade900 : Colors.white.withOpacity(0.1),
+                         borderRadius: BorderRadius.circular(8)
+                       ),
+                       child: IconButton(
+                         icon: const Icon(Icons.filter_list, color: Colors.white70),
+                         onPressed: _openFilterModal,
+                       ),
+                     ),
+                     const SizedBox(width: 4),
+                     
+                     // BOUTON TRI
+                     Container(
+                       decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                       child: _buildSortMenu(),
+                     ),
+                   ],
+                 ),
+               ),
+
                Expanded(
-                 child: _displayedCards.isEmpty 
-                  ? Center(child: Text("Aucune carte trouvée", style: GoogleFonts.cinzel(color: Colors.white30)))
+                 child: _gridItems.isEmpty 
+                  ? Center(
+                      // --- EASTER EGG STAR WARS ---
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.filter_none, size: 48, color: Colors.white24),
+                          const SizedBox(height: 16),
+                          Text(
+                            "Ce ne sont pas les cartes que vous recherchez...", 
+                            style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text("👋🤖", style: TextStyle(fontSize: 24)),
+                        ],
+                      ),
+                    )
                   : GridView.builder(
                      padding: const EdgeInsets.only(left: 8, right: 8, top: 8, bottom: 100), 
                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                        crossAxisCount: 3, childAspectRatio: 0.7, crossAxisSpacing: 8, mainAxisSpacing: 8
                      ),
-                     // "Double" le nombre d'items pour afficher Normal ET Foil
-                     itemCount: _displayedCards.length * 2,
+                     itemCount: _gridItems.length,
                      itemBuilder: (context, index) {
-                       final cardIndex = index ~/ 2;
-                       final isFoilSlot = index % 2 == 1;
-                       return _buildCardTile(_displayedCards[cardIndex], isFoilSlot);
+                       return _buildCardTile(_gridItems[index]);
                      },
                    ),
                ),
@@ -326,34 +718,56 @@ class _SetDetailPageState extends State<SetDetailPage> {
 
   // --- WIDGETS ---
 
-  Widget _buildCardTile(ScryfallCard card, bool isFoilSlot) {
+  Widget _buildSortMenu() {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.sort, color: Colors.white70, size: 20),
+      color: const Color(0xFF1A1A1A),
+      onSelected: (val) {
+        setState(() {
+          if (_sortBy == val) _sortAsc = !_sortAsc;
+          else { _sortBy = val; _sortAsc = true; }
+          _applyFiltersAndSort();
+        });
+      },
+      itemBuilder: (ctx) => [
+        _buildPopupItem('number', 'Numéro', Icons.format_list_numbered),
+        _buildPopupItem('name', 'Nom', Icons.sort_by_alpha),
+        _buildPopupItem('rarity', 'Rareté', Icons.diamond),
+        _buildPopupItem('price', 'Prix', Icons.euro),
+      ],
+    );
+  }
+
+  PopupMenuItem<String> _buildPopupItem(String value, String text, IconData icon) {
+    final bool isSelected = _sortBy == value;
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, color: isSelected ? Colors.yellow : Colors.white54, size: 18),
+          const SizedBox(width: 12),
+          Text(text, style: TextStyle(color: isSelected ? Colors.yellow : Colors.white)),
+          if (isSelected) ...[
+            const Spacer(),
+            Icon(_sortAsc ? Icons.arrow_upward : Icons.arrow_downward, color: Colors.yellow, size: 14)
+          ]
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardTile(SetCardDisplayItem item) {
+    final ScryfallCard card = item.card;
+    final bool isFoilSlot = item.isFoil;
+    
     final String key = _makeKey(card.id, isFoilSlot);
     final bool isOwned = _ownedKeys.contains(key);
     final bool isSelected = _selectedKeys.contains(key);
     final bool isWanted = _wishlistKeys.contains(key);
 
-    // Vérifie si le prix foil existe pour griser le slot s'il n'existe pas
-    // (Une carte sans version foil ne devrait pas être cliquable en mode foil)
-    final bool foilAvailable = isFoilSlot ? (card.prices['eur_foil'] != null || card.prices['usd_foil'] != null) : true;
-
-    if (isFoilSlot && !foilAvailable) {
-      // Slot vide ou désactivé pour les cartes qui n'existent pas en foil
-      // return Container(
-      //   decoration: BoxDecoration(
-      //     color: Colors.white.withOpacity(0.02),
-      //     borderRadius: BorderRadius.circular(6),
-      //     border: Border.all(color: Colors.white10)
-      //   ),
-      //   child: const Center(child: Icon(Icons.block, color: Colors.white10)),
-      // );
-      return const SizedBox.shrink();
-    }
-
     return GestureDetector(
       onTap: () => _toggleSelection(card.id, isFoilSlot),
-      onLongPress: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => RecognitionResultPage(cardName: card.name)));
-      },
+      onLongPress: () => Navigator.push(context, MaterialPageRoute(builder: (context) => RecognitionResultPage(cardName: card.name))),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -371,7 +785,6 @@ class _SetDetailPageState extends State<SetDetailPage> {
                 fit: StackFit.expand,
                 children: [
                   Image.network(card.smallImageUrl ?? '', fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(color: Colors.grey[800], child: const Icon(Icons.image_not_supported))),
-                  // Effet visuel FOIL
                   if (isFoilSlot)
                     Container(
                       decoration: BoxDecoration(
@@ -394,7 +807,6 @@ class _SetDetailPageState extends State<SetDetailPage> {
           if (isWanted && !isSelected && !isOwned)
              Positioned(top: 4, right: 4, child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: Icon(Icons.star, color: Colors.blue.shade400, size: 16))),
 
-          // Badge Foil / Normal
           Positioned(
             bottom: 4, right: 4, 
             child: Container(
@@ -410,67 +822,156 @@ class _SetDetailPageState extends State<SetDetailPage> {
     );
   }
 
-  // ... (Le reste des widgets : _buildBottomActionAmount, _buildQuickFilters, etc. reste inchangé)
   Widget _buildBottomActionAmount() {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A), 
         gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF2C2C2C), Color(0xFF111111)]),
         border: Border(top: BorderSide(color: Colors.yellow.shade800, width: 2.0)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, -4))],
       ),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
       child: SafeArea(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.style, color: Colors.yellow.shade800, size: 20), const SizedBox(width: 8), Flexible(child: Text("${_selectedKeys.length} carte(s)", style: GoogleFonts.cinzel(color: const Color(0xFFE0E0E0), fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis))])),
-            const SizedBox(width: 8),
-            Row(children: [
-                ElevatedButton.icon(
-                  onPressed: () => _addSelectedTo(false), 
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A), foregroundColor: const Color(0xFFBFDBFE), side: BorderSide(color: Colors.blue.shade300.withOpacity(0.3)), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), elevation: 4),
-                  icon: const Icon(Icons.star, size: 16),
-                  label: Text("Wishlist", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold, fontSize: 13)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.style, color: Colors.yellow.shade800, size: 16),
+                const SizedBox(width: 8),
+                Text("${_selectedKeys.length} sélectionné(s)", style: GoogleFonts.cinzel(color: const Color(0xFFE0E0E0), fontWeight: FontWeight.bold, fontSize: 14)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(child: _buildActionButton(icon: Icons.star_border, color: Colors.red.shade300, label: "Suppr.", isNegative: true, onTap: () => _removeSelectedFrom(false))),
+                      const SizedBox(width: 4),
+                      Expanded(child: _buildActionButton(icon: Icons.star, color: Colors.blueAccent, label: "Wishlist", onTap: () => _addSelectedTo(false))),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: () => _addSelectedTo(true), 
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF064E3B), foregroundColor: const Color(0xFFA7F3D0), side: BorderSide(color: Colors.green.shade300.withOpacity(0.3)), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), elevation: 4),
-                  icon: const Icon(Icons.inventory_2, size: 16),
-                  label: Text("Collect.", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold, fontSize: 13)),
+                Container(height: 32, width: 1, color: Colors.white12, margin: const EdgeInsets.symmetric(horizontal: 8)),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(child: _buildActionButton(icon: Icons.inventory_2_outlined, color: Colors.red.shade300, label: "Suppr.", isNegative: true, onTap: () => _removeSelectedFrom(true))),
+                      const SizedBox(width: 4),
+                      Expanded(child: _buildActionButton(icon: Icons.inventory_2, color: Colors.green, label: "Collect.", onTap: () => _addSelectedTo(true))),
+                    ],
+                  ),
                 ),
-            ])
+              ],
+            )
           ],
         ),
       ),
     );
   }
 
-  Widget _buildQuickFilters() {
-    return Container(
-      color: Colors.black26,
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+  Widget _buildActionButton({required IconData icon, required Color color, required String label, required VoidCallback onTap, bool isNegative = false}) {
+    return ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isNegative ? color.withOpacity(0.1) : color.withOpacity(0.2),
+        foregroundColor: color,
+        side: BorderSide(color: color.withOpacity(0.5), width: 1),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildColorFilterBtn('W'), _buildColorFilterBtn('U'), _buildColorFilterBtn('B'),
-                _buildColorFilterBtn('R'), _buildColorFilterBtn('G'),
-                _buildColorFilterBtn('C', label: 'C'), _buildColorFilterBtn('M', label: 'Multi'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsHeader(int missingCount, int totalCount) {
+    final int ownedCount = totalCount - missingCount;
+    final double progress = totalCount > 0 ? ownedCount / totalCount : 0.0;
+    final String percentage = (progress * 100).toStringAsFixed(1);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151515),
+        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 8, offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _buildRarityFilterBtn('common', 'C', Colors.white), _buildRarityFilterBtn('uncommon', 'U', Colors.blueGrey.shade300),
-              _buildRarityFilterBtn('rare', 'R', Colors.amber), _buildRarityFilterBtn('mythic', 'M', Colors.orange.shade800),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("PROGRESSION", style: GoogleFonts.cinzel(color: Colors.white38, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text("$ownedCount", style: GoogleFonts.cinzel(color: Colors.greenAccent, fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text(" / $totalCount", style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 14)),
+                      const SizedBox(width: 8),
+                      Text("$percentage%", style: GoogleFonts.roboto(color: Colors.blueAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  _buildRarityBadge("M", Colors.orange.shade900, _rarityCounts['mythic'] ?? 0),
+                  const SizedBox(width: 6),
+                  _buildRarityBadge("R", Colors.amber, _rarityCounts['rare'] ?? 0),
+                  const SizedBox(width: 6),
+                  _buildRarityBadge("U", Colors.blueGrey, _rarityCounts['uncommon'] ?? 0),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Stack(
+            children: [
+              Container(
+                height: 6,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return Container(
+                    width: constraints.maxWidth * progress,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(3),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6), Color(0xFF10B981)],
+                        stops: [0.0, 0.6, 1.0],
+                      ),
+                      boxShadow: [
+                        BoxShadow(color: Colors.greenAccent.withOpacity(0.4), blurRadius: 6, spreadRadius: 0, offset: const Offset(0, 0))
+                      ],
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ],
@@ -478,58 +979,21 @@ class _SetDetailPageState extends State<SetDetailPage> {
     );
   }
 
-  Widget _buildColorFilterBtn(String symbol, {String? label}) {
-    final isSelected = _selectedColors.contains(symbol);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-      child: InkWell(
-        onTap: () => _toggleColorFilter(symbol),
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(2), 
-          decoration: BoxDecoration(shape: BoxShape.circle, border: isSelected ? Border.all(color: Colors.yellow, width: 2) : null),
-          child: Opacity(
-            opacity: (_selectedColors.isEmpty || isSelected) ? 1.0 : 0.3,
-            child: label != null 
-              ? CircleAvatar(radius: 14, backgroundColor: Colors.grey.shade800, child: Text(label, style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)))
-              : SvgPicture.network('https://svgs.scryfall.io/card-symbols/$symbol.svg', width: 28, height: 28, placeholderBuilder: (_) => CircleAvatar(radius: 14, backgroundColor: Colors.grey, child: Text(symbol))),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRarityFilterBtn(String rarityKey, String label, Color color) {
-    final isSelected = _selectedRarities.contains(rarityKey);
-    return InkWell(
-      onTap: () => _toggleRarityFilter(rarityKey),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        decoration: BoxDecoration(color: isSelected ? color.withOpacity(0.2) : Colors.transparent, border: Border.all(color: isSelected ? color : Colors.white12), borderRadius: BorderRadius.circular(12)),
-        child: Text(label, style: TextStyle(color: isSelected ? color : Colors.white38, fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-
-  Widget _buildStatsHeader(int missingCount, int totalCount) {
+  Widget _buildRarityBadge(String letter, Color color, int count) {
     return Container(
-      color: Colors.black38,
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withOpacity(0.4), width: 1),
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(children: [const Icon(Icons.pie_chart_outline, color: Colors.white54, size: 14), const SizedBox(width: 8), Text("$missingCount manquantes / $totalCount", style: const TextStyle(color: Colors.white70, fontSize: 12))]),
-          Row(children: [
-              _buildRarityCountDot(Colors.orange.shade800, _rarityCounts['mythic'] ?? 0), const SizedBox(width: 4),
-              _buildRarityCountDot(Colors.amber, _rarityCounts['rare'] ?? 0), const SizedBox(width: 4),
-              _buildRarityCountDot(Colors.blueGrey.shade300, _rarityCounts['uncommon'] ?? 0),
-          ])
+          Text(letter, style: GoogleFonts.cinzel(color: color, fontSize: 10, fontWeight: FontWeight.w900)),
+          const SizedBox(width: 4),
+          Text("$count", style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.bold)),
         ],
       ),
     );
-  }
-
-  Widget _buildRarityCountDot(Color color, int count) {
-    return Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 2), Text("$count", style: TextStyle(color: color, fontSize: 10))]);
   }
 }

@@ -5,14 +5,16 @@ class DeckCard {
   final String name;
   int quantity;
   int proxyQuantity;
-  bool isFoil; // <--- NOUVEAU
+  bool isFoil;
+  List<String> tags; // <--- NOUVEAU : Liste des tags (ex: "Ramp", "Commander", "Trade")
 
   DeckCard({
     required this.scryfallId,
     required this.name,
     required this.quantity,
     this.proxyQuantity = 0,
-    this.isFoil = false, // Défaut false
+    this.isFoil = false,
+    this.tags = const [], // Défaut vide
   });
 
   Map<String, dynamic> toJson() => {
@@ -20,7 +22,8 @@ class DeckCard {
         'name': name,
         'quantity': quantity,
         'proxyQuantity': proxyQuantity,
-        'isFoil': isFoil, // <--- Sauvegarde
+        'isFoil': isFoil,
+        'tags': tags, // <--- Sauvegarde
       };
 
   factory DeckCard.fromJson(Map<String, dynamic> json) => DeckCard(
@@ -28,18 +31,20 @@ class DeckCard {
         name: json['name'],
         quantity: json['quantity'],
         proxyQuantity: json['proxyQuantity'] ?? 0,
-        isFoil: json['isFoil'] ?? false, // <--- Chargement (rétrocompatible)
+        isFoil: json['isFoil'] ?? false,
+        tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [], // <--- Chargement sécurisé
       );
 }
 
-// ... (Le reste de la classe Deck reste inchangé)
+// La classe Deck reste inchangée, elle utilise DeckCard qui est maintenant mis à jour.
 class Deck {
-  // ... Copiez le reste de la classe Deck telle quelle si besoin, 
-  // mais seule la classe DeckCard change ici.
   String id;
   String name;
   List<DeckCard> mainboard;
   List<DeckCard> sideboard;
+  List<DeckCard> considering; // <--- NOUVEAU
+  List<DeckCard> wishlist;    // <--- NOUVEAU (Cartes trop chères)
+  
   String? commanderScryfallId;
   String? commanderSecondaryScryfallId;
   List<String> colors;
@@ -50,12 +55,16 @@ class Deck {
     required this.name,
     List<DeckCard>? mainboard,
     List<DeckCard>? sideboard,
+    List<DeckCard>? considering,
+    List<DeckCard>? wishlist,
     this.commanderScryfallId,
     this.commanderSecondaryScryfallId,
     List<String>? colors,
     this.format = 'Standard',
   })  : this.mainboard = mainboard ?? [],
         this.sideboard = sideboard ?? [],
+        this.considering = considering ?? [],
+        this.wishlist = wishlist ?? [],
         this.colors = colors ?? [];
 
   Map<String, dynamic> toJson() => {
@@ -63,6 +72,8 @@ class Deck {
         'name': name,
         'mainboard': mainboard.map((c) => c.toJson()).toList(),
         'sideboard': sideboard.map((c) => c.toJson()).toList(),
+        'considering': considering.map((c) => c.toJson()).toList(),
+        'wishlist': wishlist.map((c) => c.toJson()).toList(),
         'commanderScryfallId': commanderScryfallId,
         'commanderSecondaryScryfallId': commanderSecondaryScryfallId,
         'colors': colors,
@@ -72,8 +83,10 @@ class Deck {
   factory Deck.fromJson(Map<String, dynamic> json) => Deck(
         id: json['id'],
         name: json['name'],
-        mainboard: (json['mainboard'] as List).map((i) => DeckCard.fromJson(i)).toList(),
-        sideboard: (json['sideboard'] as List).map((i) => DeckCard.fromJson(i)).toList(),
+        mainboard: (json['mainboard'] as List? ?? []).map((i) => DeckCard.fromJson(i)).toList(),
+        sideboard: (json['sideboard'] as List? ?? []).map((i) => DeckCard.fromJson(i)).toList(),
+        considering: (json['considering'] as List? ?? []).map((i) => DeckCard.fromJson(i)).toList(),
+        wishlist: (json['wishlist'] as List? ?? []).map((i) => DeckCard.fromJson(i)).toList(),
         commanderScryfallId: json['commanderScryfallId'],
         commanderSecondaryScryfallId: json['commanderSecondaryScryfallId'],
         colors: (json['colors'] as List?)?.map((e) => e.toString()).toList() ?? [],

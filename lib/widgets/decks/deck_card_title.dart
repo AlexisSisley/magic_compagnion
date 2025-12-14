@@ -13,10 +13,8 @@ class DeckCardTile extends StatelessWidget {
   final ScryfallCard? scryfallCard;
   final bool isCommander;
   final bool isInCollection;
-  final VoidCallback onPlus;
-  final VoidCallback onMinus;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  final VoidCallback? onTap;
+  final VoidCallback? onMore; // <--- REMPLACE onPlus/onMinus
 
   const DeckCardTile({
     super.key,
@@ -24,10 +22,8 @@ class DeckCardTile extends StatelessWidget {
     required this.scryfallCard,
     this.isCommander = false,
     required this.isInCollection,
-    required this.onPlus,
-    required this.onMinus,
-    required this.onTap,
-    required this.onLongPress,
+    this.onTap,
+    required this.onMore, // Requis maintenant
   });
 
   @override
@@ -39,9 +35,9 @@ class DeckCardTile extends StatelessWidget {
       color: Colors.black.withOpacity(0.4),
       margin: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 0.0),
         onTap: onTap,
-        onLongPress: onLongPress,
+        onLongPress: onMore, // Long press ouvre aussi le menu par confort
         // Miniature à gauche
         leading: Stack(
           children: [
@@ -55,14 +51,16 @@ class DeckCardTile extends StatelessWidget {
             ),
             if (isInCollection)
               Positioned(bottom: 0, right: 0, child: Container(decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle), child: const Icon(Icons.check_circle, color: Colors.green, size: 16))),
+            if (card.isFoil)
+              Positioned(top: 0, right: 0, child: Container(decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle), child: const Icon(Icons.star, color: Colors.amber, size: 12))),
           ],
         ),
         // Nom et Quantité
         title: Row(
           children: [
-            Text('${card.quantity}x', style: GoogleFonts.cinzel(color: Colors.yellow.shade700, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('${card.quantity}x', style: GoogleFonts.cinzel(color: card.isFoil ? Colors.amber : Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(width: 8),
-            Expanded(child: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16), overflow: TextOverflow.ellipsis)),
+            Expanded(child: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 15), overflow: TextOverflow.ellipsis)),
             
             // --- INDICATEUR PROXY ---
             if (card.proxyQuantity > 0)
@@ -80,26 +78,38 @@ class DeckCardTile extends StatelessWidget {
                 ),
               ),
             
-            if (isCommander) const Padding(padding: EdgeInsets.only(left: 4.0), child: Icon(Icons.star, color: Colors.yellow, size: 16)),
+            if (isCommander) const Padding(padding: EdgeInsets.only(left: 4.0), child: Icon(Icons.shield, color: Colors.yellow, size: 16)),
           ],
         ),
-        // Coût de mana et Prix
+        // Coût de mana, Prix, Tags
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ManaHelper.buildManaCostRow(scryfallCard?.manaCost),
-            if (price != null) Text('$price €', style: TextStyle(color: Colors.yellow.shade700, fontSize: 12)),
+            Row(
+              children: [
+                ManaHelper.buildManaCostRow(scryfallCard?.manaCost),
+                const SizedBox(width: 8),
+                if (price != null) Text('$price €', style: TextStyle(color: Colors.yellow.shade700, fontSize: 12)),
+              ],
+            ),
+            if (card.tags.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2.0),
+                child: Wrap(
+                  spacing: 4,
+                  children: card.tags.take(3).map((t) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(2)),
+                    child: Text(t, style: const TextStyle(fontSize: 8, color: Colors.blueAccent)),
+                  )).toList(),
+                ),
+              )
           ],
         ),
-        // Contrôles +/-
-        trailing: SizedBox(
-          width: 100,
-          child: Row(
-            children: [
-              IconButton(icon: const Icon(Icons.remove, color: Colors.white70), onPressed: onMinus),
-              IconButton(icon: const Icon(Icons.add, color: Colors.white70), onPressed: onPlus),
-            ],
-          ),
+        // NOUVEAU : Menu "3 petits points"
+        trailing: IconButton(
+          icon: const Icon(Icons.more_vert, color: Colors.white54),
+          onPressed: onMore,
         ),
       ),
     );
@@ -143,7 +153,7 @@ class DeckCardGridTile extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
           side: BorderSide(
-            color: isCommander ? Colors.yellow.shade700 : Colors.white12,
+            color: isCommander ? Colors.yellow.shade700 : (card.isFoil ? Colors.amber.withOpacity(0.5) : Colors.white12),
             width: isCommander ? 2 : 1,
           ),
         ),
@@ -164,6 +174,10 @@ class DeckCardGridTile extends StatelessWidget {
                     child: Center(child: Text(card.name, textAlign: TextAlign.center, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 12))),
                   ),
             
+            // Foil Effect
+            if (card.isFoil)
+              Container(decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.white.withOpacity(0.1), Colors.transparent], begin: Alignment.topLeft, end: Alignment.bottomRight))),
+
             // Gradient noir en bas
             Positioned(
               bottom: 0, left: 0, right: 0, height: 60,
@@ -177,7 +191,7 @@ class DeckCardGridTile extends StatelessWidget {
               ),
             ),
 
-            // --- INDICATEUR PROXY (Coin supérieur) ---
+            // --- INDICATEUR PROXY ---
             if (card.proxyQuantity > 0)
               Positioned(
                 top: 30, right: 4,
@@ -191,7 +205,7 @@ class DeckCardGridTile extends StatelessWidget {
                 ),
               ),
 
-            // --- 2. Coût de Mana (Haut Droite) ---
+            // --- 2. Coût de Mana ---
             if (scryfallCard?.manaCost != null)
               Positioned(
                 top: 4, right: 4,
@@ -202,7 +216,7 @@ class DeckCardGridTile extends StatelessWidget {
                 ),
               ),
 
-            // --- 3. Indicateur Collection (Haut Gauche) ---
+            // --- 3. Indicateur Collection ---
             if (isInCollection)
               Positioned(
                 top: 4, left: 4,
@@ -223,7 +237,7 @@ class DeckCardGridTile extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     InkWell(onTap: onMinus, child: const Icon(Icons.remove, color: Colors.white70, size: 20)),
-                    Text('${card.quantity}', style: GoogleFonts.cinzel(color: Colors.yellow.shade700, fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text('${card.quantity}', style: GoogleFonts.cinzel(color: card.isFoil ? Colors.amber : Colors.yellow.shade700, fontSize: 18, fontWeight: FontWeight.bold)),
                     InkWell(onTap: onPlus, child: const Icon(Icons.add, color: Colors.white70, size: 20)),
                   ],
                 ),

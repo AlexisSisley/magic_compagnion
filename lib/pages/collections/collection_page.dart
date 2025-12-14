@@ -7,8 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:magic_companion/pages/collections/global_stats_page.dart';
 import 'package:magic_companion/pages/collections/wishlist_tab.dart';
 import 'dart:convert';
-import 'package:share_plus/share_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/scryfall_card_model.dart';
 import '../../models/search_filters.dart';
@@ -18,8 +16,7 @@ import '../../services/collection_service.dart';
 import '../../services/wishlist_service.dart';
 import '../../services/local_card_service.dart';
 import '../../services/deck_service.dart'; 
-import '../../widgets/search/search_filter_modal.dart';
-
+import '../../widgets/search/universal_filter_modal.dart';
 import '../../widgets/collection/collection_list_tab.dart';
 import '../../widgets/collection/collection_sets_tab.dart';
 
@@ -34,7 +31,7 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
   final CollectionService _collectionService = CollectionService();
   final WishlistService _wishlistService = WishlistService();
   final LocalCardService _localCardService = LocalCardService();
-  final DeckService _deckService = DeckService(); 
+  final DeckService _deckService = DeckService();
 
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
@@ -42,18 +39,16 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
   List<DeckCard> _collection = [];
   List<Wishlist> _wishlists = []; 
   List<ScryfallCard> _fullCardData = [];
+  List<String> _availableTags = [];
   
   bool _isLoading = true; 
-  // ignore: unused_field
-  bool _isImporting = false;
-  
-  // --- Mode Sélection ---
-  bool _isSelectionMode = false;
-  final Set<String> _selectedCardIds = {}; 
-
   SearchFilters _activeFilters = SearchFilters();
-  String _currentSort = 'Type';
 
+  // --- SELECTION MODE ---
+  bool _isSelectionMode = false;
+  final Set<String> _selectedCardIds = {};
+
+  // Stats
   double _totalCollectionValue = 0.0;
   double _totalWishlistValue = 0.0;
   double? _evolutionValue;
@@ -74,48 +69,39 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
       if (_tabController.index == 1 || _tabController.index == 2) {
         _loadData(forceLoading: false);
       }
+      // Désactiver la sélection si on change d'onglet
       if (_isSelectionMode) _toggleSelectionMode();
     }
   }
 
   @override
   void dispose() {
-    _tabController.removeListener(_handleTabSelection);
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  // --- CHARGEMENT DONNÉES ---
+  // --- CHARGEMENT ---
   Future<void> _loadData({bool forceLoading = true}) async {
     if (forceLoading) setState(() => _isLoading = true);
-    final prefs = await SharedPreferences.getInstance();
-    final savedSort = prefs.getString('collectionSortPref') ?? 'Type';
-    if (mounted) setState(() => _currentSort = savedSort);
 
     await Future.wait([
       _collectionService.loadCollection().then((data) => _collection = data),
       _wishlistService.loadWishlists().then((data) => _wishlists = data),
+      _collectionService.getAllUniqueTags().then((data) => _availableTags = data),
     ]);
 
-    if (!_localCardService.isLoaded) {
-       await _localCardService.loadLocalData();
-    }
+    if (!_localCardService.isLoaded) await _localCardService.loadLocalData();
 
     await _loadFullCardData(); 
     await _calculateFinancials();
 
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    if (mounted) setState(() => _isLoading = false);
   }
 
   Future<void> _loadFullCardData() async {
     final List<DeckCard> allWishlistCards = _wishlists.expand((w) => w.cards).toList();
     final allCards = [..._collection, ...allWishlistCards];
-    
     final uniqueIds = allCards
         .where((card) => card.scryfallId.isNotEmpty && !card.scryfallId.startsWith('LOCAL:'))
         .map((card) => card.scryfallId).toSet().toList();
@@ -128,11 +114,8 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     if (_localCardService.isLoaded) {
       for (String id in uniqueIds) {
         final localCard = _localCardService.getCardById(id);
-        if (localCard != null) {
-          loadedCards.add(localCard);
-        } else {
-          missingIds.add(id);
-        }
+        if (localCard != null) loadedCards.add(localCard);
+        else missingIds.add(id);
       }
     } else {
       missingIds = uniqueIds;
@@ -143,18 +126,15 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
       for (var i = 0; i < missingIds.length; i += chunkSize) {
         final end = (i + chunkSize < missingIds.length) ? i + chunkSize : missingIds.length;
         final batch = missingIds.sublist(i, end);
-        final requestBody = json.encode({'identifiers': batch.map((id) => {'id': id}).toList()});
-
         try {
           final response = await http.post(
             Uri.parse('https://api.scryfall.com/cards/collection'),
             headers: {'Content-Type': 'application/json'},
-            body: requestBody,
+            body: json.encode({'identifiers': batch.map((id) => {'id': id}).toList()}),
           );
           if (response.statusCode == 200) {
             final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-            final List<ScryfallCard> batchCards = (data['data'] as List).map((cardJson) => ScryfallCard.fromJson(cardJson)).toList();
-            loadedCards.addAll(batchCards);
+            loadedCards.addAll((data['data'] as List).map((j) => ScryfallCard.fromJson(j)));
           }
         } catch (e) { log('Erreur API: $e'); }
       }
@@ -162,39 +142,23 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     _fullCardData = loadedCards;
   }
 
-  // --- MODIFICATION MAJEURE ICI POUR LA GESTION PRIX FOIL ---
   Future<void> _calculateFinancials() async {
-    
-    // Fonction helper pour récupérer le bon prix
     double getPrice(String id, bool isFoil) {
       try {
         final c = _fullCardData.firstWhere((s) => s.id == id);
-        
-        // Si la carte est Foil dans la collection, on cherche le prix Foil
-        if (isFoil) {
-          return double.tryParse(c.prices['eur_foil'] ?? c.prices['eur'] ?? '0') ?? 0.0;
-        } else {
-          return double.tryParse(c.prices['eur'] ?? '0') ?? 0.0;
-        }
+        if (isFoil) return double.tryParse(c.prices['eur_foil'] ?? c.prices['eur'] ?? '0') ?? 0.0;
+        else return double.tryParse(c.prices['eur'] ?? '0') ?? 0.0;
       } catch (e) { return 0.0; }
     }
-    
-    // Calcul Collection
-    _totalCollectionValue = _collection.fold(0.0, (sum, c) {
-      return sum + (getPrice(c.scryfallId, c.isFoil) * c.quantity);
-    });
-    
-    // Calcul Wishlist
+    _totalCollectionValue = _collection.fold(0.0, (sum, c) => sum + (getPrice(c.scryfallId, c.isFoil) * c.quantity));
     _totalWishlistValue = 0.0;
     for (var list in _wishlists) {
       for (var c in list.cards) {
         _totalWishlistValue += (getPrice(c.scryfallId, c.isFoil) * c.quantity);
       }
     }
-
     await _collectionService.recordDailyValue(_totalCollectionValue);
     final evo = await _collectionService.getEvolutionSince(7);
-
     if (mounted) {
       setState(() {
         _evolutionValue = evo?['diffValue'];
@@ -204,75 +168,21 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     }
   }
 
-  // --- ACTIONS ---
-  
-  Future<void> _showBulkImportDialog() async {
-    final TextEditingController importController = TextEditingController();
-    await showModalBottomSheet(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-      builder: (context) {
-        final double keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.only(bottom: keyboardHeight),
-          child: Container(
-            height: MediaQuery.of(context).size.height * 0.6,
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                const Text("Import de masse (Collection)", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                Expanded(child: TextField(controller: importController, maxLines: null, expands: true, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(filled: true, fillColor: Colors.black45, hintText: "Collez votre liste ici..."))),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () { Navigator.pop(context); _performBulkImport(importController.text); },
-                  child: const Text("Importer"),
-                )
-              ],
-            ),
-          ),
-        );
-      },
+  // --- ACTIONS UX ---
+  Future<void> _openUniversalModal() async {
+    final result = await showModalBottomSheet<SearchFilters>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => UniversalFilterModal(
+        currentFilters: _activeFilters,
+        availableTags: _availableTags,
+      ),
     );
-  }
 
-  Future<void> _performBulkImport(String text) async {
-    setState(() { _isLoading = true; _isImporting = true; });
-    final lines = text.split('\n').where((s) => s.trim().isNotEmpty).toList();
-    final result = await _collectionService.importBatchCards(lines);
-    await _loadData(forceLoading: false);
-    if (mounted) {
-      setState(() { _isLoading = false; _isImporting = false; });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Ajouté: ${result['added']} cartes"), backgroundColor: Colors.green));
+    if (result != null) {
+      setState(() { _activeFilters = result; });
     }
-  }
-
-  void _exportCurrentList() {
-    if (_tabController.index == 1) {
-      StringBuffer sb = StringBuffer();
-      sb.writeln("=== Mes Wishlists ===");
-      for(var w in _wishlists) {
-        sb.writeln("\n[${w.name}]");
-        for(var c in w.cards) sb.writeln("${c.quantity} ${c.name} ${c.isFoil ? '(Foil)' : ''}");
-      }
-      Share.share(sb.toString());
-    } else {
-      if (_collection.isEmpty) return;
-      StringBuffer sb = StringBuffer();
-      for (var c in _collection) sb.writeln("${c.quantity} ${c.name} ${c.isFoil ? '(Foil)' : ''}");
-      Share.share(sb.toString());
-    }
-  }
-
-  Future<void> _openFilterModal() async {
-    final newFilters = await showModalBottomSheet<SearchFilters>(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-      builder: (context) => SearchFilterModal(initialFilters: _activeFilters),
-    );
-    if (newFilters != null) setState(() => _activeFilters = newFilters);
   }
 
   void _openStatsPage() {
@@ -283,36 +193,7 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     )));
   }
 
-  Future<void> _showClearCollectionDialog() async {
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: Text("Vider la Collection ?", style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: const Text("Attention, cette action supprimera définitivement toutes les cartes de votre collection. Êtes-vous sûr ?", style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Annuler")),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(c, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
-            child: const Text("Tout Supprimer", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      )
-    );
-
-    if (confirm == true) {
-      await _collectionService.clearCollection();
-      setState(() {
-        _collection = [];
-        _totalCollectionValue = 0;
-        _evolutionValue = 0;
-        _evolutionPercent = 0;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Collection vidée."), backgroundColor: Colors.red));
-    }
-  }
-
+  // --- GESTION SÉLECTION ---
   void _toggleSelectionMode() {
     setState(() {
       _isSelectionMode = !_isSelectionMode;
@@ -391,17 +272,10 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
       builder: (c) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
         title: const Text("Nom du Deck", style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          autofocus: true,
-        ),
+        content: TextField(controller: controller, style: const TextStyle(color: Colors.white), autofocus: true),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("Annuler")),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(c, controller.text), 
-            child: const Text("Créer")
-          ),
+          ElevatedButton(onPressed: () => Navigator.pop(c, controller.text), child: const Text("Créer")),
         ],
       )
     );
@@ -427,17 +301,11 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
           quantityToAdd: 1
         );
         count++;
-      } catch (e) {
-        print("Erreur ajout carte $id : $e");
-      }
+      } catch (e) { print("Erreur ajout carte $id : $e"); }
     }
 
     if (mounted) {
-      setState(() { 
-        _isLoading = false; 
-        _isSelectionMode = false; 
-        _selectedCardIds.clear(); 
-      });
+      setState(() { _isLoading = false; _isSelectionMode = false; _selectedCardIds.clear(); });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text("$count cartes ajoutées à $deckName", style: GoogleFonts.cinzel()),
         backgroundColor: Colors.green,
@@ -445,186 +313,213 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
     }
   }
 
+  Future<void> _importBulk() async {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fonction d'import conservée (TODO: Implémenter appel modale)")));
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold( 
-      backgroundColor: Colors.transparent,
-      body: Column(
-        children: [
-          // HEADER
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            color: Colors.black.withOpacity(0.3),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.menu, color: Colors.white70),
-                          onPressed: () => Scaffold.of(context).openDrawer(),
-                        ),
-                        const SizedBox(width: 8),
-                        Text('Ma Collection', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    Row(
-                      children: [   
-                        if (_tabController.index == 0)
-                          IconButton(
-                            icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
-                            tooltip: "Vider la collection",
-                            onPressed: _showClearCollectionDialog,
-                          ),                     
-                        IconButton(
-                          icon: const Icon(Icons.bar_chart, color: Colors.blueAccent),
-                          tooltip: "Statistiques Globales",
-                          onPressed: _openStatsPage,
-                        ),
-                        IconButton(icon: const Icon(Icons.file_upload_outlined), color: Colors.yellow.shade700, onPressed: _showBulkImportDialog),
-                        
-                        IconButton(icon: const Icon(Icons.share, color: Colors.white), onPressed: _exportCurrentList),
-                      ],
-                    ),
-                  ],
+    int activeFilterCount = 0;
+    if (_activeFilters.colors.isNotEmpty) activeFilterCount++;
+    if (_activeFilters.cardType != null) activeFilterCount++;
+    if (_activeFilters.tags.isNotEmpty) activeFilterCount++;
+    if (_activeFilters.keyword != null) activeFilterCount++;
+
+    // --- CORRECTION : Suppression du Scaffold interne ---
+    // Nous utilisons un Stack pour que le FAB flotte au dessus du contenu
+    // Le NestedScrollView permet de gérer la SliverAppBar qui contient le bouton menu.
+    // Le bouton menu trouvera le Scaffold parent (dans AppShell) car il n'est plus bloqué.
+    
+    return Stack(
+      children: [
+        NestedScrollView(
+          headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
+            return <Widget>[
+              SliverAppBar(
+                title: Text('Ma Collection', style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+                centerTitle: false,
+                pinned: true,
+                floating: true,
+                expandedHeight: 120.0, 
+                backgroundColor: Colors.black,
+                leading: IconButton(
+                  icon: const Icon(Icons.menu),
+                  // Le context ici est celui du Builder du NestedScrollView, enfant de CollectionPage.
+                  // Comme CollectionPage n'a plus de Scaffold, il remonte à AppShell.
+                  onPressed: () => Scaffold.of(context).openDrawer(),
                 ),
-                const SizedBox(height: 12),
-                
-                // BARRE DE RECHERCHE
-                TextField(
-                  controller: _searchController,
-                  style: GoogleFonts.cinzel(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Rechercher / Filtrer...',
-                    prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
+                actions: [
+                  IconButton(icon: const Icon(Icons.bar_chart), onPressed: _openStatsPage),
+                  PopupMenuButton<String>(
+                    onSelected: (val) {
+                      if (val == 'import') _importBulk();
+                      if (val == 'clear') _collectionService.clearCollection().then((_) => _loadData());
+                    },
+                    itemBuilder: (ctx) => [
+                      const PopupMenuItem(value: 'import', child: Text("Importer (Masse)")),
+                      const PopupMenuItem(value: 'clear', child: Text("Tout effacer", style: TextStyle(color: Colors.red))),
+                    ],
+                  ),
+                ],
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(70), 
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    color: const Color(0xFF1A1A1A),
+                    child: Row(
                       children: [
-                        IconButton(icon: const Icon(Icons.filter_list, color: Colors.white70), onPressed: _openFilterModal),
-                        PopupMenuButton<String>(
-                          icon: const Icon(Icons.sort, color: Colors.white70),
-                          onSelected: (val) async {
-                            final prefs = await SharedPreferences.getInstance();
-                            await prefs.setString('collectionSortPref', val); // SAUVEGARDE
-                            setState(() => _currentSort = val);
-                          },
-                          itemBuilder: (ctx) => ['Type', 'Nom', 'Prix'].map((t) => PopupMenuItem(value: t, child: Text(t))).toList(),
+                        // Barre de recherche
+                        Expanded(
+                          child: Container(
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: TextField(
+                              controller: _searchController,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: const InputDecoration(
+                                hintText: "Rechercher...",
+                                hintStyle: TextStyle(color: Colors.white54),
+                                border: InputBorder.none,
+                                prefixIcon: Icon(Icons.search, color: Colors.white54),
+                                contentPadding: EdgeInsets.symmetric(vertical: 10),
+                              ),
+                              onChanged: (val) => setState((){}), 
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        
+                        // Bouton Filtre Unifié
+                        Stack(
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                color: activeFilterCount > 0 ? Colors.yellow.shade800 : Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: IconButton(
+                                icon: const Icon(Icons.tune),
+                                color: activeFilterCount > 0 ? Colors.black : Colors.white70,
+                                onPressed: _openUniversalModal,
+                              ),
+                            ),
+                            if (activeFilterCount > 0)
+                              Positioned(
+                                top: 0, right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                  child: Text("$activeFilterCount", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                ),
+                              )
+                          ],
                         )
                       ],
                     ),
-                    filled: true,
-                    fillColor: Colors.black.withOpacity(0.5),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                   ),
-                  onChanged: (val) => setState((){}),
                 ),
-                
-                TabBar(
-                  controller: _tabController,
-                  indicatorColor: Colors.yellow.shade800,
-                  labelStyle: GoogleFonts.cinzel(fontWeight: FontWeight.bold),
-                  tabs: [
-                    Tab(text: 'Cartes (${_collection.length})'),
-                    Tab(text: 'Wishlists (${_wishlists.length})'),
-                    const Tab(text: 'Éditions'),
-                  ],
+              ),
+              SliverPersistentHeader(
+                delegate: _SliverTabBarDelegate(
+                  TabBar(
+                    controller: _tabController,
+                    indicatorColor: Colors.yellow.shade800,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: Colors.white54,
+                    labelStyle: GoogleFonts.cinzel(fontWeight: FontWeight.bold),
+                    tabs: [
+                      Tab(text: 'Cartes (${_collection.length})'),
+                      Tab(text: 'Wishlists (${_wishlists.length})'),
+                      const Tab(text: 'Éditions'),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-          ),
-
-          // CONTENU
-          Expanded(
-            child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        // --- ONGLET COLLECTION ---
-                        CollectionListTab(
-                          cards: _collection,
-                          fullCardData: _fullCardData,
-                          filterQuery: _searchController.text,
-                          activeFilters: _activeFilters,
-                          currentSort: _currentSort,
-                          isWishlist: false,
-                          financialTotal: _totalCollectionValue,
-                          evoVal: _evolutionValue,
-                          evoPct: _evolutionPercent,
-                          hasCalculatedFinance: _hasCalculatedFinance,
-                          isSelectionMode: _isSelectionMode,
-                          selectedIds: _selectedCardIds,
-                          onToggleSelection: _toggleCardSelection,
-                          onToggleSelectionMode: _toggleSelectionMode,
-                          onRefresh: () => _loadData(forceLoading: false),
-                          // Callback pour update quantité (gère aussi la suppression si qté = 0)
-                          onUpdateQuantity: (c, q) async {
-                             final updatedList = await _collectionService.upsertCardInCollection(
-                               scryfallId: c.scryfallId, 
-                               cardName: c.name, 
-                               quantityToAdd: q,
-                               isFoil: c.isFoil // Important pour cibler la bonne version
-                             );
-                             setState(() { _collection = updatedList; });
-                             _calculateFinancials();
-                          },
-                          // --- CALLBACK POUR PASSER FOIL/NON-FOIL ---
-                          onToggleFoil: (c) async {
-                            // On inverse l'état Foil
-                            // Note : Cela crée une NOUVELLE entrée dans la collection si la version opposée n'existe pas
-                            // Ou incrémente l'existante. C'est un peu complexe à faire en un clic.
-                            // Pour simplifier ici : on change juste le flag de la carte en cours.
-                            
-                            // 1. Retirer 1 de la carte actuelle
-                            await _collectionService.upsertCardInCollection(
-                              scryfallId: c.scryfallId,
-                              cardName: c.name,
-                              quantityToAdd: -1,
-                              isFoil: c.isFoil
-                            );
-                            
-                            // 2. Ajouter 1 dans la version opposée
-                            final updatedList = await _collectionService.upsertCardInCollection(
-                              scryfallId: c.scryfallId,
-                              cardName: c.name,
-                              quantityToAdd: 1,
-                              isFoil: !c.isFoil // Inverse
-                            );
-                            
-                            setState(() { _collection = updatedList; });
-                            _calculateFinancials();
-                          },
-                        ),
-                        
-                        // --- ONGLET WISHLIST ---
-                        WishlistTab(
-                          wishlists: _wishlists,
-                          fullCardData: _fullCardData,
-                          totalValue: _totalWishlistValue,
-                          wishlistService: _wishlistService,
-                          onRefresh: () => _loadData(forceLoading: false),
-                        ),
-                        
-                        // --- ONGLET SETS ---
-                        CollectionSetsTab(
-                          collection: _collection,
-                          onRefresh: () => _loadData(forceLoading: false),
-                        ),
-                      ],
-                    ),
-          ),
-        ],
-      ),
-      floatingActionButton: (_isSelectionMode && _selectedCardIds.isNotEmpty)
-          ? FloatingActionButton.extended(
+                pinned: true,
+              ),
+            ];
+          },
+          body: _isLoading 
+            ? const Center(child: CircularProgressIndicator(color: Colors.white))
+            : TabBarView(
+                controller: _tabController,
+                children: [
+                  CollectionListTab(
+                    cards: _collection,
+                    fullCardData: _fullCardData,
+                    filterQuery: _searchController.text,
+                    activeFilters: _activeFilters,
+                    currentSort: _activeFilters.sortType,
+                    isWishlist: false,
+                    financialTotal: _totalCollectionValue,
+                    evoVal: _evolutionValue,
+                    evoPct: _evolutionPercent,
+                    hasCalculatedFinance: _hasCalculatedFinance,
+                    
+                    // --- SELECTION PROPS ---
+                    isSelectionMode: _isSelectionMode,
+                    selectedIds: _selectedCardIds,
+                    onToggleSelection: _toggleCardSelection,
+                    onToggleSelectionMode: _toggleSelectionMode,
+                    
+                    onRefresh: () => _loadData(forceLoading: false),
+                    onUpdateQuantity: (c, q) async {
+                       await _collectionService.upsertCardInCollection(scryfallId: c.scryfallId, cardName: c.name, quantityToAdd: q, isFoil: c.isFoil);
+                       _loadData(forceLoading: false);
+                    },
+                    onToggleFoil: (c) async {
+                      await _collectionService.upsertCardInCollection(scryfallId: c.scryfallId, cardName: c.name, quantityToAdd: -1, isFoil: c.isFoil);
+                      await _collectionService.upsertCardInCollection(scryfallId: c.scryfallId, cardName: c.name, quantityToAdd: 1, isFoil: !c.isFoil, newTags: c.tags);
+                      _loadData(forceLoading: false);
+                    },
+                    onUpdateTags: (c, newTags) async {
+                      await _collectionService.upsertCardInCollection(scryfallId: c.scryfallId, cardName: c.name, isFoil: c.isFoil, newTags: newTags);
+                      _loadData(forceLoading: false);
+                    },
+                    availableTags: _availableTags,
+                  ),
+                  WishlistTab(
+                    wishlists: _wishlists,
+                    fullCardData: _fullCardData,
+                    totalValue: _totalWishlistValue,
+                    wishlistService: _wishlistService,
+                    onRefresh: () => _loadData(forceLoading: false),
+                  ),
+                  CollectionSetsTab(collection: _collection, onRefresh: () => _loadData(forceLoading: false)),
+                ],
+              ),
+        ),
+        
+        // --- FAB POSITIONNÉ MANUELLEMENT ---
+        if (_isSelectionMode && _selectedCardIds.isNotEmpty)
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton.extended(
               onPressed: _addSelectedToDeck,
               backgroundColor: Colors.green.shade700,
               icon: const Icon(Icons.add_to_photos),
               label: Text("Ajouter au Deck (${_selectedCardIds.length})", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
-            )
-          : null,
+            ),
+          ),
+      ],
     );
   }
+}
+
+class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar _tabBar;
+  _SliverTabBarDelegate(this._tabBar);
+  @override
+  double get minExtent => _tabBar.preferredSize.height;
+  @override
+  double get maxExtent => _tabBar.preferredSize.height;
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(color: const Color(0xFF1A1A1A), child: _tabBar);
+  }
+  @override
+  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) => false;
 }

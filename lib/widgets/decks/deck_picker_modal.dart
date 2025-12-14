@@ -55,6 +55,10 @@ class _DeckPickerModalState extends State<DeckPickerModal> {
     final String deckName = _newDeckController.text.trim();
     if (deckName.isNotEmpty) {
       await widget.deckService.createNewDeck(deckName);
+      
+      // Sécurité pour le contexte après un await
+      if (!mounted) return;
+      
       _newDeckController.clear();
       FocusScope.of(context).unfocus();
       _loadDecks();
@@ -62,15 +66,20 @@ class _DeckPickerModalState extends State<DeckPickerModal> {
   }
 
   Future<void> _addCardToDeck(Deck deck) async {
-    await widget.deckService.addCardToDeck(
-      deck.id,
-      widget.cardToAdd,
-      toSideboard: false,
+    // CORRECTION : On utilise la nouvelle méthode générique
+    await widget.deckService.upsertCardInDeck(
+      deckId: deck.id,
+      scryfallId: widget.cardToAdd.id,
+      cardName: widget.cardToAdd.name,
+      quantityToAdd: 1,
+      board: DeckBoard.main, // Ajout par défaut dans le Mainboard
     );
+
+    // Sécurité contextuelle
     if (mounted) {
       Navigator.pop(context);
+      widget.onCardAdded(deck.name, widget.cardToAdd.name);
     }
-    widget.onCardAdded(deck.name, widget.cardToAdd.name);
   }
 
   @override

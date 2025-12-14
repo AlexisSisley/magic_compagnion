@@ -31,18 +31,18 @@ class CollectionService {
     required String cardName,
     int? quantityToAdd,     
     int? absoluteQuantity,
-    bool isFoil = false, // <--- NOUVEAU PARAMÈTRE
+    bool isFoil = false,
+    List<String>? newTags, // <--- Gestion Tags
   }) async {
     final collection = await loadCollection();
-    _upsertInMemory(collection, scryfallId, cardName, quantityToAdd, absoluteQuantity, isFoil: isFoil);
+    _upsertInMemory(collection, scryfallId, cardName, quantityToAdd, absoluteQuantity, isFoil: isFoil, newTags: newTags);
     await _saveCollection(collection);
     return collection;
   }
 
   // Helper privé
-  void _upsertInMemory(List<DeckCard> collection, String scryfallId, String cardName, int? qtyAdd, int? absQty, {bool isFoil = false}) {
+  void _upsertInMemory(List<DeckCard> collection, String scryfallId, String cardName, int? qtyAdd, int? absQty, {bool isFoil = false, List<String>? newTags}) {
     try {
-      // On cherche une carte avec le même ID ET la même finition (Foil/Normal)
       final existingCard = collection.firstWhere(
         (c) => c.scryfallId == scryfallId && c.isFoil == isFoil
       );
@@ -51,11 +51,15 @@ class CollectionService {
       if (qtyAdd != null) newQuantity += qtyAdd;
       else if (absQty != null) newQuantity = absQty;
 
+      // Mise à jour des tags si fournis
+      if (newTags != null) {
+        existingCard.tags = newTags;
+      }
+
       if (newQuantity <= 0) collection.remove(existingCard); 
       else existingCard.quantity = newQuantity; 
       
     } catch (e) {
-      // Pas trouvée, on crée une nouvelle entrée
       int newQuantity = 0;
       if (qtyAdd != null) newQuantity = qtyAdd;
       else if (absQty != null) newQuantity = absQty;
@@ -65,7 +69,8 @@ class CollectionService {
           scryfallId: scryfallId, 
           name: cardName, 
           quantity: newQuantity,
-          isFoil: isFoil // <--- Stockage de l'info Foil
+          isFoil: isFoil,
+          tags: newTags ?? [] // Init tags
         ));
       }
     }
@@ -203,5 +208,14 @@ class CollectionService {
 
     Future<void> clearCollection() async {
       await _saveCollection([]);
+    }
+    
+    Future<List<String>> getAllUniqueTags() async {
+      final col = await loadCollection();
+      final Set<String> tags = {};
+      for(var card in col) {
+        tags.addAll(card.tags);
+      }
+      return tags.toList()..sort();
     }
 }

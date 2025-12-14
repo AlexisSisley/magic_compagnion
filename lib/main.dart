@@ -307,6 +307,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
               if (isConnected) {
                 return Container(
+                  // ... (Affichage Connecté inchangé)
                   color: Colors.green.withOpacity(0.1),
                   child: ListTile(
                     leading: const Icon(Icons.cloud_done, color: Colors.green),
@@ -316,6 +317,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       icon: const Icon(Icons.logout, color: Colors.white54, size: 20),
                       tooltip: "Déconnecter",
                       onPressed: () async {
+                        // ... (Code déconnexion inchangé)
                         final confirm = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
                           backgroundColor: const Color(0xFF1A1A1A),
                           title: const Text("Déconnexion", style: TextStyle(color: Colors.white)),
@@ -335,12 +337,33 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 );
               } 
               else {
+                // --- C'EST ICI QU'ON CHANGE ---
                 return ListTile(
                   leading: const Icon(Icons.cloud_off, color: Colors.white54),
                   title: Text('Connexion Drive', style: GoogleFonts.cinzel(color: Colors.white)),
                   subtitle: const Text('Activer la sauvegarde auto', style: TextStyle(color: Colors.white38, fontSize: 10)),
                   onTap: () async {
-                    await _driveService.signIn(silent: false);
+                    // 1. Tenter la connexion avec popup
+                    bool success = await _driveService.signIn(silent: false);
+                    
+                    if (success) {
+                      // 2. Si succès, forcer une première sauvegarde immédiate
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Connexion réussie. Sauvegarde en cours..."))
+                        );
+                      }
+                      
+                      await _performAutoBackup();
+                      
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Première sauvegarde effectuée !"), backgroundColor: Colors.green)
+                        );
+                      }
+                    }
+                    
+                    // 3. Mettre à jour l'UI
                     setState(() {}); 
                   },
                 );

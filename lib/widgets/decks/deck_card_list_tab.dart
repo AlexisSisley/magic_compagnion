@@ -1,22 +1,34 @@
 // Fichier : lib/widgets/decks/deck_card_list_tab.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Pour Clipboard
 import 'package:google_fonts/google_fonts.dart';
+import 'package:magic_companion/widgets/cards/versions_selector_sheet.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../pages/cards/card_detail_page.dart';
+import '../../services/deck_service.dart'; // Pour DeckBoard enum
 
 class DeckCardListTab extends StatefulWidget {
   final List<DeckCard> cardList;
   final List<ScryfallCard> fullCardData;
   final List<DeckCard> collection;
-  // On passe maintenant les IDs des deux commandants
   final String? commanderId;
   final String? partnerId;
   
+  // Context pour savoir d'où on vient (pour les options "Move to...")
+  final DeckBoard currentBoard; 
+  
   final Function(DeckCard, int) onUpdateQuantity;
-  final Function(DeckCard) onSetCommander; // Gère Ajout ET Retrait
+  final Function(DeckCard)? onSetCommander;
+  final Function(DeckCard, DeckBoard)? onMoveCard; // Nouveau callback
+  final Function(DeckCard, List<String>)? onUpdateTags; // Nouveau callback
+  final VoidCallback? onExportToGlobalWishlist;
+
+  final Function(DeckCard)? onToggleFoil;
+  final Function(DeckCard, ScryfallCard)? onSwitchVersion;
 
   const DeckCardListTab({
     super.key,
@@ -25,8 +37,14 @@ class DeckCardListTab extends StatefulWidget {
     required this.collection,
     this.commanderId,
     this.partnerId,
+    this.currentBoard = DeckBoard.main,
     required this.onUpdateQuantity,
-    required this.onSetCommander,
+    this.onSetCommander,
+    this.onMoveCard,
+    this.onUpdateTags,
+    this.onExportToGlobalWishlist,
+    this.onToggleFoil,
+    this.onSwitchVersion,
   });
 
   @override
@@ -38,28 +56,41 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
   double _lastScale = 1.0;
 
   void _handleScaleUpdate(ScaleUpdateDetails details) {
-    if (details.scale > 1.3 && _lastScale <= 1.0) {
-      setState(() {
-        if (_gridColumns > 1) _gridColumns--;
-        _lastScale = details.scale;
-      });
-    } else if (details.scale < 0.7 && _lastScale >= 1.0) {
-      setState(() {
-        if (_gridColumns < 5) _gridColumns++;
-        _lastScale = details.scale;
-      });
+    if (details.scale > 1.3 && _lastScale <= 1.0) { setState(() { if (_gridColumns > 1) _gridColumns--; _lastScale = details.scale; }); } 
+    else if (details.scale < 0.7 && _lastScale >= 1.0) { setState(() { if (_gridColumns < 5) _gridColumns++; _lastScale = details.scale; }); }
+  }
+
+  Future<void> _launchURL(String url) async {
+    try { await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); } catch (e) { /* */ }
+  }
+
+  void _exportCardmarket() {
+    StringBuffer sb = StringBuffer();
+    for (var c in widget.cardList) {
+      sb.writeln("${c.quantity} ${c.name}");
     }
+    Clipboard.setData(ClipboardData(text: sb.toString()));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Liste copiée ! Ouverture Cardmarket..."), backgroundColor: Colors.green));
+    _launchURL("https://www.cardmarket.com/en/Magic/Wants/MassEntry");
   }
 
-  void _handleScaleEnd(ScaleEndDetails details) {
-    _lastScale = 1.0;
-  }
-
+  @override
   @override
   Widget build(BuildContext context) {
     if (widget.cardList.isEmpty) {
       return Center(
-        child: Text('Aucune carte ici.', style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Aucune carte ici.', style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16)),
+            // Bouton spécial si on est dans l'onglet Wishlist
+            if (widget.currentBoard == DeckBoard.wishlist)
+               Padding(
+                 padding: const EdgeInsets.only(top: 16.0),
+                 child: Text("Ajoutez ici les cartes trop chères\nvia le menu 'Déplacer vers Wishlist'", textAlign: TextAlign.center, style: TextStyle(color: Colors.white30)),
+               )
+          ],
+        ),
       );
     }
 
@@ -68,36 +99,37 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
 
     return Column(
       children: [
+        // Barre d'outils de la liste
         Container(
           color: Colors.black26,
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
           child: Row(
             children: [
-              Text(
-                "${widget.cardList.fold(0, (s, c) => s + c.quantity)} cartes",
-                style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
-              ),
+              Text("${widget.cardList.fold(0, (s, c) => s + c.quantity)} cartes", style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12)),
               const Spacer(),
+              if (widget.currentBoard == DeckBoard.wishlist && widget.onExportToGlobalWishlist != null)
+                IconButton(
+                  icon: const Icon(Icons.cloud_upload, size: 18, color: Colors.greenAccent),
+                  tooltip: "Créer une Wishlist Globale (App)",
+                  onPressed: widget.onExportToGlobalWishlist,
+                ),
+              // Bouton Export Cardmarket (visible surtout pour Wishlist/Considering)
+              if (widget.currentBoard == DeckBoard.wishlist || widget.currentBoard == DeckBoard.considering)
+                IconButton(
+                  icon: const Icon(Icons.shopping_cart_checkout, size: 18, color: Colors.blueAccent),
+                  tooltip: "Export Cardmarket Mass Entry",
+                  onPressed: _exportCardmarket,
+                ),
+              const SizedBox(width: 8),
               const Icon(Icons.view_agenda, size: 16, color: Colors.white54),
               SizedBox(
-                width: 130, 
+                width: 100, 
                 child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    trackHeight: 2,
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                  ),
+                  data: SliderTheme.of(context).copyWith(thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6), trackHeight: 2),
                   child: Slider(
-                    value: _gridColumns,
-                    min: 1,
-                    max: 5,
-                    divisions: 4, 
-                    activeColor: Colors.yellow.shade800,
-                    inactiveColor: Colors.white24,
-                    label: currentCols == 1 ? "Liste" : "$currentCols Col",
-                    onChanged: (val) {
-                      setState(() => _gridColumns = val);
-                    },
+                    value: _gridColumns, min: 1, max: 5, divisions: 4, 
+                    activeColor: Colors.yellow.shade800, inactiveColor: Colors.white24,
+                    onChanged: (val) => setState(() => _gridColumns = val),
                   ),
                 ),
               ),
@@ -109,27 +141,27 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
         Expanded(
           child: GestureDetector(
             onScaleUpdate: _handleScaleUpdate,
-            onScaleEnd: _handleScaleEnd,
+            onScaleEnd: (_) => _lastScale = 1.0,
             child: ListView.builder(
               padding: const EdgeInsets.only(bottom: 90.0, top: 0.0, left: 4.0, right: 4.0),
               itemCount: groupedList.length,
               itemBuilder: (context, index) {
                 final group = groupedList[index];
-                final int groupCardCount = group.cards.fold(0, (sum, c) => sum + c.quantity);
-
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
-                      child: Text(
-                        '${group.title} ($groupCardCount)',
-                        style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
+                      child: Text('${group.title} (${group.cards.fold(0, (s, c) => s + c.quantity)})', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     ),
                     currentCols == 1 
-                        ? _buildGroupList(group.cards) 
-                        : _buildGroupGrid(group.cards, currentCols),
+                        ? Column(children: group.cards.map((c) => _buildDraggableItem(c, isGrid: false)).toList())
+                        : GridView.builder(
+                            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: currentCols, childAspectRatio: 0.68, crossAxisSpacing: 6, mainAxisSpacing: 6),
+                            itemCount: group.cards.length,
+                            itemBuilder: (ctx, i) => _buildDraggableItem(group.cards[i], isGrid: true),
+                          ),
                   ],
                 );
               },
@@ -140,197 +172,250 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     );
   }
 
-  Widget _buildGroupList(List<DeckCard> cards) {
-    return Column(
-      children: cards.map((card) => _buildItem(card, isGrid: false)).toList(),
-    );
-  }
-
-  Widget _buildGroupGrid(List<DeckCard> cards, int cols) {
-    return GridView.builder(
-      shrinkWrap: true, 
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: cols,
-        childAspectRatio: 0.68,
-        crossAxisSpacing: 6,
-        mainAxisSpacing: 6,
+  Widget _buildDraggableItem(DeckCard card, {required bool isGrid}) {
+    // On wrap la tuile dans un LongPressDraggable pour permettre le drag vers les onglets
+    return LongPressDraggable<Map<String, dynamic>>(
+      data: {'card': card, 'sourceBoard': widget.currentBoard},
+      feedback: Material(
+        color: Colors.transparent,
+        child: Opacity(
+          opacity: 0.8,
+          child: SizedBox(
+            width: isGrid ? 100 : 300,
+            child: _buildItem(card, isGrid: isGrid), // Visuel pendant le drag
+          ),
+        ),
       ),
-      itemCount: cards.length,
-      itemBuilder: (context, index) {
-        return _buildItem(cards[index], isGrid: true);
-      },
+      childWhenDragging: Opacity(opacity: 0.3, child: _buildItem(card, isGrid: isGrid)),
+      child: _buildItem(card, isGrid: isGrid),
     );
   }
 
   Widget _buildItem(DeckCard card, {required bool isGrid}) {
-    // Vérification si c'est un commandant ou partenaire
     final bool isCommander = (widget.commanderId == card.scryfallId || widget.partnerId == card.scryfallId);
-    
     ScryfallCard? scryfallCard;
-    try {
-      if (!card.scryfallId.startsWith('LOCAL:')) {
-        scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId);
-      }
-    } catch (e) { }
-    
+    try { scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId); } catch (e) { }
     final bool isInCollection = widget.collection.any((c) => c.scryfallId == card.scryfallId);
 
-    void onPlus() => widget.onUpdateQuantity(card, 1);
-    void onMinus() => widget.onUpdateQuantity(card, -1);
-    void onLongPress() => _showCardOptions(context, card, isCommander); // Passe l'état actuel
-    void onTap() {
-      if (scryfallCard != null) {
-        Navigator.push(context, MaterialPageRoute(
-          builder: (context) => RecognitionResultPage(cardName: scryfallCard!.name),
-        ));
-      }
-    }
-
+    
     if (isGrid) {
       return DeckCardGridTile(
-        card: card, scryfallCard: scryfallCard, isCommander: isCommander,
-        isInCollection: isInCollection, onPlus: onPlus, onMinus: onMinus,
-        onTap: onTap, onLongPress: onLongPress,
+        card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
+        onPlus: () => widget.onUpdateQuantity(card, 1),
+        onMinus: () => widget.onUpdateQuantity(card, -1),
+        onTap: () { if (scryfallCard != null) Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: scryfallCard!.name))); },
+        onLongPress: () => _showCardOptions(card, scryfallCard, isCommander),
       );
     } else {
       return DeckCardTile(
-        card: card, scryfallCard: scryfallCard, isCommander: isCommander,
-        isInCollection: isInCollection, onPlus: onPlus, onMinus: onMinus,
-        onTap: onTap, onLongPress: onLongPress,
+        card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
+        onTap: () { if (scryfallCard != null) Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: scryfallCard!.name))); },
+        onMore: () => _showCardOptions(card, scryfallCard, isCommander), // <--- Ouvre la modale
       );
     }
   }
 
-  // --- MENU CONTEXTUEL ---
-  void _showCardOptions(BuildContext context, DeckCard card, bool isAlreadyCommander) {
+  void _showCardOptions(DeckCard card, ScryfallCard? scryfallCard, bool isAlreadyCommander) {
     showModalBottomSheet(
-      context: context,
+      context: context, 
       backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true, // Permet à la modale de prendre la taille nécessaire
       builder: (context) {
-        final double bottomPadding = MediaQuery.of(context).viewPadding.bottom;
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: Container(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomPadding),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              border: Border(top: BorderSide(color: Colors.yellow.shade800, width: 2)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                const Divider(color: Colors.white24),
-                
-                // OPTION COMMANDANT (Contextuelle)
-                ListTile(
-                  leading: Icon(
-                    isAlreadyCommander ? Icons.person_remove : Icons.person_add, 
-                    color: isAlreadyCommander ? Colors.redAccent : Colors.yellow
-                  ),
-                  title: Text(
-                    isAlreadyCommander ? 'Retirer du statut Commandant' : 'Définir comme Commandant',
-                    style: GoogleFonts.cinzel(color: Colors.white)
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    // On renvoie l'action au parent qui gèrera la logique (set ou unset)
-                    widget.onSetCommander(card);
-                  },
-                ),
-                
-                const Divider(color: Colors.white10),
-                Text("Gestion des Proxies", style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12)),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text("Nombre de proxies :", style: GoogleFonts.cinzel(color: Colors.white)),
-                    Row(
+        return SafeArea(
+          // StatefulBuilder permet de mettre à jour l'affichage de la quantité DANS la modale
+          child: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setModalState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  // --- HEADER AVEC GESTION QUANTITÉ ---
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Row(
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle_outline, color: Colors.white70),
-                          onPressed: () {
-                            if (card.proxyQuantity > 0) {
-                              setState(() => card.proxyQuantity--);
-                              widget.onUpdateQuantity(card, 0); 
-                            }
-                            (context as Element).markNeedsBuild();
-                          },
-                        ),
-                        Text('${card.proxyQuantity} / ${card.quantity}', style: GoogleFonts.cinzel(color: Colors.blueGrey.shade200, fontSize: 18, fontWeight: FontWeight.bold)),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle_outline, color: Colors.white70),
-                          onPressed: () {
-                            if (card.proxyQuantity < card.quantity) {
-                              setState(() => card.proxyQuantity++);
-                              widget.onUpdateQuantity(card, 0);
-                            }
-                            (context as Element).markNeedsBuild();
-                          },
-                        ),
+                        Expanded(child: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))),
+                        
+                        // Contrôles Quantité
+                        Container(
+                          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.remove, color: Colors.redAccent),
+                                onPressed: () {
+                                  widget.onUpdateQuantity(card, -1);
+                                  setModalState(() {}); // Force le rebuild de la modale pour voir le changement
+                                },
+                              ),
+                              Text(
+                                "${card.quantity}", 
+                                style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add, color: Colors.greenAccent),
+                                onPressed: () {
+                                  widget.onUpdateQuantity(card, 1);
+                                  setModalState(() {});
+                                },
+                              ),
+                            ],
+                          ),
+                        )
                       ],
-                    )
-                  ],
-                ),
-              ],
-            ),
+                    ),
+                  ),
+                  const Divider(color: Colors.white24),
+                  
+                  // --- ACTIONS ---
+                  
+                  // 1. CHANGER VERSION
+                  if (scryfallCard != null && !card.scryfallId.startsWith('LOCAL:'))
+                    ListTile(
+                      leading: const Icon(Icons.style, color: Colors.blueAccent),
+                      title: const Text("Changer d'illustration", style: TextStyle(color: Colors.white)),
+                      onTap: () { Navigator.pop(context); _openVersionSelector(card, scryfallCard); },
+                    ),
+
+                  // 2. TOGGLE FOIL
+                  if (widget.onToggleFoil != null)
+                    ListTile(
+                      leading: Icon(Icons.star, color: card.isFoil ? Colors.amber : Colors.grey),
+                      title: Text(card.isFoil ? "Retirer le Foil" : "Passer en Foil", style: const TextStyle(color: Colors.white)),
+                      trailing: Switch(
+                        value: card.isFoil, 
+                        activeColor: Colors.amber,
+                        onChanged: (val) {
+                          widget.onToggleFoil!(card);
+                          setModalState(() {}); // Met à jour le switch visuellement
+                        }
+                      ),
+                      onTap: () {
+                        widget.onToggleFoil!(card);
+                        setModalState(() {});
+                      },
+                    ),
+
+                  // 3. GESTION TAGS
+                  ListTile(
+                    leading: const Icon(Icons.label, color: Colors.greenAccent),
+                    title: const Text("Gérer les Tags", style: TextStyle(color: Colors.white)),
+                    onTap: () { Navigator.pop(context); _showTagEditor(card); },
+                  ),
+
+                  // 4. DÉPLACEMENT
+                  if (widget.currentBoard != DeckBoard.main)
+                    ListTile(leading: const Icon(Icons.arrow_upward, color: Colors.white54), title: const Text("Vers Mainboard", style: TextStyle(color: Colors.white)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.main); Navigator.pop(context); }),
+                  if (widget.currentBoard != DeckBoard.side)
+                    ListTile(leading: const Icon(Icons.swap_horiz, color: Colors.white54), title: const Text("Vers Sideboard", style: TextStyle(color: Colors.white)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.side); Navigator.pop(context); }),
+                  if (widget.currentBoard != DeckBoard.considering)
+                    ListTile(leading: const Icon(Icons.question_mark, color: Colors.white54), title: const Text("Vers Considering", style: TextStyle(color: Colors.white)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.considering); Navigator.pop(context); }),
+                  if (widget.currentBoard != DeckBoard.wishlist)
+                    ListTile(leading: const Icon(Icons.shopping_cart, color: Colors.redAccent), title: const Text("Vers Deck Wishlist (Trop cher)", style: TextStyle(color: Colors.white)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.wishlist); Navigator.pop(context); }),
+
+                  const Divider(color: Colors.white24),
+                  
+                  // 5. COMMANDANT
+                  if (widget.currentBoard == DeckBoard.main && widget.onSetCommander != null)
+                    ListTile(
+                      leading: Icon(isAlreadyCommander ? Icons.person_remove : Icons.person_add, color: Colors.yellow),
+                      title: Text(isAlreadyCommander ? 'Retirer du statut Commandant' : 'Définir comme Commandant', style: const TextStyle(color: Colors.white)),
+                      onTap: () { Navigator.pop(context); widget.onSetCommander!(card); },
+                    ),
+                ],
+              );
+            }
           ),
         );        
       }
     );
   }
 
-  List<_GroupedCardList> _buildGroupedList(List<DeckCard> cardList) {
-    Map<String, List<DeckCard>> groupedMap = {
-      'Créatures': [], 'Planeswalkers': [], 'Sorts': [], 
-      'Artefacts': [], 'Enchantements': [], 'Terrains': [], 'Autres': [],
-    };
+  void _openVersionSelector(DeckCard card, ScryfallCard currentScryfallCard) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => VersionsSelectorSheet(
+        oracleId: currentScryfallCard.oracleId,
+        currentCardId: currentScryfallCard.id,
+        onVersionSelected: (newVersion) {
+          // Appel du callback parent pour remplacer la carte
+          widget.onSwitchVersion?.call(card, newVersion);
+        },
+      ),
+    );
+  }
 
+  void _showTagEditor(DeckCard card) {
+    // Simple dialogue pour ajouter/retirer des tags
+    List<String> tags = List.from(card.tags);
+    TextEditingController ctrl = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1A1A1A),
+            title: const Text("Tags", style: TextStyle(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Wrap(
+                  spacing: 4, 
+                  children: tags.map((t) => Chip(
+                    label: Text(t), 
+                    onDeleted: () => setState(() => tags.remove(t))
+                  )).toList()
+                ),
+                TextField(
+                  controller: ctrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: "Nouveau tag...",
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.add),
+                      onPressed: () { if (ctrl.text.isNotEmpty) setState(() => tags.add(ctrl.text)); ctrl.clear(); }
+                    )
+                  ),
+                )
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () { widget.onUpdateTags?.call(card, tags); Navigator.pop(ctx); }, child: const Text("OK"))
+            ],
+          );
+        }
+      )
+    );
+  }
+
+  List<_GroupedCardList> _buildGroupedList(List<DeckCard> cardList) {
+    Map<String, List<DeckCard>> groupedMap = { 'Créatures': [], 'Planeswalkers': [], 'Sorts': [], 'Artefacts': [], 'Enchantements': [], 'Terrains': [], 'Autres': [] };
     for (final deckCard in cardList) {
       String type = 'Autres';
-      if (deckCard.scryfallId.startsWith('LOCAL:')) {
-        type = _getPrimaryType(deckCard.name);
-      } else {
-        try {
-          final sc = widget.fullCardData.firstWhere((s) => s.id == deckCard.scryfallId);
-          type = _getPrimaryType(sc.typeLine);
-        } catch (e) {
-           type = _getPrimaryType(deckCard.name);
-        }
-      }
+      try {
+        final sc = widget.fullCardData.firstWhere((s) => s.id == deckCard.scryfallId);
+        type = _getPrimaryType(sc.typeLine);
+      } catch (e) { type = _getPrimaryType(deckCard.name); }
       groupedMap[type]?.add(deckCard);
     }
-    
     List<_GroupedCardList> groupedList = [];
-    groupedMap.forEach((title, cards) {
-      if (cards.isNotEmpty) {
-        cards.sort((a, b) => a.name.compareTo(b.name));
-        groupedList.add(_GroupedCardList(title: title, cards: cards));
-      }
-    });
+    groupedMap.forEach((title, cards) { if (cards.isNotEmpty) { cards.sort((a, b) => a.name.compareTo(b.name)); groupedList.add(_GroupedCardList(title: title, cards: cards)); } });
     return groupedList;
   }
 
   String _getPrimaryType(String typeLine) {
-    String lowerType = typeLine.toLowerCase();
-    if (!lowerType.contains(' — ') && (lowerType.contains('swamp') || lowerType.contains('plains') || lowerType.contains('island') || lowerType.contains('mountain') || lowerType.contains('forest'))) return 'Terrains';
-    if (lowerType.contains('creature')) return 'Créatures';
-    if (lowerType.contains('planeswalker')) return 'Planeswalkers';
-    if (lowerType.contains('land')) return 'Terrains';
-    if (lowerType.contains('artifact')) return 'Artefacts';
-    if (lowerType.contains('enchantment')) return 'Enchantements';
-    if (lowerType.contains('instant')) return 'Sorts';
-    if (lowerType.contains('sorcery')) return 'Sorts';
+    String lower = typeLine.toLowerCase();
+    if (lower.contains('land')) return 'Terrains';
+    if (lower.contains('creature')) return 'Créatures';
+    if (lower.contains('planeswalker')) return 'Planeswalkers';
+    if (lower.contains('artifact')) return 'Artefacts';
+    if (lower.contains('enchantment')) return 'Enchantements';
+    if (lower.contains('instant') || lower.contains('sorcery')) return 'Sorts';
     return 'Autres';
   }
 }
 
-class _GroupedCardList {
-  final String title;
-  final List<DeckCard> cards;
-  _GroupedCardList({required this.title, required this.cards});
-}
+class _GroupedCardList { final String title; final List<DeckCard> cards; _GroupedCardList({required this.title, required this.cards}); }

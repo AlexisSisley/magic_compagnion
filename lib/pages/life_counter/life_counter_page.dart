@@ -7,11 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/game_history_model.dart';
-import 'package:magic_companion/pages/settings/dev_tools_page.dart';
 import 'package:magic_companion/pages/glossary/turn_guide_page.dart';
 import 'package:magic_companion/pages/tournaments/tournament_page.dart';
 import 'package:magic_companion/services/game_history_service.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/player_model.dart';
 import '../../widgets/life_counter/player_zone.dart';
@@ -27,7 +25,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   final GameHistoryService _gameHistoryService = GameHistoryService();
   
   List<Player> _players = [];
-  int _startingLife = 40; // Défaut Commander pour l'usage courant
+  int _startingLife = 40; 
   int _playerCount = 4;
   bool _isLoading = true;
   
@@ -85,18 +83,16 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     String minutes = twoDigits(d.inMinutes.remainder(60));
     String seconds = twoDigits(d.inSeconds.remainder(60));
     if (d.inHours > 0) {
-      return "${d.inHours}:$minutes"; // H:MM
+      return "${d.inHours}:$minutes";
     }
-    return "$minutes:$seconds"; // MM:SS
+    return "$minutes:$seconds";
   }
 
   int _calculateDefaultRotation(int id, int totalPlayers) {
     if (totalPlayers == 4) {
-      // Spécifique 4 joueurs : Gauche (0,2) = 1 (90°), Droite (1,3) = 3 (270°)
       bool isLeft = (id % 2 == 0);
       return isLeft ? 1 : 3;
     } else {
-      // Standard : Haut = 2 (180°), Bas = 0 (0°)
       int splitIndex = (totalPlayers / 2).ceil();
       bool isTop = id < splitIndex;
       return isTop ? 2 : 0;
@@ -115,13 +111,14 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
         (index) {
           final life = prefs.getInt('player_${index}_life') ?? _startingLife;
           final colorVal = prefs.getInt('player_${index}_color') ?? _defaultColors[index % _defaultColors.length].value;
+          // --- CHARGEMENT DU FOND ---
+          final bgPath = prefs.getString('player_${index}_bg');
           
           final poison = prefs.getInt('player_${index}_poison') ?? 0;
           final energy = prefs.getInt('player_${index}_energy') ?? 0;
           final tax = prefs.getInt('player_${index}_tax') ?? 0;
           final isMonarch = prefs.getBool('player_${index}_monarch') ?? false;
           
-          // Chargement de la rotation (si existe, sinon calcul par défaut)
           final savedRotation = prefs.getInt('player_${index}_rotation');
           final rotation = savedRotation ?? _calculateDefaultRotation(index, _playerCount);
 
@@ -137,6 +134,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
             id: index,
             life: life,
             colorValue: colorVal,
+            backgroundImagePath: bgPath, // <--- Assigner le chemin (fichier ou URL)
             commanderDamageReceived: cmdDamage,
             poison: poison,
             energy: energy,
@@ -158,12 +156,18 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     for (final player in _players) {
       await prefs.setInt('player_${player.id}_life', player.life);
       await prefs.setInt('player_${player.id}_color', player.colorValue);
+      // --- SAUVEGARDE DU FOND ---
+      if (player.backgroundImagePath != null) {
+        await prefs.setString('player_${player.id}_bg', player.backgroundImagePath!);
+      } else {
+        await prefs.remove('player_${player.id}_bg');
+      }
+
       await prefs.setInt('player_${player.id}_poison', player.poison);
       await prefs.setInt('player_${player.id}_energy', player.energy);
       await prefs.setInt('player_${player.id}_tax', player.commanderCastCount);
       await prefs.setBool('player_${player.id}_monarch', player.isMonarch);
       
-      // Sauvegarde rotation
       await prefs.setInt('player_${player.id}_rotation', player.quarterTurns);
 
       for (final opponentId in player.commanderDamageReceived.keys) {
@@ -175,9 +179,9 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
 
   // --- LOGIQUE JEU ---
   void _resetGame() {
-    _stopGame(); // Arrête le chrono au reset
+    _stopGame(); 
     setState(() {
-      _gameDuration = Duration.zero; // Remet le chrono à 0
+      _gameDuration = Duration.zero;
       _players = List.generate(
         _playerCount,
         (index) {
@@ -205,7 +209,6 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     _saveGame();
   }
   
-  // ---- Update point -----
   void _updateLife(int playerId, int change) {
     if (_isSelectingStarter) return;
     setState(() {
@@ -217,6 +220,14 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   void _updatePlayerColor(int playerId, Color newColor) {
     setState(() {
       _players.firstWhere((p) => p.id == playerId).colorValue = newColor.value;
+    });
+    _saveGame();
+  }
+
+  // --- NOUVELLE FONCTION : MISE A JOUR DU SKIN ---
+  void _updatePlayerSkin(int playerId, String? pathOrUrl) {
+    setState(() {
+      _players.firstWhere((p) => p.id == playerId).backgroundImagePath = pathOrUrl;
     });
     _saveGame();
   }
@@ -270,7 +281,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
                   _highlightedPlayerId = null; 
                   _isSelectingStarter = false; 
                 });
-                _startGame(); // <--- LANCE LE CHRONO ICI
+                _startGame();
               }, 
               style: ElevatedButton.styleFrom(backgroundColor: Color(_players[winnerId].colorValue)), 
               child: const Text("C'est parti !", style: TextStyle(color: Colors.white))
@@ -282,16 +293,13 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   }
 
   // --- SYSTÈME DE DÉS COMPLET ---
-  
   void _showDiceSelector() {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
-        // Liste des dés disponibles (2 = Coin Flip)
         final List<int> diceTypes = [2, 4, 6, 8, 10, 12, 20, 100];
-
         return Container(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -303,10 +311,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.0,
+                  crossAxisCount: 4, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.0,
                 ),
                 itemCount: diceTypes.length,
                 itemBuilder: (context, index) {
@@ -325,30 +330,18 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     // ignore: unused_local_variable
     String label = "D$sides";
     IconData? icon;
-    // Choix d'icônes représentatives
-    if (sides == 2) {
-      label = "Pile/Face";
-      icon = Icons.monetization_on;
-    } else if (sides == 4) {
-      icon = Icons.change_history; // Triangle
-    } else if (sides == 6) {
-      icon = Icons.looks_6; 
-    } else if (sides == 8) {
-      icon = Icons.diamond; // Forme octaèdre
-    } else if (sides == 20) {
-      icon = Icons.casino; 
-    } else {
-       icon = Icons.all_out; // Générique pour les autres
-    }
+    if (sides == 2) { label = "Pile/Face"; icon = Icons.monetization_on; } 
+    else if (sides == 4) { icon = Icons.change_history; } 
+    else if (sides == 6) { icon = Icons.looks_6; } 
+    else if (sides == 8) { icon = Icons.diamond; } 
+    else if (sides == 20) { icon = Icons.casino; } 
+    else { icon = Icons.all_out; }
 
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white.withOpacity(0.05),
         foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12), 
-          side: BorderSide(color: Colors.yellow.shade800.withOpacity(0.5))
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.yellow.shade800.withOpacity(0.5))),
         padding: EdgeInsets.zero,
       ),
       onPressed: () {
@@ -360,32 +353,19 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
         children: [
           Icon(icon, size: 24, color: Colors.white70),
           const SizedBox(height: 4),
-          Text(
-            sides == 2 ? "COIN" : "D$sides", 
-            style: GoogleFonts.cinzel(fontSize: sides == 2 ? 10 : 14, fontWeight: FontWeight.bold)
-          ),
+          Text(sides == 2 ? "COIN" : "D$sides", style: GoogleFonts.cinzel(fontSize: sides == 2 ? 10 : 14, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
-  // Fonction modifiée pour lancer l'animation
   void _rollSpecificDice(int sides) {
-    // On calcule le résultat AVANT d'ouvrir la modale
     final int finalResult = Random().nextInt(sides) + 1;
-
     showDialog(
       context: context,
-      barrierDismissible: false, // On empêche de fermer pendant l'animation
+      barrierDismissible: false,
       builder: (context) {
-        return DiceRollAnimationDialog(
-          sides: sides,
-          finalResult: finalResult,
-          onReroll: () {
-            Navigator.pop(context);
-            _rollSpecificDice(sides);
-          },
-        );
+        return DiceRollAnimationDialog(sides: sides, finalResult: finalResult, onReroll: () { Navigator.pop(context); _rollSpecificDice(sides); });
       }
     );
   }
@@ -437,10 +417,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewPadding.bottom),
-        child: builder(ctx),
-      ),
+      builder: (ctx) => Padding(padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewPadding.bottom), child: builder(ctx)),
     );
   }
 
@@ -450,10 +427,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
       backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
         return Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A).withOpacity(0.9),
-            borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-          ),
+          decoration: BoxDecoration(color: const Color(0xFF1A1A1A).withOpacity(0.9), borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16))),
           child: Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom),
             child: Wrap(
@@ -472,23 +446,9 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove, color: Colors.white70),
-                            onPressed: () {
-                              _updateCommanderDamage(opponent.id, attacker.id, -1);
-                              Navigator.pop(context);
-                              _showCommanderDamageSelector(attacker);
-                            },
-                          ),
+                          IconButton(icon: const Icon(Icons.remove, color: Colors.white70), onPressed: () { _updateCommanderDamage(opponent.id, attacker.id, -1); Navigator.pop(context); _showCommanderDamageSelector(attacker); }),
                           Text('$damage', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                          IconButton(
-                            icon: const Icon(Icons.add, color: Colors.white70),
-                            onPressed: () {
-                              _updateCommanderDamage(opponent.id, attacker.id, 1);
-                              Navigator.pop(context);
-                              _showCommanderDamageSelector(attacker);
-                            },
-                          ),
+                          IconButton(icon: const Icon(Icons.add, color: Colors.white70), onPressed: () { _updateCommanderDamage(opponent.id, attacker.id, 1); Navigator.pop(context); _showCommanderDamageSelector(attacker); }),
                         ],
                       ),
                     ),
@@ -502,94 +462,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     );
   }
 
-  // ignore: unused_element
-  Future<void> _showAboutDialog() async {
-    PackageInfo packageInfo = await PackageInfo.fromPlatform();
-    int tapCount = 0; 
-
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: const Color(0xFF1A1A1A),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Row(
-                children: [
-                  const Icon(Icons.auto_awesome, color: Colors.yellow, size: 24),
-                  const SizedBox(width: 12),
-                  Text('Magic Companion', style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Le compagnon ultime pour vos parties de Magic: The Gathering.',
-                    style: TextStyle(color: Colors.white70),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  InkWell(
-                    onTap: () {
-                      tapCount++;
-                      if (tapCount >= 3 && tapCount < 7) {
-                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text("Encore ${7 - tapCount} étapes...", style: GoogleFonts.cinzel()),
-                          duration: const Duration(milliseconds: 500),
-                          backgroundColor: Colors.grey[800],
-                        ));
-                      }
-                      if (tapCount == 7) {
-                        Navigator.pop(context); 
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const DevToolsPage()),
-                        );
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Version ${packageInfo.version}',
-                            style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
-                          ),
-                          Text(
-                            'Build ${packageInfo.buildNumber}',
-                            style: GoogleFonts.cinzel(color: Colors.white24, fontSize: 10),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('Fermer', style: GoogleFonts.cinzel(color: Colors.yellow.shade800)),
-                ),
-              ],
-            );
-          }
-        );
-      },
-    );
-  }
-
   void _endGame() {
-    // On met en pause le timer visuellement (optionnel, mais sympa)
     showDialog(
       context: context,
       builder: (context) {
@@ -611,14 +484,10 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
                     format: _startingLife == 40 ? "Commander" : "Standard",
                   );
                   await _gameHistoryService.addGame(newItem);
-                  
                   _stopGame(); 
-                  
                   if (mounted) {
                     Navigator.pop(context); 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Partie enregistrée dans l'historique !"), backgroundColor: Colors.green)
-                    );
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Partie enregistrée dans l'historique !"), backgroundColor: Colors.green));
                   }
                 },
               );
@@ -633,7 +502,6 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: Colors.white));
     
-    // Menu central si >= 6 joueurs
     final bool useCentralMenu = _playerCount >= 2;
 
     return Stack(
@@ -641,24 +509,13 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
         _buildBlockLayout(useCentralMenu),
         
         if (!useCentralMenu) ...[
-          Positioned(
-            bottom: 16, 
-            right: 90, 
-           child: FloatingActionButton(
-            heroTag: 'dice', 
-            onPressed: _showDiceSelector, // Appel de la nouvelle modale
-            backgroundColor: Colors.black54, 
-            foregroundColor: Colors.white, 
-            child: const Icon(Icons.casino_outlined)
-            )
-          ),
+          Positioned(bottom: 16, right: 90, child: FloatingActionButton(heroTag: 'dice', onPressed: _showDiceSelector, backgroundColor: Colors.black54, foregroundColor: Colors.white, child: const Icon(Icons.casino_outlined))),
           Positioned(bottom: 16, right: 16, child: _buildSpeedDial()),
         ]
       ],
     );
   }
 
-  // --- MOTEUR DE DISPOSITION EN BLOCS (SPLIT VIEW) ---
   Widget _buildBlockLayout(bool useCentralMenu) {
     int splitIndex = (_playerCount / 2).ceil(); 
     List<Player> topPlayers = _players.sublist(0, splitIndex);
@@ -674,13 +531,9 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
     );
   }
 
-  // Génère une ligne de joueurs (qui s'adaptent en largeur)
   Widget _buildPlayerRow(List<Player> players) {
     return Row(
       children: players.map((player) {
-        // NOTE: On n'a plus besoin de calculer la rotation ici
-        // Elle est stockée dans player.quarterTurns et passée au widget via l'objet Player
-        
         return Expanded(
           child: Padding(
             padding: const EdgeInsets.all(2.0),
@@ -691,7 +544,8 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
               onLifeChanged: (val) => _updateLife(player.id, val),
               onShowCommanderDamage: () => _showCommanderDamageSelector(player),
               onColorChanged: (c) => _updatePlayerColor(player.id, c),
-              onRotationChanged: (newRot) => _updatePlayerRotation(player.id, newRot), // <--- Liaison callback
+              onRotationChanged: (newRot) => _updatePlayerRotation(player.id, newRot),
+              onSkinChanged: (path) => _updatePlayerSkin(player.id, path), // <--- NOUVEAU
             ),
           ),
         );
@@ -706,7 +560,7 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           IconButton(icon: const Icon(Icons.refresh, color: Colors.white70), onPressed: _resetGame),
-          IconButton(icon: const Icon(Icons.casino, color: Colors.white70), onPressed: _showDiceSelector), // Appel ici aussi
+          IconButton(icon: const Icon(Icons.casino, color: Colors.white70), onPressed: _showDiceSelector),
           IconButton(icon: const Icon(Icons.checklist_rtl_outlined, color: Colors.white70), onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const TurnGuidePage())); }),          
           InkWell(
             onTap: _isGameActive ? _endGame : _pickStartingPlayer,
@@ -714,26 +568,9 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
             child: Container(
               width: 50, height: 50,
               alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle, 
-                color: Colors.black, 
-                border: Border.all(
-                  color: _isGameActive ? Colors.redAccent : Colors.yellow.shade800, 
-                  width: 2
-                )
-              ),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black, border: Border.all(color: _isGameActive ? Colors.redAccent : Colors.yellow.shade800, width: 2)),
               child: _isGameActive 
-                ? FittedBox( // S'assure que le texte rentre
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      _formatDuration(_gameDuration), 
-                      style: GoogleFonts.robotoMono( // Police Monospace pour éviter que les chiffres bougent
-                        color: Colors.white, 
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12
-                      )
-                    ),
-                  )
+                ? FittedBox(fit: BoxFit.scaleDown, child: Text(_formatDuration(_gameDuration), style: GoogleFonts.robotoMono(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)))
                 : const Icon(Icons.play_arrow, color: Colors.yellow),
             ),
           ),
@@ -764,8 +601,6 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   }
 }
 
-// --- NOUVEAU WIDGET POUR L'ANIMATION DU DÉ ---
-
 class DiceRollAnimationDialog extends StatefulWidget {
   final int sides;
   final int finalResult;
@@ -792,36 +627,22 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
   @override
   void initState() {
     super.initState();
-    // Durée de l'animation : 1.5 secondes
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-
-    // Courbe d'animation pour un effet de ralentissement à la fin
+    _controller = AnimationController(duration: const Duration(milliseconds: 1500), vsync: this);
     final CurvedAnimation curve = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
-
-    // Rotation : fait plusieurs tours complets (multiplié par pi * 2)
     _animation = Tween<double>(begin: 0, end: widget.sides == 2 ? pi * 10 : pi * 6).animate(curve);
 
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         _spinTimer?.cancel();
-        setState(() {
-          _isAnimating = false;
-        });
+        setState(() { _isAnimating = false; });
       }
     });
 
-    // Démarrage de l'animation
     _controller.forward();
 
-    // Si ce n'est pas une pièce, on fait défiler des chiffres aléatoires pendant que ça tourne
     if (widget.sides > 2) {
       _spinTimer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
-        setState(() {
-          _currentSpinValue = Random().nextInt(widget.sides) + 1;
-        });
+        setState(() { _currentSpinValue = Random().nextInt(widget.sides) + 1; });
       });
     }
   }
@@ -838,59 +659,32 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
     return AlertDialog(
       backgroundColor: const Color(0xFF1A1A1A),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.white.withOpacity(0.2))),
-      // On cache le titre pendant l'animation pour plus d'immersion
       title: _isAnimating ? null : Center(child: Text(_getTitle(), style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 18))),
       content: SizedBox(
         height: 150,
-        child: Center(
-          child: _isAnimating ? _buildAnimatedView() : _buildFinalResultView(),
-        ),
+        child: Center(child: _isAnimating ? _buildAnimatedView() : _buildFinalResultView()),
       ),
-      actions: _isAnimating ? [] : _buildActions(), // Pas de boutons pendant l'animation
+      actions: _isAnimating ? [] : _buildActions(),
     );
   }
-
-  // --- VUES PENDANT L'ANIMATION ---
 
   Widget _buildAnimatedView() {
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
-        // Animation Pile ou Face (Rotation sur l'axe Y - horizontal)
         if (widget.sides == 2) {
-            // On détermine si on montre le côté pile ou face visuellement pendant la rotation
-            // C'est juste visuel, le vrai résultat est déjà calculé.
             bool showHeads = (_animation.value / pi).floor() % 2 == 0;
              return Transform(
               alignment: Alignment.center,
-              transform: Matrix4.identity()
-                ..setEntry(3, 2, 0.001) // Perspective
-                ..rotateY(_animation.value),
-              child: Icon(
-                Icons.monetization_on, // Ou une icône différente pour pile/face si vous en avez
-                size: 100, 
-                color: showHeads ? Colors.amber : Colors.blueGrey.shade300
-              ),
+              transform: Matrix4.identity()..setEntry(3, 2, 0.001)..rotateY(_animation.value),
+              child: Icon(Icons.monetization_on, size: 100, color: showHeads ? Colors.amber : Colors.blueGrey.shade300),
             );
         }
-
-        // Animation des Dés (Rotation sur l'axe Z - comme une roue)
         return Stack(
           alignment: Alignment.center,
           children: [
-            Transform.rotate(
-              angle: _animation.value,
-              child: Icon(_getIconForDice(widget.sides), size: 100, color: Colors.white12),
-            ),
-            // Le chiffre qui change rapidement par dessus
-            Text(
-              '$_currentSpinValue',
-              style: GoogleFonts.cinzel(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 50,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Transform.rotate(angle: _animation.value, child: Icon(_getIconForDice(widget.sides), size: 100, color: Colors.white12)),
+            Text('$_currentSpinValue', style: GoogleFonts.cinzel(color: Colors.white.withOpacity(0.7), fontSize: 50, fontWeight: FontWeight.bold)),
           ],
         );
       },
@@ -905,12 +699,8 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
     return Icons.all_out;
   }
 
-
-  // --- VUE DU RÉSULTAT FINAL (Votre logique d'origine) ---
-
   String _getTitle() {
      if (widget.sides == 2) return "Pile ou Face";
-     // Easter Egg Frodon
      if (widget.sides == 20 && widget.finalResult == 1) return 'POUR FRODON !';
      if (widget.sides == 20 && widget.finalResult == 20) return 'FUS RO DAH !!! 🐉';
      return 'Résultat D${widget.sides}';
@@ -926,28 +716,16 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
       contentColor = widget.finalResult == 1 ? Colors.amber : Colors.blueGrey;
       fontSize = 40;
     }
-
-    // EASTER EGG POUR FRODON
     if (widget.sides == 20 && widget.finalResult == 1) {
       content = '${widget.finalResult} ⚔️';
       contentColor = Colors.red.shade400;
     }
-    // EASTER EGG FUS RO DAH
     if (widget.sides == 20 && widget.finalResult == 20) {
       content = '${widget.finalResult} 💨';
       contentColor = Colors.cyanAccent; 
     }
 
-    return Text(
-      content,
-      textAlign: TextAlign.center,
-      style: GoogleFonts.cinzel(
-        color: contentColor,
-        fontSize: fontSize,
-        fontWeight: FontWeight.bold,
-        shadows: [BoxShadow(color: contentColor.withOpacity(0.5), blurRadius: 20)]
-      ),
-    );
+    return Text(content, textAlign: TextAlign.center, style: GoogleFonts.cinzel(color: contentColor, fontSize: fontSize, fontWeight: FontWeight.bold, shadows: [BoxShadow(color: contentColor.withOpacity(0.5), blurRadius: 20)]));
   }
 
   List<Widget> _buildActions() {
@@ -955,16 +733,8 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          TextButton.icon(
-            onPressed: widget.onReroll,
-            icon: const Icon(Icons.refresh, color: Colors.white54),
-            label: Text('Relancer', style: GoogleFonts.cinzel(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.white10),
-            child: Text('OK', style: GoogleFonts.cinzel(color: Colors.white)),
-          ),
+          TextButton.icon(onPressed: widget.onReroll, icon: const Icon(Icons.refresh, color: Colors.white54), label: Text('Relancer', style: GoogleFonts.cinzel(color: Colors.white54))),
+          ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: Colors.white10), child: Text('OK', style: GoogleFonts.cinzel(color: Colors.white))),
         ],
       ),
     ];

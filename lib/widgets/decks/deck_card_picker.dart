@@ -1,5 +1,5 @@
 // Fichier : lib/widgets/decks/deck_card_picker.dart
-// VERSION MISE À JOUR : Infinite Scroll + Sélecteur de Versions
+// VERSION MISE À JOUR : Infinite Scroll + Sélecteur de Versions + Filtre Keyword
 
 import 'dart:async';
 import 'dart:convert';
@@ -115,7 +115,11 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
       }
 
       // Filtres Avancés
-      if (_collectionFilters.cardType != null || _collectionFilters.colors.isNotEmpty || _collectionFilters.setCode != null) {
+      if (_collectionFilters.cardType != null || 
+          _collectionFilters.colors.isNotEmpty || 
+          _collectionFilters.setCode != null ||
+          _collectionFilters.keyword != null) { // <--- NOUVEAU
+         
          final scryfallCard = _localCardService.getCardById(deckCard.scryfallId);
          if (scryfallCard == null) return false; 
 
@@ -132,6 +136,11 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
          // Set
          if (_collectionFilters.setCode != null && 
              scryfallCard.setCode.toLowerCase() != _collectionFilters.setCode!.toLowerCase()) {
+           return false;
+         }
+         // Keyword <--- NOUVEAU
+         if (_collectionFilters.keyword != null && 
+             !scryfallCard.rulesText.toLowerCase().contains(_collectionFilters.keyword!.toLowerCase())) {
            return false;
          }
       }
@@ -214,6 +223,9 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
       if (_apiFilters.rarity != null) parts.add('r:${_apiFilters.rarity}');
       if (_apiFilters.minCmc != null) parts.add('cmc>=${_apiFilters.minCmc!.toInt()}');
       if (_apiFilters.maxCmc != null) parts.add('cmc<=${_apiFilters.maxCmc!.toInt()}');
+      
+      // --- AJOUT DU FILTRE MOT-CLÉ/RÈGLE ---
+      if (_apiFilters.keyword != null) parts.add('o:"${_apiFilters.keyword!.replaceAll('"', '')}"');
       
       String finalQuery = parts.join(' ');
       if (finalQuery.isEmpty) { 
@@ -410,7 +422,7 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
                   controller: _searchController,
                   style: GoogleFonts.cinzel(color: Colors.white),
                   decoration: _buildInputDecoration("Nom de la carte...", 
-                    isActive: _apiFilters.setCode != null || _apiFilters.colors.isNotEmpty || _apiFilters.cardType != null
+                    isActive: _apiFilters.setCode != null || _apiFilters.colors.isNotEmpty || _apiFilters.cardType != null || _apiFilters.keyword != null // <--- NOUVEAU
                   ),
                   onChanged: _onSearchChanged,
                 ),
@@ -422,7 +434,7 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
                 options: {'name': 'Nom', 'cmc': 'Mana', 'released': 'Date', 'rarity': 'Rareté', 'eur': 'Prix'}
               ),
               IconButton(
-                icon: Icon(Icons.filter_list, color: _apiFilters.setCode != null ? Colors.yellow : Colors.white70),
+                icon: Icon(Icons.filter_list, color: _apiFilters.setCode != null || _apiFilters.keyword != null ? Colors.yellow : Colors.white70), // <--- NOUVEAU
                 onPressed: _openApiFilterModal,
               ),
             ],
@@ -483,7 +495,7 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
                   controller: _collectionSearchController,
                   style: GoogleFonts.cinzel(color: Colors.white),
                   decoration: _buildInputDecoration("Filtrer collection...", 
-                    isActive: _collectionFilters.setCode != null || _collectionFilters.colors.isNotEmpty
+                    isActive: _collectionFilters.setCode != null || _collectionFilters.colors.isNotEmpty || _collectionFilters.keyword != null // <--- NOUVEAU
                   ),
                   onChanged: (_) => _applyCollectionFilters(),
                 ),
@@ -495,7 +507,7 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
                 options: {'name': 'Nom', 'price': 'Prix', 'type': 'Type'}
               ),
               IconButton(
-                icon: Icon(Icons.filter_list, color: _collectionFilters.setCode != null ? Colors.yellow : Colors.white70),
+                icon: Icon(Icons.filter_list, color: _collectionFilters.setCode != null || _collectionFilters.keyword != null ? Colors.yellow : Colors.white70), // <--- NOUVEAU
                 onPressed: _openCollectionFilterModal,
               ),
             ],

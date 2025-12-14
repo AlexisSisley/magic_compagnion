@@ -32,8 +32,9 @@ enum ResultPageState { loading, selection, success, error }
 class RecognitionResultPage extends StatefulWidget {
   final String? imagePath;
   final String? cardName;
+  final bool isContinuousScan;
 
-  const RecognitionResultPage({super.key, this.imagePath, this.cardName});
+  const RecognitionResultPage({super.key, this.imagePath, this.cardName, this.isContinuousScan = false});
 
   @override
   State<RecognitionResultPage> createState() => _RecognitionResultPageState();
@@ -298,8 +299,19 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
       appBar: AppBar(
         title: Text(_pageState == ResultPageState.selection ? "Choisissez la carte" : "Détail Carte", style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
         backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context, false), // Retour normal
+        ),
         actions: [
           if (_pageState == ResultPageState.success) ...[
+            if (widget.isContinuousScan)
+              TextButton.icon(
+                onPressed: () => Navigator.pop(context, true), // Retour "Scan Suivant"
+                icon: const Icon(Icons.camera_alt, color: Colors.yellow, size: 18),
+                label: const Text("Suivante", style: TextStyle(color: Colors.yellow, fontWeight: FontWeight.bold)),
+                style: TextButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.1)),
+              ),
             IconButton(icon: const Icon(Icons.style, color: Colors.white), onPressed: _showVersionsModal),
             IconButton(
               icon: Icon(_inWishlist ? Icons.star : Icons.star_border_outlined, color: _inWishlist ? Colors.blue.shade400 : Colors.white),

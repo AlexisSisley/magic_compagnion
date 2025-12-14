@@ -232,6 +232,19 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
       padding: const EdgeInsets.all(12.0).copyWith(bottom: 90.0),
       child: Column(
         children: [
+          _buildStatsCard(
+            title: "Balance des Couleurs",
+            subtitle: "Dévotion (Symboles) vs Sources (Terrains)",
+            height: 300,
+            child: _buildRadarChart(),
+          ),
+          const SizedBox(height: 16),
+          
+          _buildStatsCard(
+            title: "Courbe de Mana",
+            height: 200,
+            child: _buildManaCurveChart(), // Existant
+          ),
           _buildSummaryCard(),
           const SizedBox(height: 16),
           
@@ -270,7 +283,55 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
   }
 
   // --- WIDGETS ---
+  Widget _buildRadarChart() {
+    final colors = ['W', 'U', 'B', 'R', 'G'];
+    // Normalisation pour que le radar soit lisible (max value = 100%)
+    double maxVal = 1.0;
+    
+    // Trouver le max pour normaliser
+    for(var c in colors) {
+      if ((_pipCountData[c]??0) > maxVal) maxVal = (_pipCountData[c]??0).toDouble();
+      if ((_sourceCountData[c]??0) > maxVal) maxVal = (_sourceCountData[c]??0).toDouble();
+    }
 
+    return RadarChart(
+      RadarChartData(
+        dataSets: [
+          // Dataset 1 : Pips (Besoins)
+          RadarDataSet(
+            fillColor: Colors.orangeAccent.withOpacity(0.2),
+            borderColor: Colors.orangeAccent,
+            entryRadius: 3,
+            dataEntries: colors.map((c) => RadarEntry(value: (_pipCountData[c]??0).toDouble())).toList(),
+            borderWidth: 2,
+          ),
+          // Dataset 2 : Sources (Terrains)
+          RadarDataSet(
+            fillColor: Colors.blueAccent.withOpacity(0.2),
+            borderColor: Colors.blueAccent,
+            entryRadius: 3,
+            dataEntries: colors.map((c) => RadarEntry(value: (_sourceCountData[c]??0).toDouble())).toList(),
+            borderWidth: 2,
+          ),
+        ],
+        radarBackgroundColor: Colors.transparent,
+        borderData: FlBorderData(show: false),
+        radarBorderData: const BorderSide(color: Colors.white12),
+        titlePositionPercentageOffset: 0.1,
+        titleTextStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+        getTitle: (index, angle) {
+          if (index >= colors.length) return const RadarChartTitle(text: "");
+          return RadarChartTitle(text: colors[index]); // Affiche W, U, B...
+        },
+        tickCount: 3,
+        ticksTextStyle: const TextStyle(color: Colors.transparent),
+        tickBorderData: const BorderSide(color: Colors.white10),
+        gridBorderData: const BorderSide(color: Colors.white24, width: 1),
+      ),
+      swapAnimationDuration: const Duration(milliseconds: 400),
+    );
+  }
+  
   Widget _buildSummaryCard() {
     return Card(
       color: Colors.black.withOpacity(0.4),

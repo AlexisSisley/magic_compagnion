@@ -111,19 +111,9 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
 
       // 2. Récupération Caméras
       final cameras = await availableCameras();
-      if (cameras.isEmpty) {
-         if (mounted) setState(() {
-            _isPermissionDenied = true;
-            _errorMessage = "Aucune caméra détectée.";
-            _isInitializing = false;
-          });
-        return;
-      }
+      if (cameras.isEmpty) return;
 
-      final firstCamera = cameras.firstWhere(
-          (c) => c.lensDirection == CameraLensDirection.back, 
-          orElse: () => cameras.first
-      );
+      final firstCamera = cameras.firstWhere((c) => c.lensDirection == CameraLensDirection.back, orElse: () => cameras.first);
       
       // 3. Création Controller
       // IMPORTANT : Utiliser ResolutionPreset.high au lieu de .max pour la stabilité sur Android
@@ -317,14 +307,33 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
     try {
       final XFile picture = await _controller!.takePicture();
       if (!mounted) return; 
-      if (_isFlashOn) _toggleFlash();
+      
+      // On met en pause la caméra visuellement
+      await _controller!.pausePreview();
 
-      Navigator.push(
+      // Navigation vers la page de résultat avec le flag "Continuous Scan"
+      final result = await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => RecognitionResultPage(imagePath: picture.path),
+          builder: (context) => RecognitionResultPage(
+            imagePath: picture.path, 
+            isContinuousScan: true // <--- ACTIVE LE MODE SÉRIE
+          ),
         ),
       );
+
+      // Si le résultat est 'true', on relance immédiatement le scan
+      if (result == true) {
+        if (mounted && _controller != null) {
+          await _controller!.resumePreview();
+          // Reset flash if needed (souvent le flash s'éteint après photo)
+          if (_isFlashOn) _toggleFlash(); // Remet état UI correct ou rallume
+        }
+      } else {
+        // Sinon (retour arrière classique), on relance aussi le preview pour être prêt
+        if (mounted && _controller != null) await _controller!.resumePreview();
+      }
+
     } catch (e) {
       print("Erreur photo: $e");
     }

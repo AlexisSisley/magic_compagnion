@@ -1,4 +1,4 @@
-// Fichier : lib/pages/deck_list_page.dart
+// Fichier : lib/pages/decks/deck_list_page.dart
 
 import 'dart:convert';
 import 'dart:developer';
@@ -7,107 +7,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:magic_companion/data/secondary_breakfast.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/pages/decks/deck_detail_page.dart';
 import '../../models/deck_model.dart';
 import '../../services/deck_service.dart';
-
-const String _secondBreakfastDecklist = """
-Commander
-1 Frodo, hobbit audacieux
-
-Deck (102)
-1 Chauves-souris de la Forêt Noire
-1 Gollum, pisteur rongé par l'obsession
-1 Invitée insatiable
-1 Lobelia, défenseuse de Cul-de-sac
-1 Approvisionneuse infatigable
-1 Aubergiste prospère
-1 Cochon de compétition
-1 Enjambeur du verger
-1 Ent généreux
-1 Garde d'essence
-1 Hobbit festoyant
-1 Oie d'or
-1 Oiseaux de paradis
-1 Poney motivé
-1 Primus chutebois
-1 Vigile grand chêne
-1 Aigles du nord
-1 Gwaihir, le plus grand des aigles
-1 L'Ancien
-1 Landroval, témoin de l'horizon
-1 Mentor des humbles
-1 Rosie Chaumine de l'allée du Sud
-1 Shirriff de la Comté
-1 Bilbo, célébrant de l'anniversaire
-1 Chasseuse éclairée
-1 Convives du banquet
-1 Fermier Chaumine
-1 Merry, garde d'Isengard
-1 Pippin, garde d'Isengard
-1 Poiredebeurré, aubergiste de Bree
-1 Sam, serviteur loyal
-1 Sylvebarbe, hôte affable
-1 Chuchotements nocturnes
-1 Chuchotements nocturnes
-1 Déluge toxique
-1 Cherchauloin
-1 Culture
-1 Harmonisation
-1 Ravivement de la Comté
-1 Anéantir les puissants
-1 Crépuscule // Aube
-1 Fumigation
-1 Bosquet bruissant
-1 Bosquet de Solpétal
-1 Bosquets épars
-1 Broussaille
-1 Chapelle isolée
-1 Cimetière des sylves
-1 Citadelle de la steppe de sable
-1 Étendues sauvages en évolution
-8 Forêt
-1 Lacis luminombre
-1 Lacis nécrofleur
-1 Landes cendreuses
-1 Landes érodées
-4 Marais
-1 Passage des malandrins
-1 Passage des malandrins
-4 Plaine
-1 Quartier fantôme
-1 Refuge de Grisepeau
-1 Terrasse de la Comté
-1 Tour de commandement
-1 Tunnel d'accès
-1 Verger exotique
-1 Village fortifié
-1 Voie de l'Ascendance
-1 Vue de la canopée
-1 Anneau solaire
-1 Cachet d'ésotérisme
-1 Comptoir de commerce
-1 Corde de hithlain
-1 Lanterne chromatique
-1 Puits des songes perdus
-1 Sphère du commandant
-1 Sphère du commandant
-1 Talisman immaculé
-1 Poêle à frire de terrain
-1 Droit à la gorge
-1 Incursion dans la crypte
-1 Chemin vers l'exil
-1 Retour au pays
-1 Annulation angoissée
-1 Mortification
-1 Lien sanguin
-1 Réunir le Conseil des Ents
-1 Appel à l'unité
-1 Aube de l'espoir
-1 Herbes et ragoût de lapin
-""";
-
+import '../../services/local_card_service.dart';
 
 class DeckListPage extends StatefulWidget {
   const DeckListPage({super.key});
@@ -118,22 +23,45 @@ class DeckListPage extends StatefulWidget {
 
 class _DeckListPageState extends State<DeckListPage> {
   final DeckService _deckService = DeckService();
+  final LocalCardService _localCardService = LocalCardService();
+
   List<Deck> _decks = [];
   List<Deck> _filteredDecks = [];
+  Map<String, double> _deckPrices = {};
+
   bool _isLoading = true;
   bool _isImporting = false;
   final TextEditingController _searchController = TextEditingController();
-  String _selectedType = 'Tous';
-  final Set<String> _selectedColors = {}; 
+  
+  // Filtres
+  String _selectedFormat = 'Tous';
+  String _selectedSort = 'name';
+  
+  // Filtre Identité Couleur (Nom affiché + Liste des couleurs)
+  String? _selectedIdentityName; 
+  List<String>? _selectedIdentityColors; 
 
-  final Map<String, Color> _manaColors = {
-    'W': Colors.yellow.shade100,
-    'U': Colors.blue.shade300,
-    'B': Colors.grey.shade800,
-    'R': Colors.red.shade400,
-    'G': Colors.green.shade400,
-    'C': Colors.grey.shade400,
+  final Map<String, Map<String, List<String>>> _colorFamilies = {
+    'Mono': {
+      'Blanc': ['W'], 'Bleu': ['U'], 'Noir': ['B'], 'Rouge': ['R'], 'Vert': ['G'], 'Incolore': [] 
+    },
+    'Guilde (2)': {
+      'Azorius': ['W', 'U'], 'Dimir': ['U', 'B'], 'Rakdos': ['B', 'R'], 'Gruul': ['R', 'G'], 'Selesnya': ['G', 'W'],
+      'Orzhov': ['W', 'B'], 'Izzet': ['U', 'R'], 'Golgari': ['B', 'G'], 'Boros': ['R', 'W'], 'Simic': ['G', 'U']
+    },
+    'Trio (3)': {
+      'Esper': ['W', 'U', 'B'], 'Grixis': ['U', 'B', 'R'], 'Jund': ['B', 'R', 'G'], 'Naya': ['R', 'G', 'W'], 'Bant': ['G', 'W', 'U'],
+      'Abzan': ['W', 'B', 'G'], 'Jeskai': ['U', 'R', 'W'], 'Sultai': ['B', 'G', 'U'], 'Mardu': ['R', 'W', 'B'], 'Temur': ['G', 'U', 'R']
+    },
+    'Nephilim (4)': {
+      'Yore-Tiller': ['W', 'U', 'B', 'R'], 'Glint-Eye': ['U', 'B', 'R', 'G'], 'Dune-Brood': ['B', 'R', 'G', 'W'],
+      'Ink-Treader': ['R', 'G', 'W', 'U'], 'Witch-Maw': ['G', 'W', 'U', 'B']
+    },
+    'WUBRG (5)': {
+      '5 Couleurs': ['W', 'U', 'B', 'R', 'G']
+    }
   };
+
   final RegExp _decklistRegex = RegExp(r'^(\d+)x?\s+(.+)$');
 
   @override
@@ -144,53 +72,93 @@ class _DeckListPageState extends State<DeckListPage> {
 
   Future<void> _loadDecks() async {
     setState(() { _isLoading = true; });
+    await _localCardService.loadLocalData();
     final decks = await _deckService.loadDecks();
-    decks.sort((a, b) => a.name.compareTo(b.name));
-    setState(() {
-      _decks = decks;
-      _isLoading = false;
-    });
-    _applyFilters();
+    
+    // Calcul des prix
+    for (var deck in decks) {
+      double total = 0.0;
+      for (var card in deck.mainboard) {
+        final localCard = _localCardService.getCardById(card.scryfallId);
+        if (localCard != null) {
+          double price = double.tryParse(localCard.prices['eur'] ?? '0') ?? 0.0;
+          total += price * card.quantity;
+        }
+      }
+      _deckPrices[deck.id] = total;
+    }
+
+    if(mounted) {
+      setState(() {
+        _decks = decks;
+        _isLoading = false;
+      });
+      _applyFilters();
+    }
   }
 
   void _applyFilters() {
     final query = _searchController.text.toLowerCase();
-    setState(() {
-      _filteredDecks = _decks.where((deck) {
-        if (!deck.name.toLowerCase().contains(query)) return false;
-        final bool isCommander = deck.commanderScryfallId != null;
-        if (_selectedType == 'Commander' && !isCommander) return false;
-        if (_selectedType == 'Standard' && isCommander) return false;
-        if (_selectedColors.isNotEmpty) {
-          if (deck.colors.isEmpty) return false;
-          final bool hasColor = deck.colors.any((c) => _selectedColors.contains(c));
-          if (!hasColor) return false;
+    
+    var tempDecks = _decks.where((deck) {
+      if (!deck.name.toLowerCase().contains(query)) return false;
+      
+      final bool isCommander = deck.commanderScryfallId != null;
+      if (_selectedFormat == 'Commander' && !isCommander) return false;
+      if (_selectedFormat == 'Standard' && isCommander) return false;
+      
+      if (_selectedIdentityColors != null) {
+        if (_selectedIdentityColors!.isEmpty) {
+          if (deck.colors.isNotEmpty) return false;
+        } else {
+          final deckSet = deck.colors.toSet();
+          final filterSet = _selectedIdentityColors!.toSet();
+          if (deckSet.length != filterSet.length || !deckSet.containsAll(filterSet)) {
+            return false;
+          }
         }
-        return true;
-      }).toList();
+      }
+      return true;
+    }).toList();
+
+    tempDecks.sort((a, b) {
+      if (_selectedSort == 'price_desc') {
+        return (_deckPrices[b.id] ?? 0).compareTo(_deckPrices[a.id] ?? 0);
+      } else if (_selectedSort == 'price_asc') {
+        return (_deckPrices[a.id] ?? 0).compareTo(_deckPrices[b.id] ?? 0);
+      }
+      return a.name.compareTo(b.name);
+    });
+
+    setState(() {
+      _filteredDecks = tempDecks;
     });
   }
 
-  Future<void> _deleteDeck(String deckId) async {
-    final bool? confirm = await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Supprimer le deck ?', style: GoogleFonts.cinzel()),
-        content: Text('Cette action est irréversible.', style: GoogleFonts.cinzel()),
-        backgroundColor: const Color(0xFF1A1A1A),
-        titleTextStyle: GoogleFonts.cinzel(color: Colors.white, fontSize: 20),
-        contentTextStyle: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Annuler', style: GoogleFonts.cinzel(color: Colors.white70))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: Text('Supprimer', style: GoogleFonts.cinzel(color: Colors.red.shade300))),
-        ],
-      ),
-    );
+  // --- ACTIONS ---
 
-    if (confirm == true) {
-      await _deckService.deleteDeck(deckId);
-      _loadDecks();
+  Future<void> _deleteDeck(String deckId) async {
+    // Note: La confirmation est gérée par le Dismissible, 
+    // cette méthode est appelée après confirmation visuelle
+    await _deckService.deleteDeck(deckId);
+    
+    // --- EASTER EGG FORCE ---
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: Colors.cyanAccent),
+              const SizedBox(width: 12),
+              Text("La Force a effacé ce deck.", style: GoogleFonts.cinzel(color:Colors.cyanAccent,fontWeight: FontWeight.bold)),
+            ],
+          ),
+          backgroundColor: Colors.black,
+          duration: const Duration(seconds: 2),
+        )
+      );
     }
+    _loadDecks();
   }
 
   Future<void> _showCreateDeckDialog() async {
@@ -202,20 +170,16 @@ class _DeckListPageState extends State<DeckListPage> {
         title: Text('Nouveau Deck', style: GoogleFonts.cinzel(color: Colors.white)),
         content: TextField(
           controller: controller,
-          style: GoogleFonts.cinzel(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'Nom du deck...',
-            hintStyle: TextStyle(color: Colors.white54),
-            filled: true, fillColor: Colors.black45,
-          ),
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(hintText: 'Nom du deck...', filled: true, fillColor: Colors.black45),
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Annuler')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
-            child: Text('Créer'),
+            child: const Text('Créer'),
           ),
         ],
       ),
@@ -242,67 +206,33 @@ class _DeckListPageState extends State<DeckListPage> {
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
               color: const Color(0xFF1A1A1A).withOpacity(0.95),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16), topRight: Radius.circular(16),
-              ),
+              borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text('Importer un Deck', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20)),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: nameController,
-                  style: GoogleFonts.cinzel(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Nom du nouveau deck',
-                    labelStyle: GoogleFonts.cinzel(color: Colors.white70),
-                    filled: true,
-                    fillColor: Colors.black.withOpacity(0.5),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
+                TextField(controller: nameController, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Nom du nouveau deck', filled: true, fillColor: Colors.black54)),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: listController,
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                  decoration: InputDecoration(
-                    hintText: 'Collez votre decklist ici...\n4 Foudre\n2 Jace, le sculpteur de l\'esprit\n...',
-                    hintStyle: const TextStyle(color: Colors.white54, fontSize: 12),
-                    filled: true,
-                    fillColor: Colors.black.withOpacity(0.5),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  maxLines: 8,
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0, bottom: 12.0),
-                  child: Text(
-                    'L\'importation est limitée à 75 cartes uniques par appel (les decks plus grands feront plusieurs appels).', 
-                    style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12, fontStyle: FontStyle.italic),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+                TextField(controller: listController, style: const TextStyle(color: Colors.white), maxLines: 8, decoration: const InputDecoration(hintText: 'Collez votre decklist ici...', filled: true, fillColor: Colors.black54)),
+                const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () {
                     final String deckName = nameController.text.trim();
                     final String deckList = listController.text.trim();
-
-                    if (deckName.toLowerCase() == 'second petit déjeuner' || deckName.toLowerCase() == 'second breakfast') {
-                      Navigator.pop(context);
-                      _importDeck("Nourriture et communauté", _secondBreakfastDecklist);
+                    // --- EASTER EGG CHECK ---
+                    if (deckName.toLowerCase() == 'second petit déjeuner') {
+                      Navigator.pop(context); 
+                      // Utilisation de la variable importée
+                      _importDeck("Nourriture et communauté", secondBreakfastDecklist);
                     } else if (deckName.isNotEmpty && deckList.isNotEmpty) {
-                      Navigator.pop(context);
+                      Navigator.pop(context); 
                       _importDeck(deckName, deckList);
                     }
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.yellow.shade800,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: _isImporting 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Text('Importer', style: GoogleFonts.cinzel()),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
+                  child: _isImporting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Importer'),
                 ),
               ],
             ),
@@ -326,13 +256,11 @@ class _DeckListPageState extends State<DeckListPage> {
       if (line.toLowerCase().startsWith('commander')) { section = 'cmd'; continue; }
       if (line.toLowerCase().startsWith('deck')) { section = 'main'; continue; }
       if (line.toLowerCase().startsWith('sideboard')) { section = 'side'; continue; }
-      
       final match = _decklistRegex.firstMatch(line);
       if (match != null) {
         int qty = int.parse(match.group(1)!);
         String name = match.group(2)!.trim().split('//')[0].trim();
         if (!ids.contains(name)) ids.add(name);
-        
         if (section == 'cmd') commanderName = name;
         else if (section == 'side') parsedSide.add({'name': name, 'quantity': qty});
         else parsedMain.add({'name': name, 'quantity': qty});
@@ -343,8 +271,7 @@ class _DeckListPageState extends State<DeckListPage> {
     if (ids.isNotEmpty) {
       final query = ids.take(75).map((n) => '!${json.encode(n)}').join(' OR ');
       try {
-        final uri = Uri.parse('https://api.scryfall.com/cards/search?q=${Uri.encodeComponent(query)}&unique=cards');
-        final resp = await http.get(uri);
+        final resp = await http.get(Uri.parse('https://api.scryfall.com/cards/search?q=${Uri.encodeComponent(query)}&unique=cards'));
         if (resp.statusCode == 200) {
            final data = json.decode(utf8.decode(resp.bodyBytes));
            scryfallData = (data['data'] as List).map((j) => ScryfallCard.fromJson(j)).toList();
@@ -353,19 +280,15 @@ class _DeckListPageState extends State<DeckListPage> {
     }
 
     Set<String> deckColors = {};
-    for (var sc in scryfallData) {
-      deckColors.addAll(sc.colorIdentity);
-    }
+    for (var sc in scryfallData) { deckColors.addAll(sc.colorIdentity); }
     final order = {'W':0, 'U':1, 'B':2, 'R':3, 'G':4, 'C':5};
     final sortedColors = deckColors.toList()..sort((a,b) => (order[a]??9).compareTo(order[b]??9));
 
     await _deckService.createNewDeck(deckName);
     final decks = await _deckService.loadDecks();
     Deck newDeck = decks.firstWhere((d) => d.name == deckName);
-    
     newDeck.colors = sortedColors; 
     newDeck.format = commanderName != null ? 'Commander' : 'Standard';
-    
     newDeck.mainboard = parsedMain.map((p) => DeckCard(scryfallId: _findId(scryfallData, p['name']), name: p['name'], quantity: p['quantity'])).toList();
     newDeck.sideboard = parsedSide.map((p) => DeckCard(scryfallId: _findId(scryfallData, p['name']), name: p['name'], quantity: p['quantity'])).toList();
     
@@ -376,136 +299,126 @@ class _DeckListPageState extends State<DeckListPage> {
         newDeck.mainboard.add(DeckCard(scryfallId: cid, name: commanderName, quantity: 1));
       }
     }
-
     await _deckService.updateDeck(newDeck);
     setState(() { _isImporting = false; _isLoading = false; });
     _loadDecks();
   }
 
   String _findId(List<ScryfallCard> data, String name) {
-    try {
-      return data.firstWhere((s) => s.name.toLowerCase() == name.toLowerCase()).id;
-    } catch (e) { return "LOCAL:$name"; }
+    try { return data.firstWhere((s) => s.name.toLowerCase() == name.toLowerCase()).id; } catch (e) { return "LOCAL:$name"; }
   }
+
+  // --- UI ---
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    // UTILISATION DE STACK POUR FAB ET MENU DRAWER
+    // CORRECTION : Nous n'utilisons plus de Scaffold interne ici pour laisser le contexte
+    // remonter jusqu'au Scaffold de AppShell (dans main.dart) qui contient le Drawer.
     return Stack(
       children: [
-        Column(
-          children: [
-            // En-tête + Filtres
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              color: Colors.black.withOpacity(0.3),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // --- MODIFICATION ICI : BOUTON MENU ---
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.menu, color: Colors.white70),
-                            onPressed: () => Scaffold.of(context).openDrawer(),
-                          ),
-                          const SizedBox(width: 8),
-                          Text('Mes Decks', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.file_upload_outlined, color: Colors.white),
-                        tooltip: 'Importer (Texte)',
-                        onPressed: _showImportDeckDialog,
-                      ),
-                    ],
+        // Utilisation directe de NestedScrollView
+        NestedScrollView(
+          headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
+            return <Widget>[
+              SliverAppBar(
+                title: Text('Mes Decks', style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+                centerTitle: false,
+                pinned: true,
+                floating: true,
+                snap: true,
+                expandedHeight: 120.0,
+                backgroundColor: Colors.black,
+                leading: IconButton(
+                  icon: const Icon(Icons.menu),
+                  // Le context ici trouvera le Scaffold parent (AppShell)
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.file_upload_outlined, color: Colors.white),
+                    tooltip: "Importer une liste",
+                    onPressed: _showImportDeckDialog
                   ),
-                  const SizedBox(height: 12),
-                  // Barre de recherche
-                  TextField(
-                    controller: _searchController,
-                    style: GoogleFonts.cinzel(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Rechercher...',
-                      hintStyle: TextStyle(color: Colors.white54),
-                      prefixIcon: Icon(Icons.search, color: Colors.white70),
-                      filled: true, fillColor: Colors.black54,
-                      contentPadding: EdgeInsets.symmetric(vertical: 0),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                ],
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(70),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    color: const Color(0xFF1A1A1A),
+                    child: Container(
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          hintText: "Rechercher un deck...",
+                          hintStyle: TextStyle(color: Colors.white54),
+                          border: InputBorder.none,
+                          prefixIcon: Icon(Icons.search, color: Colors.white54),
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onChanged: (_) => _applyFilters(),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  // Filtres (Format & Couleurs)
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-                          child: DropdownButton<String>(
-                            value: _selectedType,
-                            dropdownColor: const Color(0xFF1A1A1A),
-                            underline: SizedBox(),
-                            icon: Icon(Icons.arrow_drop_down, color: Colors.white70),
-                            style: GoogleFonts.cinzel(color: Colors.white),
-                            items: ['Tous', 'Commander', 'Standard'].map((String value) {
-                              return DropdownMenuItem<String>(value: value, child: Text(value));
-                            }).toList(),
-                            onChanged: (val) {
-                              if (val != null) setState(() { _selectedType = val; _applyFilters(); });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ..._manaColors.keys.map((color) {
-                          final isSelected = _selectedColors.contains(color);
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: InkWell(
-                              onTap: () {
-                                setState(() {
-                                  if (isSelected) _selectedColors.remove(color); else _selectedColors.add(color);
-                                  _applyFilters();
-                                });
-                              },
-                              child: Opacity(
-                                opacity: isSelected ? 1.0 : 0.3,
-                                child: _getManaIcon(color, size: 28),
-                              ),
+                ),
+              ),
+            ];
+          },
+          body: _isLoading 
+            ? const Center(child: CircularProgressIndicator(color: Colors.white))
+            : CustomScrollView(
+                slivers: [
+                  // Filtres
+                  SliverToBoxAdapter(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildIdentityFilterChip(),
+                            const SizedBox(width: 8),
+                            _buildChoiceChip(
+                              label: _selectedFormat, 
+                              items: ['Tous', 'Commander', 'Standard'],
+                              onSelected: (v) { setState(() { _selectedFormat = v; _applyFilters(); }); }
                             ),
-                          );
-                        }).toList(),
-                      ],
+                            const SizedBox(width: 8),
+                            _buildChoiceChip(
+                              label: _getSortLabel(_selectedSort),
+                              items: ['Nom (A-Z)', 'Prix (Décroissant)', 'Prix (Croissant)'],
+                              onSelected: (label) {
+                                String code = 'name';
+                                if(label.contains('Décroissant')) code = 'price_desc';
+                                else if(label.contains('Croissant')) code = 'price_asc';
+                                setState(() { _selectedSort = code; _applyFilters(); });
+                              }
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  // Liste
+                  SliverPadding(
+                    padding: const EdgeInsets.only(bottom: 80),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _buildDeckCard(_filteredDecks[index]),
+                        childCount: _filteredDecks.length,
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-
-            // Liste des decks
-            Expanded(
-              child: _isLoading 
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredDecks.isEmpty
-                    ? Center(child: Text('Aucun deck trouvé.', style: GoogleFonts.cinzel(color: Colors.white54)))
-                    : ListView.builder(
-                        itemCount: _filteredDecks.length,
-                        padding: const EdgeInsets.only(bottom: 80),
-                        itemBuilder: (context, index) {
-                          return _buildDeckCard(_filteredDecks[index]);
-                        },
-                      ),
-            ),
-          ],
         ),
-        // FAB POSITIONNÉ MANUELLEMENT (CAR PAS DE SCAFFOLD INTERNE)
+        
         Positioned(
           bottom: 16,
           right: 16,
@@ -521,75 +434,200 @@ class _DeckListPageState extends State<DeckListPage> {
     );
   }
 
-  Widget _buildDeckCard(Deck deck) {
-    final bool isCommander = deck.commanderScryfallId != null;
-    final int cardCount = deck.mainboard.fold(0, (s, c) => s + c.quantity);
+  // --- WIDGETS ---
 
-    // ON ENVELOPPE TOUT DANS UN DISMISSIBLE
-    return Dismissible(
-      key: Key(deck.id),
-      direction: DismissDirection.startToEnd, // Glisser de gauche à droite
-      
-      // --- EASTER EGG VISUEL STAR WARS ---
-      background: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-        padding: const EdgeInsets.only(left: 20),
+  Widget _buildIdentityFilterChip() {
+    final bool isActive = _selectedIdentityName != null;
+    return GestureDetector(
+      onTap: _openIdentityFilterModal,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.red.shade900,
-          borderRadius: BorderRadius.circular(12),
+          color: isActive ? Colors.yellow.shade900 : Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isActive ? Colors.yellow.shade700 : Colors.white12),
         ),
-        alignment: Alignment.centerLeft,
         child: Row(
           children: [
-            // Icône de main ou éclair
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                const Icon(Icons.back_hand, color: Colors.white, size: 30), // La main
-                Icon(Icons.flash_on, color: Colors.blueAccent.shade100, size: 40), // L'éclair de force
-              ],
-            ),
-            const SizedBox(width: 12),
+            if (_selectedIdentityColors != null && _selectedIdentityColors!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Row(
+                  children: _selectedIdentityColors!.map((c) => Padding(
+                    padding: const EdgeInsets.only(right: 2),
+                    child: _getManaIcon(c, size: 14),
+                  )).toList(),
+                ),
+              ),
             Text(
-              "USE THE FORCE", 
-              style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.5)
+              _selectedIdentityName ?? "Couleurs",
+              style: TextStyle(
+                color: isActive ? Colors.white : Colors.white70,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                fontSize: 12
+              ),
             ),
+            const SizedBox(width: 4),
+            Icon(Icons.arrow_drop_down, color: isActive ? Colors.white : Colors.white54, size: 16),
           ],
         ),
       ),
-      
-      // Confirmation avant suppression
-      confirmDismiss: (direction) async {
-        return await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1A1A1A),
-            title: Text('Exécuter l\'Ordre 66 ?', style: GoogleFonts.cinzel(color: Colors.white)),
-            content: const Text('Voulez-vous vraiment supprimer ce deck ?', style: TextStyle(color: Colors.white70)),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
-              TextButton(onPressed: () => Navigator.pop(context, true), child: Text('Supprimer', style: TextStyle(color: Colors.red.shade300))),
+    );
+  }
+
+  Widget _buildChoiceChip({required String label, required List<String> items, required Function(String) onSelected}) {
+    return PopupMenuButton<String>(
+      onSelected: onSelected,
+      itemBuilder: (ctx) => items.map((i) => PopupMenuItem(value: i, child: Text(i))).toList(),
+      color: const Color(0xFF2A2A2A),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            const SizedBox(width: 4),
+            const Icon(Icons.arrow_drop_down, color: Colors.white54, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openIdentityFilterModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.5,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("Identité Couleur", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      if (_selectedIdentityName != null)
+                        TextButton(
+                          onPressed: () {
+                            setState(() { _selectedIdentityName = null; _selectedIdentityColors = null; _applyFilters(); });
+                            Navigator.pop(context);
+                          },
+                          child: const Text("Effacer", style: TextStyle(color: Colors.redAccent))
+                        )
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: Colors.white24),
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    children: _colorFamilies.entries.map((familyEntry) {
+                      return ExpansionTile(
+                        title: Text(familyEntry.key, style: GoogleFonts.cinzel(color: Colors.yellow.shade800, fontWeight: FontWeight.bold)),
+                        iconColor: Colors.yellow.shade800,
+                        collapsedIconColor: Colors.white54,
+                        initiallyExpanded: true,
+                        children: familyEntry.value.entries.map((colorEntry) {
+                          final name = colorEntry.key;
+                          final colors = colorEntry.value;
+                          final isSelected = _selectedIdentityName == name;
+
+                          return ListTile(
+                            selected: isSelected,
+                            selectedTileColor: Colors.yellow.shade900.withOpacity(0.2),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
+                            title: Row(
+                              children: [
+                                ...colors.map((c) => Padding(
+                                  padding: const EdgeInsets.only(right: 4.0),
+                                  child: _getManaIcon(c, size: 20),
+                                )),
+                                if(colors.isEmpty) _getManaIcon('C', size: 20),
+                                const SizedBox(width: 12),
+                                Text(name, style: TextStyle(color: isSelected ? Colors.yellow : Colors.white, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                              ],
+                            ),
+                            trailing: isSelected ? const Icon(Icons.check, color: Colors.yellow) : null,
+                            onTap: () {
+                              setState(() {
+                                _selectedIdentityName = name;
+                                _selectedIdentityColors = colors;
+                                _applyFilters();
+                              });
+                              Navigator.pop(context);
+                            },
+                          );
+                        }).toList(),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            );
+          }
+        );
+      }
+    );
+  }
+
+  Widget _buildDeckCard(Deck deck) {
+    final bool isCommander = deck.commanderScryfallId != null;
+    final int cardCount = deck.mainboard.fold(0, (s, c) => s + c.quantity);
+    final double totalPrice = _deckPrices[deck.id] ?? 0.0;
+
+    return Dismissible(
+      key: Key(deck.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(color: Colors.red.shade900, borderRadius: BorderRadius.circular(12)),
+        alignment: Alignment.centerRight,
+        child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          Text("USE THE FORCE",style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold,fontSize: 16, letterSpacing: 1.5)), 
+          const SizedBox(width: 12), 
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              const Icon(Icons.back_hand, color: Colors.white, size: 30), // La main
+              Icon(Icons.flash_on, color: Colors.blueAccent.shade100, size: 40), // L'éclair de force
             ],
           ),
-        );
+        ]),
+      ),
+      confirmDismiss: (d) => showDialog(
+        context: context, 
+        builder: (c) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A), 
+          title: const Text("Supprimer ?", style: TextStyle(color: Colors.white)), 
+          actions: [
+            TextButton(onPressed: ()=>Navigator.pop(c,false),child: const Text("Non")), 
+            TextButton(onPressed: ()=>Navigator.pop(c,true),child: const Text("Oui"))
+          ]
+        )
+      ),
+      onDismissed: (_) {
+        _deleteDeck(deck.id);
+        setState(() { _decks.removeWhere((d) => d.id == deck.id); _applyFilters(); });
       },
-      
-      // Action une fois supprimé
-      onDismissed: (direction) {
-        _deckService.deleteDeck(deck.id);
-        // Pas besoin de _loadDecks() ici car on l'enlève visuellement, 
-        // mais pour être sûr de la synchro :
-        setState(() {
-            _decks.removeWhere((d) => d.id == deck.id);
-            _applyFilters();
-          });
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Deck supprimé par la Force.")));
-        },
-
-      // --- CONTENU ORIGINAL (La Card) ---
       child: Card(
-        color: Colors.black.withOpacity(0.4),
+        // DESIGN AJUSTÉ ICI : Noir opaque pour faire ressortir la row
+        color: Colors.black.withOpacity(0.8),
         margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+        elevation: 4,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12.0),
           side: BorderSide(
@@ -620,7 +658,11 @@ class _DeckListPageState extends State<DeckListPage> {
                         ),
                       )
                     else
-                      Icon(Icons.style_outlined, color: Colors.white70, size: 28),
+                      Container(
+                        width: 50, height: 50,
+                        decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(25)),
+                        child: Icon(Icons.style, color: Colors.white54, size: 24),
+                      ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -629,6 +671,7 @@ class _DeckListPageState extends State<DeckListPage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    
                     if (deck.colors.isNotEmpty)
                       Row(
                         children: deck.colors.map((c) => Padding(
@@ -656,12 +699,11 @@ class _DeckListPageState extends State<DeckListPage> {
                       ),
                     ),
                     const Spacer(),
-                    Text('$cardCount cartes', style: GoogleFonts.cinzel(color: Colors.white38, fontSize: 12)),
-                    const SizedBox(width: 16),
-                    // On garde le bouton poubelle au cas où l'utilisateur ne devine pas le swipe
-                    InkWell(
-                      onTap: () => _deleteDeck(deck.id),
-                      child: Icon(Icons.delete_outline, color: Colors.red.shade300.withOpacity(0.7), size: 20),
+                    Text('$cardCount cartes', style: GoogleFonts.cinzel(color: Colors.amberAccent, fontSize: 12)),
+                    const SizedBox(width: 12),
+                    Text(
+                        " ≈ ${totalPrice.toStringAsFixed(0)} €",
+                        style: GoogleFonts.roboto(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ],
                 )
@@ -679,5 +721,13 @@ class _DeckListPageState extends State<DeckListPage> {
       url, height: size, width: size,
       placeholderBuilder: (_) => Text(symbol, style: TextStyle(color: Colors.white, fontSize: size)),
     );
+  }
+  
+  String _getSortLabel(String code) {
+    switch(code) {
+      case 'price_desc': return 'Prix (Décroissant)';
+      case 'price_asc': return 'Prix (Croissant)';
+      default: return 'Nom (A-Z)';
+    }
   }
 }

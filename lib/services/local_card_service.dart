@@ -25,6 +25,8 @@ List<ScryfallCard> _executeSearch(SearchArguments args) {
   final rarity = filters?.rarity;
   final minCmc = filters?.minCmc;
   final maxCmc = filters?.maxCmc;
+  final lowerKeyword = filters?.keyword?.toLowerCase(); // <--- NOUVEAU
+  
   return args.cards.where((card) {
     // 1. Filtre Texte (Nom)
     if (lowerQuery.isNotEmpty) {
@@ -44,8 +46,12 @@ List<ScryfallCard> _executeSearch(SearchArguments args) {
     if (colors.isNotEmpty) {
       final cardColors = card.colorIdentity.toSet();
       // "Doit contenir toutes les couleurs sélectionnées" (Logique restrictive)
-      // Tu peux changer en `any` si tu veux une logique permissive
       if (!colors.every((c) => cardColors.contains(c))) return false;
+    }
+    
+    // --- AJOUT FILTRE KEYWORD ---
+    if (lowerKeyword != null && lowerKeyword.isNotEmpty) {
+      if (!card.rulesText.toLowerCase().contains(lowerKeyword)) return false;
     }
     
     return true;

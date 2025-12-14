@@ -7,6 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart'; 
 import '../../models/player_model.dart';
+import '../../models/scryfall_card_model.dart'; 
+import '../../services/local_card_service.dart'; 
+// Import du sélecteur de versions pour choisir l'artwork
+import '../cards/versions_selector_sheet.dart'; 
 
 enum CounterMode { life, poison, energy, commanderTax }
 
@@ -29,7 +33,7 @@ class PlayerZone extends StatefulWidget {
     required this.onColorChanged,
     this.onStatChanged, 
     this.onRotationChanged,
-    this.onSkinChanged, // Nouveau callback
+    this.onSkinChanged, 
     this.quarterTurns = 0,
     this.isCommander = false,
     this.isHighlighted = false,
@@ -43,7 +47,7 @@ class PlayerZone extends StatefulWidget {
   final Function(String type, int val)? onStatChanged; 
   final Function(Color) onColorChanged;
   final Function(int)? onRotationChanged;
-  final Function(String?)? onSkinChanged; // Null pour reset
+  final Function(String?)? onSkinChanged; 
   final VoidCallback onShowCommanderDamage;
 
   @override
@@ -52,6 +56,8 @@ class PlayerZone extends StatefulWidget {
 
 class _PlayerZoneState extends State<PlayerZone> {
   final List<_FloatingNumber> _floatingNumbers = [];
+  final LocalCardService _localCardService = LocalCardService();
+  
   int _nextNumberId = 0;
   CounterMode _editMode = CounterMode.life;
   Timer? _resetModeTimer;
@@ -65,6 +71,15 @@ class _PlayerZoneState extends State<PlayerZone> {
     Colors.teal.shade900, Colors.pink.shade900, Colors.brown.shade800, 
     Colors.indigo.shade900, Colors.blueGrey.shade800, Colors.black
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Préchauffage du service pour la recherche d'artwork
+    if (!_localCardService.isLoaded) {
+      _localCardService.loadLocalData();
+    }
+  }
 
   void _triggerChange(int change) {
     _resetAutoReturnTimer(); 
@@ -156,11 +171,32 @@ class _PlayerZoneState extends State<PlayerZone> {
       final XFile? image = await picker.pickImage(source: ImageSource.gallery);
       if (image != null && widget.onSkinChanged != null) {
         widget.onSkinChanged!(image.path);
-        Navigator.pop(context); // Ferme la modale de couleur
+        Navigator.pop(context); 
       }
     } catch (e) {
       debugPrint("Erreur image picker: $e");
     }
+  }
+
+  // --- OUVERTURE RECHERCHE ---
+  void _openArtworkSearch() {
+    Navigator.pop(context); // Fermer le menu couleur
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true,
+      builder: (context) => _ArtworkSearchModal(
+        localCardService: _localCardService,
+        onCardSelected: (ScryfallCard card) {
+          // On génère l'URL "Art Crop" pour avoir l'illustration plein cadre
+          final String artUrl = "https://api.scryfall.com/cards/${card.id}?format=image&version=art_crop";
+          if (widget.onSkinChanged != null) {
+            widget.onSkinChanged!(artUrl);
+          }
+        },
+      ),
+    );
   }
 
   void _showColorPicker() {
@@ -172,13 +208,22 @@ class _PlayerZoneState extends State<PlayerZone> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Bouton Skin Image
+            // Bouton Artwork
             ElevatedButton.icon(
-              onPressed: _pickImage, 
-              icon: const Icon(Icons.image), 
-              label: const Text("Choisir une image de fond"),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.grey.shade800, foregroundColor: Colors.white),
+              onPressed: _openArtworkSearch,
+              icon: const Icon(Icons.palette, color: Colors.black),
+              label: Text("Choisir un Artwork", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800, foregroundColor: Colors.black),
             ),
+            const SizedBox(height: 8),
+            // Bouton Galerie
+            OutlinedButton.icon(
+              onPressed: _pickImage, 
+              icon: const Icon(Icons.photo_library), 
+              label: const Text("Depuis la galerie"),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white24)),
+            ),
+            
             if (widget.player.backgroundImagePath != null)
                TextButton(
                  onPressed: () {
@@ -188,7 +233,7 @@ class _PlayerZoneState extends State<PlayerZone> {
                  child: const Text("Supprimer l'image", style: TextStyle(color: Colors.redAccent))
                ),
             const Divider(color: Colors.white24),
-            const Text("Ou couleur unie :", style: TextStyle(color: Colors.white54, fontSize: 12)),
+            const Text("Couleur unie :", style: TextStyle(color: Colors.white54, fontSize: 12)),
             const SizedBox(height: 12),
             Wrap(
               spacing: 12, runSpacing: 12,
@@ -237,15 +282,28 @@ class _PlayerZoneState extends State<PlayerZone> {
   Widget build(BuildContext context) {
     Color bgColor = Color(widget.player.colorValue);
     
-    // GESTION DU SKIN
+    // --- GESTION DU SKIN ---
     DecorationImage? bgImage;
     if (widget.player.backgroundImagePath != null) {
-      final file = File(widget.player.backgroundImagePath!);
-      if (file.existsSync()) {
+      final String path = widget.player.backgroundImagePath!;
+      
+      ImageProvider? provider;
+      if (path.startsWith('http')) {
+        // Artwork Scryfall (URL)
+        provider = NetworkImage(path);
+      } else {
+        // Galerie locale (Fichier)
+        final file = File(path);
+        if (file.existsSync()) {
+          provider = FileImage(file);
+        }
+      }
+
+      if (provider != null) {
         bgImage = DecorationImage(
-          image: FileImage(file),
+          image: provider,
           fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.4), BlendMode.darken), // Assombrit l'image pour lisibilité
+          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.5), BlendMode.darken),
         );
       }
     }
@@ -253,7 +311,7 @@ class _PlayerZoneState extends State<PlayerZone> {
     Widget content = Container(
       decoration: BoxDecoration(
         color: bgColor,
-        image: bgImage, // <--- Application du skin
+        image: bgImage, // Application du skin
         borderRadius: BorderRadius.circular(18),
         border: widget.isHighlighted 
             ? Border.all(color: Colors.white, width: 4) 
@@ -454,6 +512,140 @@ class _PlayerZoneState extends State<PlayerZone> {
             const Icon(Icons.shield, size: 14, color: Colors.white70),
             const SizedBox(width: 4),
             Text('${widget.player.totalCommanderDamage}', style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- SOUS-WIDGET : MODALE DE RECHERCHE D'ARTWORK ---
+class _ArtworkSearchModal extends StatefulWidget {
+  final LocalCardService localCardService;
+  final Function(ScryfallCard) onCardSelected;
+
+  const _ArtworkSearchModal({required this.localCardService, required this.onCardSelected});
+
+  @override
+  State<_ArtworkSearchModal> createState() => _ArtworkSearchModalState();
+}
+
+class _ArtworkSearchModalState extends State<_ArtworkSearchModal> {
+  final TextEditingController _controller = TextEditingController();
+  List<ScryfallCard> _results = [];
+  Timer? _debounce;
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
+      if (query.trim().length >= 2) {
+        // Utilisation du service local existant pour une recherche fluide
+        final results = await widget.localCardService.searchCards(query: query); 
+        if (mounted) {
+          setState(() {
+            _results = results.take(20).toList();
+          });
+        }
+      } else {
+        if (mounted) setState(() => _results = []);
+      }
+    });
+  }
+
+  // --- OUVERTURE SELECTEUR VERSION ---
+  void _openVersionSelector(ScryfallCard card) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => VersionsSelectorSheet(
+        oracleId: card.oracleId,
+        currentCardId: card.id,
+        onVersionSelected: (version) {
+           // 1. Ferme le sélecteur
+           // (Le sélecteur se ferme lui-même après sélection, 
+           // mais s'il ne le fait pas, ce n'est pas grave)
+           
+           // 2. Renvoie la carte choisie
+           widget.onCardSelected(version);
+           
+           // 3. Ferme la modale de recherche (self)
+           Navigator.of(context).pop();
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        padding: const EdgeInsets.all(16),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Text("Choisir un Artwork", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              style: GoogleFonts.cinzel(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: "Nom de la carte...",
+                hintStyle: TextStyle(color: Colors.white30),
+                prefixIcon: Icon(Icons.search, color: Colors.white54),
+                filled: true,
+                fillColor: Colors.black45,
+                border: OutlineInputBorder(),
+              ),
+              onChanged: _onSearchChanged,
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: _results.isEmpty
+                  ? Center(child: Text("Tapez le nom d'une carte", style: GoogleFonts.cinzel(color: Colors.white30)))
+                  : GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3, 
+                        childAspectRatio: 0.7, 
+                        crossAxisSpacing: 8, 
+                        mainAxisSpacing: 8
+                      ),
+                      itemCount: _results.length,
+                      itemBuilder: (context, index) {
+                        final card = _results[index];
+                        final imgUrl = card.smallImageUrl ?? '';
+                        
+                        return GestureDetector(
+                          // Au clic, on ouvre le sélecteur de version pour choisir l'artwork précis
+                          onTap: () => _openVersionSelector(card),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Image.network(imgUrl, fit: BoxFit.cover, errorBuilder: (_,__,___)=>Container(color: Colors.grey.shade800)),
+                                // Petit indicateur qu'il y a plusieurs versions
+                                Positioned(
+                                  bottom: 0, right: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2),
+                                    color: Colors.black54,
+                                    child: const Icon(Icons.grid_view, size: 12, color: Colors.white70),
+                                  ),
+                                )
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
           ],
         ),
       ),

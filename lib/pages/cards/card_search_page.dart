@@ -1,5 +1,5 @@
 // Fichier : lib/pages/cards/card_search_page.dart
-// VERSION CORRIGÉE : Sélecteur Wishlist (SafeArea) + Skyrim Loader
+// VERSION CORRIGÉE : Sélecteur Wishlist (SafeArea) + Skyrim Loader + Filtre Keyword
 
 import 'dart:async'; 
 import 'package:flutter/material.dart';
@@ -161,7 +161,8 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
            _activeFilters.colors.isNotEmpty ||
            _activeFilters.minCmc != null || 
            _activeFilters.maxCmc != null ||
-           _activeFilters.rarity != null;
+           _activeFilters.rarity != null ||
+           _activeFilters.keyword != null; // <--- NOUVEAU
   }
 
   void _applySort(List<ScryfallCard> list) {
@@ -205,6 +206,7 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     // 3. FALLBACK
     if (!apiSuccess && _localCardService.isLoaded) {
        setState(() { _statusMessage = "Erreur API. Recherche locale de secours..."; });
+       // On passe tous les filtres locaux ici, y compris le keyword
        await _performLocalSearch(query, ignoreSetFilter: true);
        if (mounted && _searchResults.isNotEmpty) {
          setState(() {
@@ -225,15 +227,6 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
       filters: effectiveFilters,
     );
       
-    if (_activeFilters.minCmc != null || _activeFilters.maxCmc != null || _activeFilters.rarity != null) {
-       results = results.where((c) {
-         if (_activeFilters.minCmc != null && (c.cmc ?? 0) < _activeFilters.minCmc!) return false;
-         if (_activeFilters.maxCmc != null && (c.cmc ?? 0) > _activeFilters.maxCmc!) return false;
-         if (_activeFilters.rarity != null && c.rarity != _activeFilters.rarity) return false;
-         return true;
-       }).toList();
-    }
-
     if (results.isNotEmpty) {
       _applySort(results);
       if (mounted) {
@@ -266,6 +259,9 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     
     if (_activeFilters.minCmc != null) queryParts.add('cmc>=${_activeFilters.minCmc!.toInt()}');
     if (_activeFilters.maxCmc != null) queryParts.add('cmc<=${_activeFilters.maxCmc!.toInt()}');
+    
+    // --- AJOUT DU FILTRE MOT-CLÉ/RÈGLE ---
+    if (_activeFilters.keyword != null) queryParts.add('o:"${_activeFilters.keyword!.replaceAll('"', '')}"');
     
     final String finalQuery = queryParts.join(' ');
     final prefs = await SharedPreferences.getInstance();

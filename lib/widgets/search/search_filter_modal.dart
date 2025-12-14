@@ -1,5 +1,5 @@
 // Fichier : lib/widgets/search/search_filter_modal.dart
-// VERSION MISE À JOUR : Interface Pro avec CMC et Rareté
+// VERSION MISE À JOUR : Interface Pro avec CMC et Rareté + Keyword
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -20,6 +20,7 @@ class SearchFilterModal extends StatefulWidget {
 
 class _SearchFilterModalState extends State<SearchFilterModal> {
   late TextEditingController _setController;
+  late TextEditingController _keywordController; // <--- NOUVEAU
   late String? _selectedType;
   late Set<String> _selectedColors;
   
@@ -41,6 +42,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
   void initState() {
     super.initState();
     _setController = TextEditingController(text: widget.initialFilters.setCode);
+    _keywordController = TextEditingController(text: widget.initialFilters.keyword); // <--- INIT NOUVEAU
     _selectedType = widget.initialFilters.cardType;
     _selectedColors = Set.from(widget.initialFilters.colors);
     
@@ -55,6 +57,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
   @override
   void dispose() {
     _setController.dispose();
+    _keywordController.dispose(); // <--- DISPOSE NOUVEAU
     super.dispose();
   }
 
@@ -62,6 +65,8 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
     // Si la plage est complète (0-10), on envoie null pour ne pas filtrer
     double? finalMin = _cmcRange.start > 0 ? _cmcRange.start : null;
     double? finalMax = _cmcRange.end < 10 ? _cmcRange.end : null;
+    
+    final String? keyword = _keywordController.text.trim().isEmpty ? null : _keywordController.text.trim(); // <--- RÉCUPÉRATION
 
     final newFilters = SearchFilters(
       setCode: _setController.text.trim().isEmpty ? null : _setController.text.trim(),
@@ -70,6 +75,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
       minCmc: finalMin,
       maxCmc: finalMax,
       rarity: _selectedRarity,
+      keyword: keyword, // <--- AJOUT
     );
     Navigator.pop(context, newFilters);
   }
@@ -100,6 +106,14 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                 Text('Filtres avancés', textAlign: TextAlign.center, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                 const Divider(color: Colors.white24, height: 24),
                 
+                // --- Keyword --- <--- NOUVEAU CHAMP
+                TextField(
+                  controller: _keywordController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _buildInputDecoration(hintText: 'Mot-clé / Règle (Ex: Landfall, Flying)', icon: Icons.text_fields),
+                ),
+                const SizedBox(height: 16),
+                
                 // --- Types & Sets ---
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start, // Aligne en haut
@@ -126,7 +140,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                     
                     const SizedBox(width: 12),
 
-                    // 2. Le Champ Texte (Code Set) - Que vous aviez perdu
+                    // 2. Le Champ Texte (Code Set)
                     Expanded(
                       child: TextField(
                         controller: _setController,

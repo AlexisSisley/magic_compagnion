@@ -23,9 +23,11 @@ class CollectionListTab extends StatefulWidget {
   final bool hasCalculatedFinance;
   final Function() onRefresh;
   final Function(DeckCard, int) onUpdateQuantity;
-  final Function(DeckCard)? onToggleFoil; 
+  final Function(DeckCard)? onToggleFoil;
+  final Function(DeckCard, List<String>)? onUpdateTags;
+  final List<String> availableTags;
 
-  // --- MODE SÉLECTION ---
+  // Mode Sélection
   final bool isSelectionMode;
   final Set<String> selectedIds;
   final Function(String)? onToggleSelection;
@@ -46,10 +48,12 @@ class CollectionListTab extends StatefulWidget {
     required this.onRefresh,
     required this.onUpdateQuantity,
     this.onToggleFoil,
+    this.onUpdateTags,
+    this.availableTags = const [],
     this.isSelectionMode = false,
     this.selectedIds = const {},
     this.onToggleSelection,
-    this.onToggleSelectionMode, // <--- NOUVEAU
+    this.onToggleSelectionMode,
   });
 
   @override
@@ -60,22 +64,37 @@ class _CollectionListTabState extends State<CollectionListTab> {
   double _gridColumns = 1.0; 
   double _lastScale = 1.0;
   final RegExp _manaPipRegex = RegExp(r'\{([WUBRGCTPXYZS0-9/]+)\}');
-
   
   void _handleScaleUpdate(ScaleUpdateDetails details) {
-    if (details.scale > 1.3 && _lastScale <= 1.0) {
-      // Zoom In
-      setState(() {
-        if (_gridColumns > 1) _gridColumns--;
-        _lastScale = details.scale;
-      });
-    } else if (details.scale < 0.7 && _lastScale >= 1.0) {
-      // Zoom Out
-      setState(() {
-        if (_gridColumns < 4) _gridColumns++; // Max 4 colonnes pour lisibilité
-        _lastScale = details.scale;
-      });
+    if (details.scale > 1.3 && _lastScale <= 1.0) { setState(() { if (_gridColumns > 1) _gridColumns--; _lastScale = details.scale; }); } 
+    else if (details.scale < 0.7 && _lastScale >= 1.0) { setState(() { if (_gridColumns < 4) _gridColumns++; _lastScale = details.scale; }); }
+  }
+
+  // --- LOGIQUE METIER ---
+
+  Future<void> _launchURL(String? url) async {
+    if (url == null) return;
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossible d'ouvrir le lien.")));
     }
+  }
+
+  Future<void> _exportAndOpenCardmarket() async {
+     StringBuffer sb = StringBuffer();
+     for(var c in widget.cards) {
+        sb.writeln("${c.quantity} ${c.name}");
+     }
+     await Clipboard.setData(ClipboardData(text: sb.toString()));
+     if (mounted) {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+         content: Text("Liste copiée ! Collez-la dans Cardmarket (Mass Entry)."),
+         backgroundColor: Colors.blueAccent,
+         duration: Duration(seconds: 3),
+       ));
+     }
+     _launchURL("https://www.cardmarket.com/en/Magic/Wants/MassEntry");
   }
 
   void _showFinancialDetail() {
@@ -163,173 +182,153 @@ class _CollectionListTabState extends State<CollectionListTab> {
     );
   }
 
-  Future<void> _launchURL(String? url) async {
-    if (url == null) return;
-    try {
-      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossible d'ouvrir le lien.")));
-    }
-  }
-  Future<void> _exportAndOpenCardmarket() async {
-     // 1. Génération de la liste textuelle
-     StringBuffer sb = StringBuffer();
-     for(var c in widget.cards) {
-        // Format simple accepté par le Mass Entry : "Qté Nom"
-        sb.writeln("${c.quantity} ${c.name}");
-     }
-     
-     // 2. Copie dans le presse-papier
-     await Clipboard.setData(ClipboardData(text: sb.toString()));
-     
-     // 3. Feedback utilisateur
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-         content: Text("Liste copiée ! Collez-la dans Cardmarket (Mass Entry)."),
-         backgroundColor: Colors.blueAccent,
-         duration: Duration(seconds: 3),
-       ));
-     }
-     
-     // 4. Ouverture de la page Mass Entry de Cardmarket
-     _launchURL("https://www.cardmarket.com/en/Magic/Wants/MassEntry");
-  }
-  // --- MODIFICATION : Menu Contextuel ---
-  void _showCardOptions(DeckCard card, ScryfallCard? scryfallCard) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-                subtitle: Text(scryfallCard?.setName ?? "", style: const TextStyle(color: Colors.white54)),
-              ),
-              const Divider(color: Colors.white24),
-              
-              // Option FOIL (Seulement si le callback est fourni, ex: Wishlist)
-              if (widget.onToggleFoil != null)
-                ListTile(
-                  leading: Icon(Icons.star, color: card.isFoil ? Colors.amber : Colors.white24),
-                  title: Text(card.isFoil ? "Retirer version Foil" : "Passer en Foil", style: const TextStyle(color: Colors.white)),
-                  onTap: () {
-                    Navigator.pop(context);
-                    widget.onToggleFoil!(card);
-                  },
-                ),
-
-              // Option CARDMARKET
-              if (scryfallCard?.purchaseUris['cardmarket'] != null)
-                ListTile(
-                  leading: const Icon(Icons.shopping_cart, color: Colors.blueAccent),
-                  title: const Text("Voir sur Cardmarket", style: TextStyle(color: Colors.white)),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _launchURL(scryfallCard!.purchaseUris['cardmarket']);
-                  },
-                ),
-                
-              ListTile(
-                leading: const Icon(Icons.info_outline, color: Colors.white70),
-                title: const Text("Détails complets", style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: card.name)));
-                },
-              ),
-            ],
-          ),
-        );
-      }
-    );
-  }
-  // --- FILTRAGE & TRI (Inchangé) ---
-  // ignore: unused_element
   List<DeckCard> _filterAndSortList() {
     List<DeckCard> filtered = widget.cards.where((card) {
-      if (!card.name.toLowerCase().contains(widget.filterQuery.toLowerCase())) return false;
-
-      if (widget.activeFilters.cardType != null || widget.activeFilters.colors.isNotEmpty) {
+      if (widget.filterQuery.isNotEmpty && !card.name.toLowerCase().contains(widget.filterQuery.toLowerCase())) return false;
+      if (widget.activeFilters.tags.isNotEmpty) {
+        if (!widget.activeFilters.tags.every((tag) => card.tags.contains(tag))) return false;
+      }
+      if (widget.activeFilters.cardType != null || widget.activeFilters.colors.isNotEmpty || widget.activeFilters.minCmc != null || widget.activeFilters.keyword != null) {
         try {
-          final scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId);
-          
-          if (widget.activeFilters.cardType != null) {
-            if (!scryfallCard.typeLine.toLowerCase().contains(widget.activeFilters.cardType!.toLowerCase())) return false;
-          }
+          final sc = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId);
+          if (widget.activeFilters.cardType != null && !sc.typeLine.toLowerCase().contains(widget.activeFilters.cardType!.toLowerCase())) return false;
           if (widget.activeFilters.colors.isNotEmpty) {
-             final cardColors = scryfallCard.colorIdentity.toSet();
-             if (!widget.activeFilters.colors.every((c) => cardColors.contains(c))) return false;
+             final colors = sc.colorIdentity.toSet();
+             if (!widget.activeFilters.colors.every((c) => colors.contains(c))) return false;
           }
+          if (widget.activeFilters.minCmc != null && (sc.cmc ?? 0) < widget.activeFilters.minCmc!) return false;
+          if (widget.activeFilters.maxCmc != null && (sc.cmc ?? 0) > widget.activeFilters.maxCmc!) return false;
+          if (widget.activeFilters.keyword != null && !sc.rulesText.toLowerCase().contains(widget.activeFilters.keyword!.toLowerCase())) return false;
         } catch (e) { return false; }
       }
       return true;
     }).toList();
 
-    switch (widget.currentSort) {
-      case 'Nom': filtered.sort((a, b) => a.name.compareTo(b.name)); break;
-      case 'Prix':
-        filtered.sort((a, b) {
-          final priceA = _getPrice(a);
-          final priceB = _getPrice(b);
-          return priceB.compareTo(priceA);
-        });
-        break;
-      case 'Couleur':
-        filtered.sort((a, b) {
-          final cA = _getCardColorIndex(a.scryfallId);
-          final cB = _getCardColorIndex(b.scryfallId);
-          return cA.compareTo(cB);
-        });
-        break;
-      case 'Type':
-      default:
-        filtered.sort((a, b) => a.name.compareTo(b.name));
-        break;
-    }
+    filtered.sort((a, b) {
+      int result = 0;
+      switch (widget.activeFilters.sortType) {
+        case 'price':
+          final pA = _getPrice(a); final pB = _getPrice(b);
+          result = pA.compareTo(pB); break;
+        case 'cmc':
+          final cA = _getCmc(a); final cB = _getCmc(b);
+          result = cA.compareTo(cB); break;
+        case 'type':
+           result = a.name.compareTo(b.name); break; 
+        case 'name':
+        default:
+          result = a.name.compareTo(b.name); break;
+      }
+      return widget.activeFilters.sortAscending ? result : -result;
+    });
     return filtered;
   }
 
   double _getPrice(DeckCard c) {
     try {
       final sc = widget.fullCardData.firstWhere((s) => s.id == c.scryfallId);
-      return double.tryParse(sc.prices['eur'] ?? '0') ?? 0.0;
+      final key = c.isFoil ? 'eur_foil' : 'eur';
+      return double.tryParse(sc.prices[key] ?? sc.prices['eur'] ?? '0') ?? 0.0;
     } catch (e) { return 0.0; }
   }
-
-  int _getCardColorIndex(String id) {
+  
+  double _getCmc(DeckCard c) {
     try {
-      final sc = widget.fullCardData.firstWhere((s) => s.id == id);
-      if (sc.colorIdentity.isEmpty) return 10; 
-      if (sc.colorIdentity.length > 1) return 6; 
-      const map = {'W': 1, 'U': 2, 'B': 3, 'R': 4, 'G': 5};
-      return map[sc.colorIdentity.first] ?? 10;
-    } catch (e) { return 10; }
+      final sc = widget.fullCardData.firstWhere((s) => s.id == c.scryfallId);
+      return sc.cmc ?? 0.0;
+    } catch(e) { return 0.0; }
   }
+
+  void _showTagEditor(DeckCard card) {
+    final List<String> currentTags = List.from(card.tags);
+    final TextEditingController newTagCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1A1A1A),
+              title: Text("Tags : ${card.name}", style: GoogleFonts.cinzel(color: Colors.white)),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8, runSpacing: 8,
+                      children: currentTags.map((t) => Chip(
+                        label: Text(t),
+                        backgroundColor: Colors.blueAccent.withOpacity(0.3),
+                        onDeleted: () => setState(() => currentTags.remove(t)),
+                      )).toList(),
+                    ),
+                    const Divider(color: Colors.white24),
+                    const Text("Ajouter un tag :", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                    Row(
+                      children: [
+                        Expanded(child: TextField(controller: newTagCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: "Nouveau..."))),
+                        IconButton(icon: const Icon(Icons.add, color: Colors.green), onPressed: () {
+                          if (newTagCtrl.text.isNotEmpty) {
+                            setState(() => currentTags.add(newTagCtrl.text.trim()));
+                            newTagCtrl.clear();
+                          }
+                        })
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text("Existants :", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                    Wrap(
+                      spacing: 6,
+                      children: widget.availableTags.where((t) => !currentTags.contains(t)).map((t) => ActionChip(
+                        label: Text(t),
+                        onPressed: () => setState(() => currentTags.add(t)),
+                      )).toList(),
+                    )
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+                ElevatedButton(
+                  onPressed: () {
+                    widget.onUpdateTags?.call(card, currentTags);
+                    Navigator.pop(context);
+                  }, 
+                  child: const Text("Sauvegarder")
+                )
+              ],
+            );
+          }
+        );
+      }
+    );
+  }
+
+  // --- BUILD ---
 
   @override
   Widget build(BuildContext context) {
-    final filteredList = widget.cards; // _filterAndSortList(); 
+    final filteredList = _filterAndSortList();
     final int currentCols = _gridColumns.round();
-    final bool isGrouped = widget.currentSort == 'Type';
 
     return RefreshIndicator(
       onRefresh: () async => widget.onRefresh(),
       child: Column(
         children: [
-          // Header Financier (Masqué en mode sélection pour gagner de la place)
-          if (widget.hasCalculatedFinance && !widget.isSelectionMode)
-            _buildFinancialHeader(
-              title: widget.isWishlist ? "Coût Wishlist" : "Valeur Collection",
-              value: widget.financialTotal,
-              evoVal: widget.evoVal,
-              evoPct: widget.evoPct,
-              onDetailPressed: _showFinancialDetail,
-            ),
+          // Header Financier (RESTAURÉ)
+          if (widget.hasCalculatedFinance && filteredList.isNotEmpty && !widget.isSelectionMode)
+             _buildFinancialHeader(
+               title: widget.isWishlist ? "Coût Wishlist" : "Valeur Collection", 
+               value: widget.financialTotal,
+               evoVal: widget.evoVal,
+               evoPct: widget.evoPct,
+               onDetailPressed: _showFinancialDetail
+             ),
 
-          // Barre de Contrôle Zoom
+          // Barre de contrôle visuelle
           Container(
             color: Colors.black.withOpacity(0.3),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -375,9 +374,18 @@ class _CollectionListTabState extends State<CollectionListTab> {
             child: GestureDetector(
               onScaleUpdate: _handleScaleUpdate,
               onScaleEnd: (_) => _lastScale = 1.0,
-              child: isGrouped
-                  ? _buildGroupedView(filteredList, currentCols)
-                  : _buildFlatView(filteredList, currentCols),
+              child: currentCols == 1
+                  ? ListView.builder(
+                      itemCount: filteredList.length,
+                      padding: const EdgeInsets.only(bottom: 100),
+                      itemBuilder: (ctx, i) => _buildCardTile(filteredList[i]),
+                    )
+                  : GridView.builder(
+                      itemCount: filteredList.length,
+                      padding: const EdgeInsets.all(8),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: currentCols, childAspectRatio: 0.60, crossAxisSpacing: 8, mainAxisSpacing: 8),
+                      itemBuilder: (ctx, i) => _buildGridTile(filteredList[i]),
+                    ),
             ),
           ),
         ],
@@ -385,306 +393,221 @@ class _CollectionListTabState extends State<CollectionListTab> {
     );
   }
 
-  Widget _buildFlatView(List<DeckCard> list, int cols) {
-    if (cols == 1) {
-      return ListView.builder(
-        padding: const EdgeInsets.only(bottom: 90),
-        itemCount: list.length,
-        itemBuilder: (context, index) => _buildCardTile(list[index]),
-      );
-    } else {
-      return GridView.builder(
-        padding: const EdgeInsets.all(8),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: cols,
-          childAspectRatio: 0.60, 
-          crossAxisSpacing: 8, mainAxisSpacing: 8,
-        ),
-        itemCount: list.length,
-        itemBuilder: (context, index) => _buildGridTile(list[index]),
-      );
-    }
-  }
-
-  Widget _buildGroupedView(List<DeckCard> list, int cols) {
-    Map<String, List<DeckCard>> groupedMap = {
-      'Créatures': [], 'Planeswalkers': [], 'Sorts': [], 
-      'Artefacts': [], 'Enchantements': [], 'Terrains': [], 'Autres': [],
-    };
-
-    for (final deckCard in list) {
-      ScryfallCard? scryfallCard;
-      try {
-        if (deckCard.scryfallId.startsWith('LOCAL:')) throw Exception("Local");
-        scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-      } catch (e) { /* fallback */ }
-      
-      final typeLine = scryfallCard?.typeLine ?? deckCard.name;
-      final type = _getPrimaryType(typeLine);
-      groupedMap[type]?.add(deckCard);
-    }
-
-    List<_GroupedCardList> groups = [];
-    groupedMap.forEach((title, cards) {
-      if (cards.isNotEmpty) {
-        cards.sort((a, b) => a.name.compareTo(b.name));
-        groups.add(_GroupedCardList(title: title, cards: cards));
-      }
-    });
-
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 90.0, top: 8.0, left: 4.0, right: 4.0),
-      itemCount: groups.length,
-      itemBuilder: (context, index) {
-        final group = groups[index];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
-              child: Text(
-                '${group.title} (${group.cards.fold(0, (sum, c) => sum + c.quantity)})', 
-                style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
-              ),
-            ),
-            if (cols == 1)
-              Column(children: group.cards.map((card) => _buildCardTile(card)).toList())
-            else
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(), 
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: cols,
-                  childAspectRatio: 0.60,
-                  crossAxisSpacing: 8, mainAxisSpacing: 8,
-                ),
-                itemCount: group.cards.length,
-                itemBuilder: (context, idx) => _buildGridTile(group.cards[idx]),
-              ),
-          ],
-        );
-      },
-    );
-  }
-
-  // --- TUILE LISTE (CORRIGÉE AVEC BORDURE RARETÉ) ---
+  // --- TUILE LISTE (CORRIGÉE AVEC BORDURE RARETÉ & ÉDITION) ---
   Widget _buildCardTile(DeckCard card) {
     ScryfallCard? scryfallCard;
     try { scryfallCard = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId); } catch(e){}
     
     final bool isSelected = widget.isSelectionMode && widget.selectedIds.contains(card.scryfallId);
+    final String priceDisplay = _getPrice(card).toStringAsFixed(2);
+    final String setCode = scryfallCard?.setCode.toUpperCase() ?? '';
+    final String rarity = scryfallCard?.rarity ?? 'common';
     
+    // Bordure
     Color borderColor;
     if (isSelected) {
-      borderColor = Colors.green;
+      borderColor = Colors.greenAccent;
     } else {
-      borderColor = _getRarityColor(scryfallCard?.rarity ?? 'common');
-    }
-
-    // Prix à afficher (Foil ou Normal)
-    String priceDisplay = '--';
-    if (scryfallCard != null) {
-      String key = card.isFoil ? 'eur_foil' : 'eur';
-      priceDisplay = scryfallCard.prices[key] ?? scryfallCard.prices['eur'] ?? '--';
+      borderColor = _getRarityColor(rarity);
     }
 
     return Card(
       color: isSelected ? Colors.green.withOpacity(0.2) : Colors.black.withOpacity(0.4),
-      margin: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      // Applique la bordure de rareté
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6.0),
-        side: BorderSide(color: borderColor, width: isSelected ? 2.0 : 1.0),
+        borderRadius: BorderRadius.circular(6), 
+        side: BorderSide(color: borderColor, width: isSelected ? 2 : 1)
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-        onTap: () { 
-          if (widget.isSelectionMode) {
-            widget.onToggleSelection?.call(card.scryfallId);
-          } else {
-            // Au clic simple, on peut ouvrir le détail ou le menu rapide
-            // Pour l'instant, gardons le détail classique, le menu est sur LongPress
-            if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
-               Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: scryfallCard!.name))); 
-            }
-          }
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        onTap: () {
+          if (widget.isSelectionMode) widget.onToggleSelection?.call(card.scryfallId);
+          else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: card.name)));
         },
-        onLongPress: () => _showCardOptions(card, scryfallCard), // <--- MENU CONTEXTUEL ICI
+        onLongPress: () {
+          if (!widget.isSelectionMode) widget.onToggleSelectionMode?.call();
+          widget.onToggleSelection?.call(card.scryfallId);
+        },
         leading: Stack(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(4), 
               child: scryfallCard?.smallImageUrl != null 
-                ? Image.network(scryfallCard!.smallImageUrl!, width: 40, height: 56, fit: BoxFit.cover)
-                : Container(width: 40, height: 56, color: Colors.grey.shade800),
+                ? Image.network(scryfallCard!.smallImageUrl!, width: 40, height: 56, fit: BoxFit.cover, errorBuilder: (_,__,___)=>Container(width: 40, height: 56, color: Colors.grey))
+                : Container(width: 40, height: 56, color: Colors.grey.shade800, child: const Icon(Icons.image, size: 20))
             ),
-            if (widget.isSelectionMode)
-              Positioned(
-                top: 0, left: 0, 
-                child: Container(color: Colors.black54, child: Icon(isSelected ? Icons.check_box : Icons.check_box_outline_blank, color: isSelected ? Colors.greenAccent : Colors.white, size: 20))
-              ),
-            // INDICATEUR FOIL
-            if (card.isFoil)
-              Positioned(
-                bottom: 0, right: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                  child: const Icon(Icons.star, color: Colors.amber, size: 12),
-                ),
-              ),
+            if (card.isFoil) 
+              Positioned(bottom: 0, right: 0, child: Container(decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle), child: const Icon(Icons.star, color: Colors.amber, size: 12))),
+            if (isSelected) 
+              Positioned(top: 0, left: 0, child: Container(color: Colors.black54, child: const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20))),
           ],
         ),
-        title: Text(card.name, style: GoogleFonts.cinzel(color: card.isFoil ? Colors.amber.shade100 : Colors.white, fontSize: 16)),
+        title: Row(
+          children: [
+            Expanded(child: Text(card.name, style: GoogleFonts.cinzel(color: card.isFoil ? Colors.amber.shade100 : Colors.white, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+            if (card.quantity > 1) 
+              Text(" (${card.quantity})", style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+          ],
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-             _buildManaCostRow(scryfallCard?.manaCost),
-             Text('$priceDisplay €', style: TextStyle(color: Colors.yellow.shade700, fontSize: 12)),
+            Row(
+              children: [
+                // Set Code
+                if (setCode.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(border: Border.all(color: Colors.white24), borderRadius: BorderRadius.circular(4)),
+                    child: Text(setCode, style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.bold)),
+                  ),
+                // Mana Cost
+                _buildManaCostRow(scryfallCard?.manaCost, size: 12),
+                const Spacer(),
+                Text("$priceDisplay €", style: TextStyle(color: Colors.yellow.shade700, fontSize: 12)),
+              ],
+            ),
+            // Tags
+            if (card.tags.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Wrap(
+                  spacing: 4,
+                  children: card.tags.map((t) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.blueAccent.withOpacity(0.5))),
+                    child: Text(t, style: const TextStyle(fontSize: 9, color: Colors.blueAccent)),
+                  )).toList(),
+                ),
+              )
           ],
         ),
         trailing: widget.isSelectionMode 
           ? null 
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.white54), onPressed: () => widget.onUpdateQuantity(card, -1)),
-                Text('${card.quantity}', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                IconButton(icon: const Icon(Icons.add_circle_outline, color: Colors.white54), onPressed: () => widget.onUpdateQuantity(card, 1)),
-              ],
+          : IconButton(
+              icon: const Icon(Icons.more_vert, color: Colors.white54),
+              onPressed: () => _showCardOptions(card),
             ),
       ),
     );
   }
 
-  // --- TUILE GRILLE (CORRIGÉE AVEC BORDURE RARETÉ) ---
+  // --- GRID TILE (COMPLETE) ---
   Widget _buildGridTile(DeckCard card) {
     ScryfallCard? scryfallCard;
     try { scryfallCard = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId); } catch(e){}
+    final isSelected = widget.isSelectionMode && widget.selectedIds.contains(card.scryfallId);
+    final imageUrl = scryfallCard?.smallImageUrl ?? scryfallCard?.imageUrl;
     
-    final bool isSelected = widget.isSelectionMode && widget.selectedIds.contains(card.scryfallId);
-    // ignore: unused_local_variable
-    final rarity = scryfallCard?.rarity ?? 'common';
-    final manaCost = scryfallCard?.manaCost;
-    // Détermination de la couleur de bordure
+    // Bordure
     Color borderColor;
-    double borderWidth = 1.0;
-
     if (isSelected) {
       borderColor = Colors.greenAccent;
-      borderWidth = 3.0;
     } else {
       borderColor = _getRarityColor(scryfallCard?.rarity ?? 'common');
-      // Pour les communes (transparente ou blanche faible), on garde 0 ou 1
-      borderWidth = borderColor == Colors.transparent ? 0.0 : 1.5; 
     }
 
     return InkWell(
-      onTap: () { 
-        if (widget.isSelectionMode) {
-          widget.onToggleSelection?.call(card.scryfallId);
-        } else if (scryfallCard != null) {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => RecognitionResultPage(cardName: scryfallCard!.name))); 
-        }
+      onTap: () {
+        if (widget.isSelectionMode) widget.onToggleSelection?.call(card.scryfallId);
+        else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: card.name)));
+      },
+      onLongPress: () {
+        if (!widget.isSelectionMode) widget.onToggleSelectionMode?.call();
+        widget.onToggleSelection?.call(card.scryfallId);
       },
       child: Card(
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10), 
-          side: BorderSide(color: borderColor, width: borderWidth)
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: borderColor, width: isSelected ? 3 : 1.5), // Epaisseur 1.5 pour rareté
         ),
         color: Colors.black,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (scryfallCard?.smallImageUrl != null)
-              Image.network(scryfallCard!.smallImageUrl!, fit: BoxFit.cover)
-            else 
+            if (imageUrl != null)
+              Image.network(imageUrl, fit: BoxFit.cover)
+            else
               Container(color: Colors.grey[800], child: const Center(child: Icon(Icons.image, color: Colors.white24))),
-            // FOND NOIR DÉGRADÉ EN BAS
+            
+            // Foil Effect
+            if (card.isFoil)
+              Container(decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.white.withOpacity(0.1), Colors.transparent], begin: Alignment.topLeft, end: Alignment.bottomRight))),
+
+            // Overlay selection
+            if (isSelected)
+              Container(color: Colors.green.withOpacity(0.2)),
+
+            // Gradient bas pour texte
             Positioned(
-              bottom: 0, left: 0, right: 0, height: 50,
+              bottom: 0, left: 0, right: 0, height: 40,
+              child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withOpacity(0.9), Colors.transparent]))),
+            ),
+
+            // Quantité + Foil Badge
+            Positioned(
+              top: 4, left: 4,
               child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter, end: Alignment.topCenter,
-                    colors: [Colors.black.withOpacity(0.95), Colors.transparent],
-                  ),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(4)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text("${card.quantity}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    if (card.isFoil) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.star, size: 12, color: Colors.amber)),
+                  ],
                 ),
               ),
             ),
-            // Checkbox Overlay
+
+            // Checkbox (si mode selection)
             if (widget.isSelectionMode)
               Positioned(
                 top: 4, right: 4,
                 child: Container(
                   decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                  child: Icon(isSelected ? Icons.check_circle : Icons.circle_outlined, color: isSelected ? Colors.greenAccent : Colors.white, size: 28),
-                ),
-              ),
-              if (manaCost != null)
-              Positioned(
-                top: 4, right: 4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(10)),
-                  child: _buildManaCostRow(manaCost, size: 10),
-                ),
-              ),
-            // Controls (Masqués en sélection)
-            if (!widget.isSelectionMode) ...[
-              Positioned(bottom: 0, left: 0, right: 0, height: 50, child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withOpacity(0.95), Colors.transparent])))),
-              Positioned(
-                bottom: 0, left: 0, right: 0,
-                child: Container(
-                  color: Colors.black87,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      InkWell(
-                      onTap: () => widget.onUpdateQuantity(card, -1),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(color: Colors.red.withOpacity(0.2), shape: BoxShape.circle),
-                        child: const Icon(Icons.remove, color: Colors.redAccent, size: 16),
-                      ),
-                    ),
-                    Text(
-                      "${card.quantity}", 
-                      style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)
-                    ),
-                    InkWell(
-                      onTap: () => widget.onUpdateQuantity(card, 1),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), shape: BoxShape.circle),
-                        child: const Icon(Icons.add, color: Colors.greenAccent, size: 16),
-                      ),
-                    ),
-                    ],
-                  ),
+                  child: Icon(isSelected ? Icons.check_circle : Icons.circle_outlined, color: isSelected ? Colors.greenAccent : Colors.white, size: 24),
                 ),
               )
-            ]
+            else
+              // Menu contextuel (si pas mode selection)
+              Positioned(
+                top: 0, right: 0,
+                child: IconButton(
+                  icon: const Icon(Icons.more_vert, color: Colors.white, size: 20),
+                  onPressed: () => _showCardOptions(card),
+                ),
+              ),
+              
+            // Prix en bas
+            Positioned(
+              bottom: 4, right: 4,
+              child: Text("${_getPrice(card).toStringAsFixed(2)}€", style: TextStyle(color: Colors.yellow.shade700, fontWeight: FontWeight.bold, fontSize: 12)),
+            )
           ],
         ),
       ),
     );
   }
 
-  // --- HELPERS VISUELS (RESTAURÉS) ---
-
-  Color _getRarityColor(String rarity) {
-    switch (rarity.toLowerCase()) {
-      case 'common': return Colors.white24; // Discret
-      case 'uncommon': return const Color(0xFFC0C0C0); // Argent
-      case 'rare': return const Color(0xFFFFD700); // Or
-      case 'mythic': return const Color(0xFFFF4500); // Orange/Rouge
-      default: return Colors.transparent;
-    }
+  void _showCardOptions(DeckCard card) {
+    showModalBottomSheet(context: context, backgroundColor: const Color(0xFF1A1A1A), builder: (ctx) => SafeArea(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold))),
+        const Divider(color: Colors.white24),
+        ListTile(leading: const Icon(Icons.label, color: Colors.blueAccent), title: const Text("Gérer les Tags", style: TextStyle(color: Colors.white)), onTap: () { Navigator.pop(ctx); _showTagEditor(card); }),
+        ListTile(leading: const Icon(Icons.add_circle, color: Colors.green), title: const Text("Ajouter 1", style: TextStyle(color: Colors.white)), onTap: () { Navigator.pop(ctx); widget.onUpdateQuantity(card, 1); }),
+        ListTile(leading: const Icon(Icons.remove_circle, color: Colors.red), title: const Text("Retirer 1", style: TextStyle(color: Colors.white)), onTap: () { Navigator.pop(ctx); widget.onUpdateQuantity(card, -1); }),
+        if (widget.onToggleFoil != null)
+           ListTile(leading: Icon(Icons.star, color: card.isFoil ? Colors.grey : Colors.amber), title: Text(card.isFoil ? "Retirer Foil" : "Passer Foil", style: const TextStyle(color: Colors.white)), onTap: () { Navigator.pop(ctx); widget.onToggleFoil!(card); }),
+      ]),
+    ));
   }
 
+  // --- HEADER FINANCIER (LE VÔTRE, RESTAURÉ) ---
   Widget _buildFinancialHeader({required String title, required double value, double? evoVal, double? evoPct, required VoidCallback onDetailPressed}) {
     final bool hasEvolution = evoVal != null;
     final isPositive = (evoVal ?? 0) >= 0;
@@ -759,17 +682,15 @@ class _CollectionListTabState extends State<CollectionListTab> {
     );
   }
 
-  String _getPrimaryType(String typeLine) {
-    String lowerType = typeLine.toLowerCase();
-    if (!lowerType.contains(' — ') && (lowerType.contains('swamp') || lowerType.contains('plains') || lowerType.contains('island') || lowerType.contains('mountain') || lowerType.contains('forest'))) return 'Terrains';
-    if (lowerType.contains('creature')) return 'Créatures';
-    if (lowerType.contains('planeswalker')) return 'Planeswalkers';
-    if (lowerType.contains('land')) return 'Terrains';
-    if (lowerType.contains('artifact')) return 'Artefacts';
-    if (lowerType.contains('enchantment')) return 'Enchantements';
-    if (lowerType.contains('instant')) return 'Sorts';
-    if (lowerType.contains('sorcery')) return 'Sorts';
-    return 'Autres';
+  // --- HELPERS ---
+  Color _getRarityColor(String rarity) {
+    switch (rarity.toLowerCase()) {
+      case 'common': return Colors.white24; 
+      case 'uncommon': return const Color(0xFFC0C0C0); 
+      case 'rare': return const Color(0xFFFFD700); 
+      case 'mythic': return const Color(0xFFFF4500); 
+      default: return Colors.transparent;
+    }
   }
 
   Widget _buildManaCostRow(String? manaCost, {double size = 14}) {
@@ -792,10 +713,4 @@ class _CollectionListTabState extends State<CollectionListTab> {
       placeholderBuilder: (context) => Text(symbol, style: GoogleFonts.cinzel(color: Colors.white, fontSize: size))
     );
   }
-}
-
-class _GroupedCardList {
-  final String title;
-  final List<DeckCard> cards;
-  _GroupedCardList({required this.title, required this.cards});
 }

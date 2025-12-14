@@ -11,29 +11,41 @@ class BackupService {
   static const List<String> _dataKeys = [
     'user_collection',
     'user_decks',
-    'user_wishlists_v2', // Mise à jour pour la v2
-    'user_wishlist',     // Gardé pour legacy
+    'user_wishlists_v2', 
+    'user_wishlist',     
     'scan_history',
     'glossaryLang',
-    'playerCount',
-    'startingLife'
+    'playerCount',  // C'est un int
+    'startingLife'  // C'est un int
   ];
 
-  /// 1. Génère la chaîne JSON de sauvegarde (Utilisé par Export fichier ET Drive)
+  /// 1. Génère la chaîne JSON de sauvegarde (CORRIGÉ)
   Future<String> generateBackupJson() async {
     final prefs = await SharedPreferences.getInstance();
     final Map<String, dynamic> backupData = {};
 
     for (String key in _dataKeys) {
-      final String? value = prefs.getString(key);
-      if (value != null) {
+      // CORRECTION : On utilise .get() pour récupérer n'importe quel type
+      final Object? value = prefs.get(key);
+
+      if (value == null) continue;
+
+      if (value is String) {
+        // C'est une String (JSON ou Texte simple)
         try {
+          // On tente de décoder si c'est du JSON stocké en String
           backupData[key] = json.decode(value);
         } catch (e) {
+          // Sinon c'est une simple chaîne (ex: glossaryLang)
           backupData[key] = value;
         }
-      } else if (prefs.getInt(key) != null) {
-        backupData[key] = prefs.getInt(key);
+      } else if (value is int) {
+        // C'est un entier (ex: playerCount)
+        backupData[key] = value;
+      } else if (value is bool) {
+        backupData[key] = value;
+      } else if (value is double) {
+        backupData[key] = value;
       }
     }
 
@@ -43,7 +55,7 @@ class BackupService {
     return json.encode(backupData);
   }
 
-  /// 2. Restaure les données depuis une chaîne JSON (Utilisé par Import fichier ET Drive)
+  /// 2. Restaure les données (Inchangé, mais remis pour contexte complet)
   Future<void> restoreFromJson(String jsonString) async {
     try {
       final Map<String, dynamic> data = json.decode(jsonString);
@@ -52,12 +64,15 @@ class BackupService {
       for (String key in _dataKeys) {
         if (data.containsKey(key)) {
           final dynamic value = data[key];
+          
           if (value is Map || value is List) {
             await prefs.setString(key, json.encode(value));
           } else if (value is int) {
             await prefs.setInt(key, value);
           } else if (value is String) {
             await prefs.setString(key, value);
+          } else if (value is bool) {
+            await prefs.setBool(key, value);
           }
         }
       }
@@ -67,8 +82,7 @@ class BackupService {
     }
   }
 
-  // --- MÉTHODES EXISTANTES (ADAPTÉES) ---
-
+  // ... (Le reste des méthodes exportData et importData reste identique)
   Future<void> exportData() async {
     final String jsonString = await generateBackupJson();
     
