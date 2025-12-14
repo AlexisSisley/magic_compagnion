@@ -8,6 +8,7 @@ import 'package:magic_companion/pages/collections/global_stats_page.dart';
 import 'package:magic_companion/pages/collections/wishlist_tab.dart';
 import 'dart:convert';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/scryfall_card_model.dart';
 import '../../models/search_filters.dart';
@@ -88,6 +89,9 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
   // --- CHARGEMENT DONNÉES ---
   Future<void> _loadData({bool forceLoading = true}) async {
     if (forceLoading) setState(() => _isLoading = true);
+    final prefs = await SharedPreferences.getInstance();
+    final savedSort = prefs.getString('collectionSortPref') ?? 'Type';
+    if (mounted) setState(() => _currentSort = savedSort);
 
     await Future.wait([
       _collectionService.loadCollection().then((data) => _collection = data),
@@ -501,7 +505,11 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
                         IconButton(icon: const Icon(Icons.filter_list, color: Colors.white70), onPressed: _openFilterModal),
                         PopupMenuButton<String>(
                           icon: const Icon(Icons.sort, color: Colors.white70),
-                          onSelected: (val) => setState(() => _currentSort = val),
+                          onSelected: (val) async {
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.setString('collectionSortPref', val); // SAUVEGARDE
+                            setState(() => _currentSort = val);
+                          },
                           itemBuilder: (ctx) => ['Type', 'Nom', 'Prix'].map((t) => PopupMenuItem(value: t, child: Text(t))).toList(),
                         )
                       ],
