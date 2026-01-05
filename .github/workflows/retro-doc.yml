@@ -1,0 +1,57 @@
+name: Retro-Documentation POC
+
+on:
+  workflow_dispatch: # Déclenchement manuel pour le POC
+  push:
+    branches:
+      - main
+    paths:
+      - 'lib/**' # Ne se déclenche que si le code change
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Pour commiter le fichier YAML généré
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js (pour Repomix)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: ⚙️ Install Tools
+        run: |
+          npm install -g repomix
+          pip install google-generativeai pyyaml
+
+      - name: 🏗️ Run Repomix (Pack Code)
+        run: repomix --style xml
+        # Utilise le repomix.config.json présent à la racine
+
+      - name: 🧠 Run AI Analysis
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python generate_doc.py
+
+      - name: 📤 Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-doc
+          path: architecture_doc.yaml
+
+      - name: 💾 Commit Documentation (Optionnel)
+        run: |
+          git config --global user.name "Retro-Doc Bot"
+          git config --global user.email "bot@retrodoc.local"
+          git add architecture_doc.yaml
+          git commit -m "docs: auto-generated architecture update" || echo "No changes to commit"
+          git push

@@ -1,3 +1,7 @@
+# ===================================
+# 1. RÈGLES D'ORIGINE (MAGIC COMPANION)
+# ===================================
+
 # Miscellaneous
 *.class
 *.log
@@ -27,6 +31,7 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
@@ -51,5 +56,25 @@ app.*.map.json
 assets/json/*.json
 !assets/json/data.zip
 
+# Ancienne config backend
 backend_rag/chroma_db/
 backend_rag/venv
+
+# ===================================
+# 2. RÈGLES AJOUTÉES POUR RETRO-DOC
+# ===================================
+
+# Environnement virtuel Python (celui à la racine pour le script de doc)
+venv/
+.env
+
+# Cache Python généré
+__pycache__/
+
+# Fichiers temporaires du pipeline de documentation
+repomix-output.xml
+architecture_doc_BRUT.yaml
+debug_invalid.txt
+
+# NOTE : On NE met PAS 'architecture_doc.yaml' ni 'ARCHITECTURE.md' ici
+# car on veut qu'ils soient sauvegardés dans Git !

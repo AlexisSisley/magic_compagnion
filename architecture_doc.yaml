@@ -1,0 +1,16 @@
+project_name: Magic Companion
+architecture:
+  state_management: Riverpod
+  services:
+  - BackupService
+  - GoogleDriveService
+domain_models:
+- name: Card
+  desc: 'Represents a Magic: The Gathering card with properties like name, mana_cost,
+    and type.'
+- name: Deck
+  desc: 'Represents a collection of cards forming a deck for playing Magic: The Gathering.'
+- name: User
+  desc: Represents a user with attributes such as email and authentication status.
+security_hotspots:
+- Sensitive data handling in BackupService and GoogleDriveService

@@ -1,0 +1,31 @@
+{
+  "output": {
+    "style": "xml",
+    "filePath": "repomix-output.xml"
+  },
+  "ignore": {
+    "useGitignore": true,
+    "customPatterns": [
+      "**/*.g.dart",
+      "**/*.freezed.dart",
+      "**/*.config.dart",
+      "**/generated_plugin_registrant.dart",
+      "**/firebase_options.dart",
+      "ios/**",
+      "android/**",
+      "web/**",
+      "macos/**",
+      "linux/**",
+      "windows/**",
+      "test/**",
+      "assets/**",
+      "build/**",
+      ".dart_tool/**",
+      "pubspec.lock"
+    ]
+  },
+  "include": [
+    "lib/**/*.dart",
+    "pubspec.yaml"
+  ]
+}

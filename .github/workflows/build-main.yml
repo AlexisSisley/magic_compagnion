@@ -59,10 +59,10 @@ jobs:
           
           # --- TES RÈGLES DE VERSIONNING ---
           # 1. Major : Si le commit contient "refactor" ou "BREAKING CHANGE"
-          major_pattern: "(refactor|BREAKING CHANGE)" 
+          major_pattern: "(refactor|BREAKING CHANGE|Mise à jour majeure)"
           
           # 2. Minor : Si le commit contient "feat"
-          minor_pattern: "^(feat|Feat)"
+          minor_pattern: "(feat|Feat|feature|Feature|Ajout|New|Nouvelle|Mise à jour)"
           
           # 3. Patch : Par défaut pour tout autre commit (fix, docs, etc.)
           bump_each_commit: true 
