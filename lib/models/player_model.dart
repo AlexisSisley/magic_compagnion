@@ -2,6 +2,7 @@
 
 class Player {
   final int id;
+  String name;
   int life;
   int colorValue; 
   String? backgroundImagePath; // <--- NOUVEAU : Chemin vers l'image de fond (Skin)
@@ -15,6 +16,7 @@ class Player {
 
   Player({
     required this.id,
+    this.name = "Joueur",
     required this.life,
     this.colorValue = 0xFF000000,
     this.backgroundImagePath, // <--- NOUVEAU 
