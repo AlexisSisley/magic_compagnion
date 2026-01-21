@@ -151,13 +151,12 @@ class _GameSetupModalState extends State<GameSetupModal> {
       color: Colors.white.withOpacity(0.05),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: profile != null ? Color(profile.colorValue) : Colors.grey,
-          backgroundImage: profile?.commanderImageUrl != null 
-              ? NetworkImage(profile!.commanderImageUrl!) 
-              : null,
-          child: profile == null ? Text("${index + 1}") : null,
-        ),
+        onLongPress: profile != null ? () async {
+          // MODIFICATION : Clic long pour éditer le profil
+          await _showProfileForm(existingProfile: profile);
+          _loadProfiles(); // Recharger la liste
+        } : null,
+        leading: _buildProfileAvatar(profile, index),
         title: Text(profile?.name ?? "Invité ${index + 1}", 
           style: GoogleFonts.cinzel(color: Colors.white)
         ),
@@ -171,6 +170,31 @@ class _GameSetupModalState extends State<GameSetupModal> {
             setState(() => _selectedProfiles[index] = selected);
           }
         },
+      ),
+    );
+  }
+
+  // Helper pour l'avatar split si partenaires
+  Widget _buildProfileAvatar(Profile? profile, int index) {
+    if (profile == null) return CircleAvatar(backgroundColor: Colors.grey, child: Text("${index+1}"));
+    
+    if (profile.secondaryCommanderScryfallId == null) {
+      return CircleAvatar(
+        backgroundColor: Color(profile.colorValue),
+        backgroundImage: profile.commanderImageUrl != null ? NetworkImage(profile.commanderImageUrl!) : null,
+      );
+    }
+
+    // Avatar split pour partenaires
+    return Container(
+      width: 40, height: 40,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Color(profile.colorValue), width: 2)),
+      child: Row(
+        children: [
+          Expanded(child: Image.network(profile.commanderImageUrl!, fit: BoxFit.cover)),
+          Expanded(child: Image.network(profile.secondaryCommanderImageUrl!, fit: BoxFit.cover)),
+        ],
       ),
     );
   }
@@ -216,6 +240,109 @@ class _GameSetupModalState extends State<GameSetupModal> {
           ),
         ),
       )
+    );
+  }
+  // Refactorisation de la modale de création en "Formulaire de Profil" (Création/Edition)
+  Future<Profile?> _showProfileForm({Profile? existingProfile}) async {
+    final nameCtrl = TextEditingController(text: existingProfile?.name);
+    ScryfallCard? cmd1;
+    ScryfallCard? cmd2;
+    Color selectedColor = existingProfile != null ? Color(existingProfile.colorValue) : _defaultColors[1];
+
+    return showDialog<Profile>(
+      context: context,
+      builder: (context) => StatefulBuilder(builder: (context, setState) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          title: Text(existingProfile == null ? "Nouveau Profil" : "Modifier Profil", style: GoogleFonts.cinzel(color: Colors.white)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: "Nom du Planeswalker", labelStyle: TextStyle(color: Colors.white54)),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 20),
+                _buildCommanderPickerTile(
+                  label: "Commandant", 
+                  card: cmd1, 
+                  existingName: existingProfile?.commanderName,
+                  color: selectedColor,
+                  onTap: () async {
+                    final res = await _pickCard();
+                    if (res != null) setState(() => cmd1 = res);
+                  }
+                ),
+                const SizedBox(height: 10),
+                _buildCommanderPickerTile(
+                  label: "Partenaire / Background", 
+                  card: cmd2, 
+                  existingName: existingProfile?.secondaryCommanderName,
+                  color: selectedColor,
+                  onTap: () async {
+                    final res = await _pickCard();
+                    if (res != null) setState(() => cmd2 = res);
+                  }
+                ),
+                // ... (Color Picker identique)
+              ],
+            ),
+          ),
+          actions: [
+            if (existingProfile != null)
+              TextButton(
+                onPressed: () async {
+                  await _profileService.deleteProfile(existingProfile.id);
+                  Navigator.pop(context);
+                },
+                child: const Text("Supprimer", style: TextStyle(color: Colors.redAccent)),
+              ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameCtrl.text.isNotEmpty) {
+                  final p = Profile(
+                    id: existingProfile?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: nameCtrl.text,
+                    colorValue: selectedColor.value,
+                    commanderScryfallId: cmd1?.id ?? existingProfile?.commanderScryfallId,
+                    commanderName: cmd1?.name ?? existingProfile?.commanderName,
+                    secondaryCommanderScryfallId: cmd2?.id ?? existingProfile?.secondaryCommanderScryfallId,
+                    secondaryCommanderName: cmd2?.name ?? existingProfile?.secondaryCommanderName,
+                  );
+                  await _profileService.saveProfile(p);
+                  Navigator.pop(context, p);
+                }
+              },
+              child: const Text("Enregistrer"),
+            )
+          ],
+        );
+      }),
+    );
+  }
+
+  // Helper pour le picker de carte
+  Future<ScryfallCard?> _pickCard() async {
+    final result = await showModalBottomSheet(
+      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      builder: (c) => const DeckCardPicker()
+    );
+    if (result != null && result.isNotEmpty) return result.first['card'];
+    return null;
+  }
+
+  Widget _buildCommanderPickerTile({required String label, ScryfallCard? card, String? existingName, required Color color, required VoidCallback onTap}) {
+    return ListTile(
+      onTap: onTap,
+      dense: true,
+      tileColor: Colors.white.withOpacity(0.05),
+      leading: Icon(Icons.shield, color: color),
+      title: Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+      subtitle: Text(card?.name ?? existingName ?? "Aucun", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      trailing: const Icon(Icons.search, size: 16),
     );
   }
 

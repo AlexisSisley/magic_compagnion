@@ -283,35 +283,27 @@ class _PlayerZoneState extends State<PlayerZone> {
     Color bgColor = Color(widget.player.colorValue);
     
     // --- GESTION DU SKIN ---
-    DecorationImage? bgImage;
-    if (widget.player.backgroundImagePath != null) {
-      final String path = widget.player.backgroundImagePath!;
-      
-      ImageProvider? provider;
-      if (path.startsWith('http')) {
-        // Artwork Scryfall (URL)
-        provider = NetworkImage(path);
-      } else {
-        // Galerie locale (Fichier)
-        final file = File(path);
-        if (file.existsSync()) {
-          provider = FileImage(file);
-        }
-      }
-
-      if (provider != null) {
-        bgImage = DecorationImage(
-          image: provider,
-          fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.5), BlendMode.darken),
-        );
-      }
+    // --- GESTION DU SKIN PARTENAIRE ---
+    Widget backgroundWidget;
+    
+    if (widget.player.backgroundImagePath != null && widget.player.secondaryBackgroundImagePath != null) {
+      // Cas Partenaires : On sépare l'écran en deux
+      backgroundWidget = Row(
+        children: [
+          Expanded(child: _buildImage(widget.player.backgroundImagePath!)),
+          Expanded(child: _buildImage(widget.player.secondaryBackgroundImagePath!)),
+        ],
+      );
+    } else if (widget.player.backgroundImagePath != null) {
+      // Cas classique
+      backgroundWidget = _buildImage(widget.player.backgroundImagePath!);
+    } else {
+      backgroundWidget = Container(color: bgColor);
     }
 
     Widget content = Container(
       decoration: BoxDecoration(
         color: bgColor,
-        image: bgImage, // Application du skin
         borderRadius: BorderRadius.circular(18),
         border: widget.isHighlighted 
             ? Border.all(color: Colors.white, width: 4) 
@@ -321,6 +313,8 @@ class _PlayerZoneState extends State<PlayerZone> {
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
+          Positioned.fill(child: backgroundWidget),
+          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.3))),
           Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -472,6 +466,16 @@ class _PlayerZoneState extends State<PlayerZone> {
       quarterTurns: widget.player.quarterTurns,
       child: content,
     );
+  }
+
+  Widget _buildImage(String path) {
+    ImageProvider provider;
+    if (path.startsWith('http')) {
+      provider = NetworkImage(path);
+    } else {
+      provider = FileImage(File(path));
+    }
+    return Image(image: provider, fit: BoxFit.cover);
   }
 
   Widget _buildMiniCounter(CounterMode mode, int value) {

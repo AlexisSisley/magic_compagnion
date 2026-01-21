@@ -16,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/life_counter/player_zone.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart'; // <--- Import
 import '../../widgets/life_counter/game_setup_modal.dart'; // <--- Import
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class LifeCounterPage extends StatefulWidget {
   const LifeCounterPage({super.key});
@@ -49,11 +50,13 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
   void initState() {
     super.initState();
     _loadGame();
+    WakelockPlus.enable();
   }
 
   @override
   void dispose() {
     _gameTimer?.cancel();
+    WakelockPlus.disable();
     super.dispose();
   }
 
@@ -170,10 +173,15 @@ class _LifeCounterPageState extends State<LifeCounterPage> {
           Profile? profile = (assignedProfiles != null && index < assignedProfiles.length) ? assignedProfiles[index] : null;
           String name = profile?.name ?? "Joueur ${index + 1}";
           int color = profile?.colorValue ?? _defaultColors[index % _defaultColors.length].value;
-          String? bgPath = profile?.commanderImageUrl;
 
           return Player(
-            id: index, name: name, life: _startingLife, colorValue: color, backgroundImagePath: bgPath,
+            id: index, 
+            name: name, 
+            life: _startingLife, 
+            colorValue: color, 
+            backgroundImagePath: profile?.commanderImageUrl,
+            // AJOUT : Support du partenaire
+            secondaryBackgroundImagePath: profile?.secondaryCommanderImageUrl, 
             commanderDamageReceived: cmdDamage,
             quarterTurns: _calculateDefaultRotation(index, _playerCount),
           );

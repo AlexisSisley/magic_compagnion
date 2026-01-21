@@ -5,7 +5,8 @@ class Player {
   String name;
   int life;
   int colorValue; 
-  String? backgroundImagePath; // <--- NOUVEAU : Chemin vers l'image de fond (Skin)
+  String? backgroundImagePath;
+  String? secondaryBackgroundImagePath; 
   
   Map<int, int> commanderDamageReceived;
   int poison;
@@ -20,6 +21,7 @@ class Player {
     required this.life,
     this.colorValue = 0xFF000000,
     this.backgroundImagePath, // <--- NOUVEAU 
+    this.secondaryBackgroundImagePath,
     required this.commanderDamageReceived,
     this.poison = 0,
     this.energy = 0,

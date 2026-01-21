@@ -8,6 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:magic_companion/chat_screen.dart';
+import 'package:magic_companion/pages/settings/profile_management_page.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 // Imports des pages
@@ -27,9 +28,16 @@ import 'firebase_options.dart';
 // Imports Services
 import 'services/backup_service.dart';
 import 'services/google_drive_service.dart';
+import 'package:flutter/services.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -433,6 +441,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             },
           ),
           const Divider(color: Colors.white10),
+          ListTile(
+            leading: const Icon(Icons.group_outlined, color: Colors.white70),
+            title: Text('Gestion des Profils', style: GoogleFonts.cinzel(color: Colors.white)),
+            subtitle: const Text("Gérez vos joueurs et leurs commandants", style: TextStyle(color: Colors.white38, fontSize: 10)),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileManagementPage()));
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.settings, color: Colors.white70),
             title: Text('Paramètres & Sauvegarde', style: GoogleFonts.cinzel(color: Colors.white)),
