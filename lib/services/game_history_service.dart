@@ -14,7 +14,7 @@ class GameHistoryService {
 
   Future<List<GameHistoryItem>> loadHistory() async {
     if (_db != null) {
-      final items = await _db!.getAllGameHistory();
+      final items = await _db.getAllGameHistory();
       return items.map((item) {
         final List<dynamic> statesJson = json.decode(item.playerStates);
         return GameHistoryItem(
@@ -40,7 +40,7 @@ class GameHistoryService {
 
   Future<void> addGame(GameHistoryItem game) async {
     if (_db != null) {
-      await _db!.insertGameHistory(GameHistoryItemsCompanion.insert(
+      await _db.insertGameHistory(GameHistoryItemsCompanion.insert(
         id: game.id,
         date: game.date,
         durationSeconds: Value(game.durationSeconds),
@@ -61,7 +61,7 @@ class GameHistoryService {
 
   Future<void> clearHistory() async {
     if (_db != null) {
-      await _db!.clearGameHistory();
+      await _db.clearGameHistory();
       return;
     }
     final prefs = await SharedPreferences.getInstance();

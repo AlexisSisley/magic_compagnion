@@ -20,7 +20,7 @@ class CollectionService with CardListUpsertMixin {
 
   Future<List<DeckCard>> loadCollection() async {
     if (_db != null) {
-      final cards = await _db!.getAllCollectionCards();
+      final cards = await _db.getAllCollectionCards();
       return cards.map((c) => DeckCard(
         scryfallId: c.scryfallId,
         name: c.name,
@@ -56,7 +56,7 @@ class CollectionService with CardListUpsertMixin {
     List<String>? newTags,
   }) async {
     if (_db != null) {
-      await _db!.upsertCollectionCard(
+      await _db.upsertCollectionCard(
         scryfallId: scryfallId,
         cardName: cardName,
         quantityToAdd: quantityToAdd,
@@ -137,7 +137,7 @@ class CollectionService with CardListUpsertMixin {
              int qtyToAdd = cardsToFetch[originalKey] ?? 1;
 
              if (_db != null) {
-               await _db!.upsertCollectionCard(
+               await _db.upsertCollectionCard(
                  scryfallId: scCard.id,
                  cardName: scCard.name,
                  quantityToAdd: qtyToAdd,
@@ -169,7 +169,7 @@ class CollectionService with CardListUpsertMixin {
       final todayKey = "${now.year}-${now.month}-${now.day}";
 
       if (_db != null) {
-        await _db!.recordDailyValue(todayKey, totalValue);
+        await _db.recordDailyValue(todayKey, totalValue);
         return;
       }
       // Fallback SharedPreferences
@@ -192,7 +192,7 @@ class CollectionService with CardListUpsertMixin {
 
     Future<Map<String, double>?> getEvolutionSince(int daysAgo) async {
       if (_db != null) {
-        return _db!.getCollectionEvolution(daysAgo);
+        return _db.getCollectionEvolution(daysAgo);
       }
       // Fallback SharedPreferences
        final prefs = await SharedPreferences.getInstance();
@@ -225,7 +225,7 @@ class CollectionService with CardListUpsertMixin {
 
     Future<void> clearCollection() async {
       if (_db != null) {
-        await _db!.clearCollection();
+        await _db.clearCollection();
         return;
       }
       await _saveCollection([]);
@@ -233,7 +233,7 @@ class CollectionService with CardListUpsertMixin {
 
     Future<List<String>> getAllUniqueTags() async {
       if (_db != null) {
-        return _db!.getAllUniqueCollectionTags();
+        return _db.getAllUniqueCollectionTags();
       }
       final col = await loadCollection();
       final Set<String> tags = {};

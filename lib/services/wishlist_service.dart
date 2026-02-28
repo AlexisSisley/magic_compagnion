@@ -21,11 +21,11 @@ class WishlistService with CardListUpsertMixin {
 
   Future<List<Wishlist>> loadWishlists() async {
     if (_db != null) {
-      final rawWishlists = await _db!.getAllWishlistsRaw();
+      final rawWishlists = await _db.getAllWishlistsRaw();
       if (rawWishlists.isEmpty) {
         // Creer une wishlist par defaut
         final defaultId = DateTime.now().millisecondsSinceEpoch.toString();
-        await _db!.insertWishlist(WishlistsCompanion.insert(
+        await _db.insertWishlist(WishlistsCompanion.insert(
           id: defaultId,
           name: 'Ma Wishlist',
           dateCreated: DateTime.now(),
@@ -39,7 +39,7 @@ class WishlistService with CardListUpsertMixin {
       }
       final List<Wishlist> result = [];
       for (final w in rawWishlists) {
-        final cards = await _db!.getWishlistCardsByWishlistId(w.id);
+        final cards = await _db.getWishlistCardsByWishlistId(w.id);
         result.add(Wishlist(
           id: w.id,
           name: w.name,
@@ -113,7 +113,7 @@ class WishlistService with CardListUpsertMixin {
   Future<void> createWishlist(String name) async {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     if (_db != null) {
-      await _db!.insertWishlist(WishlistsCompanion.insert(
+      await _db.insertWishlist(WishlistsCompanion.insert(
         id: id,
         name: name,
         dateCreated: DateTime.now(),
@@ -132,7 +132,7 @@ class WishlistService with CardListUpsertMixin {
 
   Future<void> deleteWishlist(String id) async {
     if (_db != null) {
-      await _db!.deleteWishlistAndCards(id);
+      await _db.deleteWishlistAndCards(id);
       return;
     }
     final lists = await loadWishlists();
@@ -142,7 +142,7 @@ class WishlistService with CardListUpsertMixin {
 
   Future<void> renameWishlist(String id, String newName) async {
     if (_db != null) {
-      await _db!.updateWishlistEntry(id, WishlistsCompanion(
+      await _db.updateWishlistEntry(id, WishlistsCompanion(
         name: Value(newName),
       ));
       return;
@@ -157,7 +157,7 @@ class WishlistService with CardListUpsertMixin {
 
   Future<void> clearWishlistCards(String wishlistId) async {
     if (_db != null) {
-      await _db!.clearWishlistCardEntries(wishlistId);
+      await _db.clearWishlistCardEntries(wishlistId);
       return;
     }
     final lists = await loadWishlists();
@@ -181,11 +181,11 @@ class WishlistService with CardListUpsertMixin {
     if (_db != null) {
       String targetId = wishlistId ?? '';
       if (targetId.isEmpty) {
-        final wishlists = await _db!.getAllWishlistsRaw();
+        final wishlists = await _db.getAllWishlistsRaw();
         if (wishlists.isEmpty) return;
         targetId = wishlists.first.id;
       }
-      await _db!.upsertWishlistCard(
+      await _db.upsertWishlistCard(
         wishlistId: targetId,
         scryfallId: scryfallId,
         cardName: cardName,
@@ -221,7 +221,7 @@ class WishlistService with CardListUpsertMixin {
 
   Future<void> setWishlistIcon(String wishlistId, String? scryfallId) async {
     if (_db != null) {
-      await _db!.updateWishlistEntry(wishlistId, WishlistsCompanion(
+      await _db.updateWishlistEntry(wishlistId, WishlistsCompanion(
         iconScryfallId: Value(scryfallId),
       ));
       return;

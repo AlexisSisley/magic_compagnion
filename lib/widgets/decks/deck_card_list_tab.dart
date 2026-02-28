@@ -204,13 +204,13 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
         onPlus: () => widget.onUpdateQuantity(card, 1),
         onMinus: () => widget.onUpdateQuantity(card, -1),
-        onTap: () { if (scryfallCard != null) context.push(AppRoutes.cardDetail, extra: {'cardName': scryfallCard!.name}); },
+        onTap: () { if (scryfallCard != null) context.push(AppRoutes.cardDetail, extra: {'cardName': scryfallCard.name}); },
         onLongPress: () => _showCardOptions(card, scryfallCard, isCommander),
       );
     } else {
       return DeckCardTile(
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
-        onTap: () { if (scryfallCard != null) context.push(AppRoutes.cardDetail, extra: {'cardName': scryfallCard!.name}); },
+        onTap: () { if (scryfallCard != null) context.push(AppRoutes.cardDetail, extra: {'cardName': scryfallCard.name}); },
         onMore: () => _showCardOptions(card, scryfallCard, isCommander), // <--- Ouvre la modale
       );
     }

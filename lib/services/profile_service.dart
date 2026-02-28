@@ -14,7 +14,7 @@ class ProfileService {
 
   Future<List<Profile>> loadProfiles() async {
     if (_db != null) {
-      final dbProfiles = await _db!.getAllProfiles();
+      final dbProfiles = await _db.getAllProfiles();
       return dbProfiles.map((p) => Profile(
         id: p.id,
         name: p.name,
@@ -37,7 +37,7 @@ class ProfileService {
 
   Future<void> saveProfile(Profile profile) async {
     if (_db != null) {
-      await _db!.upsertProfile(ProfilesCompanion(
+      await _db.upsertProfile(ProfilesCompanion(
         id: Value(profile.id),
         name: Value(profile.name),
         colorValue: Value(profile.colorValue),
@@ -63,7 +63,7 @@ class ProfileService {
 
   Future<void> deleteProfile(String id) async {
     if (_db != null) {
-      await _db!.deleteProfile(id);
+      await _db.deleteProfile(id);
       return;
     }
     final profiles = await loadProfiles();

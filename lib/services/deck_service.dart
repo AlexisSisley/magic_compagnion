@@ -28,10 +28,10 @@ class DeckService with CardListUpsertMixin {
 
   Future<List<Deck>> loadDecks() async {
     if (_db != null) {
-      final rawDecks = await _db!.getAllDecksRaw();
+      final rawDecks = await _db.getAllDecksRaw();
       final List<Deck> result = [];
       for (final d in rawDecks) {
-        final cards = await _db!.getDeckCardsByDeckId(d.id);
+        final cards = await _db.getDeckCardsByDeckId(d.id);
         result.add(_dbDeckToDeck(d, cards));
       }
       return result;
@@ -92,7 +92,7 @@ class DeckService with CardListUpsertMixin {
 
   Future<void> deleteDeck(String deckId) async {
     if (_db != null) {
-      await _db!.deleteDeckAndCards(deckId);
+      await _db.deleteDeckAndCards(deckId);
       return;
     }
     final decks = await loadDecks();
@@ -103,7 +103,7 @@ class DeckService with CardListUpsertMixin {
   Future<void> createNewDeck(String name) async {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     if (_db != null) {
-      await _db!.insertDeck(DecksCompanion.insert(
+      await _db.insertDeck(DecksCompanion.insert(
         id: id,
         name: name,
         format: const Value('Standard'),
@@ -124,7 +124,7 @@ class DeckService with CardListUpsertMixin {
 
   Future<void> updateDeck(Deck updatedDeck) async {
     if (_db != null) {
-      await _db!.updateDeckEntry(updatedDeck.id, DecksCompanion(
+      await _db.updateDeckEntry(updatedDeck.id, DecksCompanion(
         name: Value(updatedDeck.name),
         format: Value(updatedDeck.format),
         commanderScryfallId: Value(updatedDeck.commanderScryfallId),
@@ -132,7 +132,7 @@ class DeckService with CardListUpsertMixin {
         colors: Value(json.encode(updatedDeck.colors)),
       ));
       // Sync all cards: clear and re-insert
-      await _db!.clearDeckCards(updatedDeck.id);
+      await _db.clearDeckCards(updatedDeck.id);
       for (final entry in [
         MapEntry('main', updatedDeck.mainboard),
         MapEntry('side', updatedDeck.sideboard),
@@ -140,7 +140,7 @@ class DeckService with CardListUpsertMixin {
         MapEntry('wishlist', updatedDeck.wishlist),
       ]) {
         for (final card in entry.value) {
-          await _db!.upsertDeckCard(
+          await _db.upsertDeckCard(
             deckId: updatedDeck.id,
             board: entry.key,
             scryfallId: card.scryfallId,
@@ -172,7 +172,7 @@ class DeckService with CardListUpsertMixin {
     bool? isFoil,
   }) async {
     if (_db != null) {
-      await _db!.upsertDeckCard(
+      await _db.upsertDeckCard(
         deckId: deckId,
         board: _boardToString(board),
         scryfallId: scryfallId,
@@ -182,8 +182,8 @@ class DeckService with CardListUpsertMixin {
         newTags: newTags,
         isFoil: isFoil,
       );
-      final rawDeck = (await _db!.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
-      final cards = await _db!.getDeckCardsByDeckId(deckId);
+      final rawDeck = (await _db.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
+      final cards = await _db.getDeckCardsByDeckId(deckId);
       return _dbDeckToDeck(rawDeck, cards);
     }
 
@@ -250,18 +250,18 @@ class DeckService with CardListUpsertMixin {
   Future<Deck> setCommander(String deckId, String scryfallId, {int slot = 1}) async {
     if (_db != null) {
       if (slot == 2) {
-        await _db!.updateDeckEntry(deckId, DecksCompanion(
+        await _db.updateDeckEntry(deckId, DecksCompanion(
           commanderSecondaryScryfallId: Value(scryfallId),
           format: const Value('Commander'),
         ));
       } else {
-        await _db!.updateDeckEntry(deckId, DecksCompanion(
+        await _db.updateDeckEntry(deckId, DecksCompanion(
           commanderScryfallId: Value(scryfallId),
           format: const Value('Commander'),
         ));
       }
-      final rawDeck = (await _db!.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
-      final cards = await _db!.getDeckCardsByDeckId(deckId);
+      final rawDeck = (await _db.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
+      final cards = await _db.getDeckCardsByDeckId(deckId);
       return _dbDeckToDeck(rawDeck, cards);
     }
 
@@ -278,7 +278,7 @@ class DeckService with CardListUpsertMixin {
 
   Future<Deck> unsetCommander(String deckId, {int slot = 1}) async {
     if (_db != null) {
-      final rawDeck = (await _db!.getAllDecksRaw()).firstWhere((d) => d.id == deckId,
+      final rawDeck = (await _db.getAllDecksRaw()).firstWhere((d) => d.id == deckId,
           orElse: () => throw StateError('Deck $deckId not found'));
 
       String? newCmd = rawDeck.commanderScryfallId;
@@ -288,13 +288,13 @@ class DeckService with CardListUpsertMixin {
 
       String newFormat = (newCmd == null && newCmd2 == null) ? 'Standard' : rawDeck.format;
 
-      await _db!.updateDeckEntry(deckId, DecksCompanion(
+      await _db.updateDeckEntry(deckId, DecksCompanion(
         commanderScryfallId: Value(newCmd),
         commanderSecondaryScryfallId: Value(newCmd2),
         format: Value(newFormat),
       ));
-      final updatedDeck = (await _db!.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
-      final cards = await _db!.getDeckCardsByDeckId(deckId);
+      final updatedDeck = (await _db.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
+      final cards = await _db.getDeckCardsByDeckId(deckId);
       return _dbDeckToDeck(updatedDeck, cards);
     }
 
@@ -315,14 +315,14 @@ class DeckService with CardListUpsertMixin {
 
   Future<Deck> clearDeck(String deckId) async {
     if (_db != null) {
-      await _db!.clearDeckCards(deckId);
-      await _db!.updateDeckEntry(deckId, const DecksCompanion(
+      await _db.clearDeckCards(deckId);
+      await _db.updateDeckEntry(deckId, const DecksCompanion(
         commanderScryfallId: Value(null),
         commanderSecondaryScryfallId: Value(null),
         format: Value('Standard'),
       ));
-      final updatedDeck = (await _db!.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
-      final cards = await _db!.getDeckCardsByDeckId(deckId);
+      final updatedDeck = (await _db.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
+      final cards = await _db.getDeckCardsByDeckId(deckId);
       return _dbDeckToDeck(updatedDeck, cards);
     }
 

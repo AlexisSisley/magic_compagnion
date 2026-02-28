@@ -33,7 +33,6 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
   
   bool _isLoading = false;
   bool _hasLoaded = false;
-  String? _errorMsg;
 
   @override
   void initState() {
@@ -50,7 +49,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
       return;
     }
 
-    setState(() { _isLoading = true; _errorMsg = null; });
+    setState(() { _isLoading = true; });
 
     // Récupération du nom du commandant
     String commanderName = "";
@@ -74,7 +73,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
     }
 
     if (commanderName.isEmpty) {
-       setState(() { _isLoading = false; _errorMsg = "Impossible de trouver le nom du commandant."; });
+       setState(() { _isLoading = false; });
        return;
     }
 

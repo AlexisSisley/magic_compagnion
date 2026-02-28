@@ -51,11 +51,11 @@ class BackupService {
     }
 
     // Decks
-    final decks = await _db!.getAllDecksRaw();
+    final decks = await _db.getAllDecksRaw();
     if (decks.isNotEmpty) {
       final List<Map<String, dynamic>> decksList = [];
       for (final deck in decks) {
-        final cards = await _db!.getDeckCardsByDeckId(deck.id);
+        final cards = await _db.getDeckCardsByDeckId(deck.id);
         final Map<String, List<Map<String, dynamic>>> boards = {
           'mainboard': [],
           'sideboard': [],
@@ -95,11 +95,11 @@ class BackupService {
     }
 
     // Wishlists
-    final wishlists = await _db!.getAllWishlistsRaw();
+    final wishlists = await _db.getAllWishlistsRaw();
     if (wishlists.isNotEmpty) {
       final List<Map<String, dynamic>> wishlistsList = [];
       for (final w in wishlists) {
-        final cards = await _db!.getWishlistCardsByWishlistId(w.id);
+        final cards = await _db.getWishlistCardsByWishlistId(w.id);
         wishlistsList.add({
           'id': w.id,
           'name': w.name,
@@ -119,7 +119,7 @@ class BackupService {
     }
 
     // Scan history
-    final scans = await _db!.getAllScanHistory();
+    final scans = await _db.getAllScanHistory();
     if (scans.isNotEmpty) {
       backupData['scan_history'] = scans.map((s) => {
         'scryfallId': s.scryfallId,
@@ -130,13 +130,13 @@ class BackupService {
     }
 
     // Settings
-    final glossaryLang = await _db!.getSetting('glossaryLang');
+    final glossaryLang = await _db.getSetting('glossaryLang');
     if (glossaryLang != null) backupData['glossaryLang'] = glossaryLang;
 
-    final playerCount = await _db!.getSettingInt('playerCount');
+    final playerCount = await _db.getSettingInt('playerCount');
     if (playerCount != null) backupData['playerCount'] = playerCount;
 
-    final startingLife = await _db!.getSettingInt('startingLife');
+    final startingLife = await _db.getSettingInt('startingLife');
     if (startingLife != null) backupData['startingLife'] = startingLife;
 
     backupData['backup_date'] = DateTime.now().toIso8601String();
@@ -193,32 +193,32 @@ class BackupService {
   Future<void> _restoreToDrift(Map<String, dynamic> data) async {
     // Clear existing data
     await _db!.clearCollection();
-    await _db!.clearGameHistory();
-    await _db!.clearScanHistory();
+    await _db.clearGameHistory();
+    await _db.clearScanHistory();
 
     // Delete all decks
-    final existingDecks = await _db!.getAllDecksRaw();
+    final existingDecks = await _db.getAllDecksRaw();
     for (final d in existingDecks) {
-      await _db!.deleteDeckAndCards(d.id);
+      await _db.deleteDeckAndCards(d.id);
     }
 
     // Delete all wishlists
-    final existingWishlists = await _db!.getAllWishlistsRaw();
+    final existingWishlists = await _db.getAllWishlistsRaw();
     for (final w in existingWishlists) {
-      await _db!.deleteWishlistAndCards(w.id);
+      await _db.deleteWishlistAndCards(w.id);
     }
 
     // Delete all profiles
-    final existingProfiles = await _db!.getAllProfiles();
+    final existingProfiles = await _db.getAllProfiles();
     for (final p in existingProfiles) {
-      await _db!.deleteProfile(p.id);
+      await _db.deleteProfile(p.id);
     }
 
     // Collection
     if (data.containsKey('user_collection') && data['user_collection'] is List) {
       for (final item in data['user_collection'] as List) {
         final map = item as Map<String, dynamic>;
-        await _db!.upsertCollectionCard(
+        await _db.upsertCollectionCard(
           scryfallId: map['scryfallId'] as String,
           cardName: map['name'] as String,
           absoluteQuantity: map['quantity'] as int,
@@ -233,7 +233,7 @@ class BackupService {
       for (final item in data['user_decks'] as List) {
         final map = item as Map<String, dynamic>;
         final deckId = map['id'] as String;
-        await _db!.insertDeck(DecksCompanion.insert(
+        await _db.insertDeck(DecksCompanion.insert(
           id: deckId,
           name: map['name'] as String,
           format: drift.Value(map['format'] as String? ?? 'Standard'),
@@ -245,7 +245,7 @@ class BackupService {
           final cards = map[boardEntry.key] as List? ?? [];
           for (final cardJson in cards) {
             final cardMap = cardJson as Map<String, dynamic>;
-            await _db!.upsertDeckCard(
+            await _db.upsertDeckCard(
               deckId: deckId,
               board: boardEntry.value,
               scryfallId: cardMap['scryfallId'] as String,
@@ -264,7 +264,7 @@ class BackupService {
       for (final item in data['user_wishlists_v2'] as List) {
         final map = item as Map<String, dynamic>;
         final wishlistId = map['id'] as String;
-        await _db!.insertWishlist(WishlistsCompanion.insert(
+        await _db.insertWishlist(WishlistsCompanion.insert(
           id: wishlistId,
           name: map['name'] as String,
           dateCreated: DateTime.parse(map['dateCreated'] ?? DateTime.now().toIso8601String()),
@@ -272,7 +272,7 @@ class BackupService {
         ));
         for (final cardJson in (map['cards'] as List? ?? [])) {
           final cardMap = cardJson as Map<String, dynamic>;
-          await _db!.upsertWishlistCard(
+          await _db.upsertWishlistCard(
             wishlistId: wishlistId,
             scryfallId: cardMap['scryfallId'] as String,
             cardName: cardMap['name'] as String,
@@ -285,13 +285,13 @@ class BackupService {
 
     // Settings
     if (data.containsKey('glossaryLang') && data['glossaryLang'] is String) {
-      await _db!.setSetting('glossaryLang', data['glossaryLang'] as String);
+      await _db.setSetting('glossaryLang', data['glossaryLang'] as String);
     }
     if (data.containsKey('playerCount') && data['playerCount'] is int) {
-      await _db!.setSettingInt('playerCount', data['playerCount'] as int);
+      await _db.setSettingInt('playerCount', data['playerCount'] as int);
     }
     if (data.containsKey('startingLife') && data['startingLife'] is int) {
-      await _db!.setSettingInt('startingLife', data['startingLife'] as int);
+      await _db.setSettingInt('startingLife', data['startingLife'] as int);
     }
   }
 

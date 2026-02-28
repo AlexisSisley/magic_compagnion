@@ -16,7 +16,7 @@ class ScanHistoryService {
   /// Charge la liste des scans, du plus recent au plus ancien
   Future<List<ScanHistoryItem>> loadHistory() async {
     if (_db != null) {
-      final items = await _db!.getAllScanHistory();
+      final items = await _db.getAllScanHistory();
       return items.map((item) => ScanHistoryItem(
         scryfallId: item.scryfallId,
         cardName: item.cardName,
@@ -47,7 +47,7 @@ class ScanHistoryService {
   /// Ajoute un nouveau scan en haut de la liste
   Future<void> addScan(ScanHistoryItem newItem) async {
     if (_db != null) {
-      await _db!.insertScanHistory(ScanHistoryItemsCompanion.insert(
+      await _db.insertScanHistory(ScanHistoryItemsCompanion.insert(
         scryfallId: newItem.scryfallId,
         cardName: newItem.cardName,
         imagePath: Value(newItem.imagePath),
@@ -67,7 +67,7 @@ class ScanHistoryService {
   /// Vide l'historique complet
   Future<void> clearHistory() async {
     if (_db != null) {
-      await _db!.clearScanHistory();
+      await _db.clearScanHistory();
       return;
     }
     final prefs = await SharedPreferences.getInstance();
