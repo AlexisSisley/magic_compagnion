@@ -1,66 +1,65 @@
 // Fichier : lib/pages/cards/card_search_page.dart
 // VERSION CORRIGÉE : Sélecteur Wishlist (SafeArea) + Skyrim Loader + Filtre Keyword
 
-import 'dart:async'; 
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/models/search_filters.dart';
 import 'package:magic_companion/widgets/search/search_filter_modal.dart';
-import 'package:shared_preferences/shared_preferences.dart'; 
-import '../../services/collection_service.dart'; 
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/collection_service.dart';
 import '../../services/wishlist_service.dart';
-import 'set_list_page.dart'; 
+import '../../services/local_card_service.dart';
+import '../../services/scryfall_api_service.dart';
+import '../../providers/service_providers.dart';
+import 'set_list_page.dart';
 import '../../models/scryfall_set_model.dart';
 import '../../models/scryfall_card_model.dart';
-import '../../services/local_card_service.dart';
 import 'card_detail_page.dart';
 
 // --- IMPORT DU NOUVEAU WIDGET ---
 import '../../widgets/search/skyrim_sneak_loader.dart';
 
-class CardSearchPage extends StatefulWidget {
+class CardSearchPage extends ConsumerStatefulWidget {
   const CardSearchPage({super.key});
 
   @override
-  State<CardSearchPage> createState() => _CardSearchPageState();
+  ConsumerState<CardSearchPage> createState() => _CardSearchPageState();
 }
 
-class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProviderStateMixin {
+class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTickerProviderStateMixin {
+  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
+  CollectionService get _collectionService => ref.read(collectionServiceProvider);
+  WishlistService get _wishlistService => ref.read(wishlistServiceProvider);
+  ScryfallApiService get _apiService => ref.read(scryfallApiServiceProvider);
+
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
-  final LocalCardService _localCardService = LocalCardService();
-  
+
   final ScrollController _scrollController = ScrollController();
-  
-  List<ScryfallCard> _fullLocalResults = []; 
-  List<ScryfallCard> _searchResults = [];    
-  static const int _localPageSize = 30;      
-  
-  String? _nextPageUrl; 
-  bool _isApiLoadingMore = false; 
-  
+
+  List<ScryfallCard> _fullLocalResults = [];
+  List<ScryfallCard> _searchResults = [];
+  static const int _localPageSize = 30;
+
+  String? _nextPageUrl;
+  bool _isApiLoadingMore = false;
+
   SearchFilters _activeFilters = SearchFilters();
   bool _isLoading = false;
   String _statusMessage = 'Entrez un nom ou utilisez les filtres.';
-  
-  bool _isGridView = false; 
-  Timer? _debounce; 
-  String _sortBy = 'name'; // 'name', 'cmc', 'type', 'eur'
 
-  final CollectionService _collectionService = CollectionService();
-  final WishlistService _wishlistService = WishlistService();
+  bool _isGridView = false;
+  Timer? _debounce;
+  String _sortBy = 'name'; // 'name', 'cmc', 'type', 'eur'
   
   List<DeckCard> _collection = [];
   // On stocke ici la totalité des cartes de TOUTES les wishlists pour vérifier l'état
   List<DeckCard> _flatWishlist = [];
   
-  // ignore: unused_field
-  final RegExp _manaRegex = RegExp(r'\{([^}]+)\}');
-
   @override
   void initState() {
     super.initState();
@@ -107,27 +106,22 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
     setState(() { _isApiLoadingMore = true; });
 
     try {
-      final response = await http.get(Uri.parse(_nextPageUrl!));
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-        final String? nextUri = data['next_page']; 
-        final List<dynamic> rawList = data['data'] ?? [];
-        List<ScryfallCard> newCards = rawList.map((json) => ScryfallCard.fromJson(json)).toList();
+      final Map<String, dynamic> data = await _apiService.fetchNextPage(_nextPageUrl!);
+      final String? nextUri = data['next_page'];
+      final List<dynamic> rawList = data['data'] ?? [];
+      List<ScryfallCard> newCards = rawList.map((json) => ScryfallCard.fromJson(json)).toList();
 
-        if (_sortBy == 'type') newCards.sort((a, b) => a.typeLine.compareTo(b.typeLine));
+      if (_sortBy == 'type') newCards.sort((a, b) => a.typeLine.compareTo(b.typeLine));
 
-        if (mounted) {
-          setState(() {
-            _searchResults.addAll(newCards);
-            _nextPageUrl = nextUri; 
-            _isApiLoadingMore = false;
-          });
-        }
-      } else {
-        setState(() { _isApiLoadingMore = false; });
+      if (mounted) {
+        setState(() {
+          _searchResults.addAll(newCards);
+          _nextPageUrl = nextUri;
+          _isApiLoadingMore = false;
+        });
       }
     } catch (e) {
-      setState(() { _isApiLoadingMore = false; });
+      if (mounted) setState(() { _isApiLoadingMore = false; });
     }
   }
 
@@ -245,61 +239,59 @@ class _CardSearchPageState extends State<CardSearchPage> with SingleTickerProvid
 
   Future<bool> _searchCardsApi(String query) async {
     final connectivityResult = await (Connectivity().checkConnectivity());
-    if (connectivityResult.contains(ConnectivityResult.none)) { 
+    if (connectivityResult.contains(ConnectivityResult.none)) {
       return false;
     }
 
     List<String> queryParts = [];
     if (query.isNotEmpty) queryParts.add(query);
-    
+
     if (_activeFilters.setCode != null) queryParts.add('e:${_activeFilters.setCode}');
     if (_activeFilters.colors.isNotEmpty) queryParts.add('c:${_activeFilters.colors.join()}');
     if (_activeFilters.cardType != null) queryParts.add('t:${_activeFilters.cardType}');
     if (_activeFilters.rarity != null) queryParts.add('r:${_activeFilters.rarity}');
-    
+
     if (_activeFilters.minCmc != null) queryParts.add('cmc>=${_activeFilters.minCmc!.toInt()}');
     if (_activeFilters.maxCmc != null) queryParts.add('cmc<=${_activeFilters.maxCmc!.toInt()}');
-    
+
     // --- AJOUT DU FILTRE MOT-CLÉ/RÈGLE ---
     if (_activeFilters.keyword != null) queryParts.add('o:"${_activeFilters.keyword!.replaceAll('"', '')}"');
-    
+
     final String finalQuery = queryParts.join(' ');
     final prefs = await SharedPreferences.getInstance();
     final String lang = prefs.getString('glossaryLang') ?? 'fr';
 
     try {
-      String uniqueParam = _activeFilters.setCode != null ? '&unique=prints' : '&unique=cards';
-      String sortParam = '&order=name';
-      if (_sortBy == 'cmc') sortParam = '&order=cmc';
-      if (_sortBy == 'eur') sortParam = '&order=eur';
-      
-      final encodedQuery = Uri.encodeComponent(finalQuery);
-      final response = await http.get(Uri.parse('https://api.scryfall.com/cards/search?q=$encodedQuery&lang=$lang$uniqueParam$sortParam'));
-      
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-        if (data.containsKey('has_more') && data['has_more'] == true) {
-           _nextPageUrl = data['next_page'];
-        }
+      String unique = _activeFilters.setCode != null ? 'prints' : 'cards';
+      String? order;
+      if (_sortBy == 'cmc') order = 'cmc';
+      else if (_sortBy == 'eur') order = 'eur';
+      else order = 'name';
 
-        final List<dynamic> rawList = data['data'] ?? [];
-        List<ScryfallCard> apiResults = rawList.map((json) => ScryfallCard.fromJson(json)).toList();
+      final Map<String, dynamic> data = await _apiService.searchCards(
+        finalQuery,
+        lang: lang,
+        unique: unique,
+        order: order,
+      );
 
-        if (_sortBy == 'type') apiResults.sort((a, b) => a.typeLine.compareTo(b.typeLine));
-        
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _searchResults = apiResults;
-            // Easter Egg Star Wars
-            if (_searchResults.isEmpty) { _statusMessage = 'Ce ne sont pas les cartes que vous recherchez... 👋🤖'; }
-          });
-        }
-        return true;
-      } else {
-        if (mounted) setState(() { _isLoading = false; _statusMessage = 'Erreur API (${response.statusCode}).'; });
-        return false;
+      if (data.containsKey('has_more') && data['has_more'] == true) {
+         _nextPageUrl = data['next_page'];
       }
+
+      final List<dynamic> rawList = data['data'] ?? [];
+      List<ScryfallCard> apiResults = rawList.map((json) => ScryfallCard.fromJson(json)).toList();
+
+      if (_sortBy == 'type') apiResults.sort((a, b) => a.typeLine.compareTo(b.typeLine));
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _searchResults = apiResults;
+          if (_searchResults.isEmpty) { _statusMessage = 'Ce ne sont pas les cartes que vous recherchez...'; }
+        });
+      }
+      return true;
     } catch (e) {
       if (mounted) setState(() { _isLoading = false; _statusMessage = 'Erreur réseau'; });
       return false;

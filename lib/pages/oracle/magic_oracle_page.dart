@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/oracle_service.dart';
+import '../../providers/service_providers.dart';
 
 class ChatMessage {
   final String text;
@@ -8,16 +10,16 @@ class ChatMessage {
   ChatMessage({required this.text, required this.isUser});
 }
 
-class MagicOraclePage extends StatefulWidget {
+class MagicOraclePage extends ConsumerStatefulWidget {
   const MagicOraclePage({super.key});
 
   @override
-  State<MagicOraclePage> createState() => _MagicOraclePageState();
+  ConsumerState<MagicOraclePage> createState() => _MagicOraclePageState();
 }
 
-class _MagicOraclePageState extends State<MagicOraclePage> {
+class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
   final TextEditingController _controller = TextEditingController();
-  final OracleService _oracleService = OracleService();
+  OracleService get _oracleService => ref.read(oracleServiceProvider);
   final ScrollController _scrollController = ScrollController();
   
   final List<ChatMessage> _messages = [

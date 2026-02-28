@@ -1,13 +1,16 @@
 // Fichier : lib/widgets/life_counter/game_setup_modal.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/profile_model.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/services/profile_service.dart';
 import 'package:magic_companion/widgets/decks/deck_card_picker.dart';
+import 'package:magic_companion/widgets/cards/scryfall_image.dart';
+import 'package:magic_companion/providers/service_providers.dart';
 
-class GameSetupModal extends StatefulWidget {
+class GameSetupModal extends ConsumerStatefulWidget {
   final int initialLife;
   final Function(int startingLife, List<Profile?> profiles) onGameStart;
 
@@ -18,11 +21,11 @@ class GameSetupModal extends StatefulWidget {
   });
 
   @override
-  State<GameSetupModal> createState() => _GameSetupModalState();
+  ConsumerState<GameSetupModal> createState() => _GameSetupModalState();
 }
 
-class _GameSetupModalState extends State<GameSetupModal> {
-  final ProfileService _profileService = ProfileService();
+class _GameSetupModalState extends ConsumerState<GameSetupModal> {
+  ProfileService get _profileService => ref.read(profileServiceProvider);
   late int _startingLife;
   List<Profile?> _selectedProfiles = List.filled(4, null, growable: true);
   List<Profile> _availableProfiles = [];
@@ -177,11 +180,12 @@ class _GameSetupModalState extends State<GameSetupModal> {
   // Helper pour l'avatar split si partenaires
   Widget _buildProfileAvatar(Profile? profile, int index) {
     if (profile == null) return CircleAvatar(backgroundColor: Colors.grey, child: Text("${index+1}"));
-    
+
     if (profile.secondaryCommanderScryfallId == null) {
-      return CircleAvatar(
+      return ScryfallAvatarImage(
+        imageUrl: profile.commanderImageUrl,
+        radius: 20,
         backgroundColor: Color(profile.colorValue),
-        backgroundImage: profile.commanderImageUrl != null ? NetworkImage(profile.commanderImageUrl!) : null,
       );
     }
 
@@ -192,8 +196,8 @@ class _GameSetupModalState extends State<GameSetupModal> {
       decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Color(profile.colorValue), width: 2)),
       child: Row(
         children: [
-          Expanded(child: Image.network(profile.commanderImageUrl!, fit: BoxFit.cover)),
-          Expanded(child: Image.network(profile.secondaryCommanderImageUrl!, fit: BoxFit.cover)),
+          Expanded(child: ScryfallImage(imageUrl: profile.commanderImageUrl)),
+          Expanded(child: ScryfallImage(imageUrl: profile.secondaryCommanderImageUrl)),
         ],
       ),
     );
@@ -309,8 +313,10 @@ class _GameSetupModalState extends State<GameSetupModal> {
                     colorValue: selectedColor.value,
                     commanderScryfallId: cmd1?.id ?? existingProfile?.commanderScryfallId,
                     commanderName: cmd1?.name ?? existingProfile?.commanderName,
+                    commanderArtCropUrl: cmd1?.artCropUrl ?? existingProfile?.commanderArtCropUrl,
                     secondaryCommanderScryfallId: cmd2?.id ?? existingProfile?.secondaryCommanderScryfallId,
                     secondaryCommanderName: cmd2?.name ?? existingProfile?.secondaryCommanderName,
+                    secondaryCommanderArtCropUrl: cmd2?.artCropUrl ?? existingProfile?.secondaryCommanderArtCropUrl,
                   );
                   await _profileService.saveProfile(p);
                   Navigator.pop(context, p);
@@ -356,9 +362,7 @@ class _GameSetupModalState extends State<GameSetupModal> {
       context: context,
       builder: (context) {
         return StatefulBuilder(builder: (context, setState) {
-          final String? avatarUrl = selectedCommander != null 
-              ? "https://api.scryfall.com/cards/${selectedCommander!.id}?format=image&version=art_crop"
-              : null;
+          final String? avatarUrl = selectedCommander?.artCropUrl;
 
           return AlertDialog(
             backgroundColor: const Color(0xFF1E1E1E).withOpacity(0.98),
@@ -374,13 +378,10 @@ class _GameSetupModalState extends State<GameSetupModal> {
                   const SizedBox(height: 24),
 
                   // 1. Avatar (Preview)
-                  CircleAvatar(
+                  ScryfallAvatarImage(
+                    imageUrl: avatarUrl,
                     radius: 40,
                     backgroundColor: selectedColor,
-                    backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                    child: avatarUrl == null 
-                        ? const Icon(Icons.person, size: 40, color: Colors.white)
-                        : null,
                   ),
                   const SizedBox(height: 24),
 
@@ -483,7 +484,8 @@ class _GameSetupModalState extends State<GameSetupModal> {
                       name: nameCtrl.text,
                       colorValue: selectedColor.value,
                       commanderScryfallId: selectedCommander?.id,
-                      commanderName: selectedCommander?.name
+                      commanderName: selectedCommander?.name,
+                      commanderArtCropUrl: selectedCommander?.artCropUrl,
                     );
                     await _profileService.saveProfile(newProfile);
                     if (context.mounted) Navigator.pop(context, newProfile);

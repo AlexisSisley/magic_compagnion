@@ -1,6 +1,7 @@
 // Fichier : lib/widgets/collection/collection_sets_tab.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/deck_model.dart';
@@ -10,25 +11,26 @@ import '../../services/local_card_service.dart';
 import '../../services/collection_service.dart';
 import '../../services/wishlist_service.dart';
 import '../../pages/collections/set_detail_page.dart';
+import '../../providers/service_providers.dart';
 
-class CollectionSetsTab extends StatefulWidget {
+class CollectionSetsTab extends ConsumerStatefulWidget {
   final List<DeckCard> collection;
-  final Future<void> Function()? onRefresh; 
+  final Future<void> Function()? onRefresh;
 
   const CollectionSetsTab({
-    super.key, 
+    super.key,
     required this.collection,
-    this.onRefresh, 
+    this.onRefresh,
   });
 
   @override
-  State<CollectionSetsTab> createState() => _CollectionSetsTabState();
+  ConsumerState<CollectionSetsTab> createState() => _CollectionSetsTabState();
 }
 
-class _CollectionSetsTabState extends State<CollectionSetsTab> {
-  final SetService _setService = SetService();
-  final LocalCardService _localCardService = LocalCardService();
-  final WishlistService _wishlistService = WishlistService(); 
+class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
+  SetService get _setService => ref.read(setServiceProvider);
+  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
+  WishlistService get _wishlistService => ref.read(wishlistServiceProvider);
   
   final TextEditingController _searchController = TextEditingController();
 
@@ -290,11 +292,15 @@ class _CollectionSetsTabState extends State<CollectionSetsTab> {
                   margin: const EdgeInsets.only(bottom: 8),
                   child: InkWell(
                     onTap: () {
+                      final collectionService = ref.read(collectionServiceProvider);
+                      final wishlistService = ref.read(wishlistServiceProvider);
+                      final apiService = ref.read(scryfallApiServiceProvider);
                       Navigator.push(context, MaterialPageRoute(
                         builder: (_) => SetDetailPage(
-                          set: set, 
-                          collectionService: CollectionService(), 
-                          wishlistService: WishlistService()
+                          set: set,
+                          collectionService: collectionService,
+                          wishlistService: wishlistService,
+                          apiService: apiService,
                         )
                       ));
                     },

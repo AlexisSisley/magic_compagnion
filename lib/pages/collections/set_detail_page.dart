@@ -3,14 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 import '../../models/scryfall_set_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../models/search_filters.dart';
 import '../../services/collection_service.dart';
 import '../../services/wishlist_service.dart';
+import '../../services/scryfall_api_service.dart';
 import '../../pages/cards/card_detail_page.dart';
 import 'set_stats_page.dart';
 
@@ -26,12 +25,14 @@ class SetDetailPage extends StatefulWidget {
   final ScryfallSet set;
   final CollectionService collectionService;
   final WishlistService wishlistService;
+  final ScryfallApiService apiService;
 
   const SetDetailPage({
-    super.key, 
-    required this.set, 
+    super.key,
+    required this.set,
     required this.collectionService,
     required this.wishlistService,
+    required this.apiService,
   });
 
   @override
@@ -89,20 +90,24 @@ class _SetDetailPageState extends State<SetDetailPage> {
 
     // 3. API
     List<ScryfallCard> accumulator = [];
-    String? nextPageUrl = 'https://api.scryfall.com/cards/search?q=e:${widget.set.code}&unique=prints&order=set';
 
     try {
+      // Premier appel via searchCards
+      Map<String, dynamic> data = await widget.apiService.searchCards(
+        'e:${widget.set.code}',
+        unique: 'prints',
+        order: 'set',
+      );
+      final List<dynamic> firstRaw = data['data'] ?? [];
+      accumulator.addAll(firstRaw.map((j) => ScryfallCard.fromJson(j)).toList());
+
+      // Pagination via fetchNextPage
+      String? nextPageUrl = data['has_more'] == true ? data['next_page'] : null;
       while (nextPageUrl != null) {
-        final response = await http.get(Uri.parse(nextPageUrl));
-        if (response.statusCode == 200) {
-          final data = json.decode(utf8.decode(response.bodyBytes));
-          nextPageUrl = data['has_more'] == true ? data['next_page'] : null;
-          final List<dynamic> raw = data['data'] ?? [];
-          accumulator.addAll(raw.map((j) => ScryfallCard.fromJson(j)).toList());
-          if (nextPageUrl != null) await Future.delayed(const Duration(milliseconds: 50));
-        } else {
-          nextPageUrl = null;
-        }
+        data = await widget.apiService.fetchNextPage(nextPageUrl);
+        nextPageUrl = data['has_more'] == true ? data['next_page'] : null;
+        final List<dynamic> raw = data['data'] ?? [];
+        accumulator.addAll(raw.map((j) => ScryfallCard.fromJson(j)).toList());
       }
 
       Map<String, int> counts = {'common': 0, 'uncommon': 0, 'rare': 0, 'mythic': 0};

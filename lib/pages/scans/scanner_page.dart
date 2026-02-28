@@ -2,31 +2,33 @@
 // CORRECTION : Fix Race Condition permission caméra + ResolutionPreset
 
 import 'dart:async';
+import 'dart:developer';
 import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/pages/cards/card_detail_page.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'scan_history_page.dart'; 
+import 'scan_history_page.dart';
 import '../../services/local_card_service.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../providers/service_providers.dart';
 
-class ScannerPage extends StatefulWidget {
+class ScannerPage extends ConsumerStatefulWidget {
   const ScannerPage({super.key});
 
   @override
-  State<ScannerPage> createState() => _ScannerPageState();
+  ConsumerState<ScannerPage> createState() => _ScannerPageState();
 }
 
-class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
-  
+class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
+
   CameraController? _controller;
-  final LocalCardService _localCardService = LocalCardService();
   
   bool _isCameraInitialized = false;
   bool _isPermissionDenied = false;
-  // ignore: unused_field
   bool _isInitializing = false; // Verrou pour éviter la double initialisation
   String _errorMessage = "";
   bool _isFlashOn = false;
@@ -144,7 +146,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
           _isInitializing = false;
         });
       }
-      print("Erreur Init Caméra: $e");
+      log("Erreur Init Caméra: $e", name: 'ScannerPage');
     } finally {
       _isInitializing = false;
     }
@@ -162,7 +164,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
         _isFlashOn = !_isFlashOn;
       });
     } catch (e) {
-      print("Erreur flash: $e");
+      log("Erreur flash: $e", name: 'ScannerPage');
     }
   }
   
@@ -335,7 +337,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver, 
       }
 
     } catch (e) {
-      print("Erreur photo: $e");
+      log("Erreur photo: $e", name: 'ScannerPage');
     }
   }
 

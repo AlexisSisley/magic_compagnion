@@ -1,29 +1,27 @@
 // Fichier : lib/services/set_service.dart
 
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'dart:developer';
 import '../models/scryfall_set_model.dart';
+import 'scryfall_api_service.dart';
 
 class SetService {
-  static const String _baseUrl = 'https://api.scryfall.com/sets';
+  final ScryfallApiService? _api;
+
+  SetService({ScryfallApiService? api}) : _api = api;
 
   Future<List<ScryfallSet>> getAllSets() async {
     try {
-      final response = await http.get(Uri.parse(_baseUrl));
+      final data = await _getApi().getAllSets();
+      final List<dynamic> setsJson = data['data'] ?? [];
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-        final List<dynamic> setsJson = data['data'] ?? [];
-        
-        return setsJson
-            .map((json) => ScryfallSet.fromJson(json))
-            .toList();
-      } else {
-        throw Exception('Erreur chargement sets: ${response.statusCode}');
-      }
+      return setsJson
+          .map((json) => ScryfallSet.fromJson(json))
+          .toList();
     } catch (e) {
-      print("Erreur SetService: $e");
+      log('Erreur SetService: $e', name: 'SetService');
       return [];
     }
   }
+
+  ScryfallApiService _getApi() => _api ?? ScryfallApiService();
 }

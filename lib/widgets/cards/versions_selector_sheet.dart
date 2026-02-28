@@ -1,12 +1,14 @@
 // Fichier : lib/widgets/cards/versions_selector_sheet.dart
+// Migre de http vers ScryfallApiService (Sprint 6)
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 import '../../models/scryfall_card_model.dart';
+import '../../services/scryfall_api_service.dart';
+import '../../providers/service_providers.dart';
 
-class VersionsSelectorSheet extends StatefulWidget {
+class VersionsSelectorSheet extends ConsumerStatefulWidget {
   final String oracleId;
   final String currentCardId;
   final Function(ScryfallCard) onVersionSelected;
@@ -19,10 +21,12 @@ class VersionsSelectorSheet extends StatefulWidget {
   });
 
   @override
-  State<VersionsSelectorSheet> createState() => _VersionsSelectorSheetState();
+  ConsumerState<VersionsSelectorSheet> createState() => _VersionsSelectorSheetState();
 }
 
-class _VersionsSelectorSheetState extends State<VersionsSelectorSheet> {
+class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
+  ScryfallApiService get _apiService => ref.read(scryfallApiServiceProvider);
+
   List<ScryfallCard> _versions = [];
   bool _isLoading = true;
   String _errorMessage = '';
@@ -35,42 +39,33 @@ class _VersionsSelectorSheetState extends State<VersionsSelectorSheet> {
 
   Future<void> _fetchPrints() async {
     if (widget.oracleId.isEmpty) {
-      setState(() { 
-        _isLoading = false; 
-        _errorMessage = "Impossible de trouver les autres versions (Oracle ID manquant)."; 
+      setState(() {
+        _isLoading = false;
+        _errorMessage = "Impossible de trouver les autres versions (Oracle ID manquant).";
       });
       return;
     }
 
     try {
-      // API Scryfall : Cherche toutes les impressions uniques avec cet Oracle ID
-      final uri = Uri.parse('https://api.scryfall.com/cards/search?q=oracle_id:${widget.oracleId}&unique=prints&order=released&dir=desc');
-      
-      final response = await http.get(uri);
-      
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-        final List<dynamic> dataList = data['data'] ?? [];
-        
-        if (mounted) {
-          setState(() {
-            _versions = dataList.map((json) => ScryfallCard.fromJson(json)).toList();
-            _isLoading = false;
-          });
-        }
-      } else {
-        if (mounted) {
-          setState(() { 
-            _isLoading = false; 
-            _errorMessage = "Erreur API Scryfall (${response.statusCode})"; 
-          });
-        }
+      final data = await _apiService.searchCards(
+        'oracle_id:${widget.oracleId}',
+        unique: 'prints',
+        order: 'released',
+        dir: 'desc',
+      );
+      final List<dynamic> dataList = data['data'] ?? [];
+
+      if (mounted) {
+        setState(() {
+          _versions = dataList.map((json) => ScryfallCard.fromJson(json)).toList();
+          _isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
-        setState(() { 
-          _isLoading = false; 
-          _errorMessage = "Erreur réseau : $e"; 
+        setState(() {
+          _isLoading = false;
+          _errorMessage = "Erreur réseau : $e";
         });
       }
     }

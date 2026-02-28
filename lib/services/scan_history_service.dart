@@ -1,29 +1,42 @@
 // Fichier : lib/services/scan_history_service.dart
-// NOUVEAU FICHIER
 
 import 'dart:convert';
-import 'package:magic_companion/models/scan_history_model.dart'; // Notre nouveau modèle
+import 'package:drift/drift.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../data/database/app_database.dart';
+import '../models/scan_history_model.dart';
 
 class ScanHistoryService {
-  static const _historyKey = 'scan_history'; // Clé de sauvegarde unique
-  static const _maxHistoryItems = 50; // Limite le nombre d'items à 50
+  static const _historyKey = 'scan_history';
+  static const _maxHistoryItems = 50;
+  final AppDatabase? _db;
 
-  /// Charge la liste des scans, du plus récent au plus ancien
+  ScanHistoryService({AppDatabase? database}) : _db = database;
+
+  /// Charge la liste des scans, du plus recent au plus ancien
   Future<List<ScanHistoryItem>> loadHistory() async {
+    if (_db != null) {
+      final items = await _db!.getAllScanHistory();
+      return items.map((item) => ScanHistoryItem(
+        scryfallId: item.scryfallId,
+        cardName: item.cardName,
+        imagePath: item.imagePath,
+        timestamp: item.timestamp,
+      )).toList();
+    }
+    // Fallback SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     final String? historyJson = prefs.getString(_historyKey);
-
     if (historyJson == null) {
       return [];
     }
-
     final List<dynamic> decodedList = json.decode(historyJson) as List;
     return decodedList.map((jsonItem) => ScanHistoryItem.fromJson(jsonItem)).toList();
   }
 
-  /// Sauvegarde la liste complète
+  /// Sauvegarde la liste complete (mode SharedPreferences uniquement)
   Future<void> _saveHistory(List<ScanHistoryItem> history) async {
+    if (_db != null) return;
     final prefs = await SharedPreferences.getInstance();
     final List<Map<String, dynamic>> jsonList =
         history.map((item) => item.toJson()).toList();
@@ -33,23 +46,30 @@ class ScanHistoryService {
 
   /// Ajoute un nouveau scan en haut de la liste
   Future<void> addScan(ScanHistoryItem newItem) async {
-    // 1. Charge l'historique actuel
+    if (_db != null) {
+      await _db!.insertScanHistory(ScanHistoryItemsCompanion.insert(
+        scryfallId: newItem.scryfallId,
+        cardName: newItem.cardName,
+        imagePath: Value(newItem.imagePath),
+        timestamp: newItem.timestamp,
+      ));
+      return;
+    }
+    // Fallback SharedPreferences
     final history = await loadHistory();
-
-    // 2. Ajoute le nouvel item au DÉBUT de la liste (pour le plus récent en premier)
     history.insert(0, newItem);
-
-    // 3. Limite la taille de l'historique (optionnel)
     if (history.length > _maxHistoryItems) {
       history.removeRange(_maxHistoryItems, history.length);
     }
-
-    // 4. Sauvegarde la nouvelle liste
     await _saveHistory(history);
   }
-  
+
   /// Vide l'historique complet
   Future<void> clearHistory() async {
+    if (_db != null) {
+      await _db!.clearScanHistory();
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_historyKey);
   }

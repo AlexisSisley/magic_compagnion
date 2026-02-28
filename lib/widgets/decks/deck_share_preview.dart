@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart'; // <--- Import ajouté
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
+import '../cards/scryfall_image.dart';
 
 class DeckSharePreview extends StatelessWidget {
   final Deck deck;
@@ -28,7 +29,7 @@ class DeckSharePreview extends StatelessWidget {
     if (deck.commanderScryfallId != null) {
       try {
         final cmd = fullCardData.firstWhere((c) => c.id == deck.commanderScryfallId);
-        cmdImageUrl = cmd.imageUrl.isNotEmpty ? cmd.imageUrl : cmd.smallImageUrl;
+        cmdImageUrl = cmd.artCropUrl ?? (cmd.imageUrl.isNotEmpty ? cmd.imageUrl : cmd.smallImageUrl);
         cmdName = cmd.name;
       } catch (e) { /* */ }
     } else if (deck.mainboard.isNotEmpty) {
@@ -75,10 +76,7 @@ class DeckSharePreview extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                if (cmdImageUrl != null)
-                  Image.network(cmdImageUrl, fit: BoxFit.cover, alignment: Alignment.topCenter)
-                else
-                  Container(color: Colors.grey.shade900),
+                ScryfallImage(imageUrl: cmdImageUrl, alignment: Alignment.topCenter),
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(

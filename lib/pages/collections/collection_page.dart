@@ -2,11 +2,10 @@
 
 import 'dart:developer';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 import 'package:magic_companion/pages/collections/global_stats_page.dart';
 import 'package:magic_companion/pages/collections/wishlist_tab.dart';
-import 'dart:convert';
 
 import '../../models/scryfall_card_model.dart';
 import '../../models/search_filters.dart';
@@ -15,23 +14,26 @@ import '../../models/wishlist_model.dart';
 import '../../services/collection_service.dart';
 import '../../services/wishlist_service.dart';
 import '../../services/local_card_service.dart';
-import '../../services/deck_service.dart'; 
+import '../../services/deck_service.dart';
+import '../../services/scryfall_api_service.dart';
+import '../../providers/service_providers.dart';
 import '../../widgets/search/universal_filter_modal.dart';
 import '../../widgets/collection/collection_list_tab.dart';
 import '../../widgets/collection/collection_sets_tab.dart';
 
-class CollectionPage extends StatefulWidget {
+class CollectionPage extends ConsumerStatefulWidget {
   const CollectionPage({super.key});
 
   @override
-  State<CollectionPage> createState() => _CollectionPageState();
+  ConsumerState<CollectionPage> createState() => _CollectionPageState();
 }
 
-class _CollectionPageState extends State<CollectionPage> with TickerProviderStateMixin {
-  final CollectionService _collectionService = CollectionService();
-  final WishlistService _wishlistService = WishlistService();
-  final LocalCardService _localCardService = LocalCardService();
-  final DeckService _deckService = DeckService();
+class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProviderStateMixin {
+  CollectionService get _collectionService => ref.read(collectionServiceProvider);
+  WishlistService get _wishlistService => ref.read(wishlistServiceProvider);
+  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
+  DeckService get _deckService => ref.read(deckServiceProvider);
+  ScryfallApiService get _apiService => ref.read(scryfallApiServiceProvider);
 
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
@@ -127,15 +129,10 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
         final end = (i + chunkSize < missingIds.length) ? i + chunkSize : missingIds.length;
         final batch = missingIds.sublist(i, end);
         try {
-          final response = await http.post(
-            Uri.parse('https://api.scryfall.com/cards/collection'),
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({'identifiers': batch.map((id) => {'id': id}).toList()}),
+          final data = await _apiService.fetchCollection(
+            batch.map((id) => {'id': id}).toList(),
           );
-          if (response.statusCode == 200) {
-            final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-            loadedCards.addAll((data['data'] as List).map((j) => ScryfallCard.fromJson(j)));
-          }
+          loadedCards.addAll((data['data'] as List).map((j) => ScryfallCard.fromJson(j)));
         } catch (e) { log('Erreur API: $e'); }
       }
     }
@@ -301,7 +298,7 @@ class _CollectionPageState extends State<CollectionPage> with TickerProviderStat
           quantityToAdd: 1
         );
         count++;
-      } catch (e) { print("Erreur ajout carte $id : $e"); }
+      } catch (e) { log("Erreur ajout carte $id : $e", name: 'CollectionPage'); }
     }
 
     if (mounted) {

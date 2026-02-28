@@ -41,7 +41,7 @@ migrate_working_dir/
 *.keystore
 keystore_base64.txt
 key.properties
-service-account.json
+**/service-account.json
 
 # Symbolication related
 app.*.symbols
@@ -75,6 +75,9 @@ __pycache__/
 repomix-output.xml
 architecture_doc_BRUT.yaml
 debug_invalid.txt
+
+.claude/worktrees/
+.claude/*.json
 
 # NOTE : On NE met PAS 'architecture_doc.yaml' ni 'ARCHITECTURE.md' ici
 # car on veut qu'ils soient sauvegardés dans Git !

@@ -2,38 +2,39 @@
 // VERSION MISE À JOUR : Infinite Scroll + Sélecteur de Versions + Filtre Keyword
 
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 import 'package:magic_companion/models/search_filters.dart';
 import 'package:magic_companion/services/local_card_service.dart';
+import 'package:magic_companion/services/scryfall_api_service.dart';
 import 'package:magic_companion/widgets/search/search_filter_modal.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/collection_service.dart';
+import '../../providers/service_providers.dart';
 import '../cards/versions_selector_sheet.dart'; // Import du sélecteur
 
-class DeckCardPicker extends StatefulWidget {
+class DeckCardPicker extends ConsumerStatefulWidget {
   const DeckCardPicker({super.key});
 
   @override
-  State<DeckCardPicker> createState() => _DeckCardPickerState();
+  ConsumerState<DeckCardPicker> createState() => _DeckCardPickerState();
 }
 
-class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProviderStateMixin {
+class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTickerProviderStateMixin {
+  CollectionService get _collectionService => ref.read(collectionServiceProvider);
+  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
+  ScryfallApiService get _apiService => ref.read(scryfallApiServiceProvider);
+
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController(); // Scroll partagé
-  
+
   // Panier de sélection : ID Scryfall -> Quantité
   final Map<String, int> _selectedQuantities = {};
   // Cache pour renvoyer l'objet carte complet à la fin
   final Map<String, ScryfallCard> _cardCache = {};
-
-  // Services
-  final CollectionService _collectionService = CollectionService();
-  final LocalCardService _localCardService = LocalCardService();
 
   // --- ONGLET 1 : RECHERCHE API ---
   final TextEditingController _searchController = TextEditingController();
@@ -233,26 +234,22 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
         return; 
       }
 
-      final uri = Uri.parse(
-        'https://api.scryfall.com/cards/search?q=${Uri.encodeComponent(finalQuery)}&unique=cards&order=$_apiSort'
+      final data = await _apiService.searchCards(
+        finalQuery,
+        unique: 'cards',
+        order: _apiSort,
       );
-      
-      final response = await http.get(uri);
-      
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        
-        // Gestion Pagination
-        _totalApiResults = data['total_cards'] ?? 0;
-        if (data['has_more'] == true) {
-          _nextApiPageUrl = data['next_page'];
-        }
 
-        final List<dynamic> raw = data['data'] ?? [];
-        setState(() {
-          _apiResults = raw.map((json) => ScryfallCard.fromJson(json)).toList();
-        });
+      // Gestion Pagination
+      _totalApiResults = data['total_cards'] ?? 0;
+      if (data['has_more'] == true) {
+        _nextApiPageUrl = data['next_page'];
       }
+
+      final List<dynamic> raw = data['data'] ?? [];
+      setState(() {
+        _apiResults = raw.map((json) => ScryfallCard.fromJson(json)).toList();
+      });
     } catch (e) {
        // Erreur silencieuse
     } finally {
@@ -265,23 +262,20 @@ class _DeckCardPickerState extends State<DeckCardPicker> with SingleTickerProvid
     setState(() { _isApiLoadingMore = true; });
 
     try {
-      final response = await http.get(Uri.parse(_nextApiPageUrl!));
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        if (data['has_more'] == true) {
-          _nextApiPageUrl = data['next_page'];
-        } else {
-          _nextApiPageUrl = null;
-        }
+      final data = await _apiService.fetchNextPage(_nextApiPageUrl!);
+      if (data['has_more'] == true) {
+        _nextApiPageUrl = data['next_page'];
+      } else {
+        _nextApiPageUrl = null;
+      }
 
-        final List<dynamic> raw = data['data'] ?? [];
-        final newCards = raw.map((json) => ScryfallCard.fromJson(json)).toList();
-        
-        if (mounted) {
-          setState(() {
-            _apiResults.addAll(newCards);
-          });
-        }
+      final List<dynamic> raw = data['data'] ?? [];
+      final newCards = raw.map((json) => ScryfallCard.fromJson(json)).toList();
+
+      if (mounted) {
+        setState(() {
+          _apiResults.addAll(newCards);
+        });
       }
     } catch (e) {
       // Erreur silencieuse

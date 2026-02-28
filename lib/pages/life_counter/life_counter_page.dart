@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/game_history_model.dart';
@@ -11,6 +12,7 @@ import 'package:magic_companion/models/player_model.dart';
 import 'package:magic_companion/models/profile_model.dart';
 import 'package:magic_companion/pages/tournaments/tournament_page.dart';
 import 'package:magic_companion/services/game_history_service.dart';
+import 'package:magic_companion/providers/service_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../widgets/life_counter/player_zone.dart';
@@ -18,15 +20,15 @@ import '../../widgets/life_counter/dice_roll_dialog.dart'; // <--- Import
 import '../../widgets/life_counter/game_setup_modal.dart'; // <--- Import
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-class LifeCounterPage extends StatefulWidget {
+class LifeCounterPage extends ConsumerStatefulWidget {
   const LifeCounterPage({super.key});
 
   @override
-  State<LifeCounterPage> createState() => _LifeCounterPageState();
+  ConsumerState<LifeCounterPage> createState() => _LifeCounterPageState();
 }
 
-class _LifeCounterPageState extends State<LifeCounterPage> {
-  final GameHistoryService _gameHistoryService = GameHistoryService();
+class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
+  GameHistoryService get _gameHistoryService => ref.read(gameHistoryServiceProvider);
   
   List<Player> _players = [];
   int _startingLife = 40; 

@@ -2,30 +2,29 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/models/search_filters.dart';
 import 'package:magic_companion/models/wishlist_model.dart';
-import 'package:magic_companion/services/collection_service.dart';
 import 'package:magic_companion/services/wishlist_service.dart';
 import 'package:magic_companion/widgets/collection/collection_list_tab.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../../services/scryfall_api_service.dart';
+import '../../providers/service_providers.dart';
 
-class WishlistDetailPage extends StatefulWidget {
+class WishlistDetailPage extends ConsumerStatefulWidget {
   final Wishlist wishlist;
   const WishlistDetailPage({super.key, required this.wishlist});
 
   @override
-  State<WishlistDetailPage> createState() => _WishlistDetailPageState();
+  ConsumerState<WishlistDetailPage> createState() => _WishlistDetailPageState();
 }
 
-class _WishlistDetailPageState extends State<WishlistDetailPage> {
-  final WishlistService _wishlistService = WishlistService();
-  // ignore: unused_field
-  final CollectionService _collectionService = CollectionService();
-  
+class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
+  WishlistService get _wishlistService => ref.read(wishlistServiceProvider);
+  ScryfallApiService get _apiService => ref.read(scryfallApiServiceProvider);
+
   late Wishlist _currentWishlist;
   List<ScryfallCard> _fullCardData = [];
   bool _isLoading = true;
@@ -63,15 +62,10 @@ class _WishlistDetailPageState extends State<WishlistDetailPage> {
       final end = (i + chunkSize < uniqueIds.length) ? i + chunkSize : uniqueIds.length;
       final batch = uniqueIds.sublist(i, end);
       try {
-        final resp = await http.post(
-          Uri.parse('https://api.scryfall.com/cards/collection'),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode({'identifiers': batch.map((id) => {'id': id}).toList()}),
+        final data = await _apiService.fetchCollection(
+          batch.map((id) => {'id': id}).toList(),
         );
-        if (resp.statusCode == 200) {
-          final data = json.decode(utf8.decode(resp.bodyBytes));
-          loaded.addAll((data['data'] as List).map((j) => ScryfallCard.fromJson(j)));
-        }
+        loaded.addAll((data['data'] as List).map((j) => ScryfallCard.fromJson(j)));
       } catch (e) {
         // Erreur silencieuse
       }

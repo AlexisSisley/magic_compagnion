@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'dart:convert';
+import 'dart:developer';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/glossary_data.dart'; // Importer notre modèle (Keyword)
@@ -78,7 +79,7 @@ class _GlossaryPageState extends State<GlossaryPage> {
         });
       }
     } catch (e) {
-      print("Erreur de chargement du glossaire: $e");
+      log("Erreur de chargement du glossaire: $e", name: 'GlossaryPage');
       if (mounted) setState(() { _isLoading = false; _allTerms = []; _displayedTerms = []; });
     }
   }

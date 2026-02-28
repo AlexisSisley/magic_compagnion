@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
+import '../cards/scryfall_image.dart';
 
 class DeckVisualShareList extends StatelessWidget {
   final Deck deck;
@@ -296,8 +297,7 @@ class DeckVisualShareList extends StatelessWidget {
 
   Widget _buildLargeCardItem(DeckCard card, bool isCommander) {
     final scryfall = _getScryfallData(card);
-    // On prend l'image "art_crop" pour le style panorama
-    final imageUrl = scryfall != null ? "https://api.scryfall.com/cards/${scryfall.id}?format=image&version=art_crop" : null;
+    final imageUrl = scryfall?.artCropUrl ?? scryfall?.imageUrl;
 
     return AspectRatio(
       aspectRatio: 2.5, // Format très large type bannière
@@ -311,10 +311,7 @@ class DeckVisualShareList extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (imageUrl != null)
-              Image.network(imageUrl, fit: BoxFit.cover, alignment: Alignment.topCenter)
-            else
-              const Center(child: Icon(Icons.image, color: Colors.white24)),
+            ScryfallImage(imageUrl: imageUrl, alignment: Alignment.topCenter),
             
             Container(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [Colors.black87, Colors.transparent, Colors.black87]))),
             
@@ -333,7 +330,7 @@ class DeckVisualShareList extends StatelessWidget {
 
   Widget _buildGridCardItem(DeckCard card, double width) {
     final scryfall = _getScryfallData(card);
-    final imageUrl = scryfall != null ? "https://api.scryfall.com/cards/${scryfall.id}?format=image&version=art_crop" : null;
+    final imageUrl = scryfall?.artCropUrl ?? scryfall?.imageUrl;
 
     return SizedBox(
       width: width,
@@ -350,9 +347,7 @@ class DeckVisualShareList extends StatelessWidget {
                 color: Colors.grey.shade900,
               ),
               clipBehavior: Clip.antiAlias,
-              child: imageUrl != null 
-                  ? Image.network(imageUrl, fit: BoxFit.cover) 
-                  : const Center(child: Icon(Icons.image, color: Colors.white12)),
+              child: ScryfallImage(imageUrl: imageUrl),
             ),
           ),
           const SizedBox(height: 6),

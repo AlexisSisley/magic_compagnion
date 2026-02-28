@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'package:cloud_functions/cloud_functions.dart';
 
 class OracleService {
@@ -13,7 +14,7 @@ class OracleService {
       );
       return result.data['response'] as String;
     } catch (e) {
-      print("Erreur Oracle: $e");
+      log("Erreur Oracle: $e", name: 'OracleService');
       return "L'Oracle est silencieux. Vérifiez votre connexion internet ou réessayez plus tard.";
     }
   }

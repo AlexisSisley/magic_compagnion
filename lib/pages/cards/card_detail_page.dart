@@ -1,17 +1,19 @@
 // Fichier : lib/pages/cards/card_detail_page.dart
 // VERSION CORRIGÉE : SafeArea ajouté sur la modale Collection
 
+import 'dart:convert';
+import 'dart:developer';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:magic_companion/pages/glossary/glossary_detail_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // IMPORTS LOCAUX
 import 'package:magic_companion/models/scryfall_card_model.dart';
@@ -23,13 +25,15 @@ import '../../services/scan_history_service.dart';
 import '../../models/scan_history_model.dart';
 import '../../services/wishlist_service.dart';
 import '../../services/local_card_service.dart';
+import '../../services/scryfall_api_service.dart';
+import '../../providers/service_providers.dart';
 
-import '../../models/scryfall_ruling.dart'; 
+import '../../models/scryfall_ruling.dart';
 import '../../widgets/cards/versions_selector_sheet.dart';
 
 enum ResultPageState { loading, selection, success, error }
 
-class RecognitionResultPage extends StatefulWidget {
+class RecognitionResultPage extends ConsumerStatefulWidget {
   final String? imagePath;
   final String? cardName;
   final bool isContinuousScan;
@@ -37,35 +41,36 @@ class RecognitionResultPage extends StatefulWidget {
   const RecognitionResultPage({super.key, this.imagePath, this.cardName, this.isContinuousScan = false});
 
   @override
-  State<RecognitionResultPage> createState() => _RecognitionResultPageState();
+  ConsumerState<RecognitionResultPage> createState() => _RecognitionResultPageState();
 }
 
-class _RecognitionResultPageState extends State<RecognitionResultPage> {
+class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
+  DeckService get _deckService => ref.read(deckServiceProvider);
+  CollectionService get _collectionService => ref.read(collectionServiceProvider);
+  ScanHistoryService get _historyService => ref.read(scanHistoryServiceProvider);
+  WishlistService get _wishlistService => ref.read(wishlistServiceProvider);
+  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
+  ScryfallApiService get _apiService => ref.read(scryfallApiServiceProvider);
+
   final TextEditingController _searchController = TextEditingController();
   ResultPageState _pageState = ResultPageState.loading;
   String _statusMessage = "Démarrage...";
-  
+
   List<ScryfallCard> _candidates = [];
   ScryfallCard? _foundCard;
-  
+
   String _userLang = 'fr';
   List<Keyword> _activeGlossary = [];
   List<ScryfallRuling> _rulings = [];
   bool _isLoadingRulings = false;
 
   final RegExp _manaSymbolRegex = RegExp(r'(\{.*?\})');
-  final DeckService _deckService = DeckService();
-  final CollectionService _collectionService = CollectionService();
-  final ScanHistoryService _historyService = ScanHistoryService();
-  final WishlistService _wishlistService = WishlistService();
-  final LocalCardService _localCardService = LocalCardService();
   
   // États locaux pour l'affichage (Counts)
   int _collectionNormalCount = 0;
   int _collectionFoilCount = 0;
   bool _inWishlist = false; // Juste un indicateur global
 
-  // ignore: unused_field
   String _currentDisplayLang = 'fr';
 
   @override
@@ -167,12 +172,9 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   Future<bool> _fetchExactCard(String set, String cn) async {
     setState(() { _statusMessage = "Identification précise ($set #$cn)..."; });
     try {
-      final response = await http.get(Uri.parse('https://api.scryfall.com/cards/$set/$cn'));
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        _selectCard(ScryfallCard.fromJson(data));
-        return true;
-      }
+      final data = await _apiService.getCardBySetAndNumber(set, cn);
+      _selectCard(ScryfallCard.fromJson(data));
+      return true;
     } catch (e) { }
     return false;
   }
@@ -189,31 +191,26 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
     final connectivityResult = await (Connectivity().checkConnectivity());
     if (!connectivityResult.contains(ConnectivityResult.none)) {
       try {
-        final encoded = Uri.encodeComponent(query);
-        final response = await http.get(Uri.parse('https://api.scryfall.com/cards/search?q=$encoded&unique=cards'));
-        
-        if (response.statusCode == 200) {
-          final data = json.decode(utf8.decode(response.bodyBytes));
-          final List<dynamic> rawList = data['data'] ?? [];
-          
-          final List<ScryfallCard> apiResults = rawList
-              .map((json) => ScryfallCard.fromJson(json))
-              .take(10)
-              .toList();
+        final data = await _apiService.searchCards(query, unique: 'cards');
+        final List<dynamic> rawList = data['data'] ?? [];
 
-          if (apiResults.isNotEmpty) {
-            if (apiResults.length == 1) {
-               _selectCard(apiResults.first);
-               return;
-            }
-            setState(() {
-              _candidates = apiResults;
-              _pageState = ResultPageState.selection; 
-            });
-            foundApi = true;
+        final List<ScryfallCard> apiResults = rawList
+            .map((json) => ScryfallCard.fromJson(json))
+            .take(10)
+            .toList();
+
+        if (apiResults.isNotEmpty) {
+          if (apiResults.length == 1) {
+             _selectCard(apiResults.first);
+             return;
           }
-        } 
-      } catch (e) { print("Erreur API Search: $e"); }
+          setState(() {
+            _candidates = apiResults;
+            _pageState = ResultPageState.selection;
+          });
+          foundApi = true;
+        }
+      } catch (e) { log("Erreur API Search: $e", name: 'CardDetailPage'); }
     }
 
     if (!foundApi && _localCardService.isLoaded) {
@@ -723,14 +720,11 @@ class _RecognitionResultPageState extends State<RecognitionResultPage> {
   Future<void> _fetchRulings(String cardId) async {
     setState(() { _isLoadingRulings = true; });
     try {
-      final response = await http.get(Uri.parse('https://api.scryfall.com/cards/$cardId/rulings'));
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-        final List<dynamic> rulingsList = data['data'] ?? [];
-        setState(() {
-          _rulings = rulingsList.map((rulingJson) => ScryfallRuling(date: rulingJson['published_at'], comment: rulingJson['comment'])).toList();
-        });
-      }
+      final Map<String, dynamic> data = await _apiService.getCardRulings(cardId);
+      final List<dynamic> rulingsList = data['data'] ?? [];
+      setState(() {
+        _rulings = rulingsList.map((rulingJson) => ScryfallRuling(date: rulingJson['published_at'], comment: rulingJson['comment'])).toList();
+      });
     } catch (e) { }
     if(mounted) setState(() { _isLoadingRulings = false; });
   }

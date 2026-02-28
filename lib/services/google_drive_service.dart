@@ -1,5 +1,6 @@
 // Fichier : lib/services/google_drive_service.dart
 import 'dart:convert';
+import 'dart:developer';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
@@ -25,7 +26,7 @@ class GoogleDriveService {
       }
       return _currentUser != null;
     } catch (e) {
-      print("Erreur Google Sign In: $e");
+      log("Erreur Google Sign In: $e", name: 'GoogleDriveService');
       return false;
     }
   }
@@ -107,7 +108,7 @@ class GoogleDriveService {
         existingFile.id!, 
         uploadMedia: media
       );
-      print("Sauvegarde Drive mise à jour : ${existingFile.id}");
+      log("Sauvegarde Drive mise à jour : ${existingFile.id}", name: 'GoogleDriveService');
     } else {
       final fileToUpload = drive.File();
       fileToUpload.name = _backupFileName;
@@ -116,7 +117,7 @@ class GoogleDriveService {
         fileToUpload, 
         uploadMedia: media
       );
-      print("Nouvelle sauvegarde Drive créée.");
+      log("Nouvelle sauvegarde Drive créée.", name: 'GoogleDriveService');
     }
   }
 }

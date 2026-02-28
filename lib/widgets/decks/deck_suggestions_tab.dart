@@ -2,6 +2,7 @@
 // VERSION OPTIMISÉE : Suppression du goulot d'étranglement (Smart Match)
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/deck_model.dart';
@@ -9,8 +10,9 @@ import '../../models/scryfall_card_model.dart';
 import '../../services/edhrec_service.dart';
 import '../../services/local_card_service.dart';
 import '../../pages/cards/card_detail_page.dart';
+import '../../providers/service_providers.dart';
 
-class DeckSuggestionsTab extends StatefulWidget {
+class DeckSuggestionsTab extends ConsumerStatefulWidget {
   final Deck deck;
 
   const DeckSuggestionsTab({
@@ -19,18 +21,17 @@ class DeckSuggestionsTab extends StatefulWidget {
   });
 
   @override
-  State<DeckSuggestionsTab> createState() => _DeckSuggestionsTabState();
+  ConsumerState<DeckSuggestionsTab> createState() => _DeckSuggestionsTabState();
 }
 
-class _DeckSuggestionsTabState extends State<DeckSuggestionsTab> {
-  final EdhrecService _edhrecService = EdhrecService();
-  final LocalCardService _localCardService = LocalCardService();
+class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
+  EdhrecService get _edhrecService => ref.read(edhrecServiceProvider);
+  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
   
   Map<String, List<ScryfallCard>> _suggestions = {};
   
   bool _isLoading = false;
   bool _hasLoaded = false;
-  // ignore: unused_field
   String? _errorMsg;
 
   @override

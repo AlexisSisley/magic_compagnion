@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/profile_service.dart';
+import '../../providers/service_providers.dart';
 
 class TournamentPlayer {
   String id;
@@ -39,17 +41,18 @@ class TournamentMatch {
   TournamentPlayer? get loser => !isFinished ? null : (score1 > score2 ? player2 : player1);
 }
 
-class TournamentPage extends StatefulWidget {
+class TournamentPage extends ConsumerStatefulWidget {
   const TournamentPage({super.key});
   @override
-  State<TournamentPage> createState() => _TournamentPageState();
+  ConsumerState<TournamentPage> createState() => _TournamentPageState();
 }
 
-class _TournamentPageState extends State<TournamentPage> with SingleTickerProviderStateMixin {
-  int _status = 0; 
+class _TournamentPageState extends ConsumerState<TournamentPage> with SingleTickerProviderStateMixin {
+  ProfileService get _profileService => ref.read(profileServiceProvider);
+
+  int _status = 0;
   List<TournamentPlayer> _players = [];
   final TextEditingController _nameController = TextEditingController();
-  final ProfileService _profileService = ProfileService();
   
   List<TournamentMatch> _winnerBracket = [];
   List<TournamentMatch> _loserBracket = [];

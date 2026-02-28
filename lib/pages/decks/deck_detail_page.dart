@@ -1,22 +1,23 @@
 // Fichier : lib/pages/decks/deck_detail_page.dart
 
 import 'dart:developer';
-import 'dart:convert';
-import 'dart:io'; 
-import 'dart:ui' as ui; 
+import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart'; 
-import 'package:flutter/services.dart'; 
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
-import 'package:magic_companion/services/wishlist_service.dart';
-import 'package:path_provider/path_provider.dart'; 
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/deck_service.dart';
 import '../../services/collection_service.dart';
+import '../../services/wishlist_service.dart';
+import '../../services/scryfall_api_service.dart';
+import '../../providers/service_providers.dart';
 
 import '../../widgets/decks/deck_stats_tab.dart';
 import '../../widgets/decks/deck_suggestions_tab.dart';
@@ -26,23 +27,24 @@ import '../../widgets/decks/deck_card_picker.dart';
 // IMPORT DU NOUVEAU WIDGET
 import '../../widgets/decks/deck_visual_share_list.dart'; 
 
-class DeckDetailPage extends StatefulWidget {
+class DeckDetailPage extends ConsumerStatefulWidget {
   final Deck deck;
   const DeckDetailPage({super.key, required this.deck});
 
   @override
-  State<DeckDetailPage> createState() => _DeckDetailPageState();
+  ConsumerState<DeckDetailPage> createState() => _DeckDetailPageState();
 }
 
-class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStateMixin {
+class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProviderStateMixin {
+  DeckService get _deckService => ref.read(deckServiceProvider);
+  CollectionService get _collectionService => ref.read(collectionServiceProvider);
+  WishlistService get _wishlistService => ref.read(wishlistServiceProvider);
+  ScryfallApiService get _apiService => ref.read(scryfallApiServiceProvider);
+
   late Deck _currentDeck;
-  final DeckService _deckService = DeckService();
-  final CollectionService _collectionService = CollectionService();
-  final WishlistService _wishlistService = WishlistService();
   late TabController _tabController;
   
-  // ignore: unused_field
-  bool _isValidating = false; 
+  bool _isValidating = false;
   bool _isLoading = true;
   
   List<ScryfallCard> _fullCardData = [];
@@ -99,21 +101,13 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
     for (var i = 0; i < uniqueIds.length; i += chunkSize) {
       final end = (i + chunkSize < uniqueIds.length) ? i + chunkSize : uniqueIds.length;
       final batchIds = uniqueIds.sublist(i, end);
-      
-      final requestBody = json.encode({'identifiers': batchIds.map((id) => {'id': id}).toList()});
 
       try {
-        final response = await http.post(
-          Uri.parse('https://api.scryfall.com/cards/collection'),
-          headers: {'Content-Type': 'application/json'},
-          body: requestBody,
+        final data = await _apiService.fetchCollection(
+          batchIds.map((id) => {'id': id}).toList(),
         );
-
-        if (response.statusCode == 200) {
-          final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-          final List<ScryfallCard> batchCards = (data['data'] as List).map((cardJson) => ScryfallCard.fromJson(cardJson)).toList();
-          loadedCards.addAll(batchCards);
-        }
+        final List<ScryfallCard> batchCards = (data['data'] as List).map((cardJson) => ScryfallCard.fromJson(cardJson)).toList();
+        loadedCards.addAll(batchCards);
       } catch (e) { log('Exception Scryfall: $e'); }
       await Future.delayed(const Duration(milliseconds: 50));
     }
@@ -745,11 +739,11 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
   }
 
   Widget _buildSingleCommander(String id, String label) {
-    String imageUrl = "";
+    String? imageUrl;
     String name = "Chargement...";
     try {
       final card = _fullCardData.firstWhere((c) => c.id == id);
-      imageUrl = "https://api.scryfall.com/cards/$id?format=image&version=art_crop";
+      imageUrl = card.artCropUrl ?? card.imageUrl;
       name = card.name;
     } catch(e) {}
 
@@ -767,7 +761,9 @@ class _DeckDetailPageState extends State<DeckDetailPage> with TickerProviderStat
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (imageUrl.isNotEmpty) Image.network(imageUrl, fit: BoxFit.cover, alignment: Alignment.topCenter),
+                  if (imageUrl != null && imageUrl.isNotEmpty)
+                    Image.network(imageUrl, fit: BoxFit.cover, alignment: Alignment.topCenter,
+                      errorBuilder: (c, e, s) => const SizedBox()),
                   Container(
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black87])

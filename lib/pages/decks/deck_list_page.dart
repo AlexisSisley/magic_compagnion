@@ -1,29 +1,33 @@
 // Fichier : lib/pages/decks/deck_list_page.dart
 
-import 'dart:convert';
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 import 'package:magic_companion/data/secondary_breakfast.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/pages/decks/deck_detail_page.dart';
 import '../../models/deck_model.dart';
 import '../../services/deck_service.dart';
 import '../../services/local_card_service.dart';
+import '../../services/scryfall_api.dart';
+import '../../services/scryfall_api_service.dart';
+import '../../widgets/cards/scryfall_image.dart';
+import '../../providers/service_providers.dart';
 
-class DeckListPage extends StatefulWidget {
+class DeckListPage extends ConsumerStatefulWidget {
   const DeckListPage({super.key});
 
   @override
-  State<DeckListPage> createState() => _DeckListPageState();
+  ConsumerState<DeckListPage> createState() => _DeckListPageState();
 }
 
-class _DeckListPageState extends State<DeckListPage> {
-  final DeckService _deckService = DeckService();
-  final LocalCardService _localCardService = LocalCardService();
+class _DeckListPageState extends ConsumerState<DeckListPage> {
+  DeckService get _deckService => ref.read(deckServiceProvider);
+  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
+  ScryfallApiService get _apiService => ref.read(scryfallApiServiceProvider);
 
   List<Deck> _decks = [];
   List<Deck> _filteredDecks = [];
@@ -269,13 +273,10 @@ class _DeckListPageState extends State<DeckListPage> {
     
     List<ScryfallCard> scryfallData = [];
     if (ids.isNotEmpty) {
-      final query = ids.take(75).map((n) => '!${json.encode(n)}').join(' OR ');
+      final query = ids.take(75).map((n) => '!"$n"').join(' OR ');
       try {
-        final resp = await http.get(Uri.parse('https://api.scryfall.com/cards/search?q=${Uri.encodeComponent(query)}&unique=cards'));
-        if (resp.statusCode == 200) {
-           final data = json.decode(utf8.decode(resp.bodyBytes));
-           scryfallData = (data['data'] as List).map((j) => ScryfallCard.fromJson(j)).toList();
-        }
+        final data = await _apiService.searchCards(query, unique: 'cards');
+        scryfallData = (data['data'] as List).map((j) => ScryfallCard.fromJson(j)).toList();
       } catch (e) { log("Erreur import: $e"); }
     }
 
@@ -649,13 +650,11 @@ class _DeckListPageState extends State<DeckListPage> {
                 Row(
                   children: [
                     if (isCommander)
-                      ClipRRect(
+                      ScryfallImage(
+                        imageUrl: ScryfallApi.artCropRedirectUrl(deck.commanderScryfallId!),
+                        width: 50, height: 50,
                         borderRadius: BorderRadius.circular(20),
-                        child: Image.network(
-                          "https://api.scryfall.com/cards/${deck.commanderScryfallId}?format=image&version=art_crop",
-                          width: 50, height: 50, fit: BoxFit.cover,
-                          errorBuilder: (c,e,s) => Icon(Icons.shield_outlined, color: Colors.yellow.shade700, size: 28),
-                        ),
+                        errorWidget: Icon(Icons.shield_outlined, color: Colors.yellow.shade700, size: 28),
                       )
                     else
                       Container(

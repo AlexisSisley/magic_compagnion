@@ -1,17 +1,19 @@
 // Fichier : lib/pages/settings_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/backup_service.dart';
+import '../../providers/service_providers.dart';
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
-  final BackupService _backupService = BackupService();
+class _SettingsPageState extends ConsumerState<SettingsPage> {
+  BackupService get _backupService => ref.read(backupServiceProvider);
   bool _isLoading = false;
 
   Future<void> _export() async {

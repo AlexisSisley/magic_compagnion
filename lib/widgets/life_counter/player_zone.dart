@@ -3,14 +3,17 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; 
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart'; 
+import 'package:image_picker/image_picker.dart';
 import '../../models/player_model.dart';
-import '../../models/scryfall_card_model.dart'; 
-import '../../services/local_card_service.dart'; 
+import '../../models/scryfall_card_model.dart';
+import '../../services/local_card_service.dart';
+import '../../providers/service_providers.dart';
 // Import du sélecteur de versions pour choisir l'artwork
-import '../cards/versions_selector_sheet.dart'; 
+import '../cards/versions_selector_sheet.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 enum CounterMode { life, poison, energy, commanderTax }
 
@@ -24,7 +27,7 @@ class _FloatingNumber {
   _FloatingNumber({required this.id, required this.text, required this.color});
 }
 
-class PlayerZone extends StatefulWidget {
+class PlayerZone extends ConsumerStatefulWidget {
   const PlayerZone({
     super.key,
     required this.player,
@@ -51,12 +54,13 @@ class PlayerZone extends StatefulWidget {
   final VoidCallback onShowCommanderDamage;
 
   @override
-  State<PlayerZone> createState() => _PlayerZoneState();
+  ConsumerState<PlayerZone> createState() => _PlayerZoneState();
 }
 
-class _PlayerZoneState extends State<PlayerZone> {
+class _PlayerZoneState extends ConsumerState<PlayerZone> {
+  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
+
   final List<_FloatingNumber> _floatingNumbers = [];
-  final LocalCardService _localCardService = LocalCardService();
   
   int _nextNumberId = 0;
   CounterMode _editMode = CounterMode.life;
@@ -189,8 +193,8 @@ class _PlayerZoneState extends State<PlayerZone> {
       builder: (context) => _ArtworkSearchModal(
         localCardService: _localCardService,
         onCardSelected: (ScryfallCard card) {
-          // On génère l'URL "Art Crop" pour avoir l'illustration plein cadre
-          final String artUrl = "https://api.scryfall.com/cards/${card.id}?format=image&version=art_crop";
+          // Utilise l'URL art_crop directe si disponible, sinon fallback normal
+          final String artUrl = card.artCropUrl ?? card.imageUrl;
           if (widget.onSkinChanged != null) {
             widget.onSkinChanged!(artUrl);
           }
@@ -469,13 +473,26 @@ class _PlayerZoneState extends State<PlayerZone> {
   }
 
   Widget _buildImage(String path) {
-    ImageProvider provider;
     if (path.startsWith('http')) {
-      provider = NetworkImage(path);
-    } else {
-      provider = FileImage(File(path));
+      return CachedNetworkImage(
+        imageUrl: path,
+        httpHeaders: const {'User-Agent': 'MagicCompanion/1.0', 'Accept': '*/*'},
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        placeholder: (context, url) => Container(color: Colors.grey.shade900),
+        errorWidget: (context, url, error) => Container(
+          color: Colors.grey.shade900,
+          child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white24)),
+        ),
+      );
     }
-    return Image(image: provider, fit: BoxFit.cover);
+    return Image(image: FileImage(File(path)), fit: BoxFit.cover,
+      errorBuilder: (c, e, s) => Container(
+        color: Colors.grey.shade900,
+        child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white24)),
+      ),
+    );
   }
 
   Widget _buildMiniCounter(CounterMode mode, int value) {

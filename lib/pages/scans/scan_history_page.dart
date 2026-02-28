@@ -3,23 +3,25 @@
 
 import 'dart:io'; // Pour afficher l'image depuis le chemin (File)
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/scan_history_model.dart';
 import '../../services/scan_history_service.dart';
 import '../../services/collection_service.dart';
+import '../../providers/service_providers.dart';
 import 'package:intl/intl.dart';
 import '../cards/card_detail_page.dart'; // Notre page de détail
 
-class ScanHistoryPage extends StatefulWidget {
+class ScanHistoryPage extends ConsumerStatefulWidget {
   const ScanHistoryPage({super.key});
 
   @override
-  State<ScanHistoryPage> createState() => _ScanHistoryPageState();
+  ConsumerState<ScanHistoryPage> createState() => _ScanHistoryPageState();
 }
 
-class _ScanHistoryPageState extends State<ScanHistoryPage> {
-  final ScanHistoryService _historyService = ScanHistoryService();
-  final CollectionService _collectionService = CollectionService();
+class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
+  ScanHistoryService get _historyService => ref.read(scanHistoryServiceProvider);
+  CollectionService get _collectionService => ref.read(collectionServiceProvider);
   
   List<ScanHistoryItem> _history = [];
   bool _isLoading = true;

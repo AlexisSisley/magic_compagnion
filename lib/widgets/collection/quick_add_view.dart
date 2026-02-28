@@ -2,12 +2,14 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/local_card_service.dart';
+import '../../providers/service_providers.dart';
 
-class QuickAddView extends StatefulWidget {
+class QuickAddView extends ConsumerStatefulWidget {
   final String query;
   final List<DeckCard> collection;
   final Function(ScryfallCard) onAdd;
@@ -22,11 +24,11 @@ class QuickAddView extends StatefulWidget {
   });
 
   @override
-  State<QuickAddView> createState() => _QuickAddViewState();
+  ConsumerState<QuickAddView> createState() => _QuickAddViewState();
 }
 
-class _QuickAddViewState extends State<QuickAddView> {
-  final LocalCardService _localService = LocalCardService();
+class _QuickAddViewState extends ConsumerState<QuickAddView> {
+  LocalCardService get _localService => ref.read(localCardServiceProvider);
   List<ScryfallCard> _results = [];
   bool _isLoading = false;
   Timer? _debounce;

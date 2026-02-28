@@ -2,27 +2,32 @@
 // Devenu un composant (Tab) réutilisable
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/scryfall_set_model.dart';
 import '../../services/set_service.dart';
 import '../../services/collection_service.dart';
 import '../../services/local_card_service.dart';
+import '../../providers/service_providers.dart';
 
-class SetListTab extends StatefulWidget {
+class SetListTab extends ConsumerStatefulWidget {
   // Ce callback permet au parent (CardSearchPage) de savoir qu'on a cliqué
-  final Function(ScryfallSet) onSetSelected; 
+  final Function(ScryfallSet) onSetSelected;
 
   const SetListTab({super.key, required this.onSetSelected});
 
   @override
-  State<SetListTab> createState() => _SetListTabState();
+  ConsumerState<SetListTab> createState() => _SetListTabState();
 }
 
-class _SetListTabState extends State<SetListTab> {
-  final SetService _setService = SetService();
+class _SetListTabState extends ConsumerState<SetListTab> {
+  SetService get _setService => ref.read(setServiceProvider);
+  CollectionService get _collectionService => ref.read(collectionServiceProvider);
+  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
+
   final TextEditingController _searchController = TextEditingController();
-  
+
   List<ScryfallSet> _allSets = [];
   List<ScryfallSet> _filteredSets = [];
   bool _isLoading = true;
@@ -42,9 +47,6 @@ class _SetListTabState extends State<SetListTab> {
     'funny': 'Fun / Un-sets',
     'token': 'Tokens',
   };
-
-  final CollectionService _collectionService = CollectionService();
-  final LocalCardService _localCardService = LocalCardService();
   Map<String, int> _ownedCountPerSet = {};
 
   @override

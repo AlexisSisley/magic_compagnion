@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/profile_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/profile_service.dart';
 import '../../widgets/decks/deck_card_picker.dart';
+import '../../widgets/cards/scryfall_image.dart';
+import '../../providers/service_providers.dart';
 
-class ProfileManagementPage extends StatefulWidget {
+class ProfileManagementPage extends ConsumerStatefulWidget {
   const ProfileManagementPage({super.key});
 
   @override
-  State<ProfileManagementPage> createState() => _ProfileManagementPageState();
+  ConsumerState<ProfileManagementPage> createState() => _ProfileManagementPageState();
 }
 
-class _ProfileManagementPageState extends State<ProfileManagementPage> {
-  final ProfileService _profileService = ProfileService();
+class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
+  ProfileService get _profileService => ref.read(profileServiceProvider);
   List<Profile> _profiles = [];
   bool _isLoading = true;
 
@@ -85,9 +88,10 @@ class _ProfileManagementPageState extends State<ProfileManagementPage> {
 
   Widget _buildDoubleAvatar(Profile p) {
     if (p.secondaryCommanderScryfallId == null) {
-      return CircleAvatar(
+      return ScryfallAvatarImage(
+        imageUrl: p.commanderImageUrl,
+        radius: 20,
         backgroundColor: Color(p.colorValue),
-        backgroundImage: p.commanderImageUrl != null ? NetworkImage(p.commanderImageUrl!) : null,
       );
     }
     return Container(
@@ -96,8 +100,8 @@ class _ProfileManagementPageState extends State<ProfileManagementPage> {
       decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Color(p.colorValue), width: 2)),
       child: Row(
         children: [
-          Expanded(child: Image.network(p.commanderImageUrl!, fit: BoxFit.cover)),
-          Expanded(child: Image.network(p.secondaryCommanderImageUrl!, fit: BoxFit.cover)),
+          Expanded(child: ScryfallImage(imageUrl: p.commanderImageUrl)),
+          Expanded(child: ScryfallImage(imageUrl: p.secondaryCommanderImageUrl)),
         ],
       ),
     );
@@ -181,8 +185,10 @@ class _ProfileManagementPageState extends State<ProfileManagementPage> {
                     colorValue: selectedColor.value,
                     commanderScryfallId: cmd1?.id ?? existing?.commanderScryfallId,
                     commanderName: cmd1?.name ?? existing?.commanderName,
+                    commanderArtCropUrl: cmd1?.artCropUrl ?? existing?.commanderArtCropUrl,
                     secondaryCommanderScryfallId: cmd2?.id ?? existing?.secondaryCommanderScryfallId,
                     secondaryCommanderName: cmd2?.name ?? existing?.secondaryCommanderName,
+                    secondaryCommanderArtCropUrl: cmd2?.artCropUrl ?? existing?.secondaryCommanderArtCropUrl,
                   );
                   await _profileService.saveProfile(p);
                   Navigator.pop(context);

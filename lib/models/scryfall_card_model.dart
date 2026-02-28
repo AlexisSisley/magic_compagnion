@@ -9,6 +9,7 @@ class ScryfallCard {
   final double? cmc;
   final String imageUrl;
   final String? smallImageUrl;
+  final String? artCropUrl;
   final String rulesText;
   final String typeLine;
   final Map<String, String> legalities;
@@ -33,6 +34,7 @@ class ScryfallCard {
     this.cmc,
     required this.imageUrl,
     this.smallImageUrl,
+    this.artCropUrl,
     required this.rulesText,
     required this.typeLine,
     required this.legalities,
@@ -49,6 +51,7 @@ class ScryfallCard {
   factory ScryfallCard.fromJson(Map<String, dynamic> json) {
     String imageUrl = '';
     String? smallImageUrl;
+    String? artCropUrl;
     String rulesText = '';
     String? manaCost;
     String? printedName;
@@ -58,6 +61,7 @@ class ScryfallCard {
       final face = json['card_faces'][0];
       imageUrl = face['image_uris']['normal'] ?? '';
       smallImageUrl = face['image_uris']['small'] ?? '';
+      artCropUrl = face['image_uris']['art_crop'] as String?;
       rulesText = face['printed_text'] ?? face['oracle_text'] ?? '';
       manaCost = face['mana_cost'];
       printedName = face['printed_name'];
@@ -66,6 +70,7 @@ class ScryfallCard {
       if (json['image_uris'] != null) {
         imageUrl = json['image_uris']['normal'] ?? '';
         smallImageUrl = json['image_uris']['small'] ?? '';
+        artCropUrl = json['image_uris']['art_crop'] as String?;
       }
       rulesText = json['printed_text'] ?? json['oracle_text'] ?? '';
       manaCost = json['mana_cost'];
@@ -89,6 +94,7 @@ class ScryfallCard {
       cmc: cmc,
       imageUrl: imageUrl,
       smallImageUrl: smallImageUrl,
+      artCropUrl: artCropUrl,
       rulesText: rulesText,
       typeLine: json['type_line'] ?? 'Type inconnu',
       legalities: Map<String, String>.from(json['legalities'] ?? {}),

@@ -99,16 +99,43 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # 7. DÉCOMPRESSION DES DONNÉES (Important !)
-      - name: Unzip Data Files
+      # 7. ANALYSE STATIQUE & TESTS
+      - name: Flutter Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Unzip Data Files (for tests)
         run: |
           echo "Décompression des données..."
           unzip assets/json/cards_data.zip -d assets/json/
+
+      - name: Run Flutter Tests with Coverage
+        run: flutter test --coverage
+
+      - name: Check Coverage Threshold
+        run: |
+          if [ ! -f coverage/lcov.info ]; then
+            echo "No coverage file found, skipping threshold check"
+            exit 0
+          fi
+          # Calcul couverture globale
+          TOTAL_LINES=$(grep -c "DA:" coverage/lcov.info || echo "0")
+          HIT_LINES=$(grep "DA:" coverage/lcov.info | grep -v ",0$" | wc -l || echo "0")
+          if [ "$TOTAL_LINES" -eq 0 ]; then
+            echo "No coverage data found"
+            exit 0
+          fi
+          COVERAGE=$((HIT_LINES * 100 / TOTAL_LINES))
+          echo "Coverage: $COVERAGE% ($HIT_LINES/$TOTAL_LINES lines)"
+          if [ "$COVERAGE" -lt 30 ]; then
+            echo "::warning::Coverage is $COVERAGE%, below threshold of 30%"
+          fi
+
+      # 8. KEYSTORE
       - name: Decode Keystore
         run: |
           echo "${{ secrets.PLAY_STORE_UPLOAD_KEY }}" | base64 --decode > android/app/upload-keystore.jks
 
-      # 8. BUILD APK AVEC LA NOUVELLE VERSION
+      # 9. BUILD APK AVEC LA NOUVELLE VERSION
       - name: Build Release APK
         run: |
           VERSION_NAME=${{ steps.version_step.outputs.version }}

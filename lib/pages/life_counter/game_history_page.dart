@@ -1,21 +1,23 @@
 // Fichier : lib/pages/life_counter/game_history_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../models/game_history_model.dart';
 import '../../services/game_history_service.dart';
+import '../../providers/service_providers.dart';
 import 'game_history_detail_page.dart';
 
-class GameHistoryPage extends StatefulWidget {
+class GameHistoryPage extends ConsumerStatefulWidget {
   const GameHistoryPage({super.key});
 
   @override
-  State<GameHistoryPage> createState() => _GameHistoryPageState();
+  ConsumerState<GameHistoryPage> createState() => _GameHistoryPageState();
 }
 
-class _GameHistoryPageState extends State<GameHistoryPage> {
-  final GameHistoryService _service = GameHistoryService();
+class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
+  GameHistoryService get _service => ref.read(gameHistoryServiceProvider);
   List<GameHistoryItem> _history = [];
   bool _isLoading = true;
 

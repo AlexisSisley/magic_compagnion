@@ -2,15 +2,34 @@
 
 import 'dart:convert';
 import 'dart:developer';
-import 'package:http/http.dart' as http;
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/deck_model.dart'; 
+import '../data/database/app_database.dart';
+import '../models/deck_model.dart';
+import 'scryfall_api_service.dart';
 
 class CollectionService {
-  static const _collectionKey = 'user_collection'; 
+  static const _collectionKey = 'user_collection';
+  final AppDatabase? _db;
+  final ScryfallApiService? _api;
+
+  CollectionService({AppDatabase? database, ScryfallApiService? api})
+      : _db = database,
+        _api = api;
 
   Future<List<DeckCard>> loadCollection() async {
+    if (_db != null) {
+      final cards = await _db!.getAllCollectionCards();
+      return cards.map((c) => DeckCard(
+        scryfallId: c.scryfallId,
+        name: c.name,
+        quantity: c.quantity,
+        proxyQuantity: c.proxyQuantity,
+        isFoil: c.isFoil,
+        tags: AppDatabase.decodeTags(c.tags),
+      )).toList();
+    }
+    // Fallback SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     final String? collectionJson = prefs.getString(_collectionKey);
     if (collectionJson == null) return [];
@@ -19,67 +38,79 @@ class CollectionService {
   }
 
   Future<void> _saveCollection(List<DeckCard> collection) async {
+    if (_db != null) return; // Pas besoin avec drift, les ops sont atomiques
     final prefs = await SharedPreferences.getInstance();
     final List<Map<String, dynamic>> jsonList = collection.map((card) => card.toJson()).toList();
     await prefs.setString(_collectionKey, json.encode(jsonList));
   }
 
   /// Ajoute ou modifie une carte dans la collection.
-  /// Supporte maintenant la distinction Foil / Non-Foil.
+  /// Supporte la distinction Foil / Non-Foil.
   Future<List<DeckCard>> upsertCardInCollection({
     required String scryfallId,
     required String cardName,
-    int? quantityToAdd,     
+    int? quantityToAdd,
     int? absoluteQuantity,
     bool isFoil = false,
-    List<String>? newTags, // <--- Gestion Tags
+    List<String>? newTags,
   }) async {
+    if (_db != null) {
+      await _db!.upsertCollectionCard(
+        scryfallId: scryfallId,
+        cardName: cardName,
+        quantityToAdd: quantityToAdd,
+        absoluteQuantity: absoluteQuantity,
+        isFoil: isFoil,
+        newTags: newTags,
+      );
+      return loadCollection();
+    }
+    // Fallback SharedPreferences
     final collection = await loadCollection();
     _upsertInMemory(collection, scryfallId, cardName, quantityToAdd, absoluteQuantity, isFoil: isFoil, newTags: newTags);
     await _saveCollection(collection);
     return collection;
   }
 
-  // Helper privé
+  // Helper prive (utilise uniquement en mode SharedPreferences)
   void _upsertInMemory(List<DeckCard> collection, String scryfallId, String cardName, int? qtyAdd, int? absQty, {bool isFoil = false, List<String>? newTags}) {
-    try {
-      final existingCard = collection.firstWhere(
-        (c) => c.scryfallId == scryfallId && c.isFoil == isFoil
-      );
-      
+    final index = collection.indexWhere(
+      (c) => c.scryfallId == scryfallId && c.isFoil == isFoil
+    );
+
+    if (index != -1) {
+      final existingCard = collection[index];
       int newQuantity = existingCard.quantity;
       if (qtyAdd != null) newQuantity += qtyAdd;
       else if (absQty != null) newQuantity = absQty;
 
-      // Mise à jour des tags si fournis
       if (newTags != null) {
         existingCard.tags = newTags;
       }
 
-      if (newQuantity <= 0) collection.remove(existingCard); 
-      else existingCard.quantity = newQuantity; 
-      
-    } catch (e) {
+      if (newQuantity <= 0) collection.removeAt(index);
+      else existingCard.quantity = newQuantity;
+    } else {
       int newQuantity = 0;
       if (qtyAdd != null) newQuantity = qtyAdd;
       else if (absQty != null) newQuantity = absQty;
-      
+
       if (newQuantity > 0) {
         collection.add(DeckCard(
-          scryfallId: scryfallId, 
-          name: cardName, 
+          scryfallId: scryfallId,
+          name: cardName,
           quantity: newQuantity,
           isFoil: isFoil,
-          tags: newTags ?? [] // Init tags
+          tags: newTags ?? [],
         ));
       }
     }
   }
-  
+
    Future<void> addCard(ScryfallCard card, int quantity, {bool isFoil = false}) async {
       await upsertCardInCollection(
-        scryfallId: card.id, 
-        cardName: card.name, 
+        scryfallId: card.id,
+        cardName: card.name,
         quantityToAdd: quantity,
         isFoil: isFoil
       );
@@ -93,7 +124,7 @@ class CollectionService {
 
      final RegExp regex = RegExp(r'^(\d+)?\s?x?\s?(.*)$');
      Map<String, int> cardsToFetch = {};
-     
+
      for (String line in rawNames) {
        final match = regex.firstMatch(line.trim());
        if (match != null) {
@@ -114,57 +145,65 @@ class CollectionService {
        final batchNames = uniqueNames.sublist(i, end);
 
        final identifiers = batchNames.map((name) => {'name': name}).toList();
-       
-       try {
-         final response = await http.post(
-           Uri.parse('https://api.scryfall.com/cards/collection'),
-           headers: {'Content-Type': 'application/json'},
-           body: json.encode({'identifiers': identifiers}),
-         );
 
-         if (response.statusCode == 200) {
-           final data = json.decode(utf8.decode(response.bodyBytes));
+       try {
+         final apiService = _api ?? ScryfallApiService();
+         final data = await apiService.fetchCollection(identifiers);
+         {
            final List<dynamic> foundCards = data['data'] ?? [];
-           
+
            for (var cardJson in foundCards) {
              final scCard = ScryfallCard.fromJson(cardJson);
              String originalKey = cardsToFetch.keys.firstWhere(
                (k) => scCard.name.toLowerCase().contains(k.toLowerCase()) || k.toLowerCase().contains(scCard.name.toLowerCase()),
                orElse: () => scCard.name
              );
-             
+
              int qtyToAdd = cardsToFetch[originalKey] ?? 1;
-             
-             // Par défaut, l'import de masse ajoute en Non-Foil
-             _upsertInMemory(collection, scCard.id, scCard.name, qtyToAdd, null, isFoil: false);
+
+             if (_db != null) {
+               await _db!.upsertCollectionCard(
+                 scryfallId: scCard.id,
+                 cardName: scCard.name,
+                 quantityToAdd: qtyToAdd,
+                 isFoil: false,
+               );
+             } else {
+               _upsertInMemory(collection, scCard.id, scCard.name, qtyToAdd, null, isFoil: false);
+             }
              addedCount += qtyToAdd;
            }
-         } else {
-           errorCount += batchNames.length;
          }
        } catch (e) {
          log("Erreur batch import: $e");
          errorCount += batchNames.length;
        }
-       
+
        await Future.delayed(const Duration(milliseconds: 100));
      }
 
-     await _saveCollection(collection);
+     if (_db == null) {
+       await _saveCollection(collection);
+     }
      return {'added': addedCount, 'errors': errorCount};
    }
 
-    // Gestion de l'historique financier (inchangé)
+    // Gestion de l'historique financier
     Future<void> recordDailyValue(double totalValue) async {
-      final prefs = await SharedPreferences.getInstance();
       final now = DateTime.now();
       final todayKey = "${now.year}-${now.month}-${now.day}";
-      
+
+      if (_db != null) {
+        await _db!.recordDailyValue(todayKey, totalValue);
+        return;
+      }
+      // Fallback SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
       String? jsonHistory = prefs.getString('collection_value_history');
       Map<String, dynamic> history = jsonHistory != null ? json.decode(jsonHistory) : {};
-      
+
       history[todayKey] = totalValue;
-      
+
       // Nettoyage > 30 jours
       final sortedKeys = history.keys.toList()..sort();
       if (sortedKeys.length > 30) {
@@ -172,32 +211,35 @@ class CollectionService {
           history.remove(sortedKeys[i]);
         }
       }
-      
+
       await prefs.setString('collection_value_history', json.encode(history));
     }
 
     Future<Map<String, double>?> getEvolutionSince(int daysAgo) async {
+      if (_db != null) {
+        return _db!.getCollectionEvolution(daysAgo);
+      }
+      // Fallback SharedPreferences
        final prefs = await SharedPreferences.getInstance();
        String? jsonHistory = prefs.getString('collection_value_history');
        if (jsonHistory == null) return null;
-       
+
        Map<String, dynamic> history = json.decode(jsonHistory);
        if (history.isEmpty) return null;
 
        final sortedKeys = history.keys.toList()..sort();
        final String todayKey = sortedKeys.last;
        final double currentValue = (history[todayKey] as num).toDouble();
-       
-       // Trouver la date la plus proche il y a X jours
+
        int targetIndex = sortedKeys.length - 1 - daysAgo;
        if (targetIndex < 0) targetIndex = 0;
-       
+
        final String pastKey = sortedKeys[targetIndex];
        final double pastValue = (history[pastKey] as num).toDouble();
-       
+
        double diffValue = currentValue - pastValue;
        double diffPercentage = pastValue > 0 ? (diffValue / pastValue) * 100 : 0.0;
-       
+
        return {
          'currentValue': currentValue,
          'pastValue': pastValue,
@@ -207,10 +249,17 @@ class CollectionService {
     }
 
     Future<void> clearCollection() async {
+      if (_db != null) {
+        await _db!.clearCollection();
+        return;
+      }
       await _saveCollection([]);
     }
-    
+
     Future<List<String>> getAllUniqueTags() async {
+      if (_db != null) {
+        return _db!.getAllUniqueCollectionTags();
+      }
       final col = await loadCollection();
       final Set<String> tags = {};
       for(var card in col) {
