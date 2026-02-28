@@ -2,12 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../models/game_history_model.dart';
 import '../../services/game_history_service.dart';
 import '../../providers/service_providers.dart';
-import 'game_history_detail_page.dart';
+import '../../router/app_router.dart';
 
 class GameHistoryPage extends ConsumerStatefulWidget {
   const GameHistoryPage({super.key});
@@ -131,10 +132,7 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
       child: GestureDetector(
         // Navigation vers la page de détails au clic
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => GameHistoryDetailPage(game: game))
-          );
+          context.push(AppRoutes.gameHistoryDetail, extra: game);
         },
         child: Card(
           color: Colors.white.withOpacity(0.05),

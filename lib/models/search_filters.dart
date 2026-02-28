@@ -15,7 +15,7 @@ class SearchFilters {
   final bool sortAscending;
   final Set<String> tags; // Filtre par tags utilisateur
 
-  SearchFilters({
+  const SearchFilters({
     this.setCode,
     this.cardType,
     this.colors = const {},

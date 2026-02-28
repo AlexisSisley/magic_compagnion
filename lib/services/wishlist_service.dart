@@ -8,8 +8,9 @@ import 'package:magic_companion/models/wishlist_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/database/app_database.dart';
 import '../models/deck_model.dart';
+import '../utils/card_list_upsert_mixin.dart';
 
-class WishlistService {
+class WishlistService with CardListUpsertMixin {
   static const _oldWishlistKey = 'user_wishlist'; // Ancienne cle (Liste simple)
   static const _wishlistsKey = 'user_wishlists_v2'; // Nouvelle cle (Liste de Wishlists)
   final AppDatabase? _db;
@@ -206,34 +207,14 @@ class WishlistService {
 
     final targetList = lists[index];
 
-    final cardIndex = targetList.cards.indexWhere((c) => c.scryfallId == scryfallId);
-    if (cardIndex != -1) {
-      final existingCard = targetList.cards[cardIndex];
-      int newQuantity = existingCard.quantity;
-
-      if (quantityToAdd != null) newQuantity += quantityToAdd;
-      else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
-
-      if (isFoil != null) {
-        existingCard.isFoil = isFoil;
-      }
-
-      if (newQuantity <= 0) targetList.cards.removeAt(cardIndex);
-      else existingCard.quantity = newQuantity;
-    } else {
-      int newQuantity = 0;
-      if (quantityToAdd != null) newQuantity = quantityToAdd;
-      else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
-
-      if (newQuantity > 0) {
-        targetList.cards.add(DeckCard(
-          scryfallId: scryfallId,
-          name: cardName,
-          quantity: newQuantity,
-          isFoil: isFoil ?? false,
-        ));
-      }
-    }
+    upsertCardInList(
+      targetList.cards,
+      scryfallId: scryfallId,
+      cardName: cardName,
+      quantityToAdd: quantityToAdd,
+      absoluteQuantity: absoluteQuantity,
+      isFoil: isFoil,
+    );
 
     await _saveWishlists(lists);
   }

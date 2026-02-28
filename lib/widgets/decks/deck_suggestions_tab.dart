@@ -4,12 +4,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../router/app_router.dart';
 import '../../services/edhrec_service.dart';
 import '../../services/local_card_service.dart';
-import '../../pages/cards/card_detail_page.dart';
 import '../../providers/service_providers.dart';
 
 class DeckSuggestionsTab extends ConsumerStatefulWidget {
@@ -205,7 +206,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         onTap: () {
-           Navigator.push(context, MaterialPageRoute(builder: (context) => RecognitionResultPage(cardName: card.name)));
+           context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
         },
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(4),
@@ -250,7 +251,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
         trailing: IconButton(
           icon: const Icon(Icons.add_circle_outline, color: Colors.greenAccent),
           onPressed: () {
-             Navigator.push(context, MaterialPageRoute(builder: (context) => RecognitionResultPage(cardName: card.name)));
+             context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
           },
         ),
       ),

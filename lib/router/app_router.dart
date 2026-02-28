@@ -12,19 +12,34 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../chat_screen.dart';
+import '../data/glossary_data.dart';
+import '../models/deck_model.dart';
+import '../models/game_history_model.dart';
+import '../models/scryfall_card_model.dart';
+import '../models/scryfall_set_model.dart';
+import '../models/wishlist_model.dart';
+import '../pages/cards/card_detail_page.dart';
 import '../pages/cards/card_search_page.dart';
 import '../pages/collections/collection_page.dart';
+import '../pages/collections/global_stats_page.dart';
+import '../pages/collections/set_detail_page.dart';
+import '../pages/collections/set_stats_page.dart';
+import '../pages/decks/deck_detail_page.dart';
 import '../pages/decks/deck_list_page.dart';
+import '../pages/glossary/glossary_detail_page.dart';
 import '../pages/glossary/glossary_page.dart';
 import '../pages/glossary/turn_guide_page.dart';
+import '../pages/life_counter/game_history_detail_page.dart';
 import '../pages/life_counter/game_history_page.dart';
 import '../pages/life_counter/life_counter_page.dart';
 import '../pages/oracle/magic_oracle_page.dart';
+import '../pages/scans/scan_history_page.dart';
 import '../pages/scans/scanner_page.dart';
 import '../pages/settings/profile_management_page.dart';
 import '../pages/settings/settings_page.dart';
 import '../pages/tools/hypergeometric_page.dart';
 import '../pages/tournaments/tournament_page.dart';
+import '../pages/wishlists/wishlist_detail_page.dart';
 import '../providers/service_providers.dart';
 
 /// Noms de routes pour navigation type-safe.
@@ -46,6 +61,17 @@ class AppRoutes {
   static const String turnGuide = '/glossary/turn-guide';
   static const String profiles = '/profiles';
   static const String settings = '/settings';
+
+  // Detail routes (push par-dessus le shell)
+  static const String cardDetail = '/cards/detail';
+  static const String glossaryDetail = '/glossary/detail';
+  static const String globalStats = '/collection/stats';
+  static const String setDetail = '/collection/set';
+  static const String setStats = '/collection/set/stats';
+  static const String wishlistDetail = '/wishlists/detail';
+  static const String deckDetail = '/decks/detail';
+  static const String gameHistoryDetail = '/game-history/detail';
+  static const String scanHistory = '/scanner/history';
 }
 
 /// Index des onglets dans le BottomNavigationBar.
@@ -145,6 +171,80 @@ GoRouter createAppRouter() {
       GoRoute(
         path: AppRoutes.settings,
         builder: (context, state) => const SettingsPage(),
+      ),
+
+      // --- Routes de détail (push par-dessus le shell) ---
+      GoRoute(
+        path: AppRoutes.cardDetail,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return RecognitionResultPage(
+            cardName: extra?['cardName'] as String?,
+            imagePath: extra?['imagePath'] as String?,
+            isContinuousScan: extra?['isContinuousScan'] as bool? ?? false,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.glossaryDetail,
+        builder: (context, state) {
+          final keyword = state.extra as Keyword;
+          return GlossaryDetailPage(keyword: keyword);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.globalStats,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return GlobalStatsPage(
+            collection: extra['collection'] as List<DeckCard>,
+            fullCardData: extra['fullCardData'] as List<ScryfallCard>,
+            totalValue: extra['totalValue'] as double,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.setDetail,
+        builder: (context, state) {
+          final set = state.extra as ScryfallSet;
+          return SetDetailPage(set: set);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.setStats,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return SetStatsPage(
+            targetSet: extra['targetSet'] as ScryfallSet,
+            myCollection: extra['myCollection'] as List<DeckCard>,
+            fullSetData: extra['fullSetData'] as List<ScryfallCard>,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.wishlistDetail,
+        builder: (context, state) {
+          final wishlist = state.extra as Wishlist;
+          return WishlistDetailPage(wishlist: wishlist);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.deckDetail,
+        builder: (context, state) {
+          final deck = state.extra as Deck;
+          return DeckDetailPage(deck: deck);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.gameHistoryDetail,
+        builder: (context, state) {
+          final game = state.extra as GameHistoryItem;
+          return GameHistoryDetailPage(game: game);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.scanHistory,
+        builder: (context, state) => const ScanHistoryPage(),
       ),
     ],
   );

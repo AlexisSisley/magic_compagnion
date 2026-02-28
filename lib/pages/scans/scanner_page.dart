@@ -7,10 +7,10 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:magic_companion/pages/cards/card_detail_page.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'scan_history_page.dart';
+import '../../router/app_router.dart';
 import '../../services/local_card_service.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../providers/service_providers.dart';
@@ -279,7 +279,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
                 Positioned(
                   bottom: 30, left: 30,
                   child: FloatingActionButton(
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ScanHistoryPage())),
+                    onPressed: () => context.push(AppRoutes.scanHistory),
                     backgroundColor: Colors.white,
                     foregroundColor: Colors.black,
                     heroTag: 'history_button',
@@ -314,14 +314,12 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
       await _controller!.pausePreview();
 
       // Navigation vers la page de résultat avec le flag "Continuous Scan"
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RecognitionResultPage(
-            imagePath: picture.path, 
-            isContinuousScan: true // <--- ACTIVE LE MODE SÉRIE
-          ),
-        ),
+      final result = await context.push(
+        AppRoutes.cardDetail,
+        extra: {
+          'imagePath': picture.path,
+          'isContinuousScan': true, // <--- ACTIVE LE MODE SÉRIE
+        },
       );
 
       // Si le résultat est 'true', on relance immédiatement le scan
@@ -453,12 +451,7 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
                           trailing: const Icon(Icons.chevron_right, color: Colors.white24),
                           onTap: () {
                             Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => RecognitionResultPage(cardName: card.name),
-                              ),
-                            );
+                            context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
                           },
                         );
                       },

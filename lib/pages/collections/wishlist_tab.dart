@@ -1,13 +1,13 @@
 // Fichier : lib/pages/collections/wishlist_tab.dart
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart'; // <--- Import ajouté
 import '../../models/scryfall_card_model.dart';
 import '../../models/wishlist_model.dart';
+import '../../router/app_router.dart';
 import '../../services/wishlist_service.dart';
-import '../../pages/cards/card_detail_page.dart';
-import '../../pages/wishlists/wishlist_detail_page.dart';
 
 class WishlistTab extends StatefulWidget {
   final List<Wishlist> wishlists;
@@ -124,7 +124,7 @@ class _WishlistTabState extends State<WishlistTab> {
                 title: const Text("Détails complets", style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: card.name)));
+                  context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
                 },
               ),
             ],
@@ -218,7 +218,7 @@ class _WishlistTabState extends State<WishlistTab> {
                  final price = card.prices['eur'] ?? 'N/A';
                  return GestureDetector(
                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => RecognitionResultPage(cardName: card.name)));
+                      context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
                    },
                    // NOUVEAU : Appui long pour le menu Cardmarket
                    onLongPress: () => _showTopCardOptions(card),
@@ -306,7 +306,7 @@ class _WishlistTabState extends State<WishlistTab> {
                         subtitle: Text("${list.totalCards} cartes", style: const TextStyle(color: Colors.white54)),
                         trailing: const Icon(Icons.chevron_right, color: Colors.white24),
                         onTap: () async {
-                          await Navigator.push(context, MaterialPageRoute(builder: (_) => WishlistDetailPage(wishlist: list)));
+                          await context.push(AppRoutes.wishlistDetail, extra: list);
                           widget.onRefresh();
                         },
                         onLongPress: () => _confirmDelete(list),

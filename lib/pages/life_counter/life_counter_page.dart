@@ -6,14 +6,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/game_history_model.dart';
 import 'package:magic_companion/models/player_model.dart';
 import 'package:magic_companion/models/profile_model.dart';
-import 'package:magic_companion/pages/tournaments/tournament_page.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../router/app_router.dart';
 
 import '../../widgets/life_counter/player_zone.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart'; // <--- Import
@@ -431,7 +433,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                 : const Icon(Icons.play_arrow, color: Colors.yellow),
             ),
           ),
-          IconButton(icon: const Icon(Icons.emoji_events, color: Colors.white70), onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const TournamentPage())); }),
+          IconButton(icon: const Icon(Icons.emoji_events, color: Colors.white70), onPressed: () { context.push(AppRoutes.tournament); }),
           IconButton(icon: const Icon(Icons.people, color: Colors.white70), onPressed: _showGameSetupDialog), // <--- Utilise la nouvelle modale
         ],
       ),

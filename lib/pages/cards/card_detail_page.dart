@@ -1,37 +1,21 @@
 // Fichier : lib/pages/cards/card_detail_page.dart
-// VERSION CORRIGÉE : SafeArea ajouté sur la modale Collection
+// VERSION REFACTOREE : Logique metier extraite dans CardDetailController
 
-import 'dart:convert';
-import 'dart:developer';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:magic_companion/pages/glossary/glossary_detail_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // IMPORTS LOCAUX
-import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/widgets/decks/deck_picker_modal.dart';
-import '../../services/deck_service.dart';
+import '../../router/app_router.dart';
+
+import '../../controllers/card_detail_controller.dart';
 import '../../data/glossary_data.dart';
-import '../../services/collection_service.dart';
-import '../../services/scan_history_service.dart';
-import '../../models/scan_history_model.dart';
-import '../../services/wishlist_service.dart';
-import '../../services/local_card_service.dart';
-import '../../services/scryfall_api_service.dart';
-import '../../providers/service_providers.dart';
-
-import '../../models/scryfall_ruling.dart';
 import '../../widgets/cards/versions_selector_sheet.dart';
-
-enum ResultPageState { loading, selection, success, error }
 
 class RecognitionResultPage extends ConsumerStatefulWidget {
   final String? imagePath;
@@ -45,58 +29,21 @@ class RecognitionResultPage extends ConsumerStatefulWidget {
 }
 
 class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
-  DeckService get _deckService => ref.read(deckServiceProvider);
-  CollectionService get _collectionService => ref.read(collectionServiceProvider);
-  ScanHistoryService get _historyService => ref.read(scanHistoryServiceProvider);
-  WishlistService get _wishlistService => ref.read(wishlistServiceProvider);
-  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
-  ScryfallApiService get _apiService => ref.read(scryfallApiServiceProvider);
-
   final TextEditingController _searchController = TextEditingController();
-  ResultPageState _pageState = ResultPageState.loading;
-  String _statusMessage = "Démarrage...";
-
-  List<ScryfallCard> _candidates = [];
-  ScryfallCard? _foundCard;
-
-  String _userLang = 'fr';
-  List<Keyword> _activeGlossary = [];
-  List<ScryfallRuling> _rulings = [];
-  bool _isLoadingRulings = false;
-
   final RegExp _manaSymbolRegex = RegExp(r'(\{.*?\})');
-  
-  // États locaux pour l'affichage (Counts)
-  int _collectionNormalCount = 0;
-  int _collectionFoilCount = 0;
-  bool _inWishlist = false; // Juste un indicateur global
 
-  String _currentDisplayLang = 'fr';
+  late final CardDetailParams _params;
 
   @override
   void initState() {
     super.initState();
-    _initializeAndSearch();
-  }
-
-  Future<void> _initializeAndSearch() async {
-    await _localCardService.loadLocalData();
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _currentDisplayLang = prefs.getString('glossaryLang') ?? 'fr';
-      final String assetPath = (_userLang == 'fr') ? 'assets/glossary_fr.json' : 'assets/glossary_en.json';
-      final String jsonString = await rootBundle.loadString(assetPath);
-      final List<dynamic> jsonList = json.decode(jsonString) as List;
-      _activeGlossary = jsonList.map((jsonItem) => Keyword.fromJson(jsonItem as Map<String, dynamic>)).toList();
-    } catch (e) {
-      _activeGlossary = [];
-    }
-    
-    if (widget.imagePath != null) {
-      _startAutomaticProcess();
-    } else if (widget.cardName != null) {
+    _params = CardDetailParams(
+      imagePath: widget.imagePath,
+      cardName: widget.cardName,
+      isContinuousScan: widget.isContinuousScan,
+    );
+    if (widget.cardName != null) {
       _searchController.text = widget.cardName!;
-      _searchForCandidates(widget.cardName!);
     }
   }
 
@@ -106,187 +53,15 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     super.dispose();
   }
 
-  String _cleanOcrText(String text) {
-    String cleanedText = text.toUpperCase();
-    cleanedText = cleanedText.replaceAll(RegExp(r'[\[\].,:;]'), ' ');
-    cleanedText = cleanedText.replaceAll(RegExp(r'\s+'), ' ').trim();
-    return cleanedText;
-  }
-
-  Future<void> _startAutomaticProcess() async {
-    setState(() { _pageState = ResultPageState.loading; _statusMessage = "Lecture de la carte..."; });
-    if (widget.imagePath == null) return;
-    
-    final inputImage = InputImage.fromFilePath(widget.imagePath!);
-    final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-    
-    try {
-      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
-      textRecognizer.close();
-
-      final RegExp collectorRegex = RegExp(r'\b([A-Z0-9]{3,5})[\s•\/\-]{1,3}([0-9]{1,4}[a-z]?)\b');
-      
-      for (var block in recognizedText.blocks) {
-        String blockText = block.text.replaceAll('\n', ' ');
-        final match = collectorRegex.firstMatch(blockText);
-        if (match != null) {
-          final String setCode = match.group(1)!;
-          final String collectorNumber = match.group(2)!;
-          setState(() { _statusMessage = "Code détecté : $setCode #$collectorNumber"; });
-          bool success = await _fetchExactCard(setCode, collectorNumber);
-          if (success) return; 
-        }
-      }
-
-      List<TextBlock> sortedBlocks = List.from(recognizedText.blocks);
-      sortedBlocks.sort((a, b) => a.boundingBox.top.compareTo(b.boundingBox.top));
-
-      String? bestGuess;
-      const List<String> badKeywords = ['créature', 'creature', 'artefact', 'artifact', 'enchantment', 'instant', 'sorcery', 'land', 'token', 'legendary'];
-
-      for (int i = 0; i < sortedBlocks.length && i < 5; i++) { 
-        for (var line in sortedBlocks[i].lines) {
-          String text = _cleanOcrText(line.text); 
-          if (text.length < 3) continue; 
-          bool isTypeLine = badKeywords.any((k) => text.toLowerCase().contains(k));
-          if (isTypeLine) continue;
-          bestGuess = text;
-          break; 
-        }
-        if (bestGuess != null) break;
-      }
-
-      if (bestGuess == null || bestGuess.isEmpty) {
-        setState(() { _pageState = ResultPageState.error; _statusMessage = "Titre non reconnu."; });
-        return;
-      }
-
-      _searchController.text = bestGuess;
-      await _searchForCandidates(bestGuess);
-
-    } catch (e) {
-      setState(() { _pageState = ResultPageState.error; _statusMessage = "Erreur OCR: $e"; });
-    }
-  }
-
-  Future<bool> _fetchExactCard(String set, String cn) async {
-    setState(() { _statusMessage = "Identification précise ($set #$cn)..."; });
-    try {
-      final data = await _apiService.getCardBySetAndNumber(set, cn);
-      _selectCard(ScryfallCard.fromJson(data));
-      return true;
-    } catch (e) { }
-    return false;
-  }
-
-  Future<void> _searchForCandidates(String query) async {
-    setState(() {
-      _pageState = ResultPageState.loading;
-      _statusMessage = "Recherche de correspondances...";
-      _candidates = [];
-    });
-
-    bool foundApi = false;
-
-    final connectivityResult = await (Connectivity().checkConnectivity());
-    if (!connectivityResult.contains(ConnectivityResult.none)) {
-      try {
-        final data = await _apiService.searchCards(query, unique: 'cards');
-        final List<dynamic> rawList = data['data'] ?? [];
-
-        final List<ScryfallCard> apiResults = rawList
-            .map((json) => ScryfallCard.fromJson(json))
-            .take(10)
-            .toList();
-
-        if (apiResults.isNotEmpty) {
-          if (apiResults.length == 1) {
-             _selectCard(apiResults.first);
-             return;
-          }
-          setState(() {
-            _candidates = apiResults;
-            _pageState = ResultPageState.selection;
-          });
-          foundApi = true;
-        }
-      } catch (e) { log("Erreur API Search: $e", name: 'CardDetailPage'); }
-    }
-
-    if (!foundApi && _localCardService.isLoaded) {
-      setState(() { _statusMessage = "Recherche locale..."; });
-      var localResults = _localCardService.findSmartMatch(query, limit: 10);
-      if (localResults.isEmpty) {
-        final searchResult = await _localCardService.searchCards(query: query);
-        localResults = searchResult.take(10).toList();
-      }
-
-      if (localResults.isNotEmpty) {
-        if (localResults.length == 1) {
-           _selectCard(localResults.first);
-           return;
-        }
-        setState(() {
-          _candidates = localResults;
-          _pageState = ResultPageState.selection; 
-        });
-        return;
-      }
-    }
-
-    if (_candidates.isEmpty) {
-      setState(() {
-        _statusMessage = "Aucune carte trouvée pour \"$query\".";
-        _pageState = ResultPageState.error;
-      });
-    }
-  }
-
-  void _selectCard(ScryfallCard card) {
-    setState(() { 
-      _foundCard = card; 
-      _pageState = ResultPageState.success; 
-    });
-    
-    if (widget.imagePath != null) {
-      final newItem = ScanHistoryItem(scryfallId: card.id, cardName: card.name, imagePath: widget.imagePath, timestamp: DateTime.now());
-      _historyService.addScan(newItem);
-    }
-    _fetchRulings(card.id);
-    _checkCardStatus();
-  }
-
-  Future<void> _checkCardStatus() async {
-    if (_foundCard == null) return;
-    final collection = await _collectionService.loadCollection();
-    final wishlists = await _wishlistService.loadWishlists();
-    
-    // Compter les versions Foil et Normal
-    int normal = 0;
-    int foil = 0;
-    
-    for (var c in collection) {
-      if (c.scryfallId == _foundCard!.id) {
-        if (c.isFoil) foil += c.quantity;
-        else normal += c.quantity;
-      }
-    }
-
-    if (mounted) {
-      setState(() {
-        _collectionNormalCount = normal;
-        _collectionFoilCount = foil;
-        _inWishlist = wishlists.any((w) => w.cards.any((c) => c.scryfallId == _foundCard!.id));
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(cardDetailControllerProvider(_params));
+    final controller = ref.read(cardDetailControllerProvider(_params).notifier);
+
     // Calcul de l'icône Collection dynamique
     IconData collIcon = Icons.inventory_2_outlined;
     Color collColor = Colors.white;
-    if (_collectionNormalCount > 0 || _collectionFoilCount > 0) {
+    if (state.collectionNormalCount > 0 || state.collectionFoilCount > 0) {
       collIcon = Icons.inventory_2;
       collColor = Colors.green.shade400;
     }
@@ -294,73 +69,76 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
       appBar: AppBar(
-        title: Text(_pageState == ResultPageState.selection ? "Choisissez la carte" : "Détail Carte", style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
+        title: Text(state.pageState == ResultPageState.selection ? "Choisissez la carte" : "Détail Carte", style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
         backgroundColor: Colors.black,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context, false), // Retour normal
+          onPressed: () => Navigator.pop(context, false),
         ),
         actions: [
-          if (_pageState == ResultPageState.success) ...[
+          if (state.pageState == ResultPageState.success) ...[
             if (widget.isContinuousScan)
               TextButton.icon(
-                onPressed: () => Navigator.pop(context, true), // Retour "Scan Suivant"
+                onPressed: () => Navigator.pop(context, true),
                 icon: const Icon(Icons.camera_alt, color: Colors.yellow, size: 18),
                 label: const Text("Suivante", style: TextStyle(color: Colors.yellow, fontWeight: FontWeight.bold)),
                 style: TextButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.1)),
               ),
-            IconButton(icon: const Icon(Icons.style, color: Colors.white), onPressed: _showVersionsModal),
+            IconButton(icon: const Icon(Icons.style, color: Colors.white), onPressed: () => _showVersionsModal(state, controller)),
             IconButton(
-              icon: Icon(_inWishlist ? Icons.star : Icons.star_border_outlined, color: _inWishlist ? Colors.blue.shade400 : Colors.white),
-              onPressed: _openWishlistManager
+              icon: Icon(state.inWishlist ? Icons.star : Icons.star_border_outlined, color: state.inWishlist ? Colors.blue.shade400 : Colors.white),
+              onPressed: () => _openWishlistManager(controller),
             ),
             IconButton(
-              icon: Icon(collIcon, color: collColor), 
-              onPressed: _openCollectionManager
+              icon: Icon(collIcon, color: collColor),
+              onPressed: () => _openCollectionManager(state, controller),
             )
           ]
         ],
       ),
-      body: _buildContent(),
-      floatingActionButton: _pageState == ResultPageState.success
-          ? FloatingActionButton(onPressed: _showDeckPicker, backgroundColor: Colors.yellow.shade800, child: const Icon(Icons.add_to_photos_outlined))
+      body: _buildContent(state, controller),
+      floatingActionButton: state.pageState == ResultPageState.success
+          ? FloatingActionButton(onPressed: () => _showDeckPicker(state, controller), backgroundColor: Colors.yellow.shade800, child: const Icon(Icons.add_to_photos_outlined))
           : null,
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(CardDetailState state, CardDetailController controller) {
     final mediaQuery = MediaQuery.of(context);
-    
-    switch (_pageState) {
+
+    switch (state.pageState) {
       case ResultPageState.loading:
-        return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text(_statusMessage, style: GoogleFonts.cinzel(color: Colors.white))]));
-      
+        return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text(state.statusMessage, style: GoogleFonts.cinzel(color: Colors.white))]));
+
       case ResultPageState.selection:
         return Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Text("Plusieurs correspondances trouvées.\nVeuillez sélectionner la bonne carte :", 
+              child: Text("Plusieurs correspondances trouvées.\nVeuillez sélectionner la bonne carte :",
                 style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16), textAlign: TextAlign.center),
             ),
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.all(8),
-                itemCount: _candidates.length,
+                itemCount: state.candidates.length,
                 separatorBuilder: (_, __) => const Divider(color: Colors.white10),
                 itemBuilder: (context, index) {
-                  final card = _candidates[index];
+                  final card = state.candidates[index];
                   final imgUrl = card.smallImageUrl ?? card.imageUrl;
                   return Card(
                     color: Colors.white.withValues(alpha: 0.05),
                     child: ListTile(
-                      leading: imgUrl.isNotEmpty 
-                          ? Image.network(imgUrl, width: 40, fit: BoxFit.cover) 
+                      leading: imgUrl.isNotEmpty
+                          ? Image.network(imgUrl, width: 40, fit: BoxFit.cover)
                           : const Icon(Icons.image, color: Colors.white24),
                       title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
                       subtitle: Text("${card.typeLine}\n${card.setName} • ${card.collectorNumber}", style: const TextStyle(color: Colors.white54, fontSize: 12)),
                       trailing: const Icon(Icons.chevron_right, color: Colors.yellow),
-                      onTap: () => _selectCard(card),
+                      onTap: () {
+                        _searchController.text = card.name;
+                        controller.selectCard(card);
+                      },
                     ),
                   );
                 },
@@ -370,6 +148,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
         );
 
       case ResultPageState.success:
+        final foundCard = state.foundCard!;
         return SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + mediaQuery.padding.bottom + 80.0),
           child: Column(
@@ -380,19 +159,19 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                 elevation: 4.0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: BorderSide(color: Colors.yellow.shade800.withValues(alpha: 0.6), width: 1)),
                 child: Column(children: [
-                    Image.network(_foundCard!.imageUrl, fit: BoxFit.fitWidth, errorBuilder: (c, e, s) => const SizedBox(height: 300, child: Center(child: Icon(Icons.broken_image, size: 50, color: Colors.white)))),
+                    Image.network(foundCard.imageUrl, fit: BoxFit.fitWidth, errorBuilder: (c, e, s) => const SizedBox(height: 300, child: Center(child: Icon(Icons.broken_image, size: 50, color: Colors.white)))),
                     Padding(padding: const EdgeInsets.all(12.0), child: Column(children: [
-                          _buildManaCostRow(_foundCard!.manaCost),
+                          _buildManaCostRow(foundCard.manaCost),
                           const SizedBox(height: 8),
-                          Text(_foundCard!.printedName ?? _foundCard!.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                          Text(_foundCard!.typeLine, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+                          Text(foundCard.printedName ?? foundCard.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                          Text(foundCard.typeLine, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
                     ]))
                 ]),
               ),
-              _buildInfoCard(title: 'Texte des règles', child: _buildClickableRulesText(_foundCard!.rulesText, _foundCard!.lang)),
-              _buildInfoCard(title: 'Prix & Marché', child: _buildPriceInfo(_foundCard!.prices)),
-              _buildInfoCard(title: 'Légalité', child: _buildLegalities(_foundCard!.legalities)),
-              _buildInfoCard(title: 'Décisions de Règles', child: _buildRulingsList()),
+              _buildInfoCard(title: 'Texte des règles', child: _buildClickableRulesText(foundCard.rulesText, foundCard.lang, controller)),
+              _buildInfoCard(title: 'Prix & Marché', child: _buildPriceInfo(foundCard.prices)),
+              _buildInfoCard(title: 'Légalité', child: _buildLegalities(foundCard.legalities)),
+              _buildInfoCard(title: 'Décisions de Règles', child: _buildRulingsList(state)),
             ],
           ),
         );
@@ -403,16 +182,16 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(_statusMessage, style: GoogleFonts.cinzel(color: Colors.red.shade300), textAlign: TextAlign.center),
+              Text(state.statusMessage, style: GoogleFonts.cinzel(color: Colors.red.shade300), textAlign: TextAlign.center),
               const SizedBox(height: 20),
               TextField(
                 controller: _searchController,
                 style: GoogleFonts.cinzel(color: Colors.white),
                 decoration: InputDecoration(hintText: 'Nom de la carte', filled: true, fillColor: Colors.white10, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
-                onSubmitted: (val) => _searchForCandidates(val),
+                onSubmitted: (val) => controller.searchForCandidates(val),
               ),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: () => _searchForCandidates(_searchController.text), style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800), child: Text('Rechercher', style: GoogleFonts.cinzel())),
+              ElevatedButton(onPressed: () => controller.searchForCandidates(_searchController.text), style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800), child: Text('Rechercher', style: GoogleFonts.cinzel())),
             ],
           ),
         );
@@ -420,12 +199,11 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
   }
 
   // --- GESTION COLLECTION (MODALE) ---
-  void _openCollectionManager() {
-    if (_foundCard == null) return;
-    
-    // États locaux temporaires pour la modale
-    int tempNormal = _collectionNormalCount;
-    int tempFoil = _collectionFoilCount;
+  void _openCollectionManager(CardDetailState state, CardDetailController controller) {
+    if (state.foundCard == null) return;
+
+    int tempNormal = state.collectionNormalCount;
+    int tempFoil = state.collectionFoilCount;
 
     showModalBottomSheet(
       context: context,
@@ -434,7 +212,6 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            // --- AJOUT SAFEREA ICI ---
             return SafeArea(
               child: Container(
                 padding: const EdgeInsets.all(24),
@@ -444,49 +221,32 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                   children: [
                     Text("Gérer ma Collection", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 24),
-                    
-                    // Ligne Normal
                     _buildQuantityRow(
-                      "Normal", 
-                      tempNormal, 
-                      Colors.white, 
+                      "Normal",
+                      tempNormal,
+                      Colors.white,
                       () { setModalState(() => tempNormal = (tempNormal - 1).clamp(0, 99)); },
-                      () { setModalState(() => tempNormal++); }
+                      () { setModalState(() => tempNormal++); },
                     ),
                     const SizedBox(height: 16),
-                    
-                    // Ligne Foil
                     _buildQuantityRow(
-                      "Foil (Brillant)", 
-                      tempFoil, 
-                      Colors.amber, 
+                      "Foil (Brillant)",
+                      tempFoil,
+                      Colors.amber,
                       () { setModalState(() => tempFoil = (tempFoil - 1).clamp(0, 99)); },
-                      () { setModalState(() => tempFoil++); }
+                      () { setModalState(() => tempFoil++); },
                     ),
-                    
                     const Spacer(),
-                    
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () async {
-                          // Sauvegarde Normal
-                          await _collectionService.upsertCardInCollection(
-                            scryfallId: _foundCard!.id, 
-                            cardName: _foundCard!.name, 
-                            absoluteQuantity: tempNormal,
-                            isFoil: false
+                          await controller.saveCollection(
+                            normalCount: tempNormal,
+                            foilCount: tempFoil,
                           );
-                          // Sauvegarde Foil
-                          await _collectionService.upsertCardInCollection(
-                            scryfallId: _foundCard!.id, 
-                            cardName: _foundCard!.name, 
-                            absoluteQuantity: tempFoil,
-                            isFoil: true
-                          );
-                          
+                          if (!context.mounted) return;
                           Navigator.pop(context);
-                          _checkCardStatus();
                           _showFeedback("Collection mise à jour", Colors.green);
                         },
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, padding: const EdgeInsets.symmetric(vertical: 16)),
@@ -497,23 +257,19 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                 ),
               ),
             );
-          }
+          },
         );
-      }
+      },
     );
   }
 
   // --- GESTION WISHLIST (MODALE) ---
-  void _openWishlistManager() async {
-    if (_foundCard == null) return;
-    
-    // 1. Choix de la liste
-    final targetListId = await _showWishlistSelector();
+  void _openWishlistManager(CardDetailController controller) async {
+    final targetListId = await _showWishlistSelector(controller);
     if (targetListId == null) return;
 
-    // 2. Choix Foil / Normal via dialogue simple
     if (!mounted) return;
-    
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -525,35 +281,27 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
             ListTile(
               title: const Text("Version Normale", style: TextStyle(color: Colors.white)),
               leading: const Icon(Icons.style, color: Colors.white),
-              onTap: () {
-                _addToWishlistAction(targetListId, false);
+              onTap: () async {
+                await controller.addToWishlist(listId: targetListId, isFoil: false);
+                if (!ctx.mounted) return;
                 Navigator.pop(ctx);
+                _showFeedback("Ajouté à la Wishlist (Normal)", Colors.blueAccent);
               },
             ),
             ListTile(
               title: const Text("Version Foil", style: TextStyle(color: Colors.amber)),
               leading: const Icon(Icons.star, color: Colors.amber),
-              onTap: () {
-                _addToWishlistAction(targetListId, true);
+              onTap: () async {
+                await controller.addToWishlist(listId: targetListId, isFoil: true);
+                if (!ctx.mounted) return;
                 Navigator.pop(ctx);
+                _showFeedback("Ajouté à la Wishlist (Foil)", Colors.blueAccent);
               },
             ),
           ],
         ),
-      )
+      ),
     );
-  }
-
-  Future<void> _addToWishlistAction(String listId, bool isFoil) async {
-    await _wishlistService.upsertCard(
-      wishlistId: listId,
-      scryfallId: _foundCard!.id,
-      cardName: _foundCard!.name,
-      quantityToAdd: 1,
-      isFoil: isFoil
-    );
-    _checkCardStatus();
-    _showFeedback("Ajouté à la Wishlist (${isFoil ? 'Foil' : 'Normal'})", Colors.blueAccent);
   }
 
   Widget _buildQuantityRow(String label, int value, Color color, VoidCallback onMinus, VoidCallback onPlus) {
@@ -582,10 +330,8 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     );
   }
 
-  // --- RESTE DU CODE (Sélecteurs existants, affichage prix, règles...) ---
-  
-  Future<String?> _showWishlistSelector() async {
-    final wishlists = await _wishlistService.loadWishlists();
+  Future<String?> _showWishlistSelector(CardDetailController controller) async {
+    final wishlists = await controller.wishlistService.loadWishlists();
     if (!mounted) return null;
 
     return showModalBottomSheet<String>(
@@ -606,13 +352,11 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                     leading: const Icon(Icons.add_circle, color: Colors.greenAccent),
                     title: Text("Créer une nouvelle liste", style: GoogleFonts.cinzel(color: Colors.white)),
                     onTap: () async {
-                      final name = await _showCreateWishlistDialog();
+                      final name = await _showCreateWishlistDialog(controller);
                       if (name != null && mounted) {
-                        final updatedLists = await _wishlistService.loadWishlists();
-                        try {
-                          final newList = updatedLists.lastWhere((w) => w.name == name);
-                          Navigator.pop(context, newList.id); 
-                        } catch (_) { Navigator.pop(context); }
+                        final newListId = await controller.createWishlist(name);
+                        if (!context.mounted) return;
+                        Navigator.pop(context, newListId);
                       }
                     },
                   ),
@@ -637,32 +381,40 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
             ),
           ),
         );
-      }
+      },
     );
   }
 
-  Future<String?> _showCreateWishlistDialog() async {
-    final controller = TextEditingController();
+  Future<String?> _showCreateWishlistDialog(CardDetailController controller) async {
+    final textController = TextEditingController();
     return showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
         title: const Text("Nouvelle Liste", style: TextStyle(color: Colors.white)),
         content: TextField(
-          controller: controller,
+          controller: textController,
           style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(hintText: "Nom de la liste"),
           autofocus: true,
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("Annuler")),
-          ElevatedButton(onPressed: () async { if (controller.text.isNotEmpty) { await _wishlistService.createWishlist(controller.text); if (mounted) Navigator.pop(c, controller.text); } }, child: const Text("Créer"))
+          ElevatedButton(
+            onPressed: () async {
+              if (textController.text.isNotEmpty) {
+                await controller.wishlistService.createWishlist(textController.text);
+                if (c.mounted) Navigator.pop(c, textController.text);
+              }
+            },
+            child: const Text("Créer"),
+          )
         ],
-      )
+      ),
     );
   }
 
-  // --- HELPERS EXISTANTS ---
+  // --- HELPERS UI ---
   Widget _buildPriceInfo(Map<String, dynamic> prices) {
     final String priceEur = prices['eur'] ?? 'N/A';
     final String priceEurFoil = prices['eur_foil'] ?? 'N/A';
@@ -675,13 +427,13 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
       ],
     );
   }
-  
-  Widget _buildRulingsList() {
-    if (_isLoadingRulings) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (_rulings.isEmpty) return Text('(Aucune décision)', style: GoogleFonts.cinzel(color: Colors.white70, fontStyle: FontStyle.italic));
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: _rulings.map((r) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(r.date, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)), Text(r.comment, style: const TextStyle(color: Colors.white))]))).toList());
+
+  Widget _buildRulingsList(CardDetailState state) {
+    if (state.isLoadingRulings) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    if (state.rulings.isEmpty) return Text('(Aucune décision)', style: GoogleFonts.cinzel(color: Colors.white70, fontStyle: FontStyle.italic));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: state.rulings.map((r) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(r.date, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)), Text(r.comment, style: const TextStyle(color: Colors.white))]))).toList());
   }
-  
+
   Widget _buildInfoCard({required String title, required Widget child}) {
     return Card(
       color: Colors.black.withValues(alpha: 0.4), elevation: 2, margin: const EdgeInsets.symmetric(vertical: 6),
@@ -689,7 +441,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
       child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600)), const Divider(color: Colors.white24), const SizedBox(height: 8), child])),
     );
   }
-  
+
   Widget _buildLegalities(Map<String, String> legalities) {
     const formats = ['standard', 'commander', 'modern', 'pioneer'];
     return Wrap(spacing: 12, runSpacing: 8, children: formats.map((fmt) {
@@ -699,17 +451,17 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     }).toList());
   }
 
-  Future<void> _showVersionsModal() async {
-    if (_foundCard == null) return;
+  Future<void> _showVersionsModal(CardDetailState state, CardDetailController controller) async {
+    if (state.foundCard == null) return;
     showModalBottomSheet(
       context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-      builder: (context) => VersionsSelectorSheet(oracleId: _foundCard!.oracleId, currentCardId: _foundCard!.id, onVersionSelected: (v) => _selectCard(v)),
+      builder: (context) => VersionsSelectorSheet(oracleId: state.foundCard!.oracleId, currentCardId: state.foundCard!.id, onVersionSelected: (v) => controller.selectCard(v)),
     );
   }
-  
-  Future<void> _showDeckPicker() async {
-    if (_foundCard == null) return;
-    showModalBottomSheet(context: context, backgroundColor: Colors.transparent, isScrollControlled: true, builder: (c) => DeckPickerModal(cardToAdd: _foundCard!, deckService: _deckService, onCardAdded: (d,c) => _showFeedback("Ajouté au deck $d", Colors.green)));
+
+  Future<void> _showDeckPicker(CardDetailState state, CardDetailController controller) async {
+    if (state.foundCard == null) return;
+    showModalBottomSheet(context: context, backgroundColor: Colors.transparent, isScrollControlled: true, builder: (c) => DeckPickerModal(cardToAdd: state.foundCard!, deckService: controller.deckService, onCardAdded: (d, c) => _showFeedback("Ajouté au deck $d", Colors.green)));
   }
 
   void _showFeedback(String message, Color color) {
@@ -717,32 +469,14 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message, style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)), backgroundColor: color, duration: const Duration(seconds: 1)));
   }
 
-  Future<void> _fetchRulings(String cardId) async {
-    setState(() { _isLoadingRulings = true; });
-    try {
-      final Map<String, dynamic> data = await _apiService.getCardRulings(cardId);
-      final List<dynamic> rulingsList = data['data'] ?? [];
-      setState(() {
-        _rulings = rulingsList.map((rulingJson) => ScryfallRuling(date: rulingJson['published_at'], comment: rulingJson['comment'])).toList();
-      });
-    } catch (e) { }
-    if(mounted) setState(() { _isLoadingRulings = false; });
-  }
-
-  Keyword? _findKeyword(String word) {
-    if (_activeGlossary.isEmpty) return null;
-    final normalizedWord = word.toLowerCase().replaceAll(RegExp(r'[,\.]'), '');
-    try { return _activeGlossary.firstWhere((k) => k.term.toLowerCase() == normalizedWord); } catch (e) { return null; }
-  }
-
-  InlineSpan _buildKeywordSpans(String textChunk) {
+  InlineSpan _buildKeywordSpans(String textChunk, CardDetailController controller) {
     final List<String> words = textChunk.split(' ');
     final List<InlineSpan> spans = [];
     for (int i = 0; i < words.length; i++) {
       final String word = words[i];
-      final Keyword? keyword = _findKeyword(word);
+      final Keyword? keyword = controller.findKeyword(word);
       if (keyword != null) {
-        spans.add(TextSpan(text: '$word ', style: GoogleFonts.cinzel(color: Colors.blue.shade300, fontWeight: FontWeight.bold, decoration: TextDecoration.underline, decorationColor: Colors.blue.shade300), recognizer: TapGestureRecognizer()..onTap = () { Navigator.push(context, MaterialPageRoute(builder: (context) => GlossaryDetailPage(keyword: keyword))); }));
+        spans.add(TextSpan(text: '$word ', style: GoogleFonts.cinzel(color: Colors.blue.shade300, fontWeight: FontWeight.bold, decoration: TextDecoration.underline, decorationColor: Colors.blue.shade300), recognizer: TapGestureRecognizer()..onTap = () { context.push(AppRoutes.glossaryDetail, extra: keyword); }));
       } else {
         spans.add(TextSpan(text: '$word ', style: const TextStyle(color: Colors.white, height: 1.4)));
       }
@@ -750,14 +484,14 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     return TextSpan(children: spans);
   }
 
-  Widget _buildClickableRulesText(String text, String lang) {
+  Widget _buildClickableRulesText(String text, String lang, CardDetailController controller) {
     if (text.isEmpty) return Text("(Pas de texte)", style: GoogleFonts.cinzel(color: Colors.white70, fontStyle: FontStyle.italic));
     final List<InlineSpan> spans = [];
     text.splitMapJoin(_manaSymbolRegex, onMatch: (Match match) {
         final String symbol = match.group(0)!;
         spans.add(WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 1.0), child: _getManaIcon(symbol))));
         return '';
-      }, onNonMatch: (String nonMatch) { spans.add(_buildKeywordSpans(nonMatch)); return ''; });
+      }, onNonMatch: (String nonMatch) { spans.add(_buildKeywordSpans(nonMatch, controller)); return ''; });
     return RichText(text: TextSpan(children: spans));
   }
 
@@ -766,7 +500,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     final matches = _manaSymbolRegex.allMatches(manaCost).map((m) => m.group(0)!).toList();
     return Row(mainAxisAlignment: MainAxisAlignment.center, children: matches.map((s) => Padding(padding: const EdgeInsets.symmetric(horizontal: 1), child: _getManaIcon(s))).toList());
   }
-  
+
   Widget _getManaIcon(String symbol) {
      final clean = symbol.replaceAll(RegExp(r'[{}/]'), '').toUpperCase();
      return SvgPicture.network('https://svgs.scryfall.io/card-symbols/$clean.svg', width: 16, placeholderBuilder: (_) => Text(symbol, style: const TextStyle(color: Colors.white)));

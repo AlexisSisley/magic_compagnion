@@ -3,12 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../models/search_filters.dart';
-import '../../pages/cards/card_detail_page.dart';
+import '../../router/app_router.dart';
 
 class CollectionListTab extends StatefulWidget {
   final List<DeckCard> cards;
@@ -423,7 +424,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         onTap: () {
           if (widget.isSelectionMode) widget.onToggleSelection?.call(card.scryfallId);
-          else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: card.name)));
+          else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
         },
         onLongPress: () {
           if (!widget.isSelectionMode) widget.onToggleSelectionMode?.call();
@@ -512,7 +513,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
     return InkWell(
       onTap: () {
         if (widget.isSelectionMode) widget.onToggleSelection?.call(card.scryfallId);
-        else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: card.name)));
+        else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
       },
       onLongPress: () {
         if (!widget.isSelectionMode) widget.onToggleSelectionMode?.call();

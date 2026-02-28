@@ -7,8 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/database/app_database.dart';
 import '../models/deck_model.dart';
 import 'scryfall_api_service.dart';
+import '../utils/card_list_upsert_mixin.dart';
 
-class CollectionService {
+class CollectionService with CardListUpsertMixin {
   static const _collectionKey = 'user_collection';
   final AppDatabase? _db;
   final ScryfallApiService? _api;
@@ -67,44 +68,18 @@ class CollectionService {
     }
     // Fallback SharedPreferences
     final collection = await loadCollection();
-    _upsertInMemory(collection, scryfallId, cardName, quantityToAdd, absoluteQuantity, isFoil: isFoil, newTags: newTags);
+    upsertCardInList(
+      collection,
+      scryfallId: scryfallId,
+      cardName: cardName,
+      quantityToAdd: quantityToAdd,
+      absoluteQuantity: absoluteQuantity,
+      matchByFoil: true,
+      isFoil: isFoil,
+      newTags: newTags,
+    );
     await _saveCollection(collection);
     return collection;
-  }
-
-  // Helper prive (utilise uniquement en mode SharedPreferences)
-  void _upsertInMemory(List<DeckCard> collection, String scryfallId, String cardName, int? qtyAdd, int? absQty, {bool isFoil = false, List<String>? newTags}) {
-    final index = collection.indexWhere(
-      (c) => c.scryfallId == scryfallId && c.isFoil == isFoil
-    );
-
-    if (index != -1) {
-      final existingCard = collection[index];
-      int newQuantity = existingCard.quantity;
-      if (qtyAdd != null) newQuantity += qtyAdd;
-      else if (absQty != null) newQuantity = absQty;
-
-      if (newTags != null) {
-        existingCard.tags = newTags;
-      }
-
-      if (newQuantity <= 0) collection.removeAt(index);
-      else existingCard.quantity = newQuantity;
-    } else {
-      int newQuantity = 0;
-      if (qtyAdd != null) newQuantity = qtyAdd;
-      else if (absQty != null) newQuantity = absQty;
-
-      if (newQuantity > 0) {
-        collection.add(DeckCard(
-          scryfallId: scryfallId,
-          name: cardName,
-          quantity: newQuantity,
-          isFoil: isFoil,
-          tags: newTags ?? [],
-        ));
-      }
-    }
   }
 
    Future<void> addCard(ScryfallCard card, int quantity, {bool isFoil = false}) async {
@@ -169,7 +144,7 @@ class CollectionService {
                  isFoil: false,
                );
              } else {
-               _upsertInMemory(collection, scCard.id, scCard.name, qtyToAdd, null, isFoil: false);
+               upsertCardInList(collection, scryfallId: scCard.id, cardName: scCard.name, quantityToAdd: qtyToAdd, matchByFoil: true, isFoil: false);
              }
              addedCount += qtyToAdd;
            }

@@ -1,21 +1,15 @@
 // Fichier : lib/pages/decks/deck_list_page.dart
 
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:magic_companion/data/secondary_breakfast.dart';
-import 'package:magic_companion/models/scryfall_card_model.dart';
-import 'package:magic_companion/pages/decks/deck_detail_page.dart';
+import '../../controllers/deck_list_controller.dart';
 import '../../models/deck_model.dart';
-import '../../services/deck_service.dart';
-import '../../services/local_card_service.dart';
+import '../../router/app_router.dart';
 import '../../services/scryfall_api.dart';
-import '../../services/scryfall_api_service.dart';
 import '../../widgets/cards/scryfall_image.dart';
-import '../../providers/service_providers.dart';
 
 class DeckListPage extends ConsumerStatefulWidget {
   const DeckListPage({super.key});
@@ -25,128 +19,21 @@ class DeckListPage extends ConsumerStatefulWidget {
 }
 
 class _DeckListPageState extends ConsumerState<DeckListPage> {
-  DeckService get _deckService => ref.read(deckServiceProvider);
-  LocalCardService get _localCardService => ref.read(localCardServiceProvider);
-  ScryfallApiService get _apiService => ref.read(scryfallApiServiceProvider);
-
-  List<Deck> _decks = [];
-  List<Deck> _filteredDecks = [];
-  Map<String, double> _deckPrices = {};
-
-  bool _isLoading = true;
-  bool _isImporting = false;
   final TextEditingController _searchController = TextEditingController();
-  
-  // Filtres
-  String _selectedFormat = 'Tous';
-  String _selectedSort = 'name';
-  
-  // Filtre Identité Couleur (Nom affiché + Liste des couleurs)
-  String? _selectedIdentityName; 
-  List<String>? _selectedIdentityColors; 
-
-  final Map<String, Map<String, List<String>>> _colorFamilies = {
-    'Mono': {
-      'Blanc': ['W'], 'Bleu': ['U'], 'Noir': ['B'], 'Rouge': ['R'], 'Vert': ['G'], 'Incolore': [] 
-    },
-    'Guilde (2)': {
-      'Azorius': ['W', 'U'], 'Dimir': ['U', 'B'], 'Rakdos': ['B', 'R'], 'Gruul': ['R', 'G'], 'Selesnya': ['G', 'W'],
-      'Orzhov': ['W', 'B'], 'Izzet': ['U', 'R'], 'Golgari': ['B', 'G'], 'Boros': ['R', 'W'], 'Simic': ['G', 'U']
-    },
-    'Trio (3)': {
-      'Esper': ['W', 'U', 'B'], 'Grixis': ['U', 'B', 'R'], 'Jund': ['B', 'R', 'G'], 'Naya': ['R', 'G', 'W'], 'Bant': ['G', 'W', 'U'],
-      'Abzan': ['W', 'B', 'G'], 'Jeskai': ['U', 'R', 'W'], 'Sultai': ['B', 'G', 'U'], 'Mardu': ['R', 'W', 'B'], 'Temur': ['G', 'U', 'R']
-    },
-    'Nephilim (4)': {
-      'Yore-Tiller': ['W', 'U', 'B', 'R'], 'Glint-Eye': ['U', 'B', 'R', 'G'], 'Dune-Brood': ['B', 'R', 'G', 'W'],
-      'Ink-Treader': ['R', 'G', 'W', 'U'], 'Witch-Maw': ['G', 'W', 'U', 'B']
-    },
-    'WUBRG (5)': {
-      '5 Couleurs': ['W', 'U', 'B', 'R', 'G']
-    }
-  };
-
-  final RegExp _decklistRegex = RegExp(r'^(\d+)x?\s+(.+)$');
 
   @override
-  void initState() {
-    super.initState();
-    _loadDecks();
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  Future<void> _loadDecks() async {
-    setState(() { _isLoading = true; });
-    await _localCardService.loadLocalData();
-    final decks = await _deckService.loadDecks();
-    
-    // Calcul des prix
-    for (var deck in decks) {
-      double total = 0.0;
-      for (var card in deck.mainboard) {
-        final localCard = _localCardService.getCardById(card.scryfallId);
-        if (localCard != null) {
-          double price = double.tryParse(localCard.prices['eur'] ?? '0') ?? 0.0;
-          total += price * card.quantity;
-        }
-      }
-      _deckPrices[deck.id] = total;
-    }
+  DeckListController get _controller => ref.read(deckListControllerProvider.notifier);
 
-    if(mounted) {
-      setState(() {
-        _decks = decks;
-        _isLoading = false;
-      });
-      _applyFilters();
-    }
-  }
-
-  void _applyFilters() {
-    final query = _searchController.text.toLowerCase();
-    
-    var tempDecks = _decks.where((deck) {
-      if (!deck.name.toLowerCase().contains(query)) return false;
-      
-      final bool isCommander = deck.commanderScryfallId != null;
-      if (_selectedFormat == 'Commander' && !isCommander) return false;
-      if (_selectedFormat == 'Standard' && isCommander) return false;
-      
-      if (_selectedIdentityColors != null) {
-        if (_selectedIdentityColors!.isEmpty) {
-          if (deck.colors.isNotEmpty) return false;
-        } else {
-          final deckSet = deck.colors.toSet();
-          final filterSet = _selectedIdentityColors!.toSet();
-          if (deckSet.length != filterSet.length || !deckSet.containsAll(filterSet)) {
-            return false;
-          }
-        }
-      }
-      return true;
-    }).toList();
-
-    tempDecks.sort((a, b) {
-      if (_selectedSort == 'price_desc') {
-        return (_deckPrices[b.id] ?? 0).compareTo(_deckPrices[a.id] ?? 0);
-      } else if (_selectedSort == 'price_asc') {
-        return (_deckPrices[a.id] ?? 0).compareTo(_deckPrices[b.id] ?? 0);
-      }
-      return a.name.compareTo(b.name);
-    });
-
-    setState(() {
-      _filteredDecks = tempDecks;
-    });
-  }
-
-  // --- ACTIONS ---
+  // --- ACTIONS (UI-only: dialogs, navigation, snackbars) ---
 
   Future<void> _deleteDeck(String deckId) async {
-    // Note: La confirmation est gérée par le Dismissible, 
-    // cette méthode est appelée après confirmation visuelle
-    await _deckService.deleteDeck(deckId);
-    
-    // --- EASTER EGG FORCE ---
+    await _controller.deleteDeck(deckId);
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -162,7 +49,6 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
         )
       );
     }
-    _loadDecks();
   }
 
   Future<void> _showCreateDeckDialog() async {
@@ -190,15 +76,14 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
     );
 
     if (name != null && name.isNotEmpty) {
-      await _deckService.createNewDeck(name);
-      _loadDecks();
+      await _controller.createNewDeck(name);
     }
   }
 
   Future<void> _showImportDeckDialog() async {
     final nameController = TextEditingController();
     final listController = TextEditingController();
-    
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -221,23 +106,23 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                 const SizedBox(height: 12),
                 TextField(controller: listController, style: const TextStyle(color: Colors.white), maxLines: 8, decoration: const InputDecoration(hintText: 'Collez votre decklist ici...', filled: true, fillColor: Colors.black54)),
                 const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: () {
-                    final String deckName = nameController.text.trim();
-                    final String deckList = listController.text.trim();
-                    // --- EASTER EGG CHECK ---
-                    if (deckName.toLowerCase() == 'second petit déjeuner') {
-                      Navigator.pop(context); 
-                      // Utilisation de la variable importée
-                      _importDeck("Nourriture et communauté", secondBreakfastDecklist);
-                    } else if (deckName.isNotEmpty && deckList.isNotEmpty) {
-                      Navigator.pop(context); 
-                      _importDeck(deckName, deckList);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
-                  child: _isImporting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Importer'),
-                ),
+                Consumer(builder: (context, ref, _) {
+                  final isImporting = ref.watch(deckListControllerProvider).isImporting;
+                  return ElevatedButton(
+                    onPressed: () {
+                      final String deckName = nameController.text.trim();
+                      final String deckList = listController.text.trim();
+                      // --- EASTER EGG CHECK ---
+                      final (resolvedName, resolvedList) = _controller.resolveEasterEgg(deckName, deckList);
+                      if (resolvedName != deckName || (deckName.isNotEmpty && deckList.isNotEmpty)) {
+                        Navigator.pop(context);
+                        _controller.importDeck(resolvedName, resolvedList);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
+                    child: isImporting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Importer'),
+                  );
+                }),
               ],
             ),
           ),
@@ -246,78 +131,14 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
     );
   }
 
-  Future<void> _importDeck(String deckName, String decklistText) async {
-    setState(() { _isImporting = true; _isLoading = true; });
-
-    List<Map<String, dynamic>> parsedMain = [];
-    List<Map<String, dynamic>> parsedSide = [];
-    String? commanderName;
-    List<String> ids = [];
-    String section = 'main';
-
-    for (var line in decklistText.split('\n')) {
-      line = line.trim();
-      if (line.toLowerCase().startsWith('commander')) { section = 'cmd'; continue; }
-      if (line.toLowerCase().startsWith('deck')) { section = 'main'; continue; }
-      if (line.toLowerCase().startsWith('sideboard')) { section = 'side'; continue; }
-      final match = _decklistRegex.firstMatch(line);
-      if (match != null) {
-        int qty = int.parse(match.group(1)!);
-        String name = match.group(2)!.trim().split('//')[0].trim();
-        if (!ids.contains(name)) ids.add(name);
-        if (section == 'cmd') commanderName = name;
-        else if (section == 'side') parsedSide.add({'name': name, 'quantity': qty});
-        else parsedMain.add({'name': name, 'quantity': qty});
-      }
-    }
-    
-    List<ScryfallCard> scryfallData = [];
-    if (ids.isNotEmpty) {
-      final query = ids.take(75).map((n) => '!"$n"').join(' OR ');
-      try {
-        final data = await _apiService.searchCards(query, unique: 'cards');
-        scryfallData = (data['data'] as List).map((j) => ScryfallCard.fromJson(j)).toList();
-      } catch (e) { log("Erreur import: $e"); }
-    }
-
-    Set<String> deckColors = {};
-    for (var sc in scryfallData) { deckColors.addAll(sc.colorIdentity); }
-    final order = {'W':0, 'U':1, 'B':2, 'R':3, 'G':4, 'C':5};
-    final sortedColors = deckColors.toList()..sort((a,b) => (order[a]??9).compareTo(order[b]??9));
-
-    await _deckService.createNewDeck(deckName);
-    final decks = await _deckService.loadDecks();
-    Deck newDeck = decks.firstWhere((d) => d.name == deckName);
-    newDeck.colors = sortedColors; 
-    newDeck.format = commanderName != null ? 'Commander' : 'Standard';
-    newDeck.mainboard = parsedMain.map((p) => DeckCard(scryfallId: _findId(scryfallData, p['name']), name: p['name'], quantity: p['quantity'])).toList();
-    newDeck.sideboard = parsedSide.map((p) => DeckCard(scryfallId: _findId(scryfallData, p['name']), name: p['name'], quantity: p['quantity'])).toList();
-    
-    if (commanderName != null) {
-      String cid = _findId(scryfallData, commanderName);
-      newDeck.commanderScryfallId = cid;
-      if (!newDeck.mainboard.any((c) => c.name == commanderName)) {
-        newDeck.mainboard.add(DeckCard(scryfallId: cid, name: commanderName, quantity: 1));
-      }
-    }
-    await _deckService.updateDeck(newDeck);
-    setState(() { _isImporting = false; _isLoading = false; });
-    _loadDecks();
-  }
-
-  String _findId(List<ScryfallCard> data, String name) {
-    try { return data.firstWhere((s) => s.name.toLowerCase() == name.toLowerCase()).id; } catch (e) { return "LOCAL:$name"; }
-  }
-
   // --- UI ---
 
   @override
   Widget build(BuildContext context) {
-    // CORRECTION : Nous n'utilisons plus de Scaffold interne ici pour laisser le contexte
-    // remonter jusqu'au Scaffold de AppShell (dans main.dart) qui contient le Drawer.
+    final state = ref.watch(deckListControllerProvider);
+
     return Stack(
       children: [
-        // Utilisation directe de NestedScrollView
         NestedScrollView(
           headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
             return <Widget>[
@@ -331,7 +152,6 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                 backgroundColor: Colors.black,
                 leading: IconButton(
                   icon: const Icon(Icons.menu),
-                  // Le context ici trouvera le Scaffold parent (AppShell)
                   onPressed: () => Scaffold.of(context).openDrawer(),
                 ),
                 actions: [
@@ -362,7 +182,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                           prefixIcon: Icon(Icons.search, color: Colors.white54),
                           contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
-                        onChanged: (_) => _applyFilters(),
+                        onChanged: (val) => _controller.updateSearchQuery(val),
                       ),
                     ),
                   ),
@@ -370,7 +190,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
               ),
             ];
           },
-          body: _isLoading 
+          body: state.isLoading
             ? const Center(child: CircularProgressIndicator(color: Colors.white))
             : CustomScrollView(
                 slivers: [
@@ -382,22 +202,22 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _buildIdentityFilterChip(),
+                            _buildIdentityFilterChip(state),
                             const SizedBox(width: 8),
                             _buildChoiceChip(
-                              label: _selectedFormat, 
+                              label: state.selectedFormat,
                               items: ['Tous', 'Commander', 'Standard'],
-                              onSelected: (v) { setState(() { _selectedFormat = v; _applyFilters(); }); }
+                              onSelected: (v) => _controller.updateFormat(v),
                             ),
                             const SizedBox(width: 8),
                             _buildChoiceChip(
-                              label: _getSortLabel(_selectedSort),
+                              label: _controller.getSortLabel(state.selectedSort),
                               items: ['Nom (A-Z)', 'Prix (Décroissant)', 'Prix (Croissant)'],
                               onSelected: (label) {
                                 String code = 'name';
                                 if(label.contains('Décroissant')) code = 'price_desc';
                                 else if(label.contains('Croissant')) code = 'price_asc';
-                                setState(() { _selectedSort = code; _applyFilters(); });
+                                _controller.updateSort(code);
                               }
                             ),
                           ],
@@ -405,21 +225,21 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                       ),
                     ),
                   ),
-                  
+
                   // Liste
                   SliverPadding(
                     padding: const EdgeInsets.only(bottom: 80),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
-                        (context, index) => _buildDeckCard(_filteredDecks[index]),
-                        childCount: _filteredDecks.length,
+                        (context, index) => _buildDeckCard(state.filteredDecks[index], state),
+                        childCount: state.filteredDecks.length,
                       ),
                     ),
                   ),
                 ],
               ),
         ),
-        
+
         Positioned(
           bottom: 16,
           right: 16,
@@ -437,8 +257,8 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
 
   // --- WIDGETS ---
 
-  Widget _buildIdentityFilterChip() {
-    final bool isActive = _selectedIdentityName != null;
+  Widget _buildIdentityFilterChip(DeckListState state) {
+    final bool isActive = state.selectedIdentityName != null;
     return GestureDetector(
       onTap: _openIdentityFilterModal,
       child: Container(
@@ -450,18 +270,18 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
         ),
         child: Row(
           children: [
-            if (_selectedIdentityColors != null && _selectedIdentityColors!.isNotEmpty)
+            if (state.selectedIdentityColors != null && state.selectedIdentityColors!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: Row(
-                  children: _selectedIdentityColors!.map((c) => Padding(
+                  children: state.selectedIdentityColors!.map((c) => Padding(
                     padding: const EdgeInsets.only(right: 2),
                     child: _getManaIcon(c, size: 14),
                   )).toList(),
                 ),
               ),
             Text(
-              _selectedIdentityName ?? "Couleurs",
+              state.selectedIdentityName ?? "Couleurs",
               style: TextStyle(
                 color: isActive ? Colors.white : Colors.white70,
                 fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
@@ -500,6 +320,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
   }
 
   void _openIdentityFilterModal() {
+    final currentState = ref.read(deckListControllerProvider);
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
@@ -520,10 +341,10 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text("Identité Couleur", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                      if (_selectedIdentityName != null)
+                      if (currentState.selectedIdentityName != null)
                         TextButton(
                           onPressed: () {
-                            setState(() { _selectedIdentityName = null; _selectedIdentityColors = null; _applyFilters(); });
+                            _controller.clearIdentityFilter();
                             Navigator.pop(context);
                           },
                           child: const Text("Effacer", style: TextStyle(color: Colors.redAccent))
@@ -535,7 +356,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                 Expanded(
                   child: ListView(
                     controller: scrollController,
-                    children: _colorFamilies.entries.map((familyEntry) {
+                    children: DeckListController.colorFamilies.entries.map((familyEntry) {
                       return ExpansionTile(
                         title: Text(familyEntry.key, style: GoogleFonts.cinzel(color: Colors.yellow.shade800, fontWeight: FontWeight.bold)),
                         iconColor: Colors.yellow.shade800,
@@ -544,7 +365,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                         children: familyEntry.value.entries.map((colorEntry) {
                           final name = colorEntry.key;
                           final colors = colorEntry.value;
-                          final isSelected = _selectedIdentityName == name;
+                          final isSelected = currentState.selectedIdentityName == name;
 
                           return ListTile(
                             selected: isSelected,
@@ -563,11 +384,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                             ),
                             trailing: isSelected ? const Icon(Icons.check, color: Colors.yellow) : null,
                             onTap: () {
-                              setState(() {
-                                _selectedIdentityName = name;
-                                _selectedIdentityColors = colors;
-                                _applyFilters();
-                              });
+                              _controller.updateIdentityFilter(name, colors);
                               Navigator.pop(context);
                             },
                           );
@@ -584,10 +401,10 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
     );
   }
 
-  Widget _buildDeckCard(Deck deck) {
+  Widget _buildDeckCard(Deck deck, DeckListState state) {
     final bool isCommander = deck.commanderScryfallId != null;
     final int cardCount = deck.mainboard.fold(0, (s, c) => s + c.quantity);
-    final double totalPrice = _deckPrices[deck.id] ?? 0.0;
+    final double totalPrice = state.deckPrices[deck.id] ?? 0.0;
 
     return Dismissible(
       key: Key(deck.id),
@@ -598,34 +415,32 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
         decoration: BoxDecoration(color: Colors.red.shade900, borderRadius: BorderRadius.circular(12)),
         alignment: Alignment.centerRight,
         child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          Text("USE THE FORCE",style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold,fontSize: 16, letterSpacing: 1.5)), 
-          const SizedBox(width: 12), 
+          Text("USE THE FORCE",style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold,fontSize: 16, letterSpacing: 1.5)),
+          const SizedBox(width: 12),
           Stack(
             alignment: Alignment.center,
             children: [
-              const Icon(Icons.back_hand, color: Colors.white, size: 30), // La main
-              Icon(Icons.flash_on, color: Colors.blueAccent.shade100, size: 40), // L'éclair de force
+              const Icon(Icons.back_hand, color: Colors.white, size: 30),
+              Icon(Icons.flash_on, color: Colors.blueAccent.shade100, size: 40),
             ],
           ),
         ]),
       ),
       confirmDismiss: (d) => showDialog(
-        context: context, 
+        context: context,
         builder: (c) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1A), 
-          title: const Text("Supprimer ?", style: TextStyle(color: Colors.white)), 
+          backgroundColor: const Color(0xFF1A1A1A),
+          title: const Text("Supprimer ?", style: TextStyle(color: Colors.white)),
           actions: [
-            TextButton(onPressed: ()=>Navigator.pop(c,false),child: const Text("Non")), 
+            TextButton(onPressed: ()=>Navigator.pop(c,false),child: const Text("Non")),
             TextButton(onPressed: ()=>Navigator.pop(c,true),child: const Text("Oui"))
           ]
         )
       ),
       onDismissed: (_) {
         _deleteDeck(deck.id);
-        setState(() { _decks.removeWhere((d) => d.id == deck.id); _applyFilters(); });
       },
       child: Card(
-        // DESIGN AJUSTÉ ICI : Noir opaque pour faire ressortir la row
         color: Colors.black.withOpacity(0.8),
         margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
         elevation: 4,
@@ -638,8 +453,8 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
         ),
         child: InkWell(
           onTap: () async {
-            await Navigator.push(context, MaterialPageRoute(builder: (_) => DeckDetailPage(deck: deck)));
-            _loadDecks();
+            await context.push(AppRoutes.deckDetail, extra: deck);
+            _controller.loadDecks();
           },
           borderRadius: BorderRadius.circular(12),
           child: Padding(
@@ -670,7 +485,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    
+
                     if (deck.colors.isNotEmpty)
                       Row(
                         children: deck.colors.map((c) => Padding(
@@ -713,20 +528,12 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
       )
     );
   }
-  
+
   Widget _getManaIcon(String symbol, {double size = 20}) {
     final url = 'https://svgs.scryfall.io/card-symbols/$symbol.svg';
     return SvgPicture.network(
       url, height: size, width: size,
       placeholderBuilder: (_) => Text(symbol, style: TextStyle(color: Colors.white, fontSize: size)),
     );
-  }
-  
-  String _getSortLabel(String code) {
-    switch(code) {
-      case 'price_desc': return 'Prix (Décroissant)';
-      case 'price_asc': return 'Prix (Croissant)';
-      default: return 'Nom (A-Z)';
-    }
   }
 }

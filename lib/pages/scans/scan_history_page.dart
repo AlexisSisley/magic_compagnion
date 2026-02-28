@@ -4,13 +4,14 @@
 import 'dart:io'; // Pour afficher l'image depuis le chemin (File)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/scan_history_model.dart';
 import '../../services/scan_history_service.dart';
 import '../../services/collection_service.dart';
 import '../../providers/service_providers.dart';
+import '../../router/app_router.dart';
 import 'package:intl/intl.dart';
-import '../cards/card_detail_page.dart'; // Notre page de détail
 
 class ScanHistoryPage extends ConsumerStatefulWidget {
   const ScanHistoryPage({super.key});
@@ -91,14 +92,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
   }
 
   void _viewCardDetail(ScanHistoryItem item) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        // On utilise le nom de la carte pour relancer une recherche
-        // (plus fiable que l'ID si la langue a changé)
-        builder: (context) => RecognitionResultPage(cardName: item.cardName),
-      ),
-    );
+    context.push(AppRoutes.cardDetail, extra: {'cardName': item.cardName});
   }
 
   @override

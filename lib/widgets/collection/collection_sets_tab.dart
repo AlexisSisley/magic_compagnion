@@ -3,14 +3,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/deck_model.dart';
 import '../../models/scryfall_set_model.dart';
+import '../../router/app_router.dart';
 import '../../services/set_service.dart';
 import '../../services/local_card_service.dart';
-import '../../services/collection_service.dart';
 import '../../services/wishlist_service.dart';
-import '../../pages/collections/set_detail_page.dart';
 import '../../providers/service_providers.dart';
 
 class CollectionSetsTab extends ConsumerStatefulWidget {
@@ -292,17 +292,7 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
                   margin: const EdgeInsets.only(bottom: 8),
                   child: InkWell(
                     onTap: () {
-                      final collectionService = ref.read(collectionServiceProvider);
-                      final wishlistService = ref.read(wishlistServiceProvider);
-                      final apiService = ref.read(scryfallApiServiceProvider);
-                      Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => SetDetailPage(
-                          set: set,
-                          collectionService: collectionService,
-                          wishlistService: wishlistService,
-                          apiService: apiService,
-                        )
-                      ));
+                      context.push(AppRoutes.setDetail, extra: set);
                     },
                     child: Column(
                       children: [

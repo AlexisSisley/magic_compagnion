@@ -2,13 +2,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Pour Clipboard
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/widgets/cards/versions_selector_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
-import '../../pages/cards/card_detail_page.dart';
+import '../../router/app_router.dart';
 import '../../services/deck_service.dart'; // Pour DeckBoard enum
 
 class DeckCardListTab extends StatefulWidget {
@@ -203,13 +204,13 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
         onPlus: () => widget.onUpdateQuantity(card, 1),
         onMinus: () => widget.onUpdateQuantity(card, -1),
-        onTap: () { if (scryfallCard != null) Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: scryfallCard!.name))); },
+        onTap: () { if (scryfallCard != null) context.push(AppRoutes.cardDetail, extra: {'cardName': scryfallCard!.name}); },
         onLongPress: () => _showCardOptions(card, scryfallCard, isCommander),
       );
     } else {
       return DeckCardTile(
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
-        onTap: () { if (scryfallCard != null) Navigator.push(context, MaterialPageRoute(builder: (_)=>RecognitionResultPage(cardName: scryfallCard!.name))); },
+        onTap: () { if (scryfallCard != null) context.push(AppRoutes.cardDetail, extra: {'cardName': scryfallCard!.name}); },
         onMore: () => _showCardOptions(card, scryfallCard, isCommander), // <--- Ouvre la modale
       );
     }

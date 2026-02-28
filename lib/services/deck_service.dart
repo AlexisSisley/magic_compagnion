@@ -6,11 +6,12 @@ import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/database/app_database.dart';
 import '../models/deck_model.dart';
+import '../utils/card_list_upsert_mixin.dart';
 
 // Enum pour identifier la zone cible
 enum DeckBoard { main, side, considering, wishlist }
 
-class DeckService {
+class DeckService with CardListUpsertMixin {
   static const _decksKey = 'user_decks';
   final AppDatabase? _db;
 
@@ -199,33 +200,15 @@ class DeckService {
       case DeckBoard.main: targetList = deck.mainboard;
     }
 
-    final cardIndex = targetList.indexWhere((c) => c.scryfallId == scryfallId);
-    if (cardIndex != -1) {
-      final existingCard = targetList[cardIndex];
-      int newQuantity = existingCard.quantity;
-      if (quantityToAdd != null) newQuantity += quantityToAdd;
-      else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
-
-      if (newTags != null) existingCard.tags = newTags;
-      if (isFoil != null) existingCard.isFoil = isFoil;
-
-      if (newQuantity <= 0) targetList.removeAt(cardIndex);
-      else existingCard.quantity = newQuantity;
-    } else {
-      int newQuantity = 0;
-      if (quantityToAdd != null) newQuantity = quantityToAdd;
-      else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
-
-      if (newQuantity > 0) {
-        targetList.add(DeckCard(
-          scryfallId: scryfallId,
-          name: cardName,
-          quantity: newQuantity,
-          tags: newTags ?? [],
-          isFoil: isFoil ?? false,
-        ));
-      }
-    }
+    upsertCardInList(
+      targetList,
+      scryfallId: scryfallId,
+      cardName: cardName,
+      quantityToAdd: quantityToAdd,
+      absoluteQuantity: absoluteQuantity,
+      isFoil: isFoil,
+      newTags: newTags,
+    );
     await updateDeck(deck);
     return deck;
   }

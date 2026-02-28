@@ -5,10 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'dart:convert';
 import 'dart:developer';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/glossary_data.dart'; // Importer notre modèle (Keyword)
-import 'glossary_detail_page.dart';
+import '../../router/app_router.dart';
 
 class GlossaryPage extends StatefulWidget {
   const GlossaryPage({super.key});
@@ -266,12 +267,7 @@ class _GlossaryPageState extends State<GlossaryPage> {
         trailing: const Icon(Icons.chevron_right, color: Colors.white54),
         splashColor: Colors.yellow.withOpacity(0.1),
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => GlossaryDetailPage(keyword: keyword),
-            ),
-          );
+          context.push(AppRoutes.glossaryDetail, extra: keyword);
         },
       ),
     );

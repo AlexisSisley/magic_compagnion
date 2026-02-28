@@ -164,6 +164,36 @@ void main() {
           .get();
       expect(all.length, 30);
     });
+
+    test('recordDailyValue double call same dateKey updates without exception', () async {
+      // First insert
+      await db.recordDailyValue('2026-02-28', 100.0);
+      // Second insert with same dateKey should update, not throw
+      await db.recordDailyValue('2026-02-28', 200.0);
+
+      final all = await (db.select(db.collectionValueHistory)
+            ..where((t) => t.dateKey.equals('2026-02-28')))
+          .get();
+      expect(all.length, 1);
+      expect(all.first.totalValue, 200.0);
+    });
+
+    test('recordDailyValue with 31+ entries cleans old ones', () async {
+      // Insert exactly 31 entries
+      for (int i = 1; i <= 31; i++) {
+        await db.recordDailyValue('2026-03-${i.toString().padLeft(2, '0')}', i * 5.0);
+      }
+
+      final all = await (db.select(db.collectionValueHistory)
+            ..orderBy([(t) => OrderingTerm.asc(t.dateKey)]))
+          .get();
+      expect(all.length, 30);
+      // The oldest entry (2026-03-01) should have been cleaned
+      expect(all.first.dateKey, '2026-03-02');
+      // The newest entry should still be present
+      expect(all.last.dateKey, '2026-03-31');
+      expect(all.last.totalValue, 155.0);
+    });
   });
 
   // ============================================================
