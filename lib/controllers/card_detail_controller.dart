@@ -186,7 +186,7 @@ class CardDetailController extends StateNotifier<CardDetailState> {
   // --- OCR ---
 
   String _cleanOcrText(String text) {
-    String cleanedText = text.toUpperCase();
+    String cleanedText = text;
     cleanedText = cleanedText.replaceAll(RegExp(r'[\[\].,:;]'), ' ');
     cleanedText = cleanedText.replaceAll(RegExp(r'\s+'), ' ').trim();
     return cleanedText;
@@ -208,7 +208,7 @@ class CardDetailController extends StateNotifier<CardDetailState> {
       textRecognizer.close();
 
       final RegExp collectorRegex =
-          RegExp(r'\b([A-Z0-9]{3,5})[\s•\/\-]{1,3}([0-9]{1,4}[a-z]?)\b');
+          RegExp(r'\b([A-Z0-9]{3,5})[\s•\/\-]{1,3}([0-9]{1,4}[a-z]?)\b', caseSensitive: false);
 
       for (var block in recognizedText.blocks) {
         String blockText = block.text.replaceAll('\n', ' ');
@@ -231,8 +231,24 @@ class CardDetailController extends StateNotifier<CardDetailState> {
 
       String? bestGuess;
       const List<String> badKeywords = [
-        'créature', 'creature', 'artefact', 'artifact', 'enchantment',
-        'instant', 'sorcery', 'land', 'token', 'legendary',
+        // EN
+        'creature', 'artifact', 'enchantment', 'instant', 'sorcery',
+        'land', 'token', 'legendary', 'planeswalker',
+        // FR
+        'créature', 'artefact', 'enchantement', 'éphémère', 'rituel',
+        'terrain', 'jeton', 'légendaire',
+        // DE
+        'kreatur', 'artefakt', 'verzauberung', 'spontanzauber', 'hexerei',
+        'spielstein', 'legendär',
+        // ES
+        'criatura', 'artefacto', 'encantamiento', 'instantáneo', 'conjuro',
+        'tierra', 'ficha', 'legendario', 'legendaria',
+        // IT
+        'creatura', 'artefatto', 'incantesimo', 'istantaneo', 'stregoneria',
+        'terra', 'pedina', 'leggendario', 'leggendaria',
+        // PT
+        'artefato', 'encantamento', 'mágica instantânea', 'feitiço',
+        'terreno', 'lendário', 'lendária',
       ];
 
       for (int i = 0; i < sortedBlocks.length && i < 5; i++) {
@@ -300,11 +316,25 @@ class CardDetailController extends StateNotifier<CardDetailState> {
     final connectivityResult = await (Connectivity().checkConnectivity());
     if (!connectivityResult.contains(ConnectivityResult.none)) {
       try {
-        final data = await _apiService.searchCards(query, unique: 'cards');
-        final List<dynamic> rawList = data['data'] ?? [];
+        List<ScryfallCard> apiResults = [];
 
-        final List<ScryfallCard> apiResults =
-            rawList.map((json) => ScryfallCard.fromJson(json)).take(10).toList();
+        try {
+          final data = await _apiService.searchCards(query, unique: 'cards');
+          final List<dynamic> rawList = data['data'] ?? [];
+          apiResults = rawList.map((json) => ScryfallCard.fromJson(json)).take(10).toList();
+        } catch (_) {
+          // 404 = 0 résultats, on essaiera multilangue
+        }
+
+        if (apiResults.isEmpty) {
+          try {
+            final multiData = await _apiService.searchCards(
+              query, unique: 'cards', includeMultilingual: true,
+            );
+            final List<dynamic> multiRawList = multiData['data'] ?? [];
+            apiResults = multiRawList.map((json) => ScryfallCard.fromJson(json)).take(10).toList();
+          } catch (_) {}
+        }
 
         if (apiResults.isNotEmpty) {
           if (apiResults.length == 1) {

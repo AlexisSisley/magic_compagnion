@@ -328,7 +328,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () => _triggerChange(-1),
-                    onLongPress: () => _triggerChange(-5),
+                    onLongPress: () => _triggerChange(_editMode == CounterMode.commanderTax ? -10 : -5),
                     splashColor: Colors.black12,
                     child: Center(
                       child: FittedBox(child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(Icons.remove, color: Colors.white.withOpacity(0.6), size: 48))),
@@ -377,7 +377,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () => _triggerChange(1),
-                    onLongPress: () => _triggerChange(5),
+                    onLongPress: () => _triggerChange(_editMode == CounterMode.commanderTax ? 10 : 5),
                     splashColor: Colors.black12,
                     child: Center(
                       child: FittedBox(child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(Icons.add, color: Colors.white.withOpacity(0.6), size: 48))),

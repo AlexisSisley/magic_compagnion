@@ -59,6 +59,7 @@ class ScryfallApiService {
     String? unique,
     String? order,
     String? dir,
+    bool? includeMultilingual,
   }) async {
     final params = <String, String>{
       'q': query,
@@ -66,6 +67,7 @@ class ScryfallApiService {
       if (unique != null) 'unique': unique,
       if (order != null) 'order': order,
       if (dir != null) 'dir': dir,
+      if (includeMultilingual == true) 'include_multilingual': 'true',
     };
 
     return _get('/cards/search', queryParameters: params, cacheTtl: defaultCacheTtl);
