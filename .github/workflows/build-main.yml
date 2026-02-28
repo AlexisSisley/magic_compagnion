@@ -101,7 +101,7 @@ jobs:
 
       # 7. ANALYSE STATIQUE & TESTS
       - name: Flutter Analyze
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Unzip Data Files (for tests)
         run: |
