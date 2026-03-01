@@ -27,6 +27,21 @@ class DeckDetailActionResult {
 
 // --- ETAT IMMUTABLE ---
 
+/// Info d'un token requis par le deck.
+class TokenInfo {
+  final String id;
+  final String name;
+  final String typeLine;
+  final String? imageUrl;
+
+  const TokenInfo({
+    required this.id,
+    required this.name,
+    required this.typeLine,
+    this.imageUrl,
+  });
+}
+
 class DeckDetailState {
   final Deck currentDeck;
   final List<ScryfallCard> fullCardData;
@@ -35,6 +50,7 @@ class DeckDetailState {
   final bool isLoading;
   final bool isValidating;
   final String? errorMessage;
+  final List<TokenInfo> tokens;
 
   DeckDetailState({
     required this.currentDeck,
@@ -44,6 +60,7 @@ class DeckDetailState {
     this.isLoading = true,
     this.isValidating = false,
     this.errorMessage,
+    this.tokens = const [],
   });
 
   DeckDetailState copyWith({
@@ -54,6 +71,7 @@ class DeckDetailState {
     bool? isLoading,
     bool? isValidating,
     String? errorMessage,
+    List<TokenInfo>? tokens,
   }) {
     return DeckDetailState(
       currentDeck: currentDeck ?? this.currentDeck,
@@ -63,6 +81,7 @@ class DeckDetailState {
       isLoading: isLoading ?? this.isLoading,
       isValidating: isValidating ?? this.isValidating,
       errorMessage: errorMessage,
+      tokens: tokens ?? this.tokens,
     );
   }
 
@@ -105,6 +124,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
       _loadCollection(),
     ]);
     _calculateDeckValue();
+    await _computeTokens();
     state = state.copyWith(isLoading: false);
   }
 
@@ -195,6 +215,52 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     }
 
     state = state.copyWith(totalDeckPrice: total);
+  }
+
+  /// Extrait les tokens uniques requis par le deck depuis allParts.
+  Future<void> _computeTokens() async {
+    final Map<String, RelatedCard> tokenMap = {};
+    for (final card in state.fullCardData) {
+      for (final part in card.allParts) {
+        if (part.isToken && !tokenMap.containsKey(part.id)) {
+          tokenMap[part.id] = part;
+        }
+      }
+    }
+
+    if (tokenMap.isEmpty) {
+      state = state.copyWith(tokens: []);
+      return;
+    }
+
+    // Charger les images des tokens via l'API /cards/collection
+    List<TokenInfo> tokens = [];
+    final tokenIds = tokenMap.values.toList();
+    try {
+      final data = await _apiService.fetchCollection(
+        tokenIds.map((t) => {'id': t.id}).toList(),
+      );
+      final List<dynamic> rawList = data['data'] ?? [];
+      for (final json in rawList) {
+        final card = ScryfallCard.fromJson(json as Map<String, dynamic>);
+        tokens.add(TokenInfo(
+          id: card.id,
+          name: card.name,
+          typeLine: card.typeLine,
+          imageUrl: card.imageUrl.isNotEmpty ? card.imageUrl : card.smallImageUrl,
+        ));
+      }
+    } catch (e) {
+      // Fallback sans images
+      tokens = tokenIds.map((t) => TokenInfo(
+        id: t.id,
+        name: t.name,
+        typeLine: t.typeLine,
+      )).toList();
+    }
+
+    if (!mounted) return;
+    state = state.copyWith(tokens: tokens);
   }
 
   // --- CARD CRUD ---

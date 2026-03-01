@@ -165,6 +165,22 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                           const SizedBox(height: 8),
                           Text(foundCard.printedName ?? foundCard.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                           Text(foundCard.typeLine, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+                          if (state.collectionNormalCount > 0 || state.collectionFoilCount > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
+                                ),
+                                child: Text(
+                                  'Collection : ${state.collectionNormalCount} normal${state.collectionNormalCount > 1 ? 's' : ''}${state.collectionFoilCount > 0 ? ' + ${state.collectionFoilCount} foil${state.collectionFoilCount > 1 ? 's' : ''}' : ''}',
+                                  style: GoogleFonts.cinzel(color: Colors.green.shade300, fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
                     ]))
                 ]),
               ),

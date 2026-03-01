@@ -16,6 +16,7 @@ import '../../models/scryfall_card_model.dart';
 
 // --- IMPORT DU NOUVEAU WIDGET ---
 import '../../widgets/search/skyrim_sneak_loader.dart';
+import '../../widgets/common/collection_badge.dart';
 
 class CardSearchPage extends ConsumerStatefulWidget {
   const CardSearchPage({super.key});
@@ -138,7 +139,8 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                                   _buildSortMenuItem(state, 'name', 'Nom'),
                                   _buildSortMenuItem(state, 'cmc', 'Mana (CMC)'),
                                   _buildSortMenuItem(state, 'type', 'Type'),
-                                  _buildSortMenuItem(state, 'eur', 'Prix (EUR)'),
+                                  _buildSortMenuItem(state, 'price_desc', 'Prix (cher \u2192 pas cher)'),
+                                  _buildSortMenuItem(state, 'price_asc', 'Prix (pas cher \u2192 cher)'),
                                 ],
                               ),
                               const SizedBox(width: 8),
@@ -263,6 +265,14 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
     );
   }
 
+  CollectionBadge? _getBadge(CardSearchState state, String scryfallId, String cardName) {
+    final normal = state.collectionIndex[scryfallId] ?? 0;
+    final foil = state.collectionFoilIndex[scryfallId] ?? 0;
+    final inWishlist = state.wishlistCardNames.contains(cardName);
+    if (normal == 0 && foil == 0 && !inWishlist) return null;
+    return CollectionBadge(normalCount: normal, foilCount: foil, inWishlist: inWishlist);
+  }
+
   Widget _buildListTile(CardSearchState state, ScryfallCard card) {
     final String cardName = card.name;
     final String? imageUrl = card.smallImageUrl ?? card.imageUrl;
@@ -270,6 +280,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
 
     final bool inWishlist = state.isCardInWishlist(cardName);
     final bool inCollection = state.isCardInCollection(card.id);
+    final badge = _getBadge(state, card.id, cardName);
 
     return Card(
       color: Colors.black.withValues(alpha: 0.45),
@@ -317,6 +328,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
               ),
               Column(
                 children: [
+                  if (badge != null) CollectionBadgeWidget(badge: badge),
                   _buildActionButton(icon: inWishlist ? Icons.star : Icons.star_border, color: inWishlist ? Colors.blue : Colors.white30, onTap: () => _toggleWishlist(card.id, cardName, inWishlist)),
                   _buildActionButton(icon: inCollection ? Icons.inventory_2 : Icons.inventory_2_outlined, color: inCollection ? Colors.green : Colors.white30, onTap: () => _toggleCollection(card.id, cardName, inCollection)),
                 ],
@@ -353,6 +365,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
 
         final card = state.searchResults[index];
         final String imageUrl = card.imageUrl.isNotEmpty ? card.imageUrl : (card.smallImageUrl ?? '');
+        final badge = _getBadge(state, card.id, card.name);
 
         return GestureDetector(
           onTap: () => _navigateToDetail(card.name),
@@ -375,7 +388,12 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                       _buildRarityBadge(card.rarity, small: true),
                     ],
                   ),
-                )
+                ),
+                if (badge != null)
+                  Positioned(
+                    top: 4, right: 4,
+                    child: CollectionBadgeWidget(badge: badge),
+                  ),
               ],
             ),
           ),

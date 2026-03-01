@@ -27,6 +27,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
   // Nouveaux états
   late RangeValues _cmcRange;
   late String? _selectedRarity;
+  late TextEditingController _maxPriceController;
 
   final List<String> _cardTypes = [
     'Creature', 'Instant', 'Sorcery', 'Artifact',
@@ -52,12 +53,16 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
     _cmcRange = RangeValues(min, max);
     
     _selectedRarity = widget.initialFilters.rarity;
+    _maxPriceController = TextEditingController(
+      text: widget.initialFilters.maxPrice?.toString() ?? '',
+    );
   }
 
   @override
   void dispose() {
     _setController.dispose();
-    _keywordController.dispose(); // <--- DISPOSE NOUVEAU
+    _keywordController.dispose();
+    _maxPriceController.dispose();
     super.dispose();
   }
 
@@ -65,8 +70,11 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
     // Si la plage est complète (0-10), on envoie null pour ne pas filtrer
     double? finalMin = _cmcRange.start > 0 ? _cmcRange.start : null;
     double? finalMax = _cmcRange.end < 10 ? _cmcRange.end : null;
-    
-    final String? keyword = _keywordController.text.trim().isEmpty ? null : _keywordController.text.trim(); // <--- RÉCUPÉRATION
+
+    final String? keyword = _keywordController.text.trim().isEmpty ? null : _keywordController.text.trim();
+    final double? maxPrice = _maxPriceController.text.trim().isEmpty
+        ? null
+        : double.tryParse(_maxPriceController.text.trim());
 
     final newFilters = SearchFilters(
       setCode: _setController.text.trim().isEmpty ? null : _setController.text.trim(),
@@ -75,7 +83,8 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
       minCmc: finalMin,
       maxCmc: finalMax,
       rarity: _selectedRarity,
-      keyword: keyword, // <--- AJOUT
+      keyword: keyword,
+      maxPrice: maxPrice,
     );
     Navigator.pop(context, newFilters);
   }
@@ -216,6 +225,15 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                   inactiveColor: Colors.white24,
                   labels: RangeLabels('${_cmcRange.start.round()}', '${_cmcRange.end.round()}'),
                   onChanged: (values) => setState(() => _cmcRange = values),
+                ),
+
+                const SizedBox(height: 16),
+                // --- Prix max (EUR) ---
+                TextField(
+                  controller: _maxPriceController,
+                  style: const TextStyle(color: Colors.white),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: _buildInputDecoration(hintText: 'Prix max (EUR)', icon: Icons.euro),
                 ),
 
                 const SizedBox(height: 24),

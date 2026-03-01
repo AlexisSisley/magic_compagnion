@@ -1,0 +1,105 @@
+// Fichier : lib/widgets/decks/deck_tokens_tab.dart
+// Sprint 9 : Onglet affichant les tokens requis par le deck.
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import '../../controllers/deck_detail_controller.dart';
+
+class DeckTokensTab extends StatelessWidget {
+  final List<TokenInfo> tokens;
+
+  const DeckTokensTab({super.key, required this.tokens});
+
+  @override
+  Widget build(BuildContext context) {
+    if (tokens.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.token, color: Colors.white24, size: 64),
+              const SizedBox(height: 16),
+              Text(
+                'Ce deck ne necessite aucun token',
+                style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(8),
+      itemCount: tokens.length,
+      itemBuilder: (context, index) {
+        final token = tokens[index];
+        return Card(
+          color: Colors.black.withValues(alpha: 0.45),
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: const BorderSide(color: Colors.white10),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: token.imageUrl != null && token.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          token.imageUrl!,
+                          width: 60,
+                          height: 84,
+                          fit: BoxFit.cover,
+                          errorBuilder: (c, e, s) => Container(
+                            width: 60,
+                            height: 84,
+                            color: Colors.grey.shade800,
+                            child: const Icon(Icons.token, color: Colors.white30),
+                          ),
+                        )
+                      : Container(
+                          width: 60,
+                          height: 84,
+                          color: Colors.grey.shade800,
+                          child: const Icon(Icons.token, color: Colors.white30),
+                        ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        token.name,
+                        style: GoogleFonts.cinzel(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        token.typeLine,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

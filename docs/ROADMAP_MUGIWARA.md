@@ -1,8 +1,8 @@
 # Magic Companion - Roadmap & Plan d'Action Global
 
 > Genere le 26/02/2026 par Mugiwara (Pipeline de Construction)
-> Mis a jour le 28/02/2026 -- Sprint 6 termine (Migration HTTP Pages), Sprint 7 lance (Refactoring God Files)
-> Synthetise les travaux de Brook (Doc), Doc-Hunt (API Scryfall), Nami (Audit QA)
+> Mis a jour le 01/03/2026 -- Sprint 8 en pause (backlog technique), Sprint 9 lance (Quick Wins Features)
+> Synthetise les travaux de Brook (Doc), Doc-Hunt (API Scryfall), Nami (Audit QA), Yamato (Veille Features)
 
 ---
 
@@ -165,41 +165,115 @@ La reference complete de l'API Scryfall a ete documentee (voir `docs/SCRYFALL_AP
 
 ---
 
-### Sprint 7 : Refactoring God Files & Qualite (Semaines 14-17) -- EN COURS
+### Sprint 7 : Refactoring God Files & Qualite (Semaines 14-17) -- TERMINE
 
 **Objectif** : Decomposer les 6 God Files pages en extrayant des controllers Riverpod, supprimer les dependances obsoletes, migrer les Navigator.push, atteindre >60% couverture.
 
-| Tache                                     | Type        | Effort | Priorite | Fichier (lignes) |
-|-------------------------------------------|-------------|--------|----------|------------------|
-| Extraire SetDetailController | Refactor | 2j | P0 | 1003 lignes → <400 |
-| Extraire DeckDetailController | Refactor | 2j | P0 | 850 lignes → <400 |
-| Extraire CardSearchController | Refactor | 1.5j | P0 | 830 lignes → <350 |
-| Extraire CardDetailController | Refactor | 1.5j | P0 | 773 lignes → <400 |
-| Extraire DeckListController + CollectionController | Refactor | 1.5j | P0 | 731 + 521 lignes → <300 |
-| Mixin CardListUpsert (3 services) | Refactor | 1j | P1 | 3 services |
-| Migrer 23 Navigator.push vers go_router | Migration | 1.5j | P1 | 15 fichiers |
-| Supprimer package `http` du pubspec.yaml | Cleanup | 0.25j | P1 | pubspec.yaml |
-| Widget tests (PlayerZone, ScryfallImage, DeckCardListTab, GameSetupModal) | Test | 2j | P2 | |
+| Tache                                     | Type        | Effort | Priorite | Statut |
+|-------------------------------------------|-------------|--------|----------|--------|
+| Extraire SetDetailController | Refactor | 2j | P0 | FAIT |
+| Extraire DeckDetailController | Refactor | 2j | P0 | FAIT |
+| Extraire CardSearchController | Refactor | 1.5j | P0 | FAIT |
+| Extraire CardDetailController | Refactor | 1.5j | P0 | FAIT |
+| Extraire DeckListController + CollectionController | Refactor | 1.5j | P0 | FAIT |
+| Mixin CardListUpsert (3 services) | Refactor | 1j | P1 | FAIT |
+| Migrer 23 Navigator.push vers go_router | Migration | 1.5j | P1 | FAIT |
+| Supprimer package `http` du pubspec.yaml | Cleanup | 0.25j | P1 | FAIT |
+| Tests controllers (108 nouveaux) | Test | 2j | P2 | FAIT |
 
-**Delivrable** : 6 controllers, <400 lignes par page, >= 200 tests, >60% couverture, 0 Navigator.push. Score cible : **9.5/10**.
+**Resultat** : 6 controllers, 273 tests, 0 Navigator.push, 0 import http, mixin upsert. Score : 8.5 -> **9.0/10**.
 
 ---
 
-### Sprint 8+ : Widgets, i18n & Evolutions (Backlog)
+### Sprint 8 : Widgets, Qualite & Polish (Semaines 18-20) -- EN PAUSE
 
-| Tache                                     | Type          | Effort | Priorite |
-|-------------------------------------------|---------------|--------|----------|
-| Extraction controllers widgets (collection_list_tab, player_zone, deck_stats_tab, game_setup_modal) | Refactor | 4j | P2 |
-| Refactoring app_router.dart (613 lignes → sous-routeurs) | Refactor | 1j | P2 |
-| Mise a jour automatique base locale (oracle-cards.json via Bulk Data Scryfall) | Feature | 3j | P2 |
-| Internationalisation (i18n avec fichiers ARB) -- 313 GoogleFonts.cinzel a centraliser | Feature | 5j | P3 |
-| Chiffrement BDD SQLite (sqlite3_flutter_libs + encryption) | Secu | 2j | P3 |
-| Resoudre les dependency overrides ML Kit (google_mlkit_commons, google_mlkit_text_recognition) | Fix | 1j | P3 |
-| Optimiser le scanner (ML Kit derniere version) | Optim | 2j | P3 |
-| Implementer la syntaxe de recherche Scryfall (filtres avances en ligne) | Feature | 3j | P3 |
-| Ajouter les notifications push (Firebase Messaging) | Feature | 2j | P3 |
-| Integrer les Rulings Scryfall dans le detail de carte | Feature | 1j | P3 |
-| Ajouter les Catalogs Scryfall pour les filtres dynamiques | Feature | 2j | P3 |
+**Objectif** : Extraire 4 controllers widgets, resoudre 1041 infos flutter analyze, extraire sous-widgets pages, decouper routeur, centraliser GoogleFonts. Cible : 0 fichier applicatif >500 lignes, >300 tests, score 9.5/10.
+
+| Tache                                     | Type        | Effort | Priorite | Statut |
+|-------------------------------------------|-------------|--------|----------|--------|
+| Supprimer 77 unnecessary_non_null_assertion | Cleanup | 0.5j | P0 | FAIT |
+| Resoudre ~890 issues flutter analyze restantes | Cleanup | 1.5j | P0 | BACKLOG |
+| Extraire DeckCardPickerController (774 lignes) | Refactor | 1.5j | P0 | BACKLOG |
+| Extraire CollectionListController (716 lignes) | Refactor | 1j | P0 | BACKLOG |
+| Extraire PlayerZoneController (674 lignes) | Refactor | 1j | P0 | BACKLOG |
+| Extraire DeckStatsController (612 lignes) | Refactor | 1j | P0 | BACKLOG |
+| Extraire sous-widgets pages (5 pages >500 lignes -> <400) | Refactor | 3j | P0 | BACKLOG |
+| Decouper app_router.dart (713 lignes -> <200 + sous-routeurs) | Refactor | 1.5j | P1 | BACKLOG |
+| Centraliser GoogleFonts.cinzel (333 -> <60) dans AppTextStyles | Refactor | 2j | P2 | BACKLOG |
+
+**Etat actuel** : 77 non_null_assertions corriges (commit 8035d46). Reste 965 issues (75 warnings + 890 infos). Le backlog technique sera repris apres le Sprint 9.
+
+**Delivrable cible** : 10 controllers, 0 fichier page/widget >500 lignes, >305 tests, 0 issue analyse, GoogleFonts centralise. Score cible : **9.5/10**.
+
+---
+
+### Sprint 9 : Quick Wins Features (Semaines 21-22) -- EN COURS
+
+**Objectif** : Implementer les 5 features a forte valeur ajoutee identifiees par l'audit Yamato (veille concurrentielle). Premier sprint de features utilisateur apres 8 sprints techniques.
+
+| Tache                                     | Type        | Effort | Priorite | Ref Yamato | Statut |
+|-------------------------------------------|-------------|--------|----------|------------|--------|
+| Ajouter RelatedCard + allParts dans ScryfallCard + maxPrice dans SearchFilters | Modele | 0.5j | P0 | -- | FAIT |
+| Indicateur de collection (badge owned/foil/wishlist sur recherche + set + detail) | Feature | 1.5j | P0 | M10 | FAIT |
+| Bouton "Ajouter au deck" depuis la page detail carte (reutilise DeckPickerModal) | Feature | 0.5j | P1 | E-A4 | FAIT |
+| Tri par prix (EUR croissant/decroissant) dans recherche API + locale + collection | Feature | 0.5j | P1 | M9 | FAIT |
+| Filtre budget (prix max EUR) dans le modal de filtres | Feature | 0.5j | P1 | E4 | FAIT |
+| Affichage des tokens requis par le deck (onglet Tokens dans deck detail) | Feature | 1.5j | P2 | M13 | FAIT |
+
+**Resultat** : 5 features deployees, 298 tests (273 -> 298), 0 errors analyze. Score : **9.0/10** (stable).
+
+---
+
+### Sprint 10 : Import/Export & Legalite (Semaines 23-25)
+
+**Objectif** : Combler le gap critique n°1 (import/export) et n°3 (legalite) identifies par l'audit Yamato.
+
+| Tache                                     | Type        | Effort | Priorite | Ref Yamato |
+|-------------------------------------------|-------------|--------|----------|------------|
+| Import/export multi-format (CSV, TXT, Moxfield, Archidekt, MTGO) | Feature | 4j | P0 | M2 |
+| Verification de legalite par format (Standard, Modern, Commander, Pioneer, etc.) | Feature | 3j | P0 | M4 |
+| Tags personnalises sur les cartes (etiquettes utilisateur libres) | Feature | 2j | P1 | M3 |
+
+**Delivrable** : Interoperabilite avec les autres apps MTG, verification legalite automatique. Effort : ~9j.
+
+---
+
+### Sprint 11 : EDHREC Deep Integration (Semaines 26-28)
+
+**Objectif** : Exploiter l'API EDHREC pour des recommandations avancees de deckbuilding Commander.
+
+| Tache                                     | Type        | Effort | Priorite | Ref Yamato |
+|-------------------------------------------|-------------|--------|----------|------------|
+| Themes et tribes EDHREC (suggestions par archetype/tribu) | Feature | 3j | P1 | E2 |
+| Synergy score (score de synergie entre cartes d'un deck) | Feature | 3j | P1 | E5 |
+| Detection de combos (identification automatique des combos dans un deck) | Feature | 3j | P2 | E6 |
+
+**Delivrable** : Recommandations intelligentes pour le deckbuilding Commander. Effort : ~9j.
+
+---
+
+### Sprint 12 : Features Avancees, Refactoring & Backlog Technique (Semaines 29-33)
+
+**Objectif** : Implementer les features avancees Yamato Tier A/B restantes et solder le backlog technique.
+
+| Tache                                     | Type        | Effort | Priorite | Ref Yamato |
+|-------------------------------------------|-------------|--------|----------|------------|
+| Deck power level (estimation automatique de la puissance d'un deck Commander) | Feature | 3j | P1 | E1 |
+| Syntaxe de recherche avancee Scryfall (filtres en ligne type `c:red cmc<=3`) | Feature | 3j | P1 | A7 |
+| Recherche multilangue (nom de carte en FR, DE, JP, etc.) | Feature | 2j | P2 | A4 |
+| Salt score EDHREC (indicateur de cartes "frustrantes") | Feature | 2j | P2 | E3 |
+| Centraliser Colors hardcodes (1536) dans AppColors/ThemeData | Refactor | 3j | P2 | -- |
+| GameSetupModalController (507 lignes) | Refactor | 1j | P2 | -- |
+| Internationalisation (i18n avec fichiers ARB) | Feature | 5j | P3 | -- |
+| Chiffrement BDD SQLite (sqlite3_flutter_libs + encryption) | Secu | 2j | P3 | -- |
+| Resoudre les dependency overrides ML Kit (google_mlkit_commons, google_mlkit_text_recognition) | Fix | 1j | P3 | -- |
+| Optimiser le scanner (ML Kit derniere version) | Optim | 2j | P3 | -- |
+| Mise a jour automatique base locale (oracle-cards.json via Bulk Data Scryfall) | Feature | 3j | P2 | -- |
+| Ajouter les notifications push (Firebase Messaging) | Feature | 2j | P3 | -- |
+| Integrer les Rulings Scryfall dans le detail de carte | Feature | 1j | P3 | -- |
+| Ajouter les Catalogs Scryfall pour les filtres dynamiques | Feature | 2j | P3 | -- |
+
+**Delivrable** : Features avancees + dette technique soldee, app complete et competitive. Effort : ~32j.
 
 ---
 
@@ -271,21 +345,22 @@ lib/
 
 ## 5. Metriques de Succes
 
-| Metrique                      | Actuel (S1)      | Apres S6      | Cible S7        | Cible Finale |
-|-------------------------------|------------------|---------------|-----------------|--------------|
-| Tests                         | 0 (1 casse)      | **165**       | **>= 200**      | >300         |
-| Couverture tests              | 0%               | ~40%          | **> 60%**       | >75%         |
-| Lint warnings                 | ~20-30           | 0             | 0               | 0            |
-| Fichiers pages >500 lignes    | 6                | 6             | **0**           | 0            |
-| Fichiers total >500 lignes    | 12               | 12            | <= 7 (widgets)  | 0            |
-| Controllers Riverpod          | 0                | 0             | **6**           | >10          |
-| Providers Riverpod actifs     | 0                | 14            | **20+**         | >25          |
-| Navigator.push                | 152              | 23            | **0**           | 0            |
-| Package `http`                | present          | present       | **supprime**    | -            |
-| Pipeline CI execute tests     | Non              | Oui           | Oui             | Oui + CD     |
-| Stockage donnees              | SharedPrefs (27) | drift SQLite  | drift SQLite    | drift + chiffrement |
-| Client HTTP                   | http (brut)      | Dio+cache     | Dio+cache       | Dio+cache    |
-| Score qualite                 | 5.5/10           | **9.0/10**    | **9.5/10**      | 10/10        |
+| Metrique                      | Sprint 1      | Sprint 7      | Cible S8        | Cible Finale |
+|-------------------------------|---------------|---------------|-----------------|--------------|
+| Tests                         | 0 (1 casse)   | **273**       | **>= 305**      | >400         |
+| Couverture tests              | 0%            | ~55%          | **> 65%**       | >75%         |
+| flutter analyze issues        | ~1000+        | 1041          | **0**           | 0            |
+| Fichiers pages >500 lignes    | 6             | 5             | **0**           | 0            |
+| Fichiers widgets >500 lignes  | 5             | 5             | **0**           | 0            |
+| Controllers Riverpod          | 0             | 6             | **10**          | >12          |
+| Providers Riverpod actifs     | 0             | 20+           | **24+**         | >25          |
+| Navigator.push                | 152           | 0             | 0               | 0            |
+| app_router.dart lignes        | -             | 713           | **<200**        | <200         |
+| GoogleFonts directs           | 333           | 333           | **<60**         | 0            |
+| Pipeline CI execute tests     | Non           | Oui           | Oui + fatal-infos | Oui + CD   |
+| Stockage donnees              | SharedPrefs   | drift SQLite  | drift SQLite    | drift + chiffrement |
+| Client HTTP                   | http (brut)   | Dio+cache     | Dio+cache       | Dio+cache    |
+| Score qualite                 | 5.5/10        | **9.0/10**    | **9.5/10**      | 10/10        |
 
 ---
 
@@ -304,18 +379,13 @@ lib/
 
 ---
 
-## 7. Prochaines Etapes Immediates
+## 7. Prochaines Etapes Immediates (Sprint 9)
 
-1. **Aujourd'hui** : Lire les documents generes (Audit + Roadmap) et valider les priorites
-2. **Action immediate** : Verifier que `functions/service-account.json` n'est pas versionne (risque secu)
-3. **Cette semaine** : Lancer le Sprint 1 (fondations)
-   - Corriger le test casse (`MyApp` -> `MagicCompanionApp`)
-   - Corriger les anti-patterns firstWhere/catch dans les 3 services
-   - Activer `avoid_print` et ajouter `flutter analyze` au CI
-4. **Semaine prochaine** : Commencer le Sprint 2 (Riverpod)
-   - Creer les premiers Providers
-   - Migrer le service le plus simple (`ProfileService`) comme pilote
-5. **Decision a prendre** : Choix de la BDD locale (drift vs isar vs hive) avant le Sprint 4
+1. **Etape 1** : Ajouter `RelatedCard` + `allParts` dans `ScryfallCard.fromJson` (default `const []`) + `maxPrice` dans `SearchFilters` + 5 tests modeles
+2. **Etape 2** : Creer `CollectionBadgeWidget` + index `Map<String,int>` dans `CardSearchState` + integrer badges dans recherche, set detail, et detail carte + 6 tests
+3. **Etape 3** : Ajouter bouton "Ajouter au deck" dans `card_detail_page.dart` connecte au `DeckPickerModal` existant
+4. **Etape 4** : Ajouter options tri `price_asc`/`price_desc` + filtre `maxPrice` cote client + champ prix max dans le modal de filtres + 5 tests
+5. **Etape 5** : Implementer `_computeTokens()` dans `DeckDetailController` + creer `DeckTokensTab` + onglet Tokens dans `deck_detail_page.dart` + 3 tests
 
 ---
 
@@ -329,7 +399,57 @@ lib/
 | Sprint 4 : Base de donnees | 3 semaines | 10.5j | Elevee | TERMINE |
 | Sprint 5 : Navigation + HTTP | 2 semaines | 7.75j | Moyenne | TERMINE |
 | Sprint 6 : Migration HTTP Pages | 2 semaines | 3j | Moyenne | TERMINE |
-| **Sprint 7 : Refactoring God Files** | **3 semaines** | **13.25j** | **Elevee** | **EN COURS** |
-| **Total Sprints 1-7** | **16 semaines** | **53.75j** | -- | -- |
+| Sprint 7 : Refactoring God Files | 3 semaines | 13.25j | Elevee | TERMINE |
+| Sprint 8 : Widgets, Qualite & Polish | 3 semaines | 15j | Moyenne-Elevee | **EN PAUSE** |
+| **Sprint 9 : Quick Wins Features** | **2 semaines** | **5j** | **Faible** | **EN COURS** |
+| Sprint 10 : Import/Export & Legalite | 3 semaines | 9j | Moyenne | BACKLOG |
+| Sprint 11 : EDHREC Deep Integration | 3 semaines | 9j | Elevee | BACKLOG |
+| Sprint 12 : Features Avancees & Backlog | 5 semaines | 32j | Elevee | BACKLOG |
+| **Total Sprints 1-8** | **20 semaines** | **68.75j** | -- | -- |
+| **Total Sprints 1-12 (projection)** | **33 semaines** | **123.75j** | -- | -- |
 
 *Ce plan est evolutif. Les priorites et les efforts estimes doivent etre revus a la fin de chaque sprint en fonction de l'avancement reel et des retours utilisateurs.*
+
+---
+
+## 9. Audit Veille Concurrentielle (Yamato)
+
+> Synthese de l'audit Yamato -- analyse des features concurrentes (Moxfield, EDHREC, ManaBox, Dragon Shield, Bugko, MTG Companion officiel).
+
+### Gaps critiques identifies
+
+| # | Gap | Impact | Sprint cible |
+|---|-----|--------|--------------|
+| 1 | **Import/Export multi-format** : aucun import/export de decks (CSV, TXT, Moxfield, Archidekt, MTGO). Bloque l'adoption par les joueurs venant d'autres apps. | Critique | Sprint 10 |
+| 2 | **Indicateur de collection** : pas d'indication visuelle si une carte est possedee ou manquante lors du deckbuilding ou de la recherche. | Critique | Sprint 9 |
+| 3 | **Verification de legalite** : aucune verification automatique de la legalite d'un deck par format (Standard, Modern, Commander, Pioneer, etc.). | Critique | Sprint 10 |
+
+### Avantages differenciants a conserver
+
+Magic Companion dispose de features uniques absentes ou rares chez les concurrents :
+- **Oracle IA** : assistant intelligent pour les regles et interactions (aucun concurrent direct)
+- **Mode tournoi integre** : gestion de tournois dans l'app (rare chez les concurrents)
+- **Calculateur hypergeometrique** : probabilites de tirage integrees au deckbuilder (unique)
+- **Scanner OCR multi-langues** : reconnaissance de cartes en plusieurs langues
+
+### Features prioritaires (Tiers Yamato)
+
+| Tier | Features | Sprint |
+|------|----------|--------|
+| **S (Must-Have)** | Import/export (M2), Legalite (M4), Indicateur collection (M10), Tri prix (M9), Tags (M3) | 9-10 |
+| **A (High Value)** | Bouton ajout deck (E-A4), Budget filter (E4), Tokens (M13), Power level (E1), Syntaxe Scryfall (A7) | 9, 12 |
+| **B (Nice-to-Have)** | Themes EDHREC (E2), Synergy score (E5), Combos (E6), Multilangue (A4), Salt score (E3) | 11-12 |
+| **C (Long-Term)** | Playtesting, social features, marketplace integration | Post-Sprint 12 |
+
+### Sources de veille
+
+| App | Forces principales analysees |
+|-----|------------------------------|
+| Moxfield | Import/export, deckbuilding collaboratif, UI/UX reference |
+| EDHREC | Recommandations Commander, themes, synergies, combos, salt score |
+| ManaBox | Scanner, collection, UX mobile-first |
+| Dragon Shield | Collection tracking, prix, indicateurs visuels |
+| Bugko | Tournois, social features |
+| MTG Companion (WotC) | Life counter, regles officielles, integration evenements |
+
+> Rapport complet : voir documentation Yamato (agent veille concurrentielle).

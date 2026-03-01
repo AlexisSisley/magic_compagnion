@@ -150,6 +150,117 @@ void main() {
       expect(card.rarity, 'common');
       expect(card.colorIdentity, isEmpty);
       expect(card.purchaseUris, isEmpty);
+      expect(card.allParts, isEmpty);
+    });
+
+    test('parses allParts with tokens correctly', () {
+      final json = {
+        'id': 'avenger-1',
+        'oracle_id': 'oracle-avenger',
+        'name': 'Avenger of Zendikar',
+        'type_line': 'Creature — Elemental',
+        'oracle_text': 'When Avenger of Zendikar enters, create a 0/1 Plant token.',
+        'legalities': {'commander': 'legal'},
+        'prices': {'eur': '5.00'},
+        'lang': 'en',
+        'color_identity': ['G'],
+        'set_name': 'Worldwake',
+        'set': 'wwk',
+        'collector_number': '96',
+        'rarity': 'mythic',
+        'purchase_uris': {},
+        'all_parts': [
+          {
+            'id': 'avenger-1',
+            'component': 'combo_piece',
+            'name': 'Avenger of Zendikar',
+            'type_line': 'Creature — Elemental',
+            'uri': 'https://api.scryfall.com/cards/avenger-1',
+          },
+          {
+            'id': 'plant-token-1',
+            'component': 'token',
+            'name': 'Plant Token',
+            'type_line': 'Token Creature — Plant',
+            'uri': 'https://api.scryfall.com/cards/plant-token-1',
+          },
+        ],
+      };
+
+      final card = ScryfallCard.fromJson(json);
+      expect(card.allParts, hasLength(2));
+      expect(card.allParts[0].component, 'combo_piece');
+      expect(card.allParts[0].isToken, false);
+      expect(card.allParts[1].id, 'plant-token-1');
+      expect(card.allParts[1].name, 'Plant Token');
+      expect(card.allParts[1].component, 'token');
+      expect(card.allParts[1].isToken, true);
+      expect(card.allParts[1].typeLine, 'Token Creature — Plant');
+    });
+
+    test('allParts defaults to empty list when absent', () {
+      final json = {
+        'id': 'no-parts',
+        'name': 'Sol Ring',
+        'type_line': 'Artifact',
+        'legalities': {},
+        'prices': {},
+        'lang': 'en',
+        'color_identity': [],
+        'set_name': 'Commander',
+        'set': 'cmd',
+        'collector_number': '1',
+        'rarity': 'uncommon',
+        'purchase_uris': {},
+      };
+
+      final card = ScryfallCard.fromJson(json);
+      expect(card.allParts, isEmpty);
+    });
+  });
+
+  group('RelatedCard', () {
+    test('fromJson parses correctly', () {
+      final json = {
+        'id': 'token-123',
+        'component': 'token',
+        'name': 'Soldier Token',
+        'type_line': 'Token Creature — Soldier',
+        'uri': 'https://api.scryfall.com/cards/token-123',
+      };
+
+      final related = RelatedCard.fromJson(json);
+      expect(related.id, 'token-123');
+      expect(related.component, 'token');
+      expect(related.name, 'Soldier Token');
+      expect(related.typeLine, 'Token Creature — Soldier');
+      expect(related.uri, 'https://api.scryfall.com/cards/token-123');
+      expect(related.isToken, true);
+    });
+
+    test('isToken is false for non-token components', () {
+      final json = {
+        'id': 'meld-1',
+        'component': 'meld_part',
+        'name': 'Bruna, the Fading Light',
+        'type_line': 'Legendary Creature — Angel Horror',
+        'uri': 'https://api.scryfall.com/cards/meld-1',
+      };
+
+      final related = RelatedCard.fromJson(json);
+      expect(related.isToken, false);
+    });
+
+    test('fromJson handles missing fields with defaults', () {
+      final json = <String, dynamic>{};
+
+      final related = RelatedCard.fromJson(json);
+      expect(related.id, '');
+      expect(related.component, '');
+      expect(related.name, '');
+      expect(related.typeLine, '');
+      expect(related.uri, '');
+      expect(related.isToken, false);
     });
   });
 }

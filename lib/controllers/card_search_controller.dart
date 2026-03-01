@@ -31,6 +31,11 @@ class CardSearchState {
   final List<DeckCard> collection;
   final List<DeckCard> flatWishlist;
 
+  // --- Sprint 9 : Index rapide pour badges collection ---
+  final Map<String, int> collectionIndex;     // scryfallId -> quantite normale
+  final Map<String, int> collectionFoilIndex; // scryfallId -> quantite foil
+  final Set<String> wishlistCardNames;         // noms des cartes en wishlist
+
   static const int localPageSize = 30;
 
   CardSearchState({
@@ -45,6 +50,9 @@ class CardSearchState {
     this.sortBy = 'name',
     this.collection = const [],
     this.flatWishlist = const [],
+    this.collectionIndex = const {},
+    this.collectionFoilIndex = const {},
+    this.wishlistCardNames = const {},
   }) : activeFilters = activeFilters ?? SearchFilters();
 
   CardSearchState copyWith({
@@ -60,6 +68,9 @@ class CardSearchState {
     String? sortBy,
     List<DeckCard>? collection,
     List<DeckCard>? flatWishlist,
+    Map<String, int>? collectionIndex,
+    Map<String, int>? collectionFoilIndex,
+    Set<String>? wishlistCardNames,
   }) {
     return CardSearchState(
       searchResults: searchResults ?? this.searchResults,
@@ -73,6 +84,9 @@ class CardSearchState {
       sortBy: sortBy ?? this.sortBy,
       collection: collection ?? this.collection,
       flatWishlist: flatWishlist ?? this.flatWishlist,
+      collectionIndex: collectionIndex ?? this.collectionIndex,
+      collectionFoilIndex: collectionFoilIndex ?? this.collectionFoilIndex,
+      wishlistCardNames: wishlistCardNames ?? this.wishlistCardNames,
     );
   }
 
@@ -85,7 +99,8 @@ class CardSearchState {
       activeFilters.minCmc != null ||
       activeFilters.maxCmc != null ||
       activeFilters.rarity != null ||
-      activeFilters.keyword != null;
+      activeFilters.keyword != null ||
+      activeFilters.maxPrice != null;
 
   bool get hasMoreLocal =>
       fullLocalResults.isNotEmpty &&
@@ -155,10 +170,25 @@ class CardSearchController extends StateNotifier<CardSearchState> {
     final wishlists = await _wishlistService.loadWishlists();
     final allWishlistCards = wishlists.expand((w) => w.cards).toList();
 
+    // Index rapide pour les badges collection (O(1) lookup)
+    final Map<String, int> collIdx = {};
+    final Map<String, int> foilIdx = {};
+    for (final card in collection) {
+      if (card.isFoil) {
+        foilIdx[card.scryfallId] = (foilIdx[card.scryfallId] ?? 0) + card.quantity;
+      } else {
+        collIdx[card.scryfallId] = (collIdx[card.scryfallId] ?? 0) + card.quantity;
+      }
+    }
+    final wishlistNames = allWishlistCards.map((c) => c.name).toSet();
+
     if (!mounted) return;
     state = state.copyWith(
       collection: collection,
       flatWishlist: allWishlistCards,
+      collectionIndex: collIdx,
+      collectionFoilIndex: foilIdx,
+      wishlistCardNames: wishlistNames,
     );
   }
 
@@ -289,6 +319,7 @@ class CardSearchController extends StateNotifier<CardSearchState> {
 
     if (results.isNotEmpty) {
       _applySort(results);
+      results = _applyPriceFilter(results);
       if (!mounted) return false;
       final int initialCount =
           (results.length < CardSearchState.localPageSize)
@@ -341,7 +372,7 @@ class CardSearchController extends StateNotifier<CardSearchState> {
       String? order;
       if (state.sortBy == 'cmc') {
         order = 'cmc';
-      } else if (state.sortBy == 'eur') {
+      } else if (state.sortBy == 'eur' || state.sortBy == 'price_desc' || state.sortBy == 'price_asc') {
         order = 'eur';
       } else {
         order = 'name';
@@ -366,6 +397,9 @@ class CardSearchController extends StateNotifier<CardSearchState> {
       if (state.sortBy == 'type') {
         apiResults.sort((a, b) => a.typeLine.compareTo(b.typeLine));
       }
+
+      // Filtre prix max cote client
+      apiResults = _applyPriceFilter(apiResults);
 
       if (!mounted) return false;
       state = state.copyWith(
@@ -399,15 +433,33 @@ class CardSearchController extends StateNotifier<CardSearchState> {
         list.sort((a, b) => a.typeLine.compareTo(b.typeLine));
         break;
       case 'eur':
+      case 'price_desc':
         list.sort((a, b) =>
-            (double.tryParse(b.prices['eur'] ?? '0') ?? 0)
-                .compareTo(double.tryParse(a.prices['eur'] ?? '0') ?? 0));
+            (double.tryParse(b.prices['eur']?.toString() ?? '0') ?? 0)
+                .compareTo(double.tryParse(a.prices['eur']?.toString() ?? '0') ?? 0));
+        break;
+      case 'price_asc':
+        list.sort((a, b) =>
+            (double.tryParse(a.prices['eur']?.toString() ?? '0') ?? 0)
+                .compareTo(double.tryParse(b.prices['eur']?.toString() ?? '0') ?? 0));
         break;
       case 'name':
       default:
         list.sort((a, b) => a.name.compareTo(b.name));
         break;
     }
+  }
+
+  /// Filtre les cartes par prix max (cote client).
+  List<ScryfallCard> _applyPriceFilter(List<ScryfallCard> cards) {
+    final maxPrice = state.activeFilters.maxPrice;
+    if (maxPrice == null) return cards;
+    return cards.where((card) {
+      final priceStr = card.prices['eur']?.toString();
+      if (priceStr == null) return false;
+      final price = double.tryParse(priceStr) ?? 0;
+      return price <= maxPrice;
+    }).toList();
   }
 
   /// Change the sort method and re-triggers search.

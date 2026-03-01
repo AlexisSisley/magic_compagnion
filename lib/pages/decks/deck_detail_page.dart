@@ -21,6 +21,7 @@ import '../../widgets/decks/deck_financial_sheet.dart';
 import '../../widgets/decks/deck_card_picker.dart';
 // IMPORT DU NOUVEAU WIDGET
 import '../../widgets/decks/deck_visual_share_list.dart';
+import '../../widgets/decks/deck_tokens_tab.dart';
 
 class DeckDetailPage extends ConsumerStatefulWidget {
   final Deck deck;
@@ -37,7 +38,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
   }
 
   @override
@@ -381,6 +382,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                 _buildDragTargetTab(DeckBoard.side, 'Side (${deckState.sideCount})'),
                 _buildDragTargetTab(DeckBoard.considering, 'Considering (${deckState.consCount})'),
                 _buildDragTargetTab(DeckBoard.wishlist, 'Wishlist (${deckState.wishCount})'),
+                Tab(text: 'Tokens (${deckState.tokens.length})'),
                 const Tab(text: 'Stats'),
                 const Tab(text: 'Suggestions'),
               ],
@@ -472,6 +474,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                         onToggleFoil: (c) => _ctrl.toggleFoil(c, DeckBoard.wishlist),
                         onSwitchVersion: (c, newV) => _ctrl.switchVersion(c, newV, DeckBoard.wishlist),
                       ),
+                      DeckTokensTab(tokens: deckState.tokens),
                       DeckStatsTab(mainboard: deck.mainboard, cardData: deckState.fullCardData),
                       DeckSuggestionsTab(deck: deck),
                     ],
@@ -570,14 +573,13 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
         final DeckCard card = details.data['card'];
         final DeckBoard source = details.data['sourceBoard'];
         _handleMoveCard(card, board, source);
-        int index = 0;
-        switch (board) {
-          case DeckBoard.main: index = 0; break;
-          case DeckBoard.side: index = 1; break;
-          case DeckBoard.considering: index = 2; break;
-          case DeckBoard.wishlist: index = 3; break;
-        }
-        _tabController.animateTo(index);
+        const boardToIndex = {
+          DeckBoard.main: 0,
+          DeckBoard.side: 1,
+          DeckBoard.considering: 2,
+          DeckBoard.wishlist: 3,
+        };
+        _tabController.animateTo(boardToIndex[board] ?? 0);
       },
       builder: (context, candidateData, rejectedData) {
         final bool isHovered = candidateData.isNotEmpty;

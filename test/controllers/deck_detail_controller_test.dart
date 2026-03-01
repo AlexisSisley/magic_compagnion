@@ -529,4 +529,64 @@ void main() {
       expect(controller.isCommander(partnerCard), true);
     });
   });
+
+  // ============================================================
+  // Sprint 9 : TokenInfo et DeckDetailState tokens
+  // ============================================================
+
+  group('Sprint 9 - TokenInfo', () {
+    test('TokenInfo stores all properties', () {
+      const token = TokenInfo(
+        id: 'token-1',
+        name: 'Plant Token',
+        typeLine: 'Token Creature — Plant',
+        imageUrl: 'https://example.com/plant.jpg',
+      );
+
+      expect(token.id, 'token-1');
+      expect(token.name, 'Plant Token');
+      expect(token.typeLine, 'Token Creature — Plant');
+      expect(token.imageUrl, 'https://example.com/plant.jpg');
+    });
+
+    test('TokenInfo imageUrl defaults to null', () {
+      const token = TokenInfo(
+        id: 'token-2',
+        name: 'Soldier Token',
+        typeLine: 'Token Creature — Soldier',
+      );
+
+      expect(token.imageUrl, isNull);
+    });
+  });
+
+  group('Sprint 9 - DeckDetailState tokens', () {
+    test('tokens defaults to empty list', () {
+      final state = DeckDetailState(currentDeck: _makeTestDeck());
+      expect(state.tokens, isEmpty);
+    });
+
+    test('copyWith sets tokens', () {
+      final state = DeckDetailState(currentDeck: _makeTestDeck());
+      final updated = state.copyWith(tokens: [
+        const TokenInfo(id: 't1', name: 'Plant', typeLine: 'Token Creature'),
+        const TokenInfo(id: 't2', name: 'Soldier', typeLine: 'Token Creature'),
+      ]);
+
+      expect(updated.tokens, hasLength(2));
+      expect(updated.tokens[0].name, 'Plant');
+      expect(updated.tokens[1].name, 'Soldier');
+    });
+
+    test('copyWith preserves tokens when not specified', () {
+      final state = DeckDetailState(
+        currentDeck: _makeTestDeck(),
+        tokens: [const TokenInfo(id: 't1', name: 'Plant', typeLine: 'Token')],
+      );
+      final updated = state.copyWith(isLoading: false);
+
+      expect(updated.tokens, hasLength(1));
+      expect(updated.tokens[0].name, 'Plant');
+    });
+  });
 }

@@ -9,7 +9,10 @@ class SearchFilters {
   final double? maxCmc;
   final String? rarity; 
   final String? keyword;
-  
+
+  // --- NOUVEAU Sprint 9 : Prix max (filtre budget) ---
+  final double? maxPrice;
+
   // --- NOUVEAUX CHAMPS UX ---
   final String sortType; // 'name', 'price', 'cmc', 'type', 'date'
   final bool sortAscending;
@@ -23,6 +26,7 @@ class SearchFilters {
     this.maxCmc,
     this.rarity,
     this.keyword,
+    this.maxPrice,
     this.sortType = 'name',
     this.sortAscending = true,
     this.tags = const {},
@@ -36,6 +40,8 @@ class SearchFilters {
     double? maxCmc,
     String? rarity,
     String? keyword,
+    double? maxPrice,
+    bool clearMaxPrice = false,
     String? sortType,
     bool? sortAscending,
     Set<String>? tags,
@@ -48,6 +54,7 @@ class SearchFilters {
       maxCmc: maxCmc ?? this.maxCmc,
       rarity: rarity ?? this.rarity,
       keyword: keyword ?? this.keyword,
+      maxPrice: clearMaxPrice ? null : (maxPrice ?? this.maxPrice),
       sortType: sortType ?? this.sortType,
       sortAscending: sortAscending ?? this.sortAscending,
       tags: tags ?? this.tags,

@@ -1,5 +1,34 @@
 // Fichier : lib/models/scryfall_card_model.dart
 
+/// Carte reliee (token, embleme, meld part) depuis le champ `all_parts` de Scryfall.
+class RelatedCard {
+  final String id;
+  final String component; // "token", "meld_part", "meld_result", "combo_piece"
+  final String name;
+  final String typeLine;
+  final String uri;
+
+  const RelatedCard({
+    required this.id,
+    required this.component,
+    required this.name,
+    required this.typeLine,
+    required this.uri,
+  });
+
+  factory RelatedCard.fromJson(Map<String, dynamic> json) {
+    return RelatedCard(
+      id: json['id'] ?? '',
+      component: json['component'] ?? '',
+      name: json['name'] ?? '',
+      typeLine: json['type_line'] ?? '',
+      uri: json['uri'] ?? '',
+    );
+  }
+
+  bool get isToken => component == 'token';
+}
+
 class ScryfallCard {
   final String id;
   final String oracleId;
@@ -25,6 +54,9 @@ class ScryfallCard {
   // --- NOUVEAU : Liens d'achat ---
   final Map<String, String> purchaseUris;
 
+  // --- NOUVEAU Sprint 9 : Parties liees (tokens, meld, etc.) ---
+  final List<RelatedCard> allParts;
+
   ScryfallCard({
     required this.id,
     required this.oracleId,
@@ -45,7 +77,8 @@ class ScryfallCard {
     required this.setCode,
     required this.collectorNumber,
     required this.rarity, 
-    required this.purchaseUris, // Ajoutez ceci
+    required this.purchaseUris,
+    this.allParts = const [],
   });
 
   factory ScryfallCard.fromJson(Map<String, dynamic> json) {
@@ -85,6 +118,14 @@ class ScryfallCard {
     // --- Extraction des liens ---
     final Map<String, String> uris = Map<String, String>.from(json['purchase_uris'] ?? {});
 
+    // --- Extraction des parties liees (tokens, meld, etc.) ---
+    final List<RelatedCard> parts = [];
+    if (json['all_parts'] != null) {
+      for (final part in json['all_parts'] as List) {
+        parts.add(RelatedCard.fromJson(part as Map<String, dynamic>));
+      }
+    }
+
     return ScryfallCard(
       id: json['id'],
       oracleId: json['oracle_id'] ?? '',
@@ -105,7 +146,8 @@ class ScryfallCard {
       setCode: json['set'] ?? '',
       collectorNumber: json['collector_number'] ?? '',
       rarity: json['rarity'] ?? 'common', 
-      purchaseUris: uris, // Ajoutez ceci
+      purchaseUris: uris,
+      allParts: parts,
     );
   }
 }

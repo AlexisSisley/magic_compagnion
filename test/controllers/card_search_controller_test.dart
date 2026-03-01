@@ -325,4 +325,83 @@ void main() {
       expect(updated.activeFilters.setCode, 'dom');
     });
   });
+
+  // ============================================================
+  // Sprint 9 : Collection index, price filter, price sort
+  // ============================================================
+
+  group('Sprint 9 - Collection index', () {
+    test('collectionIndex stores normal quantities by scryfallId', () {
+      final state = CardSearchState(
+        collectionIndex: {'abc': 3, 'def': 1},
+        collectionFoilIndex: {'abc': 2},
+        wishlistCardNames: {'Sol Ring', 'Force of Will'},
+      );
+
+      expect(state.collectionIndex['abc'], 3);
+      expect(state.collectionIndex['def'], 1);
+      expect(state.collectionFoilIndex['abc'], 2);
+      expect(state.wishlistCardNames.contains('Sol Ring'), true);
+      expect(state.wishlistCardNames.contains('Lightning Bolt'), false);
+    });
+
+    test('copyWith preserves collection indexes', () {
+      final state = CardSearchState(
+        collectionIndex: {'abc': 3},
+        collectionFoilIndex: {'abc': 2},
+        wishlistCardNames: {'Sol Ring'},
+      );
+
+      final updated = state.copyWith(isLoading: true);
+      expect(updated.collectionIndex['abc'], 3);
+      expect(updated.collectionFoilIndex['abc'], 2);
+      expect(updated.wishlistCardNames.contains('Sol Ring'), true);
+    });
+
+    test('copyWith overrides collection indexes', () {
+      final state = CardSearchState(
+        collectionIndex: {'abc': 3},
+      );
+
+      final updated = state.copyWith(
+        collectionIndex: {'xyz': 5},
+      );
+      expect(updated.collectionIndex['abc'], isNull);
+      expect(updated.collectionIndex['xyz'], 5);
+    });
+  });
+
+  group('Sprint 9 - hasActiveFilters with maxPrice', () {
+    test('hasActiveFilters detects maxPrice', () {
+      final state = CardSearchState(
+        activeFilters: SearchFilters(maxPrice: 10.0),
+      );
+      expect(state.hasActiveFilters, true);
+    });
+
+    test('hasActiveFilters is false without maxPrice', () {
+      final state = CardSearchState();
+      expect(state.hasActiveFilters, false);
+    });
+  });
+
+  group('Sprint 9 - SearchFilters maxPrice', () {
+    test('maxPrice copyWith sets new value', () {
+      const filters = SearchFilters();
+      final updated = filters.copyWith(maxPrice: 5.0);
+      expect(updated.maxPrice, 5.0);
+    });
+
+    test('maxPrice copyWith preserves value', () {
+      const filters = SearchFilters(maxPrice: 10.0);
+      final updated = filters.copyWith(rarity: 'rare');
+      expect(updated.maxPrice, 10.0);
+    });
+
+    test('maxPrice clearMaxPrice resets to null', () {
+      const filters = SearchFilters(maxPrice: 10.0);
+      final updated = filters.copyWith(clearMaxPrice: true);
+      expect(updated.maxPrice, isNull);
+    });
+  });
 }
