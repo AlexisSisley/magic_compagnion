@@ -277,6 +277,18 @@ La reference complete de l'API Scryfall a ete documentee (voir `docs/SCRYFALL_AP
 
 ---
 
+### Sprint 13 : Polish UI & Ajustements Visuels (1 jour) -- EN COURS
+
+**Objectif** : Corriger les irritants visuels mineurs identifies par les utilisateurs, en commencant par la top bar de la page Deck Detail trop compacte.
+
+| Tache                                     | Type        | Effort | Priorite | Statut |
+|-------------------------------------------|-------------|--------|----------|--------|
+| Agrandir la top bar Deck Detail (PreferredSize 50->58px, padding vertical 6->10px) | UI/Polish | 0.5j | P1 | FAIT |
+
+**Delivrable** : Top bar plus aeree et lisible dans la page Deck Detail. Effort : 0.5j.
+
+---
+
 ## 4. Architecture Cible
 
 ```
@@ -405,8 +417,9 @@ lib/
 | Sprint 10 : Import/Export & Legalite | 3 semaines | 9j | Moyenne | BACKLOG |
 | Sprint 11 : EDHREC Deep Integration | 3 semaines | 9j | Elevee | BACKLOG |
 | Sprint 12 : Features Avancees & Backlog | 5 semaines | 32j | Elevee | BACKLOG |
+| **Sprint 13 : Polish UI** | **1 jour** | **0.5j** | **Tres faible** | **EN COURS** |
 | **Total Sprints 1-8** | **20 semaines** | **68.75j** | -- | -- |
-| **Total Sprints 1-12 (projection)** | **33 semaines** | **123.75j** | -- | -- |
+| **Total Sprints 1-13 (projection)** | **33+ semaines** | **124.25j** | -- | -- |
 
 *Ce plan est evolutif. Les priorites et les efforts estimes doivent etre revus a la fin de chaque sprint en fonction de l'avancement reel et des retours utilisateurs.*
 

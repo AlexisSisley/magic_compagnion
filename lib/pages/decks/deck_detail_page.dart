@@ -355,6 +355,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
+        toolbarHeight: 75,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -364,7 +365,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
         ),
         backgroundColor: AppColors.textOnPrimary,
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(50),
+          preferredSize: const Size.fromHeight(58),
           child: Container(
             color: AppColors.textOnPrimary,
             child: TabBar(
@@ -379,7 +380,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
               labelStyle: AppTextStyles.bold(),
               unselectedLabelColor: AppColors.textMuted,
               unselectedLabelStyle: AppTextStyles.cinzel(),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               tabs: [
                 _buildDragTargetTab(DeckBoard.main, 'Main (${deckState.mainCount})'),
                 _buildDragTargetTab(DeckBoard.side, 'Side (${deckState.sideCount})'),
