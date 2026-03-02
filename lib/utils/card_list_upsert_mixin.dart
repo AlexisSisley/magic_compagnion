@@ -50,8 +50,11 @@ mixin CardListUpsertMixin {
       }
     } else {
       int newQuantity = 0;
-      if (quantityToAdd != null) newQuantity = quantityToAdd;
-      else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
+      if (quantityToAdd != null) {
+        newQuantity = quantityToAdd;
+      } else if (absoluteQuantity != null) {
+        newQuantity = absoluteQuantity;
+      }
 
       if (newQuantity > 0) {
         cards.add(DeckCard(

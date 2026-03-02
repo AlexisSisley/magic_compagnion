@@ -1,5 +1,6 @@
 // Fichier : lib/main.dart
 
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,13 +61,13 @@ class MagicCompanionApp extends StatelessWidget {
       supportedLocales: const [Locale('fr', 'FR'), Locale('en', 'US')],
       locale: const Locale('fr', 'FR'),
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF1A1A1A),
+        scaffoldBackgroundColor: AppColors.scaffoldBackground,
         appBarTheme:
-            const AppBarTheme(backgroundColor: Colors.black, elevation: 0),
+            const AppBarTheme(backgroundColor: AppColors.textOnPrimary, elevation: 0),
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
-          backgroundColor: Colors.black.withValues(alpha: 0.9),
-          selectedItemColor: Colors.yellow.shade800,
-          unselectedItemColor: Colors.white54,
+          backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.9),
+          selectedItemColor: AppColors.primaryShade800,
+          unselectedItemColor: AppColors.textMuted,
           type: BottomNavigationBarType.fixed,
         ),
       ),

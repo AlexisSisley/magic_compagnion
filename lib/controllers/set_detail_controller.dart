@@ -70,7 +70,7 @@ class SetDetailState {
     this.hideOwned = false,
     this.searchQuery = '',
     this.errorMessage,
-  }) : activeFilters = activeFilters ?? SearchFilters();
+  }) : activeFilters = activeFilters ?? const SearchFilters();
 
   SetDetailState copyWith({
     List<ScryfallCard>? allCards,
@@ -148,13 +148,17 @@ class SetDetailController extends StateNotifier<SetDetailState> {
     // 1. Collection
     final col = await _collectionService.loadCollection();
     final ownedKeys = <String>{};
-    for (var c in col) ownedKeys.add(makeKey(c.scryfallId, c.isFoil));
+    for (var c in col) {
+      ownedKeys.add(makeKey(c.scryfallId, c.isFoil));
+    }
 
     // 2. Wishlists
     final wishlists = await _wishlistService.loadWishlists();
     final wishlistKeys = <String>{};
     for (var w in wishlists) {
-      for (var c in w.cards) wishlistKeys.add(makeKey(c.scryfallId, c.isFoil));
+      for (var c in w.cards) {
+        wishlistKeys.add(makeKey(c.scryfallId, c.isFoil));
+      }
     }
 
     // 3. API
@@ -376,7 +380,7 @@ class SetDetailController extends StateNotifier<SetDetailState> {
 
     await _refreshKeys();
     state = state.copyWith(isLoading: false, selectedKeys: <String>{});
-    return SetDetailActionResult(count: count, message: "$count cartes ajoutees !");
+    return SetDetailActionResult(count: count, message: '$count cartes ajoutees !');
   }
 
   /// Ajoute les cartes selectionnees a une wishlist.
@@ -410,7 +414,7 @@ class SetDetailController extends StateNotifier<SetDetailState> {
 
     await _refreshKeys();
     state = state.copyWith(isLoading: false, selectedKeys: <String>{});
-    return SetDetailActionResult(count: count, message: "$count cartes ajoutees !");
+    return SetDetailActionResult(count: count, message: '$count cartes ajoutees !');
   }
 
   /// Retire les cartes selectionnees de la collection.
@@ -442,7 +446,7 @@ class SetDetailController extends StateNotifier<SetDetailState> {
 
     await _refreshKeys();
     state = state.copyWith(isLoading: false, selectedKeys: <String>{});
-    return SetDetailActionResult(count: count, message: "$count cartes retirees !");
+    return SetDetailActionResult(count: count, message: '$count cartes retirees !');
   }
 
   /// Retire les cartes selectionnees de toutes les wishlists.
@@ -478,7 +482,7 @@ class SetDetailController extends StateNotifier<SetDetailState> {
 
     await _refreshKeys();
     state = state.copyWith(isLoading: false, selectedKeys: <String>{});
-    return SetDetailActionResult(count: count, message: "$count cartes retirees !");
+    return SetDetailActionResult(count: count, message: '$count cartes retirees !');
   }
 
   // --- WISHLISTS (pour UI picker) ---
@@ -512,12 +516,16 @@ class SetDetailController extends StateNotifier<SetDetailState> {
   Future<void> _refreshKeys() async {
     final col = await _collectionService.loadCollection();
     final newOwnedKeys = <String>{};
-    for (var c in col) newOwnedKeys.add(makeKey(c.scryfallId, c.isFoil));
+    for (var c in col) {
+      newOwnedKeys.add(makeKey(c.scryfallId, c.isFoil));
+    }
 
     final w = await _wishlistService.loadWishlists();
     final newWishlistKeys = <String>{};
     for (var l in w) {
-      for (var c in l.cards) newWishlistKeys.add(makeKey(c.scryfallId, c.isFoil));
+      for (var c in l.cards) {
+        newWishlistKeys.add(makeKey(c.scryfallId, c.isFoil));
+      }
     }
 
     state = state.copyWith(ownedKeys: newOwnedKeys, wishlistKeys: newWishlistKeys);

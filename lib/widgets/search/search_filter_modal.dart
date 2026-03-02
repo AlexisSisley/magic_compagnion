@@ -1,9 +1,10 @@
 // Fichier : lib/widgets/search/search_filter_modal.dart
 // VERSION MISE À JOUR : Interface Pro avec CMC et Rareté + Keyword
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/search_filters.dart';
 
 class SearchFilterModal extends StatefulWidget {
@@ -95,12 +96,12 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A).withAlpha(245),
+          color: AppColors.scaffoldBackground.withAlpha(245),
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(16),
             topRight: Radius.circular(16),
           ),
-          border: Border(top: BorderSide(color: Colors.yellow.shade800, width: 2)),
+          border: Border(top: BorderSide(color: AppColors.primaryShade800, width: 2)),
         ),
         child: Padding(
           padding: EdgeInsets.only(
@@ -112,13 +113,13 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Filtres avancés', textAlign: TextAlign.center, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                const Divider(color: Colors.white24, height: 24),
+                Text('Filtres avancés', textAlign: TextAlign.center, style: AppTextStyles.pageTitle(fontSize: 20)),
+                const Divider(color: AppColors.borderMedium, height: 24),
                 
                 // --- Keyword --- <--- NOUVEAU CHAMP
                 TextField(
                   controller: _keywordController,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppColors.textPrimary),
                   decoration: _buildInputDecoration(hintText: 'Mot-clé / Règle (Ex: Landfall, Flying)', icon: Icons.text_fields),
                 ),
                 const SizedBox(height: 16),
@@ -131,15 +132,15 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         isExpanded: true, // Important pour éviter l'overflow horizontal
-                        value: _selectedType,
-                        hint: Text('Type...', style: GoogleFonts.cinzel(color: Colors.white54)),
-                        dropdownColor: const Color(0xFF2A2A2A),
+                        initialValue: _selectedType,
+                        hint: Text('Type...', style: AppTextStyles.cinzel(color: AppColors.textMuted)),
+                        dropdownColor: AppColors.cardBackground,
                         decoration: _buildInputDecoration(hintText: '', icon: Icons.category),
                         items: _cardTypes.map((t) => DropdownMenuItem(
                           value: t,
                           child: Text(
                             t,
-                            style: const TextStyle(color: Colors.white),
+                            style: const TextStyle(color: AppColors.textPrimary),
                             overflow: TextOverflow.ellipsis,
                           ),
                         )).toList(),
@@ -153,7 +154,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                     Expanded(
                       child: TextField(
                         controller: _setController,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: AppColors.textPrimary),
                         decoration: _buildInputDecoration(hintText: 'Code Set', icon: Icons.library_books),
                       ),
                     ),
@@ -162,13 +163,13 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                 const SizedBox(height: 16),
 
                 // --- Couleurs ---
-                Text('Couleurs (Inclure)', style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14)),
+                Text('Couleurs (Inclure)', style: AppTextStyles.subtitle()),
                 const SizedBox(height: 8),
                 _buildColorFilters(),
                 const SizedBox(height: 16),
 
                 // --- Rareté ---
-                Text('Rareté', style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14)),
+                Text('Rareté', style: AppTextStyles.subtitle()),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -176,11 +177,11 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                     final bool isSelected = _selectedRarity == r;
                     Color rarityColor;
                     switch(r) {
-                      case 'common': rarityColor = Colors.white; break;
+                      case 'common': rarityColor = AppColors.textPrimary; break;
                       case 'uncommon': rarityColor = Colors.blue.shade300; break;
-                      case 'rare': rarityColor = Colors.amber; break;
+                      case 'rare': rarityColor = AppColors.amber; break;
                       case 'mythic': rarityColor = Colors.orange.shade800; break;
-                      default: rarityColor = Colors.grey;
+                      default: rarityColor = AppColors.synergyNeutral;
                     }
                     
                     return GestureDetector(
@@ -188,14 +189,14 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: isSelected ? rarityColor.withOpacity(0.2) : Colors.black45,
-                          border: Border.all(color: isSelected ? rarityColor : Colors.white24),
+                          color: isSelected ? rarityColor.withValues(alpha: 0.2) : AppColors.overlayMedium,
+                          border: Border.all(color: isSelected ? rarityColor : AppColors.borderMedium),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           r[0].toUpperCase() + r.substring(1),
                           style: TextStyle(
-                            color: isSelected ? rarityColor : Colors.white54,
+                            color: isSelected ? rarityColor : AppColors.textMuted,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                             fontSize: 12
                           ),
@@ -210,10 +211,10 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Coût Mana (CMC)', style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14)),
+                    Text('Coût Mana (CMC)', style: AppTextStyles.subtitle()),
                     Text(
                       '${_cmcRange.start.round()} - ${_cmcRange.end >= 10 ? "10+" : _cmcRange.end.round()}',
-                      style: GoogleFonts.cinzel(color: Colors.yellow.shade700, fontWeight: FontWeight.bold),
+                      style: AppTextStyles.bold(color: AppColors.primaryShade700),
                     ),
                   ],
                 ),
@@ -221,8 +222,8 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                   values: _cmcRange,
                   min: 0, max: 10,
                   divisions: 10,
-                  activeColor: Colors.yellow.shade800,
-                  inactiveColor: Colors.white24,
+                  activeColor: AppColors.primaryShade800,
+                  inactiveColor: AppColors.borderMedium,
                   labels: RangeLabels('${_cmcRange.start.round()}', '${_cmcRange.end.round()}'),
                   onChanged: (values) => setState(() => _cmcRange = values),
                 ),
@@ -231,7 +232,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                 // --- Prix max (EUR) ---
                 TextField(
                   controller: _maxPriceController,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppColors.textPrimary),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: _buildInputDecoration(hintText: 'Prix max (EUR)', icon: Icons.euro),
                 ),
@@ -239,8 +240,8 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _applyFilters,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800, padding: const EdgeInsets.symmetric(vertical: 14)),
-                  child: Text('Appliquer', style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800, padding: const EdgeInsets.symmetric(vertical: 14)),
+                  child: Text('Appliquer', style: AppTextStyles.bold(color: AppColors.textOnPrimary, fontSize: 16)),
                 ),
               ],
             ),
@@ -252,9 +253,9 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
 
   InputDecoration _buildInputDecoration({required String hintText, required IconData icon}) {
     return InputDecoration(
-      hintText: hintText, hintStyle: const TextStyle(color: Colors.white30),
-      prefixIcon: Icon(icon, color: Colors.white54, size: 18),
-      filled: true, fillColor: Colors.black45,
+      hintText: hintText, hintStyle: const TextStyle(color: AppColors.textDisabled),
+      prefixIcon: Icon(icon, color: AppColors.textMuted, size: 18),
+      filled: true, fillColor: AppColors.overlayMedium,
       contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
     );
@@ -273,7 +274,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
             opacity: isSelected ? 1.0 : 0.3,
             child: CircleAvatar(
               radius: 16,
-              backgroundColor: Colors.black,
+              backgroundColor: AppColors.textOnPrimary,
               child: SvgPicture.network('https://svgs.scryfall.io/card-symbols/$symbol.svg', width: 16),
             ),
           ),

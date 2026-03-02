@@ -1,3 +1,5 @@
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -24,7 +26,7 @@ class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
   
   final List<ChatMessage> _messages = [
     ChatMessage(
-      text: "Salutations, Planeswalker. Je suis connecté aux Archives. Posez-moi une question sur les règles.",
+      text: 'Salutations, Planeswalker. Je suis connecté aux Archives. Posez-moi une question sur les règles.',
       isUser: false
     )
   ];
@@ -45,7 +47,7 @@ class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
     final response = await _oracleService.askQuestion(text);
     
     // --- LOG DEBUG ICI ---
-    debugPrint("🤖 Réponse Oracle reçue : $response");
+    debugPrint('🤖 Réponse Oracle reçue : $response');
 
     if (mounted) {
       setState(() {
@@ -73,27 +75,27 @@ class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: AppColors.scaffoldBackground,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.purple.shade900, width: 2)),
-        title: Text("Logique de l'Oracle", style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text("Logique de l'Oracle", style: AppTextStyles.bold()),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("L'Oracle combine les règles officielles avec le texte des cartes pour déduire la réponse.", style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const Text("L'Oracle combine les règles officielles avec le texte des cartes pour déduire la réponse.", style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white12)),
+                decoration: BoxDecoration(color: AppColors.textOnPrimary, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.borderSubtle)),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("CONTEXTE RÈGLES :", style: GoogleFonts.robotoMono(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold)),
-                    Text("- 702.2. Deathtouch...\n- 704.5h. If a creature...", style: GoogleFonts.robotoMono(color: Colors.white54, fontSize: 10)),
+                    Text('CONTEXTE RÈGLES :', style: GoogleFonts.robotoMono(color: AppColors.amber, fontSize: 10, fontWeight: FontWeight.bold)),
+                    Text('- 702.2. Deathtouch...\n- 704.5h. If a creature...', style: GoogleFonts.robotoMono(color: AppColors.textMuted, fontSize: 10)),
                     const SizedBox(height: 8),
-                    Text("CONTEXTE CARTE :", style: GoogleFonts.robotoMono(color: Colors.blueAccent, fontSize: 10, fontWeight: FontWeight.bold)),
-                    Text("- Card: Sheoldred\n- Text: Whenever you draw...", style: GoogleFonts.robotoMono(color: Colors.white54, fontSize: 10)),
+                    Text('CONTEXTE CARTE :', style: GoogleFonts.robotoMono(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.bold)),
+                    Text('- Card: Sheoldred\n- Text: Whenever you draw...', style: GoogleFonts.robotoMono(color: AppColors.textMuted, fontSize: 10)),
                   ],
                 ),
               ),
@@ -101,14 +103,14 @@ class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Fermer", style: TextStyle(color: Colors.white54))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer', style: TextStyle(color: AppColors.textMuted))),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _controller.text = "Si je lance une roue avec Sheoldred sur le terrain, que se passe-t-il ?";
+              _controller.text = 'Si je lance une roue avec Sheoldred sur le terrain, que se passe-t-il ?';
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade800),
-            child: Text("Tester cet exemple", style: GoogleFonts.cinzel(color: Colors.white)),
+            child: Text('Tester cet exemple', style: AppTextStyles.cinzel()),
           )
         ],
       ),
@@ -118,18 +120,18 @@ class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
         title: Row(
           children: [
-            const Icon(Icons.auto_awesome, color: Colors.purpleAccent),
+            const Icon(Icons.auto_awesome, color: AppColors.accentPurple),
             const SizedBox(width: 8),
-            Text("L'Oracle", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+            Text("L'Oracle", style: AppTextStyles.bold()),
           ],
         ),
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.textOnPrimary,
         actions: [
-          IconButton(icon: const Icon(Icons.info_outline, color: Colors.white70), onPressed: _showExampleDialog),
+          IconButton(icon: const Icon(Icons.info_outline, color: AppColors.textSecondary), onPressed: _showExampleDialog),
         ],
       ),
       body: Column(
@@ -147,7 +149,7 @@ class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
             ),
           ),
           if (_isLoading) 
-            const Padding(padding: EdgeInsets.symmetric(horizontal: 16.0), child: LinearProgressIndicator(color: Colors.purpleAccent, backgroundColor: Colors.transparent, minHeight: 2)),
+            const Padding(padding: EdgeInsets.symmetric(horizontal: 16.0), child: LinearProgressIndicator(color: AppColors.accentPurple, backgroundColor: AppColors.transparent, minHeight: 2)),
           _buildInputArea(),
         ],
       ),
@@ -156,13 +158,13 @@ class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
 
   Widget _buildInputArea() {
     return Container(
-      color: Colors.black, 
+      color: AppColors.textOnPrimary, 
       child: SafeArea(
         top: false,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: Colors.white12)),
+            border: Border(top: BorderSide(color: AppColors.borderSubtle)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end, // Aligne le bouton en bas si le texte grandit
@@ -170,12 +172,12 @@ class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: AppColors.textPrimary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: TextField(
                     controller: _controller,
-                    style: GoogleFonts.roboto(color: Colors.white, fontSize: 16), // Police plus lisible pour la saisie
+                    style: GoogleFonts.roboto(color: AppColors.textPrimary, fontSize: 16), // Police plus lisible pour la saisie
                     
                     // --- LA MAGIE TEXT AREA ---
                     minLines: 1,
@@ -184,11 +186,11 @@ class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
                     keyboardType: TextInputType.multiline,
                     // --------------------------
 
-                    decoration: InputDecoration(
-                      hintText: "Posez votre question...",
-                      hintStyle: const TextStyle(color: Colors.white30),
+                    decoration: const InputDecoration(
+                      hintText: 'Posez votre question...',
+                      hintStyle: TextStyle(color: AppColors.textDisabled),
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       isDense: true,
                     ),
                   ),
@@ -203,7 +205,7 @@ class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
                   radius: 22,
                   backgroundColor: Colors.purple.shade800,
                   child: IconButton(
-                    icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                    icon: const Icon(Icons.send_rounded, color: AppColors.textPrimary, size: 20),
                     onPressed: _isLoading ? null : _sendMessage,
                   ),
                 ),
@@ -246,7 +248,7 @@ class _AnimatedMessageBubble extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
           decoration: BoxDecoration(
-            color: message.isUser ? const Color(0xFF6A1B9A) : const Color(0xFF2A2A2A), // Couleurs plus modernes
+            color: message.isUser ? const Color(0xFF6A1B9A) : AppColors.cardBackground, // Couleurs plus modernes
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(16),
               topRight: const Radius.circular(16),
@@ -254,7 +256,7 @@ class _AnimatedMessageBubble extends StatelessWidget {
               bottomRight: message.isUser ? const Radius.circular(2) : const Radius.circular(16),
             ),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2))
+              BoxShadow(color: AppColors.textOnPrimary.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, 2))
             ],
           ),
           child: Column(
@@ -264,16 +266,16 @@ class _AnimatedMessageBubble extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.auto_awesome, size: 14, color: Colors.purpleAccent),
+                    const Icon(Icons.auto_awesome, size: 14, color: AppColors.accentPurple),
                     const SizedBox(width: 6),
-                    Text("ORACLE", style: GoogleFonts.cinzel(color: Colors.purpleAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                    Text('ORACLE', style: AppTextStyles.cinzel(color: AppColors.accentPurple, fontSize: 10, fontWeight: FontWeight.w900).copyWith(letterSpacing: 1.0)),
                   ],
                 ),
                 const SizedBox(height: 6),
               ],
               Text(
                 message.text,
-                style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.4),
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, height: 1.4),
               ),
             ],
           ),

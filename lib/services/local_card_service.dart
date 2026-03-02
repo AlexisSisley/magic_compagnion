@@ -94,9 +94,9 @@ class LocalCardService {
         }
       }
       _isLoaded = true;
-      debugPrint("Données locales chargées : ${_cachedCards.length} cartes.");
+      debugPrint('Données locales chargées : ${_cachedCards.length} cartes.');
     } catch (e) {
-      debugPrint("Erreur chargement données locales : $e");
+      debugPrint('Erreur chargement données locales : $e');
     } finally {
       _isLoading = false;
     }

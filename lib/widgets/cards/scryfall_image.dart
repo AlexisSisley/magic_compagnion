@@ -1,6 +1,7 @@
 // Fichier : lib/widgets/cards/scryfall_image.dart
 // Widget réutilisable pour afficher des images Scryfall avec cache, placeholder et gestion d'erreur.
 
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -68,14 +69,14 @@ class ScryfallImage extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      color: Colors.grey.shade900,
+      color: AppColors.greyShade900,
       child: const Center(
         child: SizedBox(
           width: 20,
           height: 20,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: Colors.white24,
+            color: AppColors.borderMedium,
           ),
         ),
       ),
@@ -86,9 +87,9 @@ class ScryfallImage extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      color: Colors.grey.shade900,
+      color: AppColors.greyShade900,
       child: const Center(
-        child: Icon(Icons.image_not_supported, color: Colors.white24, size: 24),
+        child: Icon(Icons.image_not_supported, color: AppColors.borderMedium, size: 24),
       ),
     );
   }
@@ -113,7 +114,7 @@ class ScryfallAvatarImage extends StatelessWidget {
       return CircleAvatar(
         radius: radius,
         backgroundColor: backgroundColor,
-        child: const Icon(Icons.person, color: Colors.white54),
+        child: const Icon(Icons.person, color: AppColors.textMuted),
       );
     }
 
@@ -131,13 +132,13 @@ class ScryfallAvatarImage extends StatelessWidget {
         child: const SizedBox(
           width: 20,
           height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white24),
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.borderMedium),
         ),
       ),
       errorWidget: (context, url, error) => CircleAvatar(
         radius: radius,
         backgroundColor: backgroundColor,
-        child: const Icon(Icons.person, color: Colors.white54),
+        child: const Icon(Icons.person, color: AppColors.textMuted),
       ),
     );
   }

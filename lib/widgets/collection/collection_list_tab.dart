@@ -1,10 +1,11 @@
 // Fichier : lib/widgets/collection/collection_list_tab.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
@@ -78,6 +79,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
     try {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossible d'ouvrir le lien.")));
     }
   }
@@ -85,21 +87,21 @@ class _CollectionListTabState extends State<CollectionListTab> {
   Future<void> _exportAndOpenCardmarket() async {
      StringBuffer sb = StringBuffer();
      for(var c in widget.cards) {
-        sb.writeln("${c.quantity} ${c.name}");
+        sb.writeln('${c.quantity} ${c.name}');
      }
      await Clipboard.setData(ClipboardData(text: sb.toString()));
      if (mounted) {
        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-         content: Text("Liste copiée ! Collez-la dans Cardmarket (Mass Entry)."),
-         backgroundColor: Colors.blueAccent,
+         content: Text('Liste copiée ! Collez-la dans Cardmarket (Mass Entry).'),
+         backgroundColor: AppColors.accent,
          duration: Duration(seconds: 3),
        ));
      }
-     _launchURL("https://www.cardmarket.com/en/Magic/Wants/MassEntry");
+     _launchURL('https://www.cardmarket.com/en/Magic/Wants/MassEntry');
   }
 
   void _showFinancialDetail() {
-    final String title = widget.isWishlist ? "Coût Wishlist" : "Valeur Collection";
+    final String title = widget.isWishlist ? 'Coût Wishlist' : 'Valeur Collection';
     
     List<Map<String, dynamic>> topCards = [];
     
@@ -126,7 +128,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
@@ -138,22 +140,22 @@ class _CollectionListTabState extends State<CollectionListTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey, borderRadius: BorderRadius.circular(2)))),
+                  Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.synergyNeutral, borderRadius: BorderRadius.circular(2)))),
                   const SizedBox(height: 20),
-                  Text(title, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text(title, style: AppTextStyles.pageTitle(fontSize: 22)),
                   const SizedBox(height: 10),
                   Text(
                     widget.isWishlist 
                       ? 'Les cartes les plus coûteuses de votre liste de souhaits'
                       : 'Les cartes les plus précieuses de votre collection',
-                    style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 14)
+                    style: AppTextStyles.subtitle(color: AppColors.textMuted)
                   ),
                   const SizedBox(height: 20),
                   Expanded(
                     child: ListView.separated(
                       controller: scrollController,
                       itemCount: top15.length,
-                      separatorBuilder: (ctx, i) => const Divider(color: Colors.white10),
+                      separatorBuilder: (ctx, i) => const Divider(color: AppColors.borderLight),
                       itemBuilder: (context, index) {
                         final item = top15[index];
                         return ListTile(
@@ -162,13 +164,13 @@ class _CollectionListTabState extends State<CollectionListTab> {
                             borderRadius: BorderRadius.circular(4),
                             child: item['image'] != null 
                                 ? Image.network(item['image'], width: 40, height: 56, fit: BoxFit.cover)
-                                : Container(width: 40, height: 56, color: Colors.grey.shade800),
+                                : Container(width: 40, height: 56, color: AppColors.greyShade800),
                           ),
-                          title: Text(item['name'], style: GoogleFonts.cinzel(color: Colors.white), overflow: TextOverflow.ellipsis),
-                          subtitle: Text('${item['quantity']}x  @ ${item['unitPrice']} €', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          title: Text(item['name'], style: AppTextStyles.cinzel(), overflow: TextOverflow.ellipsis),
+                          subtitle: Text('${item['quantity']}x  @ ${item['unitPrice']} €', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
                           trailing: Text(
                             '${(item['totalPrice'] as double).toStringAsFixed(2)} €',
-                            style: GoogleFonts.cinzel(color: Colors.yellow.shade700, fontWeight: FontWeight.bold, fontSize: 16),
+                            style: AppTextStyles.bold(color: AppColors.primaryShade700, fontSize: 16),
                           ),
                         );
                       },
@@ -250,8 +252,8 @@ class _CollectionListTabState extends State<CollectionListTab> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              backgroundColor: const Color(0xFF1A1A1A),
-              title: Text("Tags : ${card.name}", style: GoogleFonts.cinzel(color: Colors.white)),
+              backgroundColor: AppColors.scaffoldBackground,
+              title: Text('Tags : ${card.name}', style: AppTextStyles.cinzel()),
               content: SizedBox(
                 width: double.maxFinite,
                 child: Column(
@@ -262,16 +264,16 @@ class _CollectionListTabState extends State<CollectionListTab> {
                       spacing: 8, runSpacing: 8,
                       children: currentTags.map((t) => Chip(
                         label: Text(t),
-                        backgroundColor: Colors.blueAccent.withOpacity(0.3),
+                        backgroundColor: AppColors.accent.withValues(alpha: 0.3),
                         onDeleted: () => setState(() => currentTags.remove(t)),
                       )).toList(),
                     ),
-                    const Divider(color: Colors.white24),
-                    const Text("Ajouter un tag :", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                    const Divider(color: AppColors.borderMedium),
+                    const Text('Ajouter un tag :', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                     Row(
                       children: [
-                        Expanded(child: TextField(controller: newTagCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: "Nouveau..."))),
-                        IconButton(icon: const Icon(Icons.add, color: Colors.green), onPressed: () {
+                        Expanded(child: TextField(controller: newTagCtrl, style: const TextStyle(color: AppColors.textPrimary), decoration: const InputDecoration(hintText: 'Nouveau...'))),
+                        IconButton(icon: const Icon(Icons.add, color: AppColors.success), onPressed: () {
                           if (newTagCtrl.text.isNotEmpty) {
                             setState(() => currentTags.add(newTagCtrl.text.trim()));
                             newTagCtrl.clear();
@@ -280,7 +282,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Text("Existants :", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                    const Text('Existants :', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                     Wrap(
                       spacing: 6,
                       children: widget.availableTags.where((t) => !currentTags.contains(t)).map((t) => ActionChip(
@@ -292,13 +294,13 @@ class _CollectionListTabState extends State<CollectionListTab> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
                 ElevatedButton(
                   onPressed: () {
                     widget.onUpdateTags?.call(card, currentTags);
                     Navigator.pop(context);
                   }, 
-                  child: const Text("Sauvegarder")
+                  child: const Text('Sauvegarder')
                 )
               ],
             );
@@ -322,7 +324,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
           // Header Financier (RESTAURÉ)
           if (widget.hasCalculatedFinance && filteredList.isNotEmpty && !widget.isSelectionMode)
              _buildFinancialHeader(
-               title: widget.isWishlist ? "Coût Wishlist" : "Valeur Collection", 
+               title: widget.isWishlist ? 'Coût Wishlist' : 'Valeur Collection', 
                value: widget.financialTotal,
                evoVal: widget.evoVal,
                evoPct: widget.evoPct,
@@ -331,7 +333,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
 
           // Barre de contrôle visuelle
           Container(
-            color: Colors.black.withOpacity(0.3),
+            color: AppColors.textOnPrimary.withValues(alpha: 0.3),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Row(
               children: [
@@ -343,17 +345,17 @@ class _CollectionListTabState extends State<CollectionListTab> {
                       borderRadius: BorderRadius.circular(4),
                       child: Icon(
                         widget.isSelectionMode ? Icons.check_box : Icons.check_box_outline_blank, 
-                        color: widget.isSelectionMode ? Colors.greenAccent : Colors.white54,
+                        color: widget.isSelectionMode ? AppColors.accentGreen : AppColors.textMuted,
                         size: 22
                       ),
                     ),
                   ),
                 if (widget.isSelectionMode)
-                   Text("${widget.selectedIds.length} sélectionnés", style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))
+                   Text('${widget.selectedIds.length} sélectionnés', style: const TextStyle(color: AppColors.accentGreen, fontWeight: FontWeight.bold))
                 else
-                   Text("${filteredList.length} cartes", style: GoogleFonts.cinzel(color: Colors.white54)),
+                   Text('${filteredList.length} cartes', style: AppTextStyles.cinzel(color: AppColors.textMuted)),
                 const Spacer(),
-                const Icon(Icons.view_agenda, size: 16, color: Colors.white54),
+                const Icon(Icons.view_agenda, size: 16, color: AppColors.textMuted),
                 SizedBox(
                   width: 120,
                   child: SliderTheme(
@@ -361,12 +363,12 @@ class _CollectionListTabState extends State<CollectionListTab> {
                     child: Slider(
                       value: _gridColumns,
                       min: 1, max: 4, divisions: 3, 
-                      activeColor: Colors.yellow.shade800, inactiveColor: Colors.white24,
+                      activeColor: AppColors.primaryShade800, inactiveColor: AppColors.borderMedium,
                       onChanged: (v) => setState(() => _gridColumns = v),
                     ),
                   ),
                 ),
-                const Icon(Icons.grid_view, size: 16, color: Colors.white54),
+                const Icon(Icons.grid_view, size: 16, color: AppColors.textMuted),
               ],
             ),
           ),
@@ -397,8 +399,8 @@ class _CollectionListTabState extends State<CollectionListTab> {
   // --- TUILE LISTE (CORRIGÉE AVEC BORDURE RARETÉ & ÉDITION) ---
   Widget _buildCardTile(DeckCard card) {
     ScryfallCard? scryfallCard;
-    try { scryfallCard = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId); } catch(e){}
-    
+    try { scryfallCard = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId); } catch(e) { /* Card not found */ }
+
     final bool isSelected = widget.isSelectionMode && widget.selectedIds.contains(card.scryfallId);
     final String priceDisplay = _getPrice(card).toStringAsFixed(2);
     final String setCode = scryfallCard?.setCode.toUpperCase() ?? '';
@@ -407,13 +409,13 @@ class _CollectionListTabState extends State<CollectionListTab> {
     // Bordure
     Color borderColor;
     if (isSelected) {
-      borderColor = Colors.greenAccent;
+      borderColor = AppColors.accentGreen;
     } else {
       borderColor = _getRarityColor(rarity);
     }
 
     return Card(
-      color: isSelected ? Colors.green.withOpacity(0.2) : Colors.black.withOpacity(0.4),
+      color: isSelected ? Colors.green.withValues(alpha: 0.2) : AppColors.textOnPrimary.withValues(alpha: 0.4),
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
       // Applique la bordure de rareté
       shape: RoundedRectangleBorder(
@@ -423,8 +425,11 @@ class _CollectionListTabState extends State<CollectionListTab> {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         onTap: () {
-          if (widget.isSelectionMode) widget.onToggleSelection?.call(card.scryfallId);
-          else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+          if (widget.isSelectionMode) {
+            widget.onToggleSelection?.call(card.scryfallId);
+          } else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
+            context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+          }
         },
         onLongPress: () {
           if (!widget.isSelectionMode) widget.onToggleSelectionMode?.call();
@@ -435,20 +440,20 @@ class _CollectionListTabState extends State<CollectionListTab> {
             ClipRRect(
               borderRadius: BorderRadius.circular(4), 
               child: scryfallCard?.smallImageUrl != null 
-                ? Image.network(scryfallCard!.smallImageUrl!, width: 40, height: 56, fit: BoxFit.cover, errorBuilder: (_,__,___)=>Container(width: 40, height: 56, color: Colors.grey))
-                : Container(width: 40, height: 56, color: Colors.grey.shade800, child: const Icon(Icons.image, size: 20))
+                ? Image.network(scryfallCard!.smallImageUrl!, width: 40, height: 56, fit: BoxFit.cover, errorBuilder: (_, _, _)=>Container(width: 40, height: 56, color: AppColors.synergyNeutral))
+                : Container(width: 40, height: 56, color: AppColors.greyShade800, child: const Icon(Icons.image, size: 20))
             ),
             if (card.isFoil) 
-              Positioned(bottom: 0, right: 0, child: Container(decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle), child: const Icon(Icons.star, color: Colors.amber, size: 12))),
+              Positioned(bottom: 0, right: 0, child: Container(decoration: const BoxDecoration(color: AppColors.overlayVeryDark, shape: BoxShape.circle), child: const Icon(Icons.star, color: AppColors.amber, size: 12))),
             if (isSelected) 
-              Positioned(top: 0, left: 0, child: Container(color: Colors.black54, child: const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20))),
+              Positioned(top: 0, left: 0, child: Container(color: AppColors.overlayDark, child: const Icon(Icons.check_circle, color: AppColors.accentGreen, size: 20))),
           ],
         ),
         title: Row(
           children: [
-            Expanded(child: Text(card.name, style: GoogleFonts.cinzel(color: card.isFoil ? Colors.amber.shade100 : Colors.white, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+            Expanded(child: Text(card.name, style: AppTextStyles.cinzel(color: card.isFoil ? Colors.amber.shade100 : AppColors.textPrimary, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
             if (card.quantity > 1) 
-              Text(" (${card.quantity})", style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+              Text(' (${card.quantity})', style: const TextStyle(color: AppColors.synergyNeutral, fontWeight: FontWeight.bold)),
           ],
         ),
         subtitle: Column(
@@ -461,13 +466,13 @@ class _CollectionListTabState extends State<CollectionListTab> {
                   Container(
                     margin: const EdgeInsets.only(right: 6),
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(border: Border.all(color: Colors.white24), borderRadius: BorderRadius.circular(4)),
-                    child: Text(setCode, style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.bold)),
+                    decoration: BoxDecoration(border: Border.all(color: AppColors.borderMedium), borderRadius: BorderRadius.circular(4)),
+                    child: Text(setCode, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9, fontWeight: FontWeight.bold)),
                   ),
                 // Mana Cost
                 _buildManaCostRow(scryfallCard?.manaCost, size: 12),
                 const Spacer(),
-                Text("$priceDisplay €", style: TextStyle(color: Colors.yellow.shade700, fontSize: 12)),
+                Text('$priceDisplay €', style: TextStyle(color: AppColors.primaryShade700, fontSize: 12)),
               ],
             ),
             // Tags
@@ -478,8 +483,8 @@ class _CollectionListTabState extends State<CollectionListTab> {
                   spacing: 4,
                   children: card.tags.map((t) => Container(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.blueAccent.withOpacity(0.5))),
-                    child: Text(t, style: const TextStyle(fontSize: 9, color: Colors.blueAccent)),
+                    decoration: BoxDecoration(color: AppColors.accent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4), border: Border.all(color: AppColors.accent.withValues(alpha: 0.5))),
+                    child: Text(t, style: const TextStyle(fontSize: 9, color: AppColors.accent)),
                   )).toList(),
                 ),
               )
@@ -488,7 +493,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
         trailing: widget.isSelectionMode 
           ? null 
           : IconButton(
-              icon: const Icon(Icons.more_vert, color: Colors.white54),
+              icon: const Icon(Icons.more_vert, color: AppColors.textMuted),
               onPressed: () => _showCardOptions(card),
             ),
       ),
@@ -498,22 +503,25 @@ class _CollectionListTabState extends State<CollectionListTab> {
   // --- GRID TILE (COMPLETE) ---
   Widget _buildGridTile(DeckCard card) {
     ScryfallCard? scryfallCard;
-    try { scryfallCard = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId); } catch(e){}
+    try { scryfallCard = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId); } catch(e) { /* Card not found */ }
     final isSelected = widget.isSelectionMode && widget.selectedIds.contains(card.scryfallId);
     final imageUrl = scryfallCard?.smallImageUrl ?? scryfallCard?.imageUrl;
     
     // Bordure
     Color borderColor;
     if (isSelected) {
-      borderColor = Colors.greenAccent;
+      borderColor = AppColors.accentGreen;
     } else {
       borderColor = _getRarityColor(scryfallCard?.rarity ?? 'common');
     }
 
     return InkWell(
       onTap: () {
-        if (widget.isSelectionMode) widget.onToggleSelection?.call(card.scryfallId);
-        else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+        if (widget.isSelectionMode) {
+          widget.onToggleSelection?.call(card.scryfallId);
+        } else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
+          context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+        }
       },
       onLongPress: () {
         if (!widget.isSelectionMode) widget.onToggleSelectionMode?.call();
@@ -525,27 +533,27 @@ class _CollectionListTabState extends State<CollectionListTab> {
           borderRadius: BorderRadius.circular(10),
           side: BorderSide(color: borderColor, width: isSelected ? 3 : 1.5), // Epaisseur 1.5 pour rareté
         ),
-        color: Colors.black,
+        color: AppColors.textOnPrimary,
         child: Stack(
           fit: StackFit.expand,
           children: [
             if (imageUrl != null)
               Image.network(imageUrl, fit: BoxFit.cover)
             else
-              Container(color: Colors.grey[800], child: const Center(child: Icon(Icons.image, color: Colors.white24))),
+              Container(color: Colors.grey[800], child: const Center(child: Icon(Icons.image, color: AppColors.borderMedium))),
             
             // Foil Effect
             if (card.isFoil)
-              Container(decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.white.withOpacity(0.1), Colors.transparent], begin: Alignment.topLeft, end: Alignment.bottomRight))),
+              Container(decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.white.withValues(alpha: 0.1), AppColors.transparent], begin: Alignment.topLeft, end: Alignment.bottomRight))),
 
             // Overlay selection
             if (isSelected)
-              Container(color: Colors.green.withOpacity(0.2)),
+              Container(color: Colors.green.withValues(alpha: 0.2)),
 
             // Gradient bas pour texte
             Positioned(
               bottom: 0, left: 0, right: 0, height: 40,
-              child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withOpacity(0.9), Colors.transparent]))),
+              child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withValues(alpha: 0.9), AppColors.transparent]))),
             ),
 
             // Quantité + Foil Badge
@@ -553,12 +561,12 @@ class _CollectionListTabState extends State<CollectionListTab> {
               top: 4, left: 4,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(4)),
+                decoration: BoxDecoration(color: AppColors.overlayVeryDark, borderRadius: BorderRadius.circular(4)),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text("${card.quantity}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    if (card.isFoil) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.star, size: 12, color: Colors.amber)),
+                    Text('${card.quantity}', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                    if (card.isFoil) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.star, size: 12, color: AppColors.amber)),
                   ],
                 ),
               ),
@@ -569,8 +577,8 @@ class _CollectionListTabState extends State<CollectionListTab> {
               Positioned(
                 top: 4, right: 4,
                 child: Container(
-                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                  child: Icon(isSelected ? Icons.check_circle : Icons.circle_outlined, color: isSelected ? Colors.greenAccent : Colors.white, size: 24),
+                  decoration: const BoxDecoration(color: AppColors.overlayDark, shape: BoxShape.circle),
+                  child: Icon(isSelected ? Icons.check_circle : Icons.circle_outlined, color: isSelected ? AppColors.accentGreen : AppColors.textPrimary, size: 24),
                 ),
               )
             else
@@ -578,7 +586,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
               Positioned(
                 top: 0, right: 0,
                 child: IconButton(
-                  icon: const Icon(Icons.more_vert, color: Colors.white, size: 20),
+                  icon: const Icon(Icons.more_vert, color: AppColors.textPrimary, size: 20),
                   onPressed: () => _showCardOptions(card),
                 ),
               ),
@@ -586,7 +594,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
             // Prix en bas
             Positioned(
               bottom: 4, right: 4,
-              child: Text("${_getPrice(card).toStringAsFixed(2)}€", style: TextStyle(color: Colors.yellow.shade700, fontWeight: FontWeight.bold, fontSize: 12)),
+              child: Text('${_getPrice(card).toStringAsFixed(2)}€', style: TextStyle(color: AppColors.primaryShade700, fontWeight: FontWeight.bold, fontSize: 12)),
             )
           ],
         ),
@@ -595,15 +603,15 @@ class _CollectionListTabState extends State<CollectionListTab> {
   }
 
   void _showCardOptions(DeckCard card) {
-    showModalBottomSheet(context: context, backgroundColor: const Color(0xFF1A1A1A), builder: (ctx) => SafeArea(
+    showModalBottomSheet(context: context, backgroundColor: AppColors.scaffoldBackground, builder: (ctx) => SafeArea(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        ListTile(title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold))),
-        const Divider(color: Colors.white24),
-        ListTile(leading: const Icon(Icons.label, color: Colors.blueAccent), title: const Text("Gérer les Tags", style: TextStyle(color: Colors.white)), onTap: () { Navigator.pop(ctx); _showTagEditor(card); }),
-        ListTile(leading: const Icon(Icons.add_circle, color: Colors.green), title: const Text("Ajouter 1", style: TextStyle(color: Colors.white)), onTap: () { Navigator.pop(ctx); widget.onUpdateQuantity(card, 1); }),
-        ListTile(leading: const Icon(Icons.remove_circle, color: Colors.red), title: const Text("Retirer 1", style: TextStyle(color: Colors.white)), onTap: () { Navigator.pop(ctx); widget.onUpdateQuantity(card, -1); }),
+        ListTile(title: Text(card.name, style: AppTextStyles.bold())),
+        const Divider(color: AppColors.borderMedium),
+        ListTile(leading: const Icon(Icons.label, color: AppColors.accent), title: const Text('Gérer les Tags', style: TextStyle(color: AppColors.textPrimary)), onTap: () { Navigator.pop(ctx); _showTagEditor(card); }),
+        ListTile(leading: const Icon(Icons.add_circle, color: AppColors.success), title: const Text('Ajouter 1', style: TextStyle(color: AppColors.textPrimary)), onTap: () { Navigator.pop(ctx); widget.onUpdateQuantity(card, 1); }),
+        ListTile(leading: const Icon(Icons.remove_circle, color: AppColors.error), title: const Text('Retirer 1', style: TextStyle(color: AppColors.textPrimary)), onTap: () { Navigator.pop(ctx); widget.onUpdateQuantity(card, -1); }),
         if (widget.onToggleFoil != null)
-           ListTile(leading: Icon(Icons.star, color: card.isFoil ? Colors.grey : Colors.amber), title: Text(card.isFoil ? "Retirer Foil" : "Passer Foil", style: const TextStyle(color: Colors.white)), onTap: () { Navigator.pop(ctx); widget.onToggleFoil!(card); }),
+           ListTile(leading: Icon(Icons.star, color: card.isFoil ? AppColors.synergyNeutral : AppColors.amber), title: Text(card.isFoil ? 'Retirer Foil' : 'Passer Foil', style: const TextStyle(color: AppColors.textPrimary)), onTap: () { Navigator.pop(ctx); widget.onToggleFoil!(card); }),
       ]),
     ));
   }
@@ -621,11 +629,11 @@ class _CollectionListTabState extends State<CollectionListTab> {
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.yellow.shade900.withOpacity(0.3), Colors.black.withOpacity(0.6)],
+          colors: [AppColors.primaryShade900.withValues(alpha: 0.3), AppColors.textOnPrimary.withValues(alpha: 0.6)],
           begin: Alignment.topLeft, end: Alignment.bottomRight
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.yellow.shade800.withOpacity(0.5)),
+        border: Border.all(color: AppColors.primaryShade800.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -634,9 +642,9 @@ class _CollectionListTabState extends State<CollectionListTab> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 12)),
+              Text(title, style: AppTextStyles.label(color: AppColors.textSecondary)),
               const SizedBox(height: 4),
-              Text('${value.toStringAsFixed(2)} €', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              Text('${value.toStringAsFixed(2)} €', style: AppTextStyles.pageTitle()),
             ],
           ),
           
@@ -645,20 +653,20 @@ class _CollectionListTabState extends State<CollectionListTab> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('Sur 7 jours', style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 12)),
+                Text('Sur 7 jours', style: AppTextStyles.label(color: AppColors.textSecondary)),
                 const SizedBox(height: 4),
                 Row(
                   children: [
                     Icon(icon, color: color, size: 16),
                     const SizedBox(width: 4),
-                    Text('$sign${evoVal.toStringAsFixed(2)} €', style: GoogleFonts.cinzel(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text('$sign${evoVal.toStringAsFixed(2)} €', style: AppTextStyles.bold(color: color, fontSize: 16)),
                   ],
                 ),
-                Text('($sign${evoPct!.toStringAsFixed(1)}%)', style: GoogleFonts.cinzel(color: color.withOpacity(0.8), fontSize: 12)),
+                Text('($sign${evoPct!.toStringAsFixed(1)}%)', style: AppTextStyles.cinzel(color: color.withValues(alpha: 0.8), fontSize: 12)),
               ],
             )
           else if (title.contains('Collection'))
-             Text('Pas assez de données', style: GoogleFonts.cinzel(color: Colors.white38, fontSize: 10), textAlign: TextAlign.right),
+             Text('Pas assez de données', style: AppTextStyles.cinzel(color: AppColors.borderFaint, fontSize: 10), textAlign: TextAlign.right),
 
           // Partie DROITE : Boutons d'action
           Row(
@@ -666,14 +674,14 @@ class _CollectionListTabState extends State<CollectionListTab> {
                // --- BOUTON PANIER (Seulement pour Wishlist) ---
                if (widget.isWishlist)
                  IconButton(
-                   icon: const Icon(Icons.shopping_cart_checkout, color: Colors.blueAccent),
-                   tooltip: "Acheter sur Cardmarket (Copier liste)",
+                   icon: const Icon(Icons.shopping_cart_checkout, color: AppColors.accent),
+                   tooltip: 'Acheter sur Cardmarket (Copier liste)',
                    onPressed: _exportAndOpenCardmarket, 
                  ),
                
                // Bouton Analytics existant
                IconButton(
-                 icon: const Icon(Icons.analytics_outlined, color: Colors.white), 
+                 icon: const Icon(Icons.analytics_outlined, color: AppColors.textPrimary), 
                  onPressed: onDetailPressed
                ),
             ],
@@ -686,11 +694,11 @@ class _CollectionListTabState extends State<CollectionListTab> {
   // --- HELPERS ---
   Color _getRarityColor(String rarity) {
     switch (rarity.toLowerCase()) {
-      case 'common': return Colors.white24; 
+      case 'common': return AppColors.borderMedium; 
       case 'uncommon': return const Color(0xFFC0C0C0); 
       case 'rare': return const Color(0xFFFFD700); 
       case 'mythic': return const Color(0xFFFF4500); 
-      default: return Colors.transparent;
+      default: return AppColors.transparent;
     }
   }
 
@@ -711,7 +719,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
     return SvgPicture.network(
       'https://svgs.scryfall.io/card-symbols/$cleanSymbol.svg', 
       height: size, width: size, 
-      placeholderBuilder: (context) => Text(symbol, style: GoogleFonts.cinzel(color: Colors.white, fontSize: size))
+      placeholderBuilder: (context) => Text(symbol, style: AppTextStyles.cinzel(fontSize: size))
     );
   }
 }

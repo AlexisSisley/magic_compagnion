@@ -1,5 +1,5 @@
+import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class SkyrimSneakLoader extends StatefulWidget {
   const SkyrimSneakLoader({super.key});
@@ -94,11 +94,7 @@ class _SkyrimEyePainter extends CustomPainter {
        // Texte "HIDDEN" qui apparaît/disparaît doucement
        final textSpan = TextSpan(
          text: 'HIDDEN',
-         style: GoogleFonts.cinzel(
-           color: paint.color.withOpacity(0.5 + breath * 0.5), 
-           fontSize: 12, 
-           fontWeight: FontWeight.bold
-         ),
+         style: AppTextStyles.bold(color: paint.color.withValues(alpha: 0.5 + breath * 0.5), fontSize: 12),
        );
        final textPainter = TextPainter(
          text: textSpan, 

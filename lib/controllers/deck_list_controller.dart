@@ -226,7 +226,7 @@ class DeckListController extends StateNotifier<DeckListState> {
   /// Returns (deckName, decklistText) after easter egg resolution.
   (String, String) resolveEasterEgg(String deckName, String decklistText) {
     if (deckName.toLowerCase() == 'second petit déjeuner') {
-      return ("Nourriture et communauté", secondBreakfastDecklist);
+      return ('Nourriture et communauté', secondBreakfastDecklist);
     }
     return (deckName, decklistText);
   }
@@ -250,9 +250,13 @@ class DeckListController extends StateNotifier<DeckListState> {
         int qty = int.parse(match.group(1)!);
         String name = match.group(2)!.trim().split('//')[0].trim();
         if (!ids.contains(name)) ids.add(name);
-        if (section == 'cmd') commanderName = name;
-        else if (section == 'side') parsedSide.add({'name': name, 'quantity': qty});
-        else parsedMain.add({'name': name, 'quantity': qty});
+        if (section == 'cmd') {
+          commanderName = name;
+        } else if (section == 'side') {
+          parsedSide.add({'name': name, 'quantity': qty});
+        } else {
+          parsedMain.add({'name': name, 'quantity': qty});
+        }
       }
     }
 
@@ -262,7 +266,7 @@ class DeckListController extends StateNotifier<DeckListState> {
       try {
         final data = await _apiService.searchCards(query, unique: 'cards');
         scryfallData = (data['data'] as List).map((j) => ScryfallCard.fromJson(j)).toList();
-      } catch (e) { log("Erreur import: $e"); }
+      } catch (e) { log('Erreur import: $e'); }
     }
 
     Set<String> deckColors = {};
@@ -295,7 +299,7 @@ class DeckListController extends StateNotifier<DeckListState> {
   // --- HELPERS ---
 
   String _findId(List<ScryfallCard> data, String name) {
-    try { return data.firstWhere((s) => s.name.toLowerCase() == name.toLowerCase()).id; } catch (e) { return "LOCAL:$name"; }
+    try { return data.firstWhere((s) => s.name.toLowerCase() == name.toLowerCase()).id; } catch (e) { return 'LOCAL:$name'; }
   }
 
   String getSortLabel(String code) {

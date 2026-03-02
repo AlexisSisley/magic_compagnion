@@ -1,8 +1,9 @@
 // Fichier : lib/pages/collections/wishlist_tab.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart'; // <--- Import ajouté
 import '../../models/scryfall_card_model.dart';
 import '../../models/wishlist_model.dart';
@@ -38,26 +39,27 @@ class _WishlistTabState extends State<WishlistTab> {
     await showDialog(
       context: context, 
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text("Nouvelle Wishlist", style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.scaffoldBackground,
+        title: const Text('Nouvelle Wishlist', style: TextStyle(color: AppColors.textPrimary)),
         content: TextField(
           controller: controller, 
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: "Nom (ex: Deck Commander)"),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(hintText: 'Nom (ex: Deck Commander)'),
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: ()=>Navigator.pop(c), child: const Text("Annuler")),
+          TextButton(onPressed: ()=>Navigator.pop(c), child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () async {
               if (controller.text.isNotEmpty) {
                 await widget.wishlistService.createWishlist(controller.text);
-                if (mounted) Navigator.pop(c);
+                if (c.mounted) Navigator.pop(c);
+                if (!mounted) return;
                 widget.onRefresh();
               }
             }, 
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
-            child: const Text("Créer")
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800),
+            child: const Text('Créer')
           )
         ],
       )
@@ -68,11 +70,11 @@ class _WishlistTabState extends State<WishlistTab> {
     final del = await showDialog<bool>(
       context: context, 
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text("Supprimer la liste ?", style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.scaffoldBackground,
+        title: const Text('Supprimer la liste ?', style: TextStyle(color: AppColors.textPrimary)),
         actions: [
-          TextButton(onPressed: ()=>Navigator.pop(c, false), child: const Text("Non")), 
-          TextButton(onPressed: ()=>Navigator.pop(c, true), child: const Text("Oui", style: TextStyle(color: Colors.red)))
+          TextButton(onPressed: ()=>Navigator.pop(c, false), child: const Text('Non')), 
+          TextButton(onPressed: ()=>Navigator.pop(c, true), child: const Text('Oui', style: TextStyle(color: AppColors.error)))
         ],
       )
     );
@@ -89,6 +91,7 @@ class _WishlistTabState extends State<WishlistTab> {
     try {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossible d'ouvrir le lien.")));
     }
   }
@@ -97,22 +100,22 @@ class _WishlistTabState extends State<WishlistTab> {
   void _showTopCardOptions(ScryfallCard card) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       builder: (context) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-                subtitle: Text(card.setName, style: const TextStyle(color: Colors.white54)),
+                title: Text(card.name, style: AppTextStyles.bold()),
+                subtitle: Text(card.setName, style: const TextStyle(color: AppColors.textMuted)),
               ),
-              const Divider(color: Colors.white24),
+              const Divider(color: AppColors.borderMedium),
               
               if (card.purchaseUris['cardmarket'] != null)
                 ListTile(
-                  leading: const Icon(Icons.shopping_cart, color: Colors.blueAccent),
-                  title: const Text("Voir sur Cardmarket", style: TextStyle(color: Colors.white)),
+                  leading: const Icon(Icons.shopping_cart, color: AppColors.accent),
+                  title: const Text('Voir sur Cardmarket', style: TextStyle(color: AppColors.textPrimary)),
                   onTap: () {
                     Navigator.pop(context);
                     _launchURL(card.purchaseUris['cardmarket']);
@@ -120,8 +123,8 @@ class _WishlistTabState extends State<WishlistTab> {
                 ),
                 
               ListTile(
-                leading: const Icon(Icons.info_outline, color: Colors.white70),
-                title: const Text("Détails complets", style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.info_outline, color: AppColors.textSecondary),
+                title: const Text('Détails complets', style: TextStyle(color: AppColors.textPrimary)),
                 onTap: () {
                   Navigator.pop(context);
                   context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
@@ -166,9 +169,9 @@ class _WishlistTabState extends State<WishlistTab> {
           margin: const EdgeInsets.all(12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.4),
+            color: AppColors.textOnPrimary.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.blue.shade900.withOpacity(0.5)),
+            border: Border.all(color: Colors.blue.shade900.withValues(alpha: 0.5)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -177,18 +180,18 @@ class _WishlistTabState extends State<WishlistTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Total Wishlists", style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis),
+                    Text('Total Wishlists', style: AppTextStyles.label(color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
-                      child: Text("${widget.totalValue.toStringAsFixed(2)} €", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                      child: Text('${widget.totalValue.toStringAsFixed(2)} €', style: AppTextStyles.pageTitle()),
                     ),
                   ],
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.add_circle, color: Colors.blueAccent, size: 30),
-                tooltip: "Créer une liste",
+                icon: const Icon(Icons.add_circle, color: AppColors.accent, size: 30),
+                tooltip: 'Créer une liste',
                 onPressed: _showCreateWishlistDialog,
               )
             ],
@@ -201,9 +204,9 @@ class _WishlistTabState extends State<WishlistTab> {
              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
              child: Row(
                children: [
-                 const Icon(Icons.trending_up, color: Colors.yellow, size: 16),
+                 const Icon(Icons.trending_up, color: AppColors.primary, size: 16),
                  const SizedBox(width: 8),
-                 Text("Top Valeur (Toutes Listes)", style: GoogleFonts.cinzel(color: Colors.white70, fontWeight: FontWeight.bold)),
+                 Text('Top Valeur (Toutes Listes)', style: AppTextStyles.bold(color: AppColors.textSecondary)),
                ],
              ),
            ),
@@ -242,11 +245,11 @@ class _WishlistTabState extends State<WishlistTab> {
                          Container(
                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                            decoration: BoxDecoration(
-                             color: Colors.black54,
+                             color: AppColors.overlayDark,
                              borderRadius: BorderRadius.circular(4),
-                             border: Border.all(color: Colors.yellow.shade800.withOpacity(0.5))
+                             border: Border.all(color: AppColors.primaryShade800.withValues(alpha: 0.5))
                            ),
-                           child: Text("$price €", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))
+                           child: Text('$price €', style: AppTextStyles.bold(fontSize: 12))
                          ),
                        ],
                      ),
@@ -255,19 +258,19 @@ class _WishlistTabState extends State<WishlistTab> {
                },
              ),
            ),
-           const Divider(color: Colors.white10, height: 24),
+           const Divider(color: AppColors.borderLight, height: 24),
         ],
 
         // --- LISTE DES WISHLISTS ---
         Expanded(
           child: RefreshIndicator(
             onRefresh: () async => widget.onRefresh(),
-            color: Colors.yellow.shade800,
-            backgroundColor: const Color(0xFF1A1A1A),
+            color: AppColors.primaryShade800,
+            backgroundColor: AppColors.scaffoldBackground,
             child: widget.wishlists.isEmpty 
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  children: [SizedBox(height: MediaQuery.of(context).size.height * 0.5, child: Center(child: Text("Aucune wishlist créée.", style: GoogleFonts.cinzel(color: Colors.white38))))]
+                  children: [SizedBox(height: MediaQuery.of(context).size.height * 0.5, child: Center(child: Text('Aucune wishlist créée.', style: AppTextStyles.cinzel(color: AppColors.borderFaint))))]
                 )
               : ListView.builder(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -281,30 +284,30 @@ class _WishlistTabState extends State<WishlistTab> {
                       try {
                         final card = widget.fullCardData.firstWhere((s) => s.id == list.iconScryfallId);
                         coverImageUrl = card.smallImageUrl ?? card.imageUrl;
-                      } catch(e) {}
+                      } catch(e) { /* Card not found in data */ }
                     }
                     if (coverImageUrl == null && list.cards.isNotEmpty) {
                       try {
                          final cId = list.cards.first.scryfallId;
                          final card = widget.fullCardData.firstWhere((s) => s.id == cId);
                          coverImageUrl = card.smallImageUrl;
-                      } catch(e){}
+                      } catch(e) { /* Card not found in data */ }
                     }
 
                     return Card(
-                      color: Colors.white.withOpacity(0.05),
+                      color: AppColors.textPrimary.withValues(alpha: 0.05),
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: Container(
                           width: 50, height: 50,
-                          decoration: BoxDecoration(color: Colors.blue.shade900.withOpacity(0.3), borderRadius: BorderRadius.circular(8)),
+                          decoration: BoxDecoration(color: Colors.blue.shade900.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(8)),
                           child: coverImageUrl != null 
                             ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(coverImageUrl, fit: BoxFit.cover))
-                            : const Icon(Icons.bookmark, color: Colors.blueAccent),
+                            : const Icon(Icons.bookmark, color: AppColors.accent),
                         ),
-                        title: Text(list.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-                        subtitle: Text("${list.totalCards} cartes", style: const TextStyle(color: Colors.white54)),
-                        trailing: const Icon(Icons.chevron_right, color: Colors.white24),
+                        title: Text(list.name, style: AppTextStyles.bold()),
+                        subtitle: Text('${list.totalCards} cartes', style: const TextStyle(color: AppColors.textMuted)),
+                        trailing: const Icon(Icons.chevron_right, color: AppColors.borderMedium),
                         onTap: () async {
                           await context.push(AppRoutes.wishlistDetail, extra: list);
                           widget.onRefresh();

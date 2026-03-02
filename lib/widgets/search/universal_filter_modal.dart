@@ -1,8 +1,9 @@
 // Fichier : lib/widgets/search/universal_filter_modal.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/search_filters.dart';
 
 class UniversalFilterModal extends StatefulWidget {
@@ -99,9 +100,9 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: AppColors.scaffoldBackground,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        border: Border(top: BorderSide(color: Colors.yellow.shade800, width: 2)),
+        border: Border(top: BorderSide(color: AppColors.primaryShade800, width: 2)),
       ),
       child: Column(
         children: [
@@ -111,20 +112,20 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("Organiser & Filtrer", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                TextButton(onPressed: _reset, child: const Text("Réinitialiser", style: TextStyle(color: Colors.redAccent))),
+                Text('Organiser & Filtrer', style: AppTextStyles.sectionTitle()),
+                TextButton(onPressed: _reset, child: const Text('Réinitialiser', style: TextStyle(color: AppColors.accentRed))),
               ],
             ),
           ),
           
           TabBar(
             controller: _tabController,
-            indicatorColor: Colors.yellow.shade800,
-            labelColor: Colors.yellow.shade800,
-            unselectedLabelColor: Colors.white54,
+            indicatorColor: AppColors.primaryShade800,
+            labelColor: AppColors.primaryShade800,
+            unselectedLabelColor: AppColors.textMuted,
             tabs: const [
-              Tab(text: "Tri & Tags", icon: Icon(Icons.sort)),
-              Tab(text: "Filtres Avancés", icon: Icon(Icons.filter_list)),
+              Tab(text: 'Tri & Tags', icon: Icon(Icons.sort)),
+              Tab(text: 'Filtres Avancés', icon: Icon(Icons.filter_list)),
             ],
           ),
           
@@ -138,7 +139,7 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSectionTitle("Ordre de tri"),
+                      _buildSectionTitle('Ordre de tri'),
                       Wrap(
                         spacing: 10, runSpacing: 10,
                         children: _sortOptions.entries.map((e) {
@@ -146,9 +147,9 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
                           return ChoiceChip(
                             label: Text(e.value),
                             selected: isSelected,
-                            selectedColor: Colors.yellow.shade900,
-                            backgroundColor: Colors.black45,
-                            labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.white70),
+                            selectedColor: AppColors.primaryShade900,
+                            backgroundColor: AppColors.overlayMedium,
+                            labelStyle: TextStyle(color: isSelected ? Colors.white : AppColors.textSecondary),
                             onSelected: (val) => setState(() => _sortType = e.key),
                           );
                         }).toList(),
@@ -156,14 +157,14 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          const Text("Direction : ", style: TextStyle(color: Colors.white70)),
+                          const Text('Direction : ', style: TextStyle(color: AppColors.textSecondary)),
                           const SizedBox(width: 8),
                           ToggleButtons(
                             isSelected: [_sortAscending, !_sortAscending],
                             onPressed: (idx) => setState(() => _sortAscending = idx == 0),
-                            color: Colors.white54,
-                            selectedColor: Colors.black,
-                            fillColor: Colors.greenAccent,
+                            color: AppColors.textMuted,
+                            selectedColor: AppColors.textOnPrimary,
+                            fillColor: AppColors.accentGreen,
                             borderRadius: BorderRadius.circular(8),
                             children: const [
                               Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Icon(Icons.arrow_upward)),
@@ -173,11 +174,11 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
                         ],
                       ),
                       
-                      const Divider(color: Colors.white24, height: 32),
+                      const Divider(color: AppColors.borderMedium, height: 32),
                       
-                      _buildSectionTitle("Filtrer par Tags"),
+                      _buildSectionTitle('Filtrer par Tags'),
                       if (widget.availableTags.isEmpty)
-                        const Text("Aucun tag personnalisé créé.", style: TextStyle(color: Colors.white38, fontStyle: FontStyle.italic))
+                        const Text('Aucun tag personnalisé créé.', style: TextStyle(color: AppColors.borderFaint, fontStyle: FontStyle.italic))
                       else
                         Wrap(
                           spacing: 8, runSpacing: 8,
@@ -188,14 +189,17 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
                               selected: isSelected,
                               onSelected: (val) {
                                 setState(() {
-                                  if (val) _selectedTags.add(tag);
-                                  else _selectedTags.remove(tag);
+                                  if (val) {
+                                    _selectedTags.add(tag);
+                                  } else {
+                                    _selectedTags.remove(tag);
+                                  }
                                 });
                               },
-                              backgroundColor: Colors.black45,
-                              selectedColor: Colors.blueAccent.withOpacity(0.5),
-                              checkmarkColor: Colors.white,
-                              labelStyle: const TextStyle(color: Colors.white),
+                              backgroundColor: AppColors.overlayMedium,
+                              selectedColor: AppColors.accent.withValues(alpha: 0.5),
+                              checkmarkColor: AppColors.textPrimary,
+                              labelStyle: const TextStyle(color: AppColors.textPrimary),
                             );
                           }).toList(),
                         )
@@ -212,43 +216,43 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
                       // Mot clé
                       TextField(
                         controller: _keywordController,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: AppColors.textPrimary),
                         decoration: InputDecoration(
-                          labelText: "Texte / Mot-clé (ex: Flying)",
-                          labelStyle: const TextStyle(color: Colors.white54),
-                          filled: true, fillColor: Colors.black45,
+                          labelText: 'Texte / Mot-clé (ex: Flying)',
+                          labelStyle: const TextStyle(color: AppColors.textMuted),
+                          filled: true, fillColor: AppColors.overlayMedium,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          prefixIcon: const Icon(Icons.search, color: Colors.white54)
+                          prefixIcon: const Icon(Icons.search, color: AppColors.textMuted)
                         ),
                       ),
                       const SizedBox(height: 16),
                       
                       // Couleurs
-                      _buildSectionTitle("Couleurs"),
+                      _buildSectionTitle('Couleurs'),
                       _buildColorSelector(),
                       const SizedBox(height: 16),
                       
                       // Rareté
-                      _buildSectionTitle("Rareté"),
+                      _buildSectionTitle('Rareté'),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: ['common', 'uncommon', 'rare', 'mythic'].map((r) {
                           final isSel = _selectedRarity == r;
-                          Color c = Colors.grey;
+                          Color c = AppColors.synergyNeutral;
                           if (r == 'uncommon') c = Colors.blueGrey;
-                          if (r == 'rare') c = Colors.amber;
-                          if (r == 'mythic') c = Colors.orange;
+                          if (r == 'rare') c = AppColors.amber;
+                          if (r == 'mythic') c = AppColors.warning;
                           
                           return GestureDetector(
                             onTap: () => setState(() => _selectedRarity = isSel ? null : r),
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: isSel ? c.withOpacity(0.3) : Colors.black45,
-                                border: Border.all(color: isSel ? c : Colors.white12),
+                                color: isSel ? c.withValues(alpha: 0.3) : AppColors.overlayMedium,
+                                border: Border.all(color: isSel ? c : AppColors.borderSubtle),
                                 borderRadius: BorderRadius.circular(16)
                               ),
-                              child: Text(r[0].toUpperCase() + r.substring(1), style: TextStyle(color: isSel ? c : Colors.white54, fontWeight: FontWeight.bold)),
+                              child: Text(r[0].toUpperCase() + r.substring(1), style: TextStyle(color: isSel ? c : AppColors.textMuted, fontWeight: FontWeight.bold)),
                             ),
                           );
                         }).toList(),
@@ -256,13 +260,13 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
                       const SizedBox(height: 16),
                       
                       // CMC
-                      _buildSectionTitle("Coût Mana (CMC) : ${_cmcRange.start.round()} - ${_cmcRange.end.round()}"),
+                      _buildSectionTitle('Coût Mana (CMC) : ${_cmcRange.start.round()} - ${_cmcRange.end.round()}'),
                       RangeSlider(
                         values: _cmcRange,
                         min: 0, max: 10,
                         divisions: 10,
-                        activeColor: Colors.yellow.shade800,
-                        inactiveColor: Colors.white24,
+                        activeColor: AppColors.primaryShade800,
+                        inactiveColor: AppColors.borderMedium,
                         labels: RangeLabels('${_cmcRange.start.round()}', '${_cmcRange.end.round()}'),
                         onChanged: (v) => setState(() => _cmcRange = v),
                       ),
@@ -282,10 +286,10 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
                 child: ElevatedButton(
                   onPressed: _apply,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.yellow.shade800,
+                    backgroundColor: AppColors.primaryShade800,
                     padding: const EdgeInsets.symmetric(vertical: 16)
                   ),
-                  child: Text("APPLIQUER", style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: Text('APPLIQUER', style: AppTextStyles.bold(color: AppColors.textOnPrimary, fontSize: 16)),
                 ),
               ),
             ),
@@ -298,7 +302,7 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(title, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+      child: Text(title, style: AppTextStyles.bold(color: AppColors.textSecondary)),
     );
   }
 
@@ -316,7 +320,7 @@ class _UniversalFilterModalState extends State<UniversalFilterModal> with Single
             child: SvgPicture.network(
               'https://svgs.scryfall.io/card-symbols/$c.svg',
               width: 32, height: 32,
-              placeholderBuilder: (_) => CircleAvatar(backgroundColor: Colors.grey, radius: 16, child: Text(c)),
+              placeholderBuilder: (_) => CircleAvatar(backgroundColor: AppColors.synergyNeutral, radius: 16, child: Text(c)),
             ),
           ),
         );

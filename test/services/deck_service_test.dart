@@ -22,7 +22,7 @@ void main() {
   // ---------------------------------------------------------------
   // Helper : cree un deck persiste et retourne son id
   // ---------------------------------------------------------------
-  Future<String> _createAndGetDeckId(String name) async {
+  Future<String> createAndGetDeckId(String name) async {
     await service.createNewDeck(name);
     final decks = await service.loadDecks();
     return decks.last.id;
@@ -100,7 +100,7 @@ void main() {
   // 4. upsertCardInDeck() ajoute une carte au mainboard
   // =================================================================
   test('upsertCardInDeck ajoute une carte au mainboard', () async {
-    final deckId = await _createAndGetDeckId('Test Deck');
+    final deckId = await createAndGetDeckId('Test Deck');
 
     final updated = await service.upsertCardInDeck(
       deckId: deckId,
@@ -120,7 +120,7 @@ void main() {
   // 5. upsertCardInDeck() ajoute une carte au sideboard
   // =================================================================
   test('upsertCardInDeck ajoute une carte au sideboard', () async {
-    final deckId = await _createAndGetDeckId('Test Deck');
+    final deckId = await createAndGetDeckId('Test Deck');
 
     final updated = await service.upsertCardInDeck(
       deckId: deckId,
@@ -142,7 +142,7 @@ void main() {
   // 6. upsertCardInDeck() met a jour la quantite existante
   // =================================================================
   test('upsertCardInDeck incremente la quantite d une carte existante', () async {
-    final deckId = await _createAndGetDeckId('Test Deck');
+    final deckId = await createAndGetDeckId('Test Deck');
 
     await service.upsertCardInDeck(
       deckId: deckId,
@@ -166,7 +166,7 @@ void main() {
   // 7. upsertCardInDeck() supprime quand qty <= 0
   // =================================================================
   test('upsertCardInDeck supprime la carte quand la quantite tombe a zero', () async {
-    final deckId = await _createAndGetDeckId('Test Deck');
+    final deckId = await createAndGetDeckId('Test Deck');
 
     await service.upsertCardInDeck(
       deckId: deckId,
@@ -204,7 +204,7 @@ void main() {
   // 9. setCommander() met le format a 'Commander'
   // =================================================================
   test('setCommander definit le commandant et passe le format en Commander', () async {
-    final deckId = await _createAndGetDeckId('Commander Deck');
+    final deckId = await createAndGetDeckId('Commander Deck');
 
     final updated = await service.setCommander(deckId, 'commander-001');
 
@@ -216,7 +216,7 @@ void main() {
   // 10. setCommander() slot 2 (secondary)
   // =================================================================
   test('setCommander slot 2 definit le commandant secondaire', () async {
-    final deckId = await _createAndGetDeckId('Partner Deck');
+    final deckId = await createAndGetDeckId('Partner Deck');
 
     await service.setCommander(deckId, 'commander-001', slot: 1);
     final updated = await service.setCommander(deckId, 'commander-002', slot: 2);
@@ -230,7 +230,7 @@ void main() {
   // 11. unsetCommander() remet format Standard quand plus aucun commandant
   // =================================================================
   test('unsetCommander remet le format Standard quand il n y a plus de commandant', () async {
-    final deckId = await _createAndGetDeckId('Commander Deck');
+    final deckId = await createAndGetDeckId('Commander Deck');
 
     await service.setCommander(deckId, 'commander-001');
     final updated = await service.unsetCommander(deckId);
@@ -243,7 +243,7 @@ void main() {
   // 12. clearDeck() vide tout et reset le format
   // =================================================================
   test('clearDeck vide toutes les zones, reset commandants et format', () async {
-    final deckId = await _createAndGetDeckId('Deck Complet');
+    final deckId = await createAndGetDeckId('Deck Complet');
 
     // On remplit le deck
     await service.upsertCardInDeck(
@@ -292,7 +292,7 @@ void main() {
   // 13. moveCard() deplace une carte entre zones
   // =================================================================
   test('moveCard deplace une carte du mainboard vers le sideboard', () async {
-    final deckId = await _createAndGetDeckId('Move Test');
+    final deckId = await createAndGetDeckId('Move Test');
 
     await service.upsertCardInDeck(
       deckId: deckId,
@@ -326,7 +326,7 @@ void main() {
   // 14. changeCardVersion() remplace une version de carte
   // =================================================================
   test('changeCardVersion remplace l ancienne version par la nouvelle', () async {
-    final deckId = await _createAndGetDeckId('Version Test');
+    final deckId = await createAndGetDeckId('Version Test');
 
     await service.upsertCardInDeck(
       deckId: deckId,

@@ -1,7 +1,8 @@
 // Fichier : lib/pages/tools/hypergeometric_page.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'dart:math';
 
 class HypergeometricPage extends StatefulWidget {
@@ -61,7 +62,7 @@ class _HypergeometricPageState extends State<HypergeometricPage> {
 
     // Validation basique
     if (N <= 0 || K < 0 || n < 0 || k < 0 || K > N || n > N || k > n) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Valeurs incohérentes.")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Valeurs incohérentes.')));
       return;
     }
 
@@ -93,10 +94,10 @@ class _HypergeometricPageState extends State<HypergeometricPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text("Calculateur Proba", style: GoogleFonts.cinzel(fontSize: 18, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.black,
+        title: Text('Calculateur Proba', style: AppTextStyles.sectionTitle()),
+        backgroundColor: AppColors.textOnPrimary,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -110,17 +111,17 @@ class _HypergeometricPageState extends State<HypergeometricPage> {
               // --- FORMULAIRE ---
               Row(
                 children: [
-                  Expanded(child: _buildInput(_deckSizeController, "Taille Deck", "Ex: 99")),
+                  Expanded(child: _buildInput(_deckSizeController, 'Taille Deck', 'Ex: 99')),
                   const SizedBox(width: 12),
-                  Expanded(child: _buildInput(_copiesController, "Cartes Ciblées", "Ex: 36 (Lands)")),
+                  Expanded(child: _buildInput(_copiesController, 'Cartes Ciblées', 'Ex: 36 (Lands)')),
                 ],
               ),
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Expanded(child: _buildInput(_drawController, "Piochées", "Ex: 7 (Main)")),
+                  Expanded(child: _buildInput(_drawController, 'Piochées', 'Ex: 7 (Main)')),
                   const SizedBox(width: 12),
-                  Expanded(child: _buildInput(_wantedController, "Succès Voulus", "Ex: 3")),
+                  Expanded(child: _buildInput(_wantedController, 'Succès Voulus', 'Ex: 3')),
                 ],
               ),
               
@@ -128,11 +129,11 @@ class _HypergeometricPageState extends State<HypergeometricPage> {
               ElevatedButton(
                 onPressed: _calculate,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.yellow.shade800,
-                  foregroundColor: Colors.black,
+                  backgroundColor: AppColors.primaryShade800,
+                  foregroundColor: AppColors.textOnPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: Text("CALCULER", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold, fontSize: 18)),
+                child: Text('CALCULER', style: AppTextStyles.sectionTitle()),
               ),
 
               // --- RÉSULTATS ---
@@ -141,18 +142,18 @@ class _HypergeometricPageState extends State<HypergeometricPage> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
+                    color: AppColors.textPrimary.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white12),
+                    border: Border.all(color: AppColors.borderSubtle),
                   ),
                   child: Column(
                     children: [
-                      Text("Résultats", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                      const Divider(color: Colors.white24, height: 24),
+                      Text('Résultats', style: AppTextStyles.pageTitle(fontSize: 22)),
+                      const Divider(color: AppColors.borderMedium, height: 24),
                       // Utilisation des contrôleurs pour le texte dynamique
-                      _buildResultRow("Exactement ${_wantedController.text} cartes", _probExact, Colors.blueAccent),
-                      _buildResultRow("${_wantedController.text} cartes ou plus", _probMore, Colors.greenAccent),
-                      _buildResultRow("Moins de ${_wantedController.text} cartes", _probLess, Colors.redAccent),
+                      _buildResultRow('Exactement ${_wantedController.text} cartes', _probExact, AppColors.accent),
+                      _buildResultRow('${_wantedController.text} cartes ou plus', _probMore, AppColors.accentGreen),
+                      _buildResultRow('Moins de ${_wantedController.text} cartes', _probLess, AppColors.accentRed),
                     ],
                   ),
                 ),
@@ -167,11 +168,11 @@ class _HypergeometricPageState extends State<HypergeometricPage> {
   Widget _buildHeader() {
     return Column(
       children: [
-        const Icon(Icons.calculate_outlined, size: 48, color: Colors.white54),
+        const Icon(Icons.calculate_outlined, size: 48, color: AppColors.textMuted),
         const SizedBox(height: 8),
         Text(
-          "Optimisez votre base de mana",
-          style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14),
+          'Optimisez votre base de mana',
+          style: AppTextStyles.subtitle(),
           textAlign: TextAlign.center,
         ),
       ],
@@ -182,17 +183,17 @@ class _HypergeometricPageState extends State<HypergeometricPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+          style: AppTextStyles.sectionTitle(),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 14),
+            hintStyle: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.3), fontSize: 14),
             filled: true,
-            fillColor: Colors.black45,
+            fillColor: AppColors.overlayMedium,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
@@ -213,14 +214,14 @@ class _HypergeometricPageState extends State<HypergeometricPage> {
           Expanded(
             child: Text(
               label, 
-              style: const TextStyle(color: Colors.white70, fontSize: 16),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
               softWrap: true, // Autorise le retour à la ligne
             ),
           ),
           const SizedBox(width: 16), // Petit espace de sécurité
           Text(
-            "${percentage.toStringAsFixed(1)}%",
-            style: GoogleFonts.cinzel(color: color, fontSize: 20, fontWeight: FontWeight.bold),
+            '${percentage.toStringAsFixed(1)}%',
+            style: AppTextStyles.pageTitle(color: color, fontSize: 20),
           ),
         ],
       ),

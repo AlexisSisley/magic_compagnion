@@ -1,10 +1,11 @@
 // Fichier : lib/widgets/collection/collection_sets_tab.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/deck_model.dart';
 import '../../models/scryfall_set_model.dart';
 import '../../router/app_router.dart';
@@ -196,14 +197,14 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator(color: Colors.white));
+    if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
 
     return Column(
       children: [
         // --- BARRE DE CONTRÔLE ---
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          color: Colors.black.withOpacity(0.3),
+          color: AppColors.textOnPrimary.withValues(alpha: 0.3),
           child: Column(
             children: [
               // Ligne 1 : Recherche + Boutons
@@ -214,17 +215,17 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
                     child: Container(
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: AppColors.textPrimary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: TextField(
                         controller: _searchController,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: AppColors.textPrimary),
                         decoration: const InputDecoration(
-                          hintText: "Nom ou Code...",
-                          hintStyle: TextStyle(color: Colors.white54, fontSize: 14),
+                          hintText: 'Nom ou Code...',
+                          hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
                           border: InputBorder.none,
-                          prefixIcon: Icon(Icons.search, color: Colors.white54, size: 20),
+                          prefixIcon: Icon(Icons.search, color: AppColors.textMuted, size: 20),
                           contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
                         onChanged: (val) => _applyFilters(),
@@ -250,16 +251,16 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      "${_displayedSets.length} éditions",
-                      style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
+                      '${_displayedSets.length} éditions',
+                      style: AppTextStyles.label(color: AppColors.textMuted),
                     ),
                     // Indicateur de tri actuel
                     GestureDetector(
                       onTap: () { setState(() { _sortAsc = !_sortAsc; _applyFilters(); }); },
                       child: Row(
                         children: [
-                          Text(_getSortLabel(_sortBy), style: const TextStyle(color: Colors.yellow, fontSize: 12)),
-                          Icon(_sortAsc ? Icons.arrow_upward : Icons.arrow_downward, color: Colors.yellow, size: 14)
+                          Text(_getSortLabel(_sortBy), style: const TextStyle(color: AppColors.primary, fontSize: 12)),
+                          Icon(_sortAsc ? Icons.arrow_upward : Icons.arrow_downward, color: AppColors.primary, size: 14)
                         ],
                       ),
                     )
@@ -274,8 +275,8 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
         Expanded(
           child: RefreshIndicator(
             onRefresh: _handleRefresh,
-            color: Colors.yellow.shade800,
-            backgroundColor: const Color(0xFF1A1A1A),
+            color: AppColors.primaryShade800,
+            backgroundColor: AppColors.scaffoldBackground,
             child: ListView.builder(
               physics: const AlwaysScrollableScrollPhysics(), 
               itemCount: _displayedSets.length,
@@ -288,7 +289,7 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
                 final int total = set.cardCount > 0 ? set.cardCount : 1;
 
                 return Card(
-                  color: Colors.white.withOpacity(0.05),
+                  color: AppColors.textPrimary.withValues(alpha: 0.05),
                   margin: const EdgeInsets.only(bottom: 8),
                   child: InkWell(
                     onTap: () {
@@ -299,22 +300,22 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
                         ListTile(
                           leading: SizedBox(
                             width: 40, 
-                            child: SvgPicture.network(set.iconSvgUri ?? '', colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn))
+                            child: SvgPicture.network(set.iconSvgUri ?? '', colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn))
                           ),
-                          title: Text(set.name, style: GoogleFonts.cinzel(color: Colors.white)),
+                          title: Text(set.name, style: AppTextStyles.cinzel()),
                           subtitle: RichText(
                             text: TextSpan(
-                              style: const TextStyle(color: Colors.white54, fontSize: 12),
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                               children: [
-                                TextSpan(text: "$owned", style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
-                                const TextSpan(text: " + "),
-                                TextSpan(text: "$wished", style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
-                                TextSpan(text: " / $total cartes"),
-                                TextSpan(text: " • ${_formatDate(set.releaseDate)}"),
+                                TextSpan(text: '$owned', style: const TextStyle(color: AppColors.accentOrange, fontWeight: FontWeight.bold)),
+                                const TextSpan(text: ' + '),
+                                TextSpan(text: '$wished', style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
+                                TextSpan(text: ' / $total cartes'),
+                                TextSpan(text: ' • ${_formatDate(set.releaseDate)}'),
                               ]
                             ),
                           ),
-                          trailing: const Icon(Icons.chevron_right, color: Colors.white24),
+                          trailing: const Icon(Icons.chevron_right, color: AppColors.borderMedium),
                         ),
                         
                         Padding(
@@ -339,15 +340,18 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
     return PopupMenuButton<String>(
       icon: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-        child: const Icon(Icons.sort, color: Colors.white70, size: 20),
+        decoration: BoxDecoration(color: AppColors.textPrimary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+        child: const Icon(Icons.sort, color: AppColors.textSecondary, size: 20),
       ),
-      tooltip: "Trier par...",
-      color: const Color(0xFF1A1A1A),
+      tooltip: 'Trier par...',
+      color: AppColors.scaffoldBackground,
       onSelected: (val) {
         setState(() {
-          if (_sortBy == val) _sortAsc = !_sortAsc; // Inverse si même choix
-          else _sortBy = val;
+          if (_sortBy == val) {
+            _sortAsc = !_sortAsc; // Inverse si même choix
+          } else {
+            _sortBy = val;
+          }
           _applyFilters();
         });
       },
@@ -366,13 +370,13 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
       icon: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: isActive ? Colors.yellow.shade900 : Colors.white.withOpacity(0.1), 
+          color: isActive ? AppColors.primaryShade900 : AppColors.textPrimary.withValues(alpha: 0.1), 
           borderRadius: BorderRadius.circular(8)
         ),
-        child: Icon(Icons.filter_list, color: isActive ? Colors.white : Colors.white70, size: 20),
+        child: Icon(Icons.filter_list, color: isActive ? Colors.white : AppColors.textSecondary, size: 20),
       ),
-      tooltip: "Filtrer par type",
-      color: const Color(0xFF1A1A1A),
+      tooltip: 'Filtrer par type',
+      color: AppColors.scaffoldBackground,
       onSelected: (val) {
         setState(() { _filterType = val; _applyFilters(); });
       },
@@ -382,9 +386,9 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
           child: Row(
             children: [
               Icon(_filterType == e.key ? Icons.radio_button_checked : Icons.radio_button_unchecked, 
-                   color: _filterType == e.key ? Colors.yellow : Colors.grey, size: 18),
+                   color: _filterType == e.key ? AppColors.primary : AppColors.synergyNeutral, size: 18),
               const SizedBox(width: 8),
-              Text(e.value, style: const TextStyle(color: Colors.white)),
+              Text(e.value, style: const TextStyle(color: AppColors.textPrimary)),
             ],
           ),
         );
@@ -398,12 +402,12 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
       value: value,
       child: Row(
         children: [
-          Icon(icon, color: isSelected ? Colors.yellow : Colors.white54, size: 18),
+          Icon(icon, color: isSelected ? AppColors.primary : AppColors.textMuted, size: 18),
           const SizedBox(width: 12),
-          Text(text, style: TextStyle(color: isSelected ? Colors.yellow : Colors.white)),
+          Text(text, style: TextStyle(color: isSelected ? AppColors.primary : AppColors.textPrimary)),
           if (isSelected) ...[
             const Spacer(),
-            Icon(_sortAsc ? Icons.arrow_upward : Icons.arrow_downward, color: Colors.yellow, size: 14)
+            Icon(_sortAsc ? Icons.arrow_upward : Icons.arrow_downward, color: AppColors.primary, size: 14)
           ]
         ],
       ),
@@ -422,7 +426,7 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
 
   String _formatDate(DateTime? date) {
     if (date == null) return '';
-    return "${date.year}";
+    return '${date.year}';
   }
 
   Widget _buildMultiProgressBar(int total, int owned, int wished) {
@@ -445,15 +449,15 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
       borderRadius: BorderRadius.circular(2),
       child: Container(
         height: 4,
-        color: Colors.white10,
+        color: AppColors.borderLight,
         child: Row(
           children: [
             if (displayOwned > 0)
-              Expanded(flex: displayOwned, child: Container(color: Colors.orangeAccent)),
+              Expanded(flex: displayOwned, child: Container(color: AppColors.accentOrange)),
             if (displayWished > 0)
-              Expanded(flex: displayWished, child: Container(color: Colors.blueAccent)),
+              Expanded(flex: displayWished, child: Container(color: AppColors.accent)),
             if (empty > 0)
-              Expanded(flex: empty, child: Container(color: Colors.transparent)),
+              Expanded(flex: empty, child: Container(color: AppColors.transparent)),
           ],
         ),
       ),

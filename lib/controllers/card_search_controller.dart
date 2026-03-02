@@ -53,7 +53,7 @@ class CardSearchState {
     this.collectionIndex = const {},
     this.collectionFoilIndex = const {},
     this.wishlistCardNames = const {},
-  }) : activeFilters = activeFilters ?? SearchFilters();
+  }) : activeFilters = activeFilters ?? const SearchFilters();
 
   CardSearchState copyWith({
     List<ScryfallCard>? searchResults,
@@ -111,9 +111,9 @@ class CardSearchState {
   /// Result count display string.
   String get resultCountLabel {
     if (fullLocalResults.isNotEmpty) {
-      return "${searchResults.length}/${fullLocalResults.length}";
+      return '${searchResults.length}/${fullLocalResults.length}';
     }
-    return "${searchResults.length} cartes";
+    return '${searchResults.length} cartes';
   }
 
   bool isCardInWishlist(String cardName) =>
@@ -264,7 +264,7 @@ class CardSearchController extends StateNotifier<CardSearchState> {
         searchResults: [],
         fullLocalResults: [],
         clearNextPageUrl: true,
-        statusMessage: "Veuillez entrer un critère.",
+        statusMessage: 'Veuillez entrer un critère.',
       );
       return false;
     }
@@ -289,13 +289,13 @@ class CardSearchController extends StateNotifier<CardSearchState> {
     // 3. FALLBACK
     if (!apiSuccess && _localCardService.isLoaded) {
       state = state.copyWith(
-        statusMessage: "Erreur API. Recherche locale de secours...",
+        statusMessage: 'Erreur API. Recherche locale de secours...',
       );
       await _performLocalSearch(trimmed, ignoreSetFilter: true);
       if (mounted && state.searchResults.isNotEmpty) {
         state = state.copyWith(
           statusMessage:
-              "${state.searchResults.length} résultats (Mode Hors-Ligne / Fallback)",
+              '${state.searchResults.length} résultats (Mode Hors-Ligne / Fallback)',
         );
       }
     }
@@ -486,11 +486,11 @@ class CardSearchController extends StateNotifier<CardSearchState> {
   /// Reset all filters and results.
   void resetFilters() {
     state = state.copyWith(
-      activeFilters: SearchFilters(),
+      activeFilters: const SearchFilters(),
       searchResults: [],
       fullLocalResults: [],
       clearNextPageUrl: true,
-      statusMessage: "Entrez un nom ou choisissez une édition.",
+      statusMessage: 'Entrez un nom ou choisissez une édition.',
     );
   }
 

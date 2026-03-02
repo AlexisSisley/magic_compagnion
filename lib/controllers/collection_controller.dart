@@ -186,8 +186,11 @@ class CollectionController extends StateNotifier<CollectionState> {
     if (_localCardService.isLoaded) {
       for (String id in uniqueIds) {
         final localCard = _localCardService.getCardById(id);
-        if (localCard != null) loadedCards.add(localCard);
-        else missingIds.add(id);
+        if (localCard != null) {
+          loadedCards.add(localCard);
+        } else {
+          missingIds.add(id);
+        }
       }
     } else {
       missingIds = uniqueIds;
@@ -217,8 +220,11 @@ class CollectionController extends StateNotifier<CollectionState> {
     double getPrice(String id, bool isFoil) {
       try {
         final c = fullCardData.firstWhere((s) => s.id == id);
-        if (isFoil) return double.tryParse(c.prices['eur_foil'] ?? c.prices['eur'] ?? '0') ?? 0.0;
-        else return double.tryParse(c.prices['eur'] ?? '0') ?? 0.0;
+        if (isFoil) {
+          return double.tryParse(c.prices['eur_foil'] ?? c.prices['eur'] ?? '0') ?? 0.0;
+        } else {
+          return double.tryParse(c.prices['eur'] ?? '0') ?? 0.0;
+        }
       } catch (e) { return 0.0; }
     }
 
@@ -335,7 +341,7 @@ class CollectionController extends StateNotifier<CollectionState> {
           quantityToAdd: 1,
         );
         count++;
-      } catch (e) { log("Erreur ajout carte $id : $e", name: 'CollectionController'); }
+      } catch (e) { log('Erreur ajout carte $id : $e', name: 'CollectionController'); }
     }
 
     state = state.copyWith(
@@ -345,7 +351,7 @@ class CollectionController extends StateNotifier<CollectionState> {
     );
 
     return CollectionActionResult(
-      message: "$count cartes ajoutées à $deckName",
+      message: '$count cartes ajoutées à $deckName',
     );
   }
 

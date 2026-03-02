@@ -185,8 +185,8 @@ class BackupService {
         await _restoreToSharedPrefs(data);
       }
     } catch (e) {
-      log("Erreur restauration JSON: $e", name: 'BackupService');
-      throw Exception("Donnees corrompues.");
+      log('Erreur restauration JSON: $e', name: 'BackupService');
+      throw Exception('Donnees corrompues.');
     }
   }
 
@@ -322,7 +322,7 @@ class BackupService {
     final File file = File('${tempDir.path}/magic_companion_backup_$dateStr.json');
 
     await file.writeAsString(jsonString);
-    await Share.shareXFiles([XFile(file.path)], text: 'Ma sauvegarde Magic Companion');
+    await SharePlus.instance.share(ShareParams(files: [XFile(file.path)], text: 'Ma sauvegarde Magic Companion'));
   }
 
   Future<bool> importData() async {
@@ -340,7 +340,7 @@ class BackupService {
       await restoreFromJson(content);
       return true;
     } catch (e) {
-      log("Erreur import fichier: $e", name: 'BackupService');
+      log('Erreur import fichier: $e', name: 'BackupService');
       return false;
     }
   }

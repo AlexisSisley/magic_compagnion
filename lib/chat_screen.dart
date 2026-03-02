@@ -1,3 +1,5 @@
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
@@ -32,7 +34,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     state = [
       ...state,
       ChatMessage(text: query, isUser: true),
-      ChatMessage(text: "...", isUser: false, isLoading: true),
+      ChatMessage(text: '...', isUser: false, isLoading: true),
     ];
 
     try {
@@ -47,7 +49,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     } catch (e) {
       state = [
         ...state.sublist(0, state.length - 1),
-        ChatMessage(text: "Le lien arcanique est rompu... (Vérifiez que le serveur Python tourne)", isUser: false),
+        ChatMessage(text: 'Le lien arcanique est rompu... (Vérifiez que le serveur Python tourne)', isUser: false),
       ];
     }
   }
@@ -97,37 +99,37 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: AppColors.scaffoldBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16), 
-          side: const BorderSide(color: Colors.orangeAccent, width: 2) // Bordure Indigo pour matcher le thème
+          side: const BorderSide(color: AppColors.accentOrange, width: 2) // Bordure Indigo pour matcher le thème
         ),
-        title: Text("Assistant RAG", style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text('Assistant RAG', style: AppTextStyles.bold()),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "Cet assistant analyse votre code source Flutter pour répondre à vos questions techniques.",
-                style: TextStyle(color: Colors.white70, fontSize: 13)
+                'Cet assistant analyse votre code source Flutter pour répondre à vos questions techniques.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13)
               ),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.black, 
+                  color: AppColors.textOnPrimary, 
                   borderRadius: BorderRadius.circular(8), 
-                  border: Border.all(color: Colors.white12)
+                  border: Border.all(color: AppColors.borderSubtle)
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("FONCTIONNEMENT :", style: GoogleFonts.robotoMono(color: Colors.yellow.shade900, fontSize: 10, fontWeight: FontWeight.bold)),
+                    Text('FONCTIONNEMENT :', style: GoogleFonts.robotoMono(color: AppColors.primaryShade900, fontSize: 10, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    Text("1. Recherche des fichiers pertinents (Embeddings).", style: GoogleFonts.robotoMono(color: Colors.white54, fontSize: 11)),
-                    Text("2. Envoi des extraits de code au LLM.", style: GoogleFonts.robotoMono(color: Colors.white54, fontSize: 11)),
-                    Text("3. Génération de la réponse technique.", style: GoogleFonts.robotoMono(color: Colors.white54, fontSize: 11)),
+                    Text('1. Recherche des fichiers pertinents (Embeddings).', style: GoogleFonts.robotoMono(color: AppColors.textMuted, fontSize: 11)),
+                    Text('2. Envoi des extraits de code au LLM.', style: GoogleFonts.robotoMono(color: AppColors.textMuted, fontSize: 11)),
+                    Text('3. Génération de la réponse technique.', style: GoogleFonts.robotoMono(color: AppColors.textMuted, fontSize: 11)),
                   ],
                 ),
               ),
@@ -137,16 +139,16 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx), 
-            child: const Text("Fermer", style: TextStyle(color: Colors.white54))
+            child: const Text('Fermer', style: TextStyle(color: AppColors.textMuted))
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
               // Exemple de question technique pertinente pour ton projet
-              _controller.text = "Comment fonctionne la sauvegarde des decks ?";
+              _controller.text = 'Comment fonctionne la sauvegarde des decks ?';
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade900),
-            child: Text("Tester un exemple", style: GoogleFonts.cinzel(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade900),
+            child: Text('Tester un exemple', style: AppTextStyles.cinzel()),
           )
         ],
       ),
@@ -165,15 +167,15 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
     return Scaffold(
       extendBodyBehindAppBar: true, // Important pour le design immersif
       appBar: AppBar(
-        title: Text("Grimoire Code", style: GoogleFonts.cinzel(fontWeight: FontWeight.w900, color: const Color(0xFFFFD700))),
-        backgroundColor: Colors.black.withOpacity(0.4),
+        title: Text('Grimoire Code', style: AppTextStyles.cinzel(fontWeight: FontWeight.w900, color: AppColors.primaryBright)),
+        backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.4),
         centerTitle: true,
         elevation: 0,
         iconTheme: const IconThemeData(color: Color(0xFFFFD700)), // Icônes dorées
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-            child: Container(color: Colors.transparent),
+            child: Container(color: AppColors.transparent),
           ),
         ),
         actions: [
@@ -220,9 +222,9 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
   Widget _buildModernBubble(ChatMessage msg) {
     final isUser = msg.isUser;
     // Couleurs locales pour ne pas dépendre du main.dart
-    final userGradient = [Colors.purple.shade900.withOpacity(0.8), Colors.deepPurple.shade800.withOpacity(0.8)];
-    final botGradient = [const Color(0xFF2A2D35).withOpacity(0.85), const Color(0xFF1E2129).withOpacity(0.85)];
-    final borderColor = isUser ? Colors.purpleAccent.withOpacity(0.4) : Colors.amber.withOpacity(0.2);
+    final userGradient = [Colors.purple.shade900.withValues(alpha: 0.8), Colors.deepPurple.shade800.withValues(alpha: 0.8)];
+    final botGradient = [const Color(0xFF2A2D35).withValues(alpha: 0.85), const Color(0xFF1E2129).withValues(alpha: 0.85)];
+    final borderColor = isUser ? AppColors.accentPurple.withValues(alpha: 0.4) : Colors.amber.withValues(alpha: 0.2);
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -240,34 +242,34 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
           ),
           border: Border.all(color: borderColor, width: 1),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
+            BoxShadow(color: AppColors.textOnPrimary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))
           ],
         ),
         child: msg.isLoading
             ? Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber)),
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.amber)),
                   const SizedBox(width: 10),
-                  Text("Invocation...", style: GoogleFonts.cinzel(color: Colors.amber, fontSize: 12))
+                  Text('Invocation...', style: AppTextStyles.cinzel(color: AppColors.amber, fontSize: 12))
                 ],
               )
             : isUser
-                ? Text(msg.text, style: GoogleFonts.roboto(color: Colors.white, fontSize: 15))
+                ? Text(msg.text, style: GoogleFonts.roboto(color: AppColors.textPrimary, fontSize: 15))
                 : MarkdownBody(
                     data: msg.text,
                     styleSheet: MarkdownStyleSheet(
                       p: const TextStyle(color: Color(0xFFE0E0E0), fontSize: 15, height: 1.5),
-                      strong: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+                      strong: const TextStyle(color: AppColors.amber, fontWeight: FontWeight.bold),
                       code: GoogleFonts.firaCode(
-                        backgroundColor: Colors.black54, 
-                        color: Colors.greenAccent, 
+                        backgroundColor: AppColors.overlayDark, 
+                        color: AppColors.accentGreen, 
                         fontSize: 13
                       ),
                       codeblockDecoration: BoxDecoration(
                         color: const Color(0xFF101216),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white10),
+                        border: Border.all(color: AppColors.borderLight),
                       ),
                     ),
                   ),
@@ -282,8 +284,8 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0F1115).withOpacity(0.7),
-            border: const Border(top: BorderSide(color: Colors.white10)),
+            color: const Color(0xFF0F1115).withValues(alpha: 0.7),
+            border: const Border(top: BorderSide(color: AppColors.borderLight)),
           ),
           // AJOUT DU SAFEAREA ICI
           child: SafeArea(
@@ -295,16 +297,16 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
+                        color: AppColors.textPrimary.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: Colors.yellow.shade900.withOpacity(0.3)),
+                        border: Border.all(color: AppColors.primaryShade900.withValues(alpha: 0.3)),
                       ),
                       child: TextField(
                         controller: _controller,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: AppColors.textPrimary),
                         decoration: InputDecoration(
-                          hintText: "Posez votre question...",
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontStyle: FontStyle.italic),
+                          hintText: 'Posez votre question...',
+                          hintStyle: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.3), fontStyle: FontStyle.italic),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                         ),
@@ -320,13 +322,13 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
                     child: Container(
                       width: 50, height: 50,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [Colors.orangeAccent, Colors.orange]),
+                        gradient: const LinearGradient(colors: [AppColors.accentOrange, Colors.orange]),
                         shape: BoxShape.circle,
                         boxShadow: [
-                          BoxShadow(color: Colors.yellow.shade900.withOpacity(0.4), blurRadius: 10, spreadRadius: 1)
+                          BoxShadow(color: AppColors.primaryShade900.withValues(alpha: 0.4), blurRadius: 10, spreadRadius: 1)
                         ],
                       ),
-                      child: const Icon(Icons.send_rounded, color: Colors.black87),
+                      child: const Icon(Icons.send_rounded, color: AppColors.overlayVeryDark),
                     ),
                   ),
                 ],

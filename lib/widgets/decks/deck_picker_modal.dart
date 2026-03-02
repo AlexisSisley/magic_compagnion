@@ -1,7 +1,8 @@
 // Fichier : lib/widgets/decks/deck_picker_modal.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/deck_service.dart';
@@ -95,7 +96,7 @@ class _DeckPickerModalState extends State<DeckPickerModal> {
         child: Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A).withAlpha((0.95 * 255).round()),
+            color: AppColors.scaffoldBackground.withAlpha((0.95 * 255).round()),
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(16),
               topRight: Radius.circular(16),
@@ -108,25 +109,21 @@ class _DeckPickerModalState extends State<DeckPickerModal> {
               Text(
                 'Ajouter à un Deck',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.cinzel(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: AppTextStyles.bold(fontSize: 20),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _newDeckController,
-                style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16),
+                style: AppTextStyles.cinzel(fontSize: 16),
                 decoration: InputDecoration(
                   hintText: '...ou créer un nouveau deck',
-                  hintStyle: GoogleFonts.cinzel(color: Colors.white54, fontSize: 16),
+                  hintStyle: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 16),
                   suffixIcon: IconButton(
-                    icon: const Icon(Icons.add_circle, color: Colors.yellow),
+                    icon: const Icon(Icons.add_circle, color: AppColors.primary),
                     onPressed: _createNewDeck,
                   ),
                   filled: true,
-                  fillColor: Colors.black.withAlpha((0.5 * 255).round()),
+                  fillColor: AppColors.textOnPrimary.withAlpha((0.5 * 255).round()),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
@@ -134,7 +131,7 @@ class _DeckPickerModalState extends State<DeckPickerModal> {
                 ),
                 onSubmitted: (value) => _createNewDeck(),
               ),
-              const Divider(color: Colors.white24, height: 32),
+              const Divider(color: AppColors.borderMedium, height: 32),
               Flexible(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
@@ -142,7 +139,7 @@ class _DeckPickerModalState extends State<DeckPickerModal> {
                         ? Center(
                             child: Text(
                               'Aucun deck. Créez-en un ci-dessus.',
-                              style: GoogleFonts.cinzel(color: Colors.white70),
+                              style: AppTextStyles.cinzel(color: AppColors.textSecondary),
                             ),
                           )
                         : ListView.builder(
@@ -150,10 +147,10 @@ class _DeckPickerModalState extends State<DeckPickerModal> {
                             itemBuilder: (context, index) {
                               final deck = _decks[index];
                               return ListTile(
-                                leading: const Icon(Icons.style_outlined, color: Colors.white70),
+                                leading: const Icon(Icons.style_outlined, color: AppColors.textSecondary),
                                 title: Text(
                                   deck.name,
-                                  style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18),
+                                  style: AppTextStyles.cinzel(fontSize: 18),
                                 ),
                                 onTap: () => _addCardToDeck(deck),
                               );

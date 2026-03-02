@@ -269,8 +269,11 @@ class DeckService with CardListUpsertMixin {
     final idx = decks.indexWhere((d) => d.id == deckId);
     if (idx == -1) throw StateError('Deck $deckId not found');
     final deck = decks[idx];
-    if (slot == 2) deck.commanderSecondaryScryfallId = scryfallId;
-    else deck.commanderScryfallId = scryfallId;
+    if (slot == 2) {
+      deck.commanderSecondaryScryfallId = scryfallId;
+    } else {
+      deck.commanderScryfallId = scryfallId;
+    }
     deck.format = 'Commander';
     await updateDeck(deck);
     return deck;
@@ -283,8 +286,11 @@ class DeckService with CardListUpsertMixin {
 
       String? newCmd = rawDeck.commanderScryfallId;
       String? newCmd2 = rawDeck.commanderSecondaryScryfallId;
-      if (slot == 2) newCmd2 = null;
-      else newCmd = null;
+      if (slot == 2) {
+        newCmd2 = null;
+      } else {
+        newCmd = null;
+      }
 
       String newFormat = (newCmd == null && newCmd2 == null) ? 'Standard' : rawDeck.format;
 
@@ -302,8 +308,11 @@ class DeckService with CardListUpsertMixin {
     final idx = decks.indexWhere((d) => d.id == deckId);
     if (idx == -1) throw StateError('Deck $deckId not found');
     final deck = decks[idx];
-    if (slot == 2) deck.commanderSecondaryScryfallId = null;
-    else deck.commanderScryfallId = null;
+    if (slot == 2) {
+      deck.commanderSecondaryScryfallId = null;
+    } else {
+      deck.commanderScryfallId = null;
+    }
 
     if (deck.commanderScryfallId == null && deck.commanderSecondaryScryfallId == null) {
       deck.format = 'Standard';

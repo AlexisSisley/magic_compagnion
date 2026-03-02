@@ -148,6 +148,33 @@ class ScryfallApiService {
   }
 
   // ============================================================
+  // API PUBLIQUE - CATALOG
+  // ============================================================
+
+  /// Récupère un catalogue Scryfall (ex: creature-types, keyword-abilities).
+  /// Retourne la liste de strings contenue dans le champ `data`.
+  Future<List<String>> getCatalog(String catalogName) async {
+    final result = await _get('/catalog/$catalogName', cacheTtl: longCacheTtl);
+    final data = result['data'];
+    if (data == null) return [];
+    return (data as List).cast<String>();
+  }
+
+  // ============================================================
+  // API PUBLIQUE - BULK DATA
+  // ============================================================
+
+  /// Récupère les métadonnées d'un type de bulk data (ex: oracle-cards).
+  Future<Map<String, dynamic>> getBulkDataByType(String type) async {
+    return _get('/bulk-data/$type', cacheTtl: longCacheTtl);
+  }
+
+  /// Récupère la liste de tous les bulk data disponibles.
+  Future<Map<String, dynamic>> getBulkDataList() async {
+    return _get('/bulk-data', cacheTtl: longCacheTtl);
+  }
+
+  // ============================================================
   // CACHE
   // ============================================================
 

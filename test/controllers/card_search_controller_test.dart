@@ -108,49 +108,49 @@ void main() {
   group('CardSearchState computed properties', () {
     test('hasActiveFilters detects setCode', () {
       final state = CardSearchState(
-        activeFilters: SearchFilters(setCode: 'dom'),
+        activeFilters: const SearchFilters(setCode: 'dom'),
       );
       expect(state.hasActiveFilters, true);
     });
 
     test('hasActiveFilters detects colors', () {
       final state = CardSearchState(
-        activeFilters: SearchFilters(colors: {'W'}),
+        activeFilters: const SearchFilters(colors: {'W'}),
       );
       expect(state.hasActiveFilters, true);
     });
 
     test('hasActiveFilters detects cardType', () {
       final state = CardSearchState(
-        activeFilters: SearchFilters(cardType: 'Instant'),
+        activeFilters: const SearchFilters(cardType: 'Instant'),
       );
       expect(state.hasActiveFilters, true);
     });
 
     test('hasActiveFilters detects rarity', () {
       final state = CardSearchState(
-        activeFilters: SearchFilters(rarity: 'mythic'),
+        activeFilters: const SearchFilters(rarity: 'mythic'),
       );
       expect(state.hasActiveFilters, true);
     });
 
     test('hasActiveFilters detects keyword', () {
       final state = CardSearchState(
-        activeFilters: SearchFilters(keyword: 'flying'),
+        activeFilters: const SearchFilters(keyword: 'flying'),
       );
       expect(state.hasActiveFilters, true);
     });
 
     test('hasActiveFilters detects minCmc', () {
       final state = CardSearchState(
-        activeFilters: SearchFilters(minCmc: 3),
+        activeFilters: const SearchFilters(minCmc: 3),
       );
       expect(state.hasActiveFilters, true);
     });
 
     test('hasActiveFilters detects maxCmc', () {
       final state = CardSearchState(
-        activeFilters: SearchFilters(maxCmc: 5),
+        activeFilters: const SearchFilters(maxCmc: 5),
       );
       expect(state.hasActiveFilters, true);
     });
@@ -242,7 +242,7 @@ void main() {
       final state = CardSearchState(sortBy: 'name');
 
       // Simulate updateSort
-      final newSortBy = 'cmc';
+      const newSortBy = 'cmc';
       expect(state.sortBy != newSortBy, true);
       final updated = state.copyWith(sortBy: newSortBy);
       expect(updated.sortBy, 'cmc');
@@ -256,7 +256,7 @@ void main() {
 
     test('updateFilters stores new SearchFilters', () {
       final state = CardSearchState();
-      final newFilters = SearchFilters(
+      const newFilters = SearchFilters(
         colors: {'R', 'U'},
         cardType: 'Instant',
         rarity: 'rare',
@@ -297,18 +297,18 @@ void main() {
 
     test('resetFilters clears everything', () {
       final state = CardSearchState(
-        activeFilters: SearchFilters(colors: {'W'}, cardType: 'Enchantment'),
+        activeFilters: const SearchFilters(colors: {'W'}, cardType: 'Enchantment'),
         searchResults: [_makeCard(id: 'c1', name: 'Card 1')],
         fullLocalResults: [_makeCard(id: 'c1', name: 'Card 1')],
         nextPageUrl: 'http://example.com',
       );
 
       final reset = state.copyWith(
-        activeFilters: SearchFilters(),
+        activeFilters: const SearchFilters(),
         searchResults: [],
         fullLocalResults: [],
         clearNextPageUrl: true,
-        statusMessage: "Entrez un nom ou choisissez une edition.",
+        statusMessage: 'Entrez un nom ou choisissez une edition.',
       );
 
       expect(reset.activeFilters.colors, isEmpty);
@@ -374,7 +374,7 @@ void main() {
   group('Sprint 9 - hasActiveFilters with maxPrice', () {
     test('hasActiveFilters detects maxPrice', () {
       final state = CardSearchState(
-        activeFilters: SearchFilters(maxPrice: 10.0),
+        activeFilters: const SearchFilters(maxPrice: 10.0),
       );
       expect(state.hasActiveFilters, true);
     });

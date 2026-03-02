@@ -1,11 +1,12 @@
 // Fichier : lib/widgets/decks/deck_card_picker.dart
 // VERSION MISE À JOUR : Infinite Scroll + Sélecteur de Versions + Filtre Keyword
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/search_filters.dart';
 import 'package:magic_companion/services/local_card_service.dart';
 import 'package:magic_companion/services/scryfall_api_service.dart';
@@ -41,7 +42,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
   List<ScryfallCard> _apiResults = [];
   bool _isSearching = false;
   Timer? _debounce;
-  SearchFilters _apiFilters = SearchFilters();
+  SearchFilters _apiFilters = const SearchFilters();
   String _apiSort = 'name'; 
   
   // Pagination API
@@ -55,7 +56,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
   static const int _localPageSize = 30;
   
   final TextEditingController _collectionSearchController = TextEditingController();
-  SearchFilters _collectionFilters = SearchFilters();
+  SearchFilters _collectionFilters = const SearchFilters();
   String _collectionSort = 'name'; 
 
   @override
@@ -187,7 +188,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
 
   Future<void> _openCollectionFilterModal() async {
     final newFilters = await showModalBottomSheet<SearchFilters>(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      context: context, isScrollControlled: true, backgroundColor: AppColors.transparent,
       builder: (context) => SearchFilterModal(initialFilters: _collectionFilters),
     );
     if (newFilters != null) {
@@ -286,7 +287,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
 
   Future<void> _openApiFilterModal() async {
     final newFilters = await showModalBottomSheet<SearchFilters>(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      context: context, isScrollControlled: true, backgroundColor: AppColors.transparent,
       builder: (context) => SearchFilterModal(initialFilters: _apiFilters),
     );
     if (newFilters != null) {
@@ -337,7 +338,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       builder: (context) => VersionsSelectorSheet(
         oracleId: currentCard.oracleId,
         currentCardId: currentCard.id,
@@ -370,16 +371,16 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
     final int totalCards = _selectedQuantities.values.fold(0, (sum, qty) => sum + qty);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text("Ajouter des cartes", style: GoogleFonts.cinzel()),
-        backgroundColor: Colors.black,
+        title: Text('Ajouter des cartes', style: AppTextStyles.cinzel()),
+        backgroundColor: AppColors.textOnPrimary,
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: Colors.yellow.shade800,
+          indicatorColor: AppColors.primaryShade800,
           tabs: const [
-            Tab(text: "Recherche API", icon: Icon(Icons.search)),
-            Tab(text: "Ma Collection", icon: Icon(Icons.inventory_2_outlined)),
+            Tab(text: 'Recherche API', icon: Icon(Icons.search)),
+            Tab(text: 'Ma Collection', icon: Icon(Icons.inventory_2_outlined)),
           ],
         ),
       ),
@@ -414,8 +415,8 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
               Expanded(
                 child: TextField(
                   controller: _searchController,
-                  style: GoogleFonts.cinzel(color: Colors.white),
-                  decoration: _buildInputDecoration("Nom de la carte...", 
+                  style: AppTextStyles.cinzel(),
+                  decoration: _buildInputDecoration('Nom de la carte...', 
                     isActive: _apiFilters.setCode != null || _apiFilters.colors.isNotEmpty || _apiFilters.cardType != null || _apiFilters.keyword != null // <--- NOUVEAU
                   ),
                   onChanged: _onSearchChanged,
@@ -428,7 +429,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
                 options: {'name': 'Nom', 'cmc': 'Mana', 'released': 'Date', 'rarity': 'Rareté', 'eur': 'Prix'}
               ),
               IconButton(
-                icon: Icon(Icons.filter_list, color: _apiFilters.setCode != null || _apiFilters.keyword != null ? Colors.yellow : Colors.white70), // <--- NOUVEAU
+                icon: Icon(Icons.filter_list, color: _apiFilters.setCode != null || _apiFilters.keyword != null ? AppColors.primary : AppColors.textSecondary), // <--- NOUVEAU
                 onPressed: _openApiFilterModal,
               ),
             ],
@@ -439,21 +440,21 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
         if (_apiResults.isNotEmpty && !_isSearching)
           Container(
             width: double.infinity,
-            color: Colors.black26,
+            color: AppColors.overlayLight,
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
             child: Text(
-              "$_totalApiResults résultats trouvés",
-              style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
+              '$_totalApiResults résultats trouvés',
+              style: AppTextStyles.label(color: AppColors.textMuted),
             ),
           ),
 
-        if (_isSearching) const LinearProgressIndicator(color: Colors.yellow, minHeight: 2),
+        if (_isSearching) const LinearProgressIndicator(color: AppColors.primary, minHeight: 2),
         
         Expanded(
           child: ListView.separated(
             controller: _scrollController, // Attaché ici
             itemCount: _apiResults.length + (_isApiLoadingMore ? 1 : 0),
-            separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.white10),
+            separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.borderLight),
             itemBuilder: (context, index) {
               if (index == _apiResults.length) {
                 return const Padding(padding: EdgeInsets.all(16.0), child: Center(child: CircularProgressIndicator()));
@@ -487,8 +488,8 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
               Expanded(
                 child: TextField(
                   controller: _collectionSearchController,
-                  style: GoogleFonts.cinzel(color: Colors.white),
-                  decoration: _buildInputDecoration("Filtrer collection...", 
+                  style: AppTextStyles.cinzel(),
+                  decoration: _buildInputDecoration('Filtrer collection...', 
                     isActive: _collectionFilters.setCode != null || _collectionFilters.colors.isNotEmpty || _collectionFilters.keyword != null // <--- NOUVEAU
                   ),
                   onChanged: (_) => _applyCollectionFilters(),
@@ -501,7 +502,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
                 options: {'name': 'Nom', 'price': 'Prix', 'type': 'Type'}
               ),
               IconButton(
-                icon: Icon(Icons.filter_list, color: _collectionFilters.setCode != null || _collectionFilters.keyword != null ? Colors.yellow : Colors.white70), // <--- NOUVEAU
+                icon: Icon(Icons.filter_list, color: _collectionFilters.setCode != null || _collectionFilters.keyword != null ? AppColors.primary : AppColors.textSecondary), // <--- NOUVEAU
                 onPressed: _openCollectionFilterModal,
               ),
             ],
@@ -511,11 +512,11 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
         if (_displayedCollection.isNotEmpty)
            Container(
             width: double.infinity,
-            color: Colors.black26,
+            color: AppColors.overlayLight,
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
             child: Text(
-              "${_fullCollection.length} cartes dans la collection (filtrées)",
-              style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
+              '${_fullCollection.length} cartes dans la collection (filtrées)',
+              style: AppTextStyles.label(color: AppColors.textMuted),
             ),
           ),
 
@@ -523,7 +524,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
           child: ListView.separated(
             controller: _scrollController, // Attaché ici aussi
             itemCount: _displayedCollection.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.white10),
+            separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.borderLight),
             itemBuilder: (context, index) {
               final deckCard = _displayedCollection[index];
               final qtySelected = _selectedQuantities[deckCard.scryfallId] ?? 0;
@@ -576,7 +577,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
     final hasImage = imageUrl.isNotEmpty;
 
     return Container(
-      color: quantity > 0 ? Colors.yellow.shade900.withValues(alpha: 0.2) : null,
+      color: quantity > 0 ? AppColors.primaryShade900.withValues(alpha: 0.2) : null,
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         leading: GestureDetector(
@@ -588,14 +589,14 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
                 borderRadius: BorderRadius.circular(4),
                 child: hasImage 
                   ? Image.network(imageUrl, width: 40, height: 56, fit: BoxFit.cover)
-                  : Container(width: 40, height: 56, color: Colors.grey.shade800, child: const Icon(Icons.image, size: 20)),
+                  : Container(width: 40, height: 56, color: AppColors.greyShade800, child: const Icon(Icons.image, size: 20)),
               ),
               if (isApiTab)
                 Positioned(
                   bottom: 0, right: 0,
                   child: Container(
-                    color: Colors.black54,
-                    child: const Icon(Icons.swap_horiz, size: 14, color: Colors.white),
+                    color: AppColors.overlayDark,
+                    child: const Icon(Icons.swap_horiz, size: 14, color: AppColors.textPrimary),
                   ),
                 )
             ],
@@ -606,7 +607,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
             Expanded(
               child: Text(
                 card.name,
-                style: GoogleFonts.cinzel(color: quantity > 0 ? Colors.yellow :Colors.white, fontWeight: quantity > 0 ? FontWeight.bold : FontWeight.normal),
+                style: AppTextStyles.cinzel(color: quantity > 0 ? AppColors.primary : AppColors.textPrimary, fontWeight: quantity > 0 ? FontWeight.bold : FontWeight.normal),
                  overflow: TextOverflow.ellipsis,
                  maxLines: 1,
               ),
@@ -614,7 +615,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
             // Bouton Version explicite
             if (isApiTab)
               IconButton(
-                icon: const Icon(Icons.palette_outlined, size: 18, color: Colors.white54),
+                icon: const Icon(Icons.palette_outlined, size: 18, color: AppColors.textMuted),
                 tooltip: "Changer d'édition / illustration",
                 constraints: const BoxConstraints(),
                 padding: const EdgeInsets.only(left: 8),
@@ -634,14 +635,14 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
               children: [
                 Expanded(
                   child: Text(
-                    "${card.typeLine} • ${card.setName}", 
-                    style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 10), 
+                    '${card.typeLine} • ${card.setName}', 
+                    style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 10), 
                     maxLines: 1, 
                     overflow: TextOverflow.ellipsis
                   ),
                 ),
                 if (ownedQuantity != null)
-                   Text(" • En stock: $ownedQuantity", style: const TextStyle(color: Colors.greenAccent, fontSize: 10)),
+                   Text(' • En stock: $ownedQuantity', style: const TextStyle(color: AppColors.accentGreen, fontSize: 10)),
               ],
             )
           ],
@@ -651,7 +652,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
           children: [
             if (quantity > 0) ...[
               IconButton(
-                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                icon: const Icon(Icons.remove_circle_outline, color: AppColors.error),
                 onPressed: onRemove,
                 constraints: const BoxConstraints(),
                 padding: const EdgeInsets.all(8),
@@ -660,14 +661,14 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
                 width: 24,
                 child: Text('$quantity', 
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)
                 ),
               ),
             ],
             IconButton(
               icon: Icon(
                 quantity > 0 ? Icons.add_circle : Icons.add_circle_outline, 
-                color: quantity > 0 ? Colors.yellow : Colors.green
+                color: quantity > 0 ? AppColors.primary : Colors.green
               ),
               onPressed: onAdd,
               constraints: const BoxConstraints(),
@@ -685,8 +686,8 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
     return Container(
       padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomPadding),
       decoration: BoxDecoration(
-        color: Colors.black,
-        border: Border(top: BorderSide(color: Colors.yellow.shade800)),
+        color: AppColors.textOnPrimary,
+        border: Border(top: BorderSide(color: AppColors.primaryShade800)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -694,19 +695,19 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("$totalCards cartes", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-              Text("${_selectedQuantities.length} noms uniques", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+              Text('$totalCards cartes', style: AppTextStyles.sectionTitle()),
+              Text('${_selectedQuantities.length} noms uniques', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
             ],
           ),
           ElevatedButton.icon(
             onPressed: _submit,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.yellow.shade800,
-              foregroundColor: Colors.black,
+              backgroundColor: AppColors.primaryShade800,
+              foregroundColor: AppColors.textOnPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
             ),
             icon: const Icon(Icons.check),
-            label: Text("AJOUTER", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+            label: Text('AJOUTER', style: AppTextStyles.bold()),
           )
         ],
       ),
@@ -717,9 +718,9 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
   InputDecoration _buildInputDecoration(String hint, {bool isActive = false}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Colors.white54),
-      prefixIcon: Icon(Icons.search, color: isActive ? Colors.yellow : Colors.white70),
-      filled: true, fillColor: Colors.black54,
+      hintStyle: const TextStyle(color: AppColors.textMuted),
+      prefixIcon: Icon(Icons.search, color: isActive ? AppColors.primary : AppColors.textSecondary),
+      filled: true, fillColor: AppColors.overlayDark,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
     );
@@ -728,17 +729,17 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
   // --- HELPER SORT POPUP ---
   Widget _buildSortPopup({required String currentValue, required Function(String) onSelected, required Map<String, String> options}) {
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.sort, color: Colors.white70),
-      color: const Color(0xFF1A1A1A),
+      icon: const Icon(Icons.sort, color: AppColors.textSecondary),
+      color: AppColors.scaffoldBackground,
       onSelected: onSelected,
       itemBuilder: (context) => options.entries.map((e) => PopupMenuItem(
         value: e.key,
         child: Row(
           children: [
             Icon(currentValue == e.key ? Icons.radio_button_checked : Icons.radio_button_unchecked, 
-                 color: currentValue == e.key ? Colors.yellow : Colors.grey, size: 18),
+                 color: currentValue == e.key ? AppColors.primary : AppColors.synergyNeutral, size: 18),
             const SizedBox(width: 8),
-            Text(e.value, style: const TextStyle(color: Colors.white)),
+            Text(e.value, style: const TextStyle(color: AppColors.textPrimary)),
           ],
         ),
       )).toList(),
@@ -766,7 +767,7 @@ class _ManaDisplay extends StatelessWidget {
           child: SvgPicture.network(
             'https://svgs.scryfall.io/card-symbols/$cleanSymbol.svg',
             width: 12, height: 12,
-            placeholderBuilder: (_) => Text(symbol, style: const TextStyle(fontSize: 10, color: Colors.white)),
+            placeholderBuilder: (_) => Text(symbol, style: const TextStyle(fontSize: 10, color: AppColors.textPrimary)),
           ),
         );
       }).toList(),

@@ -1,5 +1,7 @@
 // Fichier : lib/pages/life_counter/game_history_page.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -53,12 +55,12 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.auto_awesome, color: Colors.purpleAccent),
+              const Icon(Icons.auto_awesome, color: AppColors.accentPurple),
               const SizedBox(width: 12),
-              Text("Méfaits accomplis ⚡", style: GoogleFonts.cinzel(color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
+              Text('Méfaits accomplis ⚡', style: AppTextStyles.bold(color: AppColors.accentPurple)),
             ],
           ),
-          backgroundColor: Colors.black,
+          backgroundColor: AppColors.textOnPrimary,
           duration: const Duration(seconds: 3),
         )
       );
@@ -67,7 +69,7 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
 
   String _formatDuration(int seconds) {
     final d = Duration(seconds: seconds);
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
     String minutes = twoDigits(d.inMinutes.remainder(60));
     String secondsStr = twoDigits(d.inSeconds.remainder(60));
     return "${d.inHours > 0 ? '${d.inHours}h ' : ''}$minutes min $secondsStr s";
@@ -76,23 +78,23 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text("Historique des batailles", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.black,
+        title: Text('Historique des batailles', style: AppTextStyles.bold()),
+        backgroundColor: AppColors.textOnPrimary,
         actions: [
           if (_history.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
-              tooltip: "Tout effacer",
+              icon: const Icon(Icons.delete_sweep, color: AppColors.accentRed),
+              tooltip: 'Tout effacer',
               onPressed: () => showDialog(
                 context: context, 
                 builder: (c) => AlertDialog(
-                  backgroundColor: const Color(0xFF1A1A1A),
-                  title: const Text("Effacer l'historique ?", style: TextStyle(color: Colors.white)),
+                  backgroundColor: AppColors.scaffoldBackground,
+                  title: const Text("Effacer l'historique ?", style: TextStyle(color: AppColors.textPrimary)),
                   actions: [
-                    TextButton(onPressed: ()=>Navigator.pop(c), child: const Text("Non")),
-                    TextButton(onPressed: (){ Navigator.pop(c); _clearAll(); }, child: const Text("Oui", style: TextStyle(color: Colors.red))),
+                    TextButton(onPressed: ()=>Navigator.pop(c), child: const Text('Non')),
+                    TextButton(onPressed: (){ Navigator.pop(c); _clearAll(); }, child: const Text('Oui', style: TextStyle(color: AppColors.error))),
                   ],
                 )
               ),
@@ -100,9 +102,9 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
         ],
       ),
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Colors.white)) 
+        ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary)) 
         : _history.isEmpty 
-          ? Center(child: Text("Aucune partie enregistrée.", style: GoogleFonts.cinzel(color: Colors.white54)))
+          ? Center(child: Text('Aucune partie enregistrée.', style: AppTextStyles.cinzel(color: AppColors.textMuted)))
           : ListView.builder(
               itemCount: _history.length,
               padding: const EdgeInsets.all(12), // Un peu de padding autour de la liste
@@ -126,7 +128,7 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
           color: Colors.red.shade900,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: const Icon(Icons.delete, color: AppColors.textPrimary),
       ),
       onDismissed: (_) => _deleteItem(index),
       child: GestureDetector(
@@ -135,11 +137,11 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
           context.push(AppRoutes.gameHistoryDetail, extra: game);
         },
         child: Card(
-          color: Colors.white.withOpacity(0.05),
+          color: AppColors.textPrimary.withValues(alpha: 0.05),
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.white.withOpacity(0.1)),
+            side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.1)),
           ),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -152,20 +154,20 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
                   children: [
                     Text(
                       DateFormat('dd/MM/yyyy • HH:mm').format(game.date),
-                      style: GoogleFonts.roboto(color: Colors.white38, fontSize: 12),
+                      style: GoogleFonts.roboto(color: AppColors.borderFaint, fontSize: 12),
                     ),
                     Text(
                       _formatDuration(game.durationSeconds),
-                      style: GoogleFonts.roboto(color: Colors.white38, fontSize: 12),
+                      style: GoogleFonts.roboto(color: AppColors.borderFaint, fontSize: 12),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: game.format == 'Commander' ? Colors.amber.withOpacity(0.2) : Colors.blue.withOpacity(0.2),
+                        color: game.format == 'Commander' ? Colors.amber.withValues(alpha: 0.2) : Colors.blue.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: game.format == 'Commander' ? Colors.amber.withOpacity(0.5) : Colors.blue.withOpacity(0.5))
+                        border: Border.all(color: game.format == 'Commander' ? Colors.amber.withValues(alpha: 0.5) : Colors.blue.withValues(alpha: 0.5))
                       ),
-                      child: Text(game.format.toUpperCase(), style: GoogleFonts.cinzel(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.bold)),
+                      child: Text(game.format.toUpperCase(), style: AppTextStyles.bold(color: AppColors.textSecondary, fontSize: 10)),
                     ),
                   ],
                 ),
@@ -174,14 +176,14 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
                 // Vainqueur
                 Row(
                   children: [
-                    const Icon(Icons.emoji_events, color: Colors.yellow, size: 20),
+                    const Icon(Icons.emoji_events, color: AppColors.primary, size: 20),
                     const SizedBox(width: 8),
-                    Text("Vainqueur : ", style: GoogleFonts.cinzel(color: Colors.white70)),
-                    Text(game.winnerName, style: GoogleFonts.cinzel(color: Colors.yellow, fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text('Vainqueur : ', style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+                    Text(game.winnerName, style: AppTextStyles.bold(color: AppColors.primary, fontSize: 16)),
                   ],
                 ),
                 
-                const Divider(color: Colors.white10, height: 24),
+                const Divider(color: AppColors.borderLight, height: 24),
                 
                 // Liste des joueurs (Avatars)
                 // Adapté pour utiliser 'playerStates' du nouveau modèle
@@ -200,18 +202,18 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
                             Container(
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: isWinner ? Border.all(color: Colors.yellow, width: 2) : null,
-                                boxShadow: isWinner ? [BoxShadow(color: Colors.yellow.withOpacity(0.3), blurRadius: 8)] : null,
+                                border: isWinner ? Border.all(color: AppColors.primary, width: 2) : null,
+                                boxShadow: isWinner ? [BoxShadow(color: Colors.yellow.withValues(alpha: 0.3), blurRadius: 8)] : null,
                               ),
                               child: CircleAvatar(
                                 radius: 20,
-                                backgroundColor: Colors.grey.shade800,
+                                backgroundColor: AppColors.greyShade800,
                                 backgroundImage: image != null ? NetworkImage(image) : null,
-                                child: image == null ? Text(name.isNotEmpty ? name[0].toUpperCase() : "?", style: const TextStyle(color: Colors.white)) : null,
+                                child: image == null ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: const TextStyle(color: AppColors.textPrimary)) : null,
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Text(name, style: TextStyle(color: isWinner ? Colors.yellow : Colors.white70, fontSize: 10)),
+                            Text(name, style: TextStyle(color: isWinner ? AppColors.primary : AppColors.textSecondary, fontSize: 10)),
                           ],
                         ),
                       );

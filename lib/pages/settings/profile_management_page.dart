@@ -1,6 +1,7 @@
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/profile_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/profile_service.dart';
@@ -40,15 +41,15 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text("Profils des Joueurs", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.black,
+        title: Text('Profils des Joueurs', style: AppTextStyles.bold()),
+        backgroundColor: AppColors.textOnPrimary,
       ),
       body: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: Colors.yellow))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _profiles.isEmpty 
-              ? Center(child: Text("Aucun profil créé.", style: GoogleFonts.cinzel(color: Colors.white38)))
+              ? Center(child: Text('Aucun profil créé.', style: AppTextStyles.cinzel(color: AppColors.borderFaint)))
               : ListView.builder(
                   padding: const EdgeInsets.all(12),
                   itemCount: _profiles.length,
@@ -56,30 +57,30 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
                 ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showProfileForm(),
-        backgroundColor: Colors.yellow.shade800,
-        child: const Icon(Icons.person_add, color: Colors.black),
+        backgroundColor: AppColors.primaryShade800,
+        child: const Icon(Icons.person_add, color: AppColors.textOnPrimary),
       ),
     );
   }
 
   Widget _buildProfileCard(Profile profile) {
     return Card(
-      color: Colors.white.withOpacity(0.05),
+      color: AppColors.textPrimary.withValues(alpha: 0.05),
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: AppColors.borderLight)),
       child: ListTile(
         leading: _buildDoubleAvatar(profile),
-        title: Text(profile.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(profile.name, style: AppTextStyles.bold()),
         subtitle: Text(
           profile.secondaryCommanderName != null 
-            ? "${profile.commanderName} & ${profile.secondaryCommanderName}"
-            : profile.commanderName ?? "Pas de commandant", 
+            ? '${profile.commanderName} & ${profile.secondaryCommanderName}'
+            : profile.commanderName ?? 'Pas de commandant', 
           maxLines: 1, 
           overflow: TextOverflow.ellipsis, 
-          style: const TextStyle(color: Colors.white54, fontSize: 12)
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 12)
         ),
         trailing: IconButton(
-          icon: const Icon(Icons.edit, color: Colors.white54), 
+          icon: const Icon(Icons.edit, color: AppColors.textMuted), 
           onPressed: () => _showProfileForm(existing: profile)
         ),
       ),
@@ -117,20 +118,20 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
       context: context,
       builder: (context) => StatefulBuilder(builder: (context, setModalState) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          title: Text(existing == null ? "Nouveau Profil" : "Modifier Profil", style: GoogleFonts.cinzel(color: Colors.white)),
+          backgroundColor: AppColors.surfaceDark,
+          title: Text(existing == null ? 'Nouveau Profil' : 'Modifier Profil', style: AppTextStyles.cinzel()),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: "Nom du joueur", labelStyle: TextStyle(color: Colors.white54)),
-                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(labelText: 'Nom du joueur', labelStyle: TextStyle(color: AppColors.textMuted)),
+                  style: const TextStyle(color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 20),
                 _buildPickerTile(
-                  label: "Commandant", 
+                  label: 'Commandant', 
                   name: cmd1?.name ?? existing?.commanderName,
                   color: selectedColor,
                   onTap: () async {
@@ -140,7 +141,7 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
                 ),
                 const SizedBox(height: 10),
                 _buildPickerTile(
-                  label: "Partenaire / Background", 
+                  label: 'Partenaire / Background', 
                   name: cmd2?.name ?? existing?.secondaryCommanderName,
                   color: selectedColor,
                   onTap: () async {
@@ -157,7 +158,7 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
                       width: 30, height: 30,
                       decoration: BoxDecoration(
                         color: c, shape: BoxShape.circle,
-                        border: Border.all(color: selectedColor == c ? Colors.white : Colors.transparent, width: 2)
+                        border: Border.all(color: selectedColor == c ? Colors.white : AppColors.transparent, width: 2)
                       ),
                     ),
                   )).toList(),
@@ -170,19 +171,20 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
               TextButton(
                 onPressed: () async {
                   await _profileService.deleteProfile(existing.id);
+                  if (!context.mounted) return;
                   Navigator.pop(context);
                   _loadProfiles();
                 },
-                child: const Text("Supprimer", style: TextStyle(color: Colors.redAccent)),
+                child: const Text('Supprimer', style: TextStyle(color: AppColors.accentRed)),
               ),
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
             ElevatedButton(
               onPressed: () async {
                 if (nameCtrl.text.isNotEmpty) {
                   final p = Profile(
                     id: existing?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
                     name: nameCtrl.text,
-                    colorValue: selectedColor.value,
+                    colorValue: selectedColor.toARGB32(),
                     commanderScryfallId: cmd1?.id ?? existing?.commanderScryfallId,
                     commanderName: cmd1?.name ?? existing?.commanderName,
                     commanderArtCropUrl: cmd1?.artCropUrl ?? existing?.commanderArtCropUrl,
@@ -191,11 +193,12 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
                     secondaryCommanderArtCropUrl: cmd2?.artCropUrl ?? existing?.secondaryCommanderArtCropUrl,
                   );
                   await _profileService.saveProfile(p);
+                  if (!context.mounted) return;
                   Navigator.pop(context);
                   _loadProfiles();
                 }
               },
-              child: const Text("Enregistrer"),
+              child: const Text('Enregistrer'),
             )
           ],
         );
@@ -207,17 +210,17 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
     return ListTile(
       onTap: onTap,
       dense: true,
-      tileColor: Colors.white.withOpacity(0.05),
+      tileColor: AppColors.textPrimary.withValues(alpha: 0.05),
       leading: Icon(Icons.shield, color: color),
-      title: Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-      subtitle: Text(name ?? "Aucun", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      trailing: const Icon(Icons.search, size: 16, color: Colors.white54),
+      title: Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+      subtitle: Text(name ?? 'Aucun', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+      trailing: const Icon(Icons.search, size: 16, color: AppColors.textMuted),
     );
   }
 
   Future<ScryfallCard?> _pickCard() async {
     final result = await showModalBottomSheet<List<Map<String, dynamic>>>(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      context: context, isScrollControlled: true, backgroundColor: AppColors.transparent,
       builder: (c) => const DeckCardPicker()
     );
     if (result != null && result.isNotEmpty) return result.first['card'] as ScryfallCard;

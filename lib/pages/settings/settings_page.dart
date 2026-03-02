@@ -1,7 +1,8 @@
 // Fichier : lib/pages/settings_page.dart
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../services/backup_service.dart';
 import '../../providers/service_providers.dart';
 
@@ -21,7 +22,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       await _backupService.exportData();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erreur export: $e")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur export: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -34,14 +35,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Données restaurées avec succès ! Redémarrez l'app pour voir les changements.", style: GoogleFonts.cinzel()),
-            backgroundColor: Colors.green,
+            content: Text("Données restaurées avec succès ! Redémarrez l'app pour voir les changements.", style: AppTextStyles.cinzel()),
+            backgroundColor: AppColors.success,
             duration: const Duration(seconds: 4),
           )
         );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erreur import: $e"), backgroundColor: Colors.red));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur import: $e'), backgroundColor: AppColors.error));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -50,45 +51,45 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text('Paramètres', style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.black,
+        title: Text('Paramètres', style: AppTextStyles.bold()),
+        backgroundColor: AppColors.textOnPrimary,
       ),
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Colors.yellow))
+        ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
         : ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _buildSectionTitle("Sauvegarde & Données"),
+            _buildSectionTitle('Sauvegarde & Données'),
             Card(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.cloud_upload_outlined, color: Colors.blueAccent),
-                    title: const Text("Exporter mes données (JSON)", style: TextStyle(color: Colors.white)),
-                    subtitle: const Text("Sauvegardez votre collection et vos decks.", style: TextStyle(color: Colors.white54)),
+                    leading: const Icon(Icons.cloud_upload_outlined, color: AppColors.accent),
+                    title: const Text('Exporter mes données (JSON)', style: TextStyle(color: AppColors.textPrimary)),
+                    subtitle: const Text('Sauvegardez votre collection et vos decks.', style: TextStyle(color: AppColors.textMuted)),
                     onTap: _export,
                   ),
-                  const Divider(color: Colors.white10),
+                  const Divider(color: AppColors.borderLight),
                   ListTile(
-                    leading: const Icon(Icons.cloud_download_outlined, color: Colors.greenAccent),
-                    title: const Text("Importer une sauvegarde", style: TextStyle(color: Colors.white)),
-                    subtitle: const Text("Restaurez vos données depuis un fichier.", style: TextStyle(color: Colors.white54)),
+                    leading: const Icon(Icons.cloud_download_outlined, color: AppColors.accentGreen),
+                    title: const Text('Importer une sauvegarde', style: TextStyle(color: AppColors.textPrimary)),
+                    subtitle: const Text('Restaurez vos données depuis un fichier.', style: TextStyle(color: AppColors.textMuted)),
                     onTap: _import,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
-            _buildSectionTitle("Application"),
+            _buildSectionTitle('Application'),
             Card(
-              color: Colors.white.withValues(alpha: 0.05),
-              child: ListTile(
-                leading: const Icon(Icons.info_outline, color: Colors.white70),
-                title: const Text("Version", style: TextStyle(color: Colors.white)),
-                trailing: const Text("1.0.0", style: TextStyle(color: Colors.white54)),
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
+              child: const ListTile(
+                leading: Icon(Icons.info_outline, color: AppColors.textSecondary),
+                title: Text('Version', style: TextStyle(color: AppColors.textPrimary)),
+                trailing: Text('1.0.0', style: TextStyle(color: AppColors.textMuted)),
               ),
             ),
           ],
@@ -99,7 +100,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0, left: 4),
-      child: Text(title.toUpperCase(), style: GoogleFonts.cinzel(color: Colors.yellow.shade800, fontSize: 12, fontWeight: FontWeight.bold)),
+      child: Text(title.toUpperCase(), style: AppTextStyles.bold(color: AppColors.primaryShade800, fontSize: 12)),
     );
   }
 }

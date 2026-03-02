@@ -14,7 +14,7 @@ class OracleService {
       );
       return result.data['response'] as String;
     } catch (e) {
-      log("Erreur Oracle: $e", name: 'OracleService');
+      log('Erreur Oracle: $e', name: 'OracleService');
       return "L'Oracle est silencieux. Vérifiez votre connexion internet ou réessayez plus tard.";
     }
   }

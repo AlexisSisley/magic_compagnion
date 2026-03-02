@@ -1,9 +1,10 @@
 // Fichier : lib/pages/collections/collection_page.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/pages/collections/wishlist_tab.dart';
 
 import '../../controllers/collection_controller.dart';
@@ -54,7 +55,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
     final result = await showModalBottomSheet<SearchFilters>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       builder: (context) => UniversalFilterModal(
         currentFilters: state.activeFilters,
         availableTags: state.availableTags,
@@ -83,7 +84,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
 
     await showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true,
       builder: (context) {
         return Container(
@@ -92,29 +93,29 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Ajouter ${state.selectedCardIds.length} cartes à...", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              Text('Ajouter ${state.selectedCardIds.length} cartes à...', style: AppTextStyles.pageTitle(fontSize: 20)),
               const SizedBox(height: 16),
 
               ListTile(
-                leading: const Icon(Icons.add_circle, color: Colors.green),
-                title: Text("Nouveau Deck", style: GoogleFonts.cinzel(color: Colors.white)),
+                leading: const Icon(Icons.add_circle, color: AppColors.success),
+                title: Text('Nouveau Deck', style: AppTextStyles.cinzel()),
                 onTap: () async {
                   Navigator.pop(context);
                   _createNewDeckAndAddCards();
                 },
               ),
-              const Divider(color: Colors.white24),
+              const Divider(color: AppColors.borderMedium),
               Expanded(
                 child: decks.isEmpty
-                  ? Center(child: Text("Aucun deck existant.", style: GoogleFonts.cinzel(color: Colors.white54)))
+                  ? Center(child: Text('Aucun deck existant.', style: AppTextStyles.cinzel(color: AppColors.textMuted)))
                   : ListView.builder(
                       itemCount: decks.length,
                       itemBuilder: (context, index) {
                         final deck = decks[index];
                         return ListTile(
-                          leading: const Icon(Icons.style, color: Colors.blueAccent),
-                          title: Text(deck.name, style: GoogleFonts.cinzel(color: Colors.white)),
-                          subtitle: Text("${deck.format} • ${deck.mainboard.length} cartes", style: const TextStyle(color: Colors.white54)),
+                          leading: const Icon(Icons.style, color: AppColors.accent),
+                          title: Text(deck.name, style: AppTextStyles.cinzel()),
+                          subtitle: Text('${deck.format} • ${deck.mainboard.length} cartes', style: const TextStyle(color: AppColors.textMuted)),
                           onTap: () {
                             Navigator.pop(context);
                             _processAddCardsToDeck(deck.id, deck.name);
@@ -135,12 +136,12 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
     final name = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text("Nom du Deck", style: TextStyle(color: Colors.white)),
-        content: TextField(controller: controller, style: const TextStyle(color: Colors.white), autofocus: true),
+        backgroundColor: AppColors.scaffoldBackground,
+        title: const Text('Nom du Deck', style: TextStyle(color: AppColors.textPrimary)),
+        content: TextField(controller: controller, style: const TextStyle(color: AppColors.textPrimary), autofocus: true),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Annuler")),
-          ElevatedButton(onPressed: () => Navigator.pop(c, controller.text), child: const Text("Créer")),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Annuler')),
+          ElevatedButton(onPressed: () => Navigator.pop(c, controller.text), child: const Text('Créer')),
         ],
       )
     );
@@ -155,8 +156,8 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
     final result = await _controller.addSelectedCardsToDeck(deckId, deckName);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.message, style: GoogleFonts.cinzel()),
-        backgroundColor: Colors.green,
+        content: Text(result.message, style: AppTextStyles.cinzel()),
+        backgroundColor: AppColors.success,
       ));
     }
   }
@@ -176,12 +177,12 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
           headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
             return <Widget>[
               SliverAppBar(
-                title: Text('Ma Collection', style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+                title: Text('Ma Collection', style: AppTextStyles.bold()),
                 centerTitle: false,
                 pinned: true,
                 floating: true,
                 expandedHeight: 120.0,
-                backgroundColor: Colors.black,
+                backgroundColor: AppColors.textOnPrimary,
                 leading: IconButton(
                   icon: const Icon(Icons.menu),
                   onPressed: () => Scaffold.of(context).openDrawer(),
@@ -194,8 +195,8 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
                       if (val == 'clear') _controller.clearCollection();
                     },
                     itemBuilder: (ctx) => [
-                      const PopupMenuItem(value: 'import', child: Text("Importer (Masse)")),
-                      const PopupMenuItem(value: 'clear', child: Text("Tout effacer", style: TextStyle(color: Colors.red))),
+                      const PopupMenuItem(value: 'import', child: Text('Importer (Masse)')),
+                      const PopupMenuItem(value: 'clear', child: Text('Tout effacer', style: TextStyle(color: AppColors.error))),
                     ],
                   ),
                 ],
@@ -203,7 +204,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
                   preferredSize: const Size.fromHeight(70),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    color: const Color(0xFF1A1A1A),
+                    color: AppColors.scaffoldBackground,
                     child: Row(
                       children: [
                         // Barre de recherche
@@ -211,17 +212,17 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
                           child: Container(
                             height: 40,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
+                              color: AppColors.textPrimary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: TextField(
                               controller: _searchController,
-                              style: const TextStyle(color: Colors.white),
+                              style: const TextStyle(color: AppColors.textPrimary),
                               decoration: const InputDecoration(
-                                hintText: "Rechercher...",
-                                hintStyle: TextStyle(color: Colors.white54),
+                                hintText: 'Rechercher...',
+                                hintStyle: TextStyle(color: AppColors.textMuted),
                                 border: InputBorder.none,
-                                prefixIcon: Icon(Icons.search, color: Colors.white54),
+                                prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
                                 contentPadding: EdgeInsets.symmetric(vertical: 10),
                               ),
                               onChanged: (val) => setState((){}),
@@ -235,12 +236,12 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
                           children: [
                             Container(
                               decoration: BoxDecoration(
-                                color: activeFilterCount > 0 ? Colors.yellow.shade800 : Colors.white.withOpacity(0.1),
+                                color: activeFilterCount > 0 ? AppColors.primaryShade800 : AppColors.textPrimary.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: IconButton(
                                 icon: const Icon(Icons.tune),
-                                color: activeFilterCount > 0 ? Colors.black : Colors.white70,
+                                color: activeFilterCount > 0 ? Colors.black : AppColors.textSecondary,
                                 onPressed: _openUniversalModal,
                               ),
                             ),
@@ -249,8 +250,8 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
                                 top: 0, right: 0,
                                 child: Container(
                                   padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                                  child: Text("$activeFilterCount", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                  decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
+                                  child: Text('$activeFilterCount', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                                 ),
                               )
                           ],
@@ -264,10 +265,10 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
                 delegate: _SliverTabBarDelegate(
                   TabBar(
                     controller: _tabController,
-                    indicatorColor: Colors.yellow.shade800,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: Colors.white54,
-                    labelStyle: GoogleFonts.cinzel(fontWeight: FontWeight.bold),
+                    indicatorColor: AppColors.primaryShade800,
+                    labelColor: AppColors.textPrimary,
+                    unselectedLabelColor: AppColors.textMuted,
+                    labelStyle: AppTextStyles.bold(),
                     tabs: [
                       Tab(text: 'Cartes (${state.collection.length})'),
                       Tab(text: 'Wishlists (${state.wishlists.length})'),
@@ -280,7 +281,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
             ];
           },
           body: state.isLoading
-            ? const Center(child: CircularProgressIndicator(color: Colors.white))
+            ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary))
             : TabBarView(
                 controller: _tabController,
                 children: [
@@ -329,7 +330,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
               onPressed: _addSelectedToDeck,
               backgroundColor: Colors.green.shade700,
               icon: const Icon(Icons.add_to_photos),
-              label: Text("Ajouter au Deck (${state.selectedCardIds.length})", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+              label: Text('Ajouter au Deck (${state.selectedCardIds.length})', style: AppTextStyles.bold()),
             ),
           ),
       ],
@@ -346,7 +347,7 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => _tabBar.preferredSize.height;
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(color: const Color(0xFF1A1A1A), child: _tabBar);
+    return Container(color: AppColors.scaffoldBackground, child: _tabBar);
   }
   @override
   bool shouldRebuild(_SliverTabBarDelegate oldDelegate) => false;

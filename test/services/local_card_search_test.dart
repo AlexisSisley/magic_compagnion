@@ -134,20 +134,20 @@ void main() {
 
   group('Filter by type', () {
     test('filters by type Instant', () {
-      final filters = SearchFilters(cardType: 'Instant');
+      const filters = SearchFilters(cardType: 'Instant');
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 3); // Bolt, Counterspell, Swords
       expect(results.every((c) => c.typeLine.contains('Instant')), true);
     });
 
     test('filters by type Creature', () {
-      final filters = SearchFilters(cardType: 'Creature');
+      const filters = SearchFilters(cardType: 'Creature');
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 2); // Tarmogoyf, Atraxa
     });
 
     test('filter type is case insensitive', () {
-      final filters = SearchFilters(cardType: 'artifact');
+      const filters = SearchFilters(cardType: 'artifact');
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 1);
       expect(results.first.name, 'Sol Ring');
@@ -156,13 +156,13 @@ void main() {
 
   group('Filter by set code', () {
     test('filters by set code', () {
-      final filters = SearchFilters(setCode: 'lea');
+      const filters = SearchFilters(setCode: 'lea');
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 3); // Bolt, Counterspell, Swords
     });
 
     test('set code is case insensitive', () {
-      final filters = SearchFilters(setCode: 'CMD');
+      const filters = SearchFilters(setCode: 'CMD');
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 1);
       expect(results.first.name, 'Sol Ring');
@@ -171,13 +171,13 @@ void main() {
 
   group('Filter by rarity', () {
     test('filters by common rarity', () {
-      final filters = SearchFilters(rarity: 'common');
+      const filters = SearchFilters(rarity: 'common');
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 2); // Bolt, Mystic Remora
     });
 
     test('filters by mythic rarity', () {
-      final filters = SearchFilters(rarity: 'mythic');
+      const filters = SearchFilters(rarity: 'mythic');
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 1);
       expect(results.first.name, "Atraxa, Praetors' Voice");
@@ -186,20 +186,20 @@ void main() {
 
   group('Filter by CMC', () {
     test('filters by minCmc', () {
-      final filters = SearchFilters(minCmc: 2);
+      const filters = SearchFilters(minCmc: 2);
       final results = executeSearch(testCards, '', filters);
       expect(results.every((c) => (c.cmc ?? 0) >= 2), true);
     });
 
     test('filters by maxCmc', () {
-      final filters = SearchFilters(maxCmc: 1);
+      const filters = SearchFilters(maxCmc: 1);
       final results = executeSearch(testCards, '', filters);
       expect(results.every((c) => (c.cmc ?? 0) <= 1), true);
       expect(results.length, 4); // Bolt, Sol Ring, Swords, Mystic Remora
     });
 
     test('filters by minCmc and maxCmc range', () {
-      final filters = SearchFilters(minCmc: 2, maxCmc: 3);
+      const filters = SearchFilters(minCmc: 2, maxCmc: 3);
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 2); // Counterspell (2), Tarmogoyf (2)
     });
@@ -207,21 +207,21 @@ void main() {
 
   group('Filter by colors', () {
     test('filters by single color', () {
-      final filters = SearchFilters(colors: {'R'});
+      const filters = SearchFilters(colors: {'R'});
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 1);
       expect(results.first.name, 'Lightning Bolt');
     });
 
     test('filters by multiple colors (must have all)', () {
-      final filters = SearchFilters(colors: {'W', 'U'});
+      const filters = SearchFilters(colors: {'W', 'U'});
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 1);
       expect(results.first.name, "Atraxa, Praetors' Voice");
     });
 
     test('colorless cards excluded by color filter', () {
-      final filters = SearchFilters(colors: {'U'});
+      const filters = SearchFilters(colors: {'U'});
       final results = executeSearch(testCards, '', filters);
       // Counterspell (U), Atraxa (WUBG), Mystic Remora (U)
       expect(results.length, 3);
@@ -231,21 +231,21 @@ void main() {
 
   group('Filter by keyword (rules text)', () {
     test('filters by keyword in rules text', () {
-      final filters = SearchFilters(keyword: 'damage');
+      const filters = SearchFilters(keyword: 'damage');
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 1);
       expect(results.first.name, 'Lightning Bolt');
     });
 
     test('keyword is case insensitive', () {
-      final filters = SearchFilters(keyword: 'COUNTER');
+      const filters = SearchFilters(keyword: 'COUNTER');
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 1);
       expect(results.first.name, 'Counterspell');
     });
 
     test('keyword proliferate finds Atraxa', () {
-      final filters = SearchFilters(keyword: 'proliferate');
+      const filters = SearchFilters(keyword: 'proliferate');
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 1);
       expect(results.first.name, "Atraxa, Praetors' Voice");
@@ -254,27 +254,27 @@ void main() {
 
   group('Combined filters', () {
     test('name + type filter', () {
-      final filters = SearchFilters(cardType: 'Instant');
+      const filters = SearchFilters(cardType: 'Instant');
       final results = executeSearch(testCards, 'bolt', filters);
       expect(results.length, 1);
       expect(results.first.name, 'Lightning Bolt');
     });
 
     test('type + color filter', () {
-      final filters = SearchFilters(cardType: 'Instant', colors: {'U'});
+      const filters = SearchFilters(cardType: 'Instant', colors: {'U'});
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 1);
       expect(results.first.name, 'Counterspell');
     });
 
     test('type + rarity + set filter', () {
-      final filters = SearchFilters(cardType: 'Instant', rarity: 'uncommon', setCode: 'lea');
+      const filters = SearchFilters(cardType: 'Instant', rarity: 'uncommon', setCode: 'lea');
       final results = executeSearch(testCards, '', filters);
       expect(results.length, 2); // Counterspell, Swords
     });
 
     test('all filters combined narrows to single card', () {
-      final filters = SearchFilters(
+      const filters = SearchFilters(
         cardType: 'Creature',
         colors: {'G'},
         rarity: 'rare',
@@ -287,7 +287,7 @@ void main() {
     });
 
     test('contradictory filters return empty', () {
-      final filters = SearchFilters(cardType: 'Instant', colors: {'G'});
+      const filters = SearchFilters(cardType: 'Instant', colors: {'G'});
       final results = executeSearch(testCards, '', filters);
       expect(results, isEmpty);
     });

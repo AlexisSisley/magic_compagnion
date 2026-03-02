@@ -1,10 +1,11 @@
 // Fichier : lib/widgets/decks/deck_share_preview.dart
 // VERSION MISE À JOUR : Icônes Mana SVG
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart'; // <--- Import ajouté
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../cards/scryfall_image.dart';
@@ -25,7 +26,7 @@ class DeckSharePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     // Récupération image commandant
     String? cmdImageUrl;
-    String cmdName = "Deck sans Commandant";
+    String cmdName = 'Deck sans Commandant';
     if (deck.commanderScryfallId != null) {
       try {
         final cmd = fullCardData.firstWhere((c) => c.id == deck.commanderScryfallId);
@@ -52,20 +53,24 @@ class DeckSharePreview extends StatelessWidget {
         final card = fullCardData.firstWhere((c) => c.id == deckCard.scryfallId);
         final type = card.typeLine.toLowerCase();
         
-        if (type.contains('land')) landCount += deckCard.quantity;
-        else {
+        if (type.contains('land')) {
+          landCount += deckCard.quantity;
+        } else {
           if (type.contains('creature')) creatureCount += deckCard.quantity;
           
           int cmc = (card.cmc ?? 0).toInt();
-          if (cmc >= 7) curve[7] = (curve[7] ?? 0) + deckCard.quantity;
-          else curve[cmc] = (curve[cmc] ?? 0) + deckCard.quantity;
+          if (cmc >= 7) {
+            curve[7] = (curve[7] ?? 0) + deckCard.quantity;
+          } else {
+            curve[cmc] = (curve[cmc] ?? 0) + deckCard.quantity;
+          }
         }
       } catch (e) { /* */ }
     }
 
     return Container(
       width: 400, // Largeur fixe pour l'export
-      color: const Color(0xFF121212),
+      color: AppColors.surfaceDarkest,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -81,7 +86,7 @@ class DeckSharePreview extends StatelessWidget {
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Color(0xFF121212)],
+                      colors: [AppColors.transparent, AppColors.surfaceDarkest],
                       stops: [0.4, 1.0],
                     ),
                   ),
@@ -91,8 +96,8 @@ class DeckSharePreview extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(deck.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, shadows: [const Shadow(color: Colors.black, blurRadius: 10)])),
-                      Text(cmdName, style: GoogleFonts.cinzel(color: Colors.yellow.shade700, fontSize: 14, fontWeight: FontWeight.bold, shadows: [const Shadow(color: Colors.black, blurRadius: 4)])),
+                      Text(deck.name, style: AppTextStyles.pageTitle().copyWith(shadows: [const Shadow(color: AppColors.textOnPrimary, blurRadius: 10)])),
+                      Text(cmdName, style: AppTextStyles.bold(color: AppColors.primaryShade700).copyWith(shadows: [const Shadow(color: AppColors.textOnPrimary, blurRadius: 4)])),
                     ],
                   ),
                 ),
@@ -101,7 +106,7 @@ class DeckSharePreview extends StatelessWidget {
                   top: 16, right: 16,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.black.withOpacity(0.7), borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(color: AppColors.textOnPrimary.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(20)),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: deck.colors.map((c) => Padding(
@@ -110,7 +115,7 @@ class DeckSharePreview extends StatelessWidget {
                           'https://svgs.scryfall.io/card-symbols/$c.svg',
                           width: 20, 
                           height: 20,
-                          placeholderBuilder: (context) => Text(c, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+                          placeholderBuilder: (context) => Text(c, style: AppTextStyles.bold()),
                         ),
                       )).toList(),
                     ),
@@ -126,15 +131,15 @@ class DeckSharePreview extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem(Icons.style, "${deck.mainboard.fold(0, (s,c)=>s+c.quantity)}", "Cartes"),
-                _buildStatItem(Icons.euro, totalPrice.toStringAsFixed(0), "Est. Prix"),
-                _buildStatItem(Icons.pets, "$creatureCount", "Créatures"),
-                _buildStatItem(Icons.landscape, "$landCount", "Terrains"),
+                _buildStatItem(Icons.style, '${deck.mainboard.fold(0, (s,c)=>s+c.quantity)}', 'Cartes'),
+                _buildStatItem(Icons.euro, totalPrice.toStringAsFixed(0), 'Est. Prix'),
+                _buildStatItem(Icons.pets, '$creatureCount', 'Créatures'),
+                _buildStatItem(Icons.landscape, '$landCount', 'Terrains'),
               ],
             ),
           ),
 
-          const Divider(color: Colors.white10),
+          const Divider(color: AppColors.borderLight),
 
           // --- MANA CURVE ---
           Padding(
@@ -155,8 +160,8 @@ class DeckSharePreview extends StatelessWidget {
                       sideTitles: SideTitles(
                         showTitles: true,
                         getTitlesWidget: (val, meta) => Text(
-                          val.toInt() == 7 ? "7+" : "${val.toInt()}",
-                          style: const TextStyle(color: Colors.white54, fontSize: 10)
+                          val.toInt() == 7 ? '7+' : '${val.toInt()}',
+                          style: const TextStyle(color: AppColors.textMuted, fontSize: 10)
                         ),
                       ),
                     ),
@@ -165,7 +170,7 @@ class DeckSharePreview extends StatelessWidget {
                     return BarChartGroupData(
                       x: e.key,
                       barRods: [
-                        BarChartRodData(toY: e.value.toDouble(), color: Colors.blueAccent, width: 8, borderRadius: BorderRadius.circular(2))
+                        BarChartRodData(toY: e.value.toDouble(), color: AppColors.accent, width: 8, borderRadius: BorderRadius.circular(2))
                       ],
                     );
                   }).toList(),
@@ -178,8 +183,8 @@ class DeckSharePreview extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             alignment: Alignment.center,
-            color: Colors.white.withOpacity(0.05),
-            child: Text("Généré par Magic Companion", style: GoogleFonts.cinzel(color: Colors.white30, fontSize: 10)),
+            color: AppColors.textPrimary.withValues(alpha: 0.05),
+            child: Text('Généré par Magic Companion', style: AppTextStyles.cinzel(color: AppColors.textDisabled, fontSize: 10)),
           ),
         ],
       ),
@@ -189,10 +194,10 @@ class DeckSharePreview extends StatelessWidget {
   Widget _buildStatItem(IconData icon, String value, String label) {
     return Column(
       children: [
-        Icon(icon, color: Colors.white54, size: 20),
+        Icon(icon, color: AppColors.textMuted, size: 20),
         const SizedBox(height: 4),
-        Text(value, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(color: Colors.white30, fontSize: 10)),
+        Text(value, style: AppTextStyles.sectionTitle()),
+        Text(label, style: const TextStyle(color: AppColors.textDisabled, fontSize: 10)),
       ],
     );
   }

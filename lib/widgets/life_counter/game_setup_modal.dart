@@ -1,8 +1,9 @@
 // Fichier : lib/widgets/life_counter/game_setup_modal.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/profile_model.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/services/profile_service.dart';
@@ -27,13 +28,13 @@ class GameSetupModal extends ConsumerStatefulWidget {
 class _GameSetupModalState extends ConsumerState<GameSetupModal> {
   ProfileService get _profileService => ref.read(profileServiceProvider);
   late int _startingLife;
-  List<Profile?> _selectedProfiles = List.filled(4, null, growable: true);
+  final List<Profile?> _selectedProfiles = List.filled(4, null, growable: true);
   List<Profile> _availableProfiles = [];
 
   final List<Color> _defaultColors = [
     Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
     Colors.purple.shade900, Colors.orange.shade900, Colors.teal.shade900,
-    Colors.brown.shade800, Colors.pink.shade900, Colors.indigo.shade900, Colors.grey.shade800
+    Colors.brown.shade800, Colors.pink.shade900, Colors.indigo.shade900, AppColors.greyShade800
   ];
 
   @override
@@ -61,8 +62,8 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text("Configuration de la partie", 
-              style: GoogleFonts.cinzel(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold), 
+            Text('Configuration de la partie', 
+              style: AppTextStyles.pageTitle(fontSize: 22), 
               textAlign: TextAlign.center
             ),
             const SizedBox(height: 20),
@@ -71,9 +72,9 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildFormatChip("Commander (40 PV)", 40),
+                _buildFormatChip('Commander (40 PV)', 40),
                 const SizedBox(width: 12),
-                _buildFormatChip("Standard (20 PV)", 20),
+                _buildFormatChip('Standard (20 PV)', 20),
               ],
             ),
             const SizedBox(height: 20),
@@ -82,7 +83,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
             Expanded(
               child: ListView.separated(
                 itemCount: _selectedProfiles.length + 1,
-                separatorBuilder: (_,__) => const SizedBox(height: 8),
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   if (index == _selectedProfiles.length) {
                     return _buildAddRemoveButtons();
@@ -99,12 +100,12 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
                 widget.onGameStart(_startingLife, _selectedProfiles);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.yellow.shade800,
+                backgroundColor: AppColors.primaryShade800,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: Text("LANCER LA PARTIE", 
-                style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)
+              child: Text('LANCER LA PARTIE', 
+                style: AppTextStyles.bold(color: AppColors.textOnPrimary, fontSize: 18)
               ),
             )
           ],
@@ -120,9 +121,9 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
       selected: isSelected,
       onSelected: (v) => setState(() => _startingLife = life),
       selectedColor: Colors.blue.shade900,
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.textOnPrimary,
       labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.white54, 
+        color: isSelected ? Colors.white : AppColors.textMuted, 
         fontWeight: FontWeight.bold
       ),
     );
@@ -135,14 +136,14 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
         if (_selectedProfiles.length < 8)
           TextButton.icon(
             onPressed: () => setState(() => _selectedProfiles.add(null)),
-            icon: const Icon(Icons.add_circle, color: Colors.green),
-            label: const Text("Ajouter Joueur", style: TextStyle(color: Colors.green)),
+            icon: const Icon(Icons.add_circle, color: AppColors.success),
+            label: const Text('Ajouter Joueur', style: TextStyle(color: AppColors.success)),
           ),
         if (_selectedProfiles.length > 2)
           TextButton.icon(
             onPressed: () => setState(() => _selectedProfiles.removeLast()),
-            icon: const Icon(Icons.remove_circle, color: Colors.red),
-            label: const Text("Retirer Joueur", style: TextStyle(color: Colors.red)),
+            icon: const Icon(Icons.remove_circle, color: AppColors.error),
+            label: const Text('Retirer Joueur', style: TextStyle(color: AppColors.error)),
           ),
       ],
     );
@@ -151,7 +152,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
   Widget _buildPlayerSlot(int index) {
     final profile = _selectedProfiles[index];
     return Card(
-      color: Colors.white.withOpacity(0.05),
+      color: AppColors.textPrimary.withValues(alpha: 0.05),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         onLongPress: profile != null ? () async {
@@ -160,13 +161,13 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
           _loadProfiles(); // Recharger la liste
         } : null,
         leading: _buildProfileAvatar(profile, index),
-        title: Text(profile?.name ?? "Invité ${index + 1}", 
-          style: GoogleFonts.cinzel(color: Colors.white)
+        title: Text(profile?.name ?? 'Invité ${index + 1}', 
+          style: AppTextStyles.cinzel()
         ),
         subtitle: profile?.commanderName != null 
-            ? Text("Cmd: ${profile!.commanderName}", style: const TextStyle(color: Colors.white54, fontSize: 12)) 
+            ? Text('Cmd: ${profile!.commanderName}', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)) 
             : null,
-        trailing: const Icon(Icons.arrow_drop_down, color: Colors.white54),
+        trailing: const Icon(Icons.arrow_drop_down, color: AppColors.textMuted),
         onTap: () async {
           final selected = await _showProfileSelector(_availableProfiles);
           if (selected != null) {
@@ -179,7 +180,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
 
   // Helper pour l'avatar split si partenaires
   Widget _buildProfileAvatar(Profile? profile, int index) {
-    if (profile == null) return CircleAvatar(backgroundColor: Colors.grey, child: Text("${index+1}"));
+    if (profile == null) return CircleAvatar(backgroundColor: AppColors.synergyNeutral, child: Text('${index+1}'));
 
     if (profile.secondaryCommanderScryfallId == null) {
       return ScryfallAvatarImage(
@@ -207,32 +208,32 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
     return showDialog<Profile>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: AppColors.scaffoldBackground,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Choisir un profil", style: TextStyle(color: Colors.white)),
+        title: const Text('Choisir un profil', style: TextStyle(color: AppColors.textPrimary)),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView(
             shrinkWrap: true,
             children: [
               ListTile(
-                leading: const Icon(Icons.person_outline, color: Colors.white),
-                title: const Text("Invité (Pas de profil)", style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.person_outline, color: AppColors.textPrimary),
+                title: const Text('Invité (Pas de profil)', style: TextStyle(color: AppColors.textPrimary)),
                 onTap: () => Navigator.pop(ctx, null),
               ),
-              const Divider(color: Colors.white24),
+              const Divider(color: AppColors.borderMedium),
               ...profiles.map((p) => ListTile(
                 leading: CircleAvatar(
                   backgroundColor: Color(p.colorValue), 
                   backgroundImage: p.commanderImageUrl != null ? NetworkImage(p.commanderImageUrl!) : null
                 ),
-                title: Text(p.name, style: const TextStyle(color: Colors.white)),
+                title: Text(p.name, style: const TextStyle(color: AppColors.textPrimary)),
                 onTap: () => Navigator.pop(ctx, p),
               )),
-              const Divider(color: Colors.white24),
+              const Divider(color: AppColors.borderMedium),
               ListTile(
-                leading: const Icon(Icons.add, color: Colors.green),
-                title: const Text("Créer un nouveau profil", style: TextStyle(color: Colors.green)),
+                leading: const Icon(Icons.add, color: AppColors.success),
+                title: const Text('Créer un nouveau profil', style: TextStyle(color: AppColors.success)),
                 onTap: () async {
                   final newProfile = await _showCreateProfileDialog();
                   if (newProfile != null && ctx.mounted) {
@@ -257,20 +258,20 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
       context: context,
       builder: (context) => StatefulBuilder(builder: (context, setState) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          title: Text(existingProfile == null ? "Nouveau Profil" : "Modifier Profil", style: GoogleFonts.cinzel(color: Colors.white)),
+          backgroundColor: AppColors.surfaceDark,
+          title: Text(existingProfile == null ? 'Nouveau Profil' : 'Modifier Profil', style: AppTextStyles.cinzel()),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: "Nom du Planeswalker", labelStyle: TextStyle(color: Colors.white54)),
-                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(labelText: 'Nom du Planeswalker', labelStyle: TextStyle(color: AppColors.textMuted)),
+                  style: const TextStyle(color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 20),
                 _buildCommanderPickerTile(
-                  label: "Commandant", 
+                  label: 'Commandant', 
                   card: cmd1, 
                   existingName: existingProfile?.commanderName,
                   color: selectedColor,
@@ -281,7 +282,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
                 ),
                 const SizedBox(height: 10),
                 _buildCommanderPickerTile(
-                  label: "Partenaire / Background", 
+                  label: 'Partenaire / Background', 
                   card: cmd2, 
                   existingName: existingProfile?.secondaryCommanderName,
                   color: selectedColor,
@@ -299,18 +300,19 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
               TextButton(
                 onPressed: () async {
                   await _profileService.deleteProfile(existingProfile.id);
+                  if (!context.mounted) return;
                   Navigator.pop(context);
                 },
-                child: const Text("Supprimer", style: TextStyle(color: Colors.redAccent)),
+                child: const Text('Supprimer', style: TextStyle(color: AppColors.accentRed)),
               ),
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
             ElevatedButton(
               onPressed: () async {
                 if (nameCtrl.text.isNotEmpty) {
                   final p = Profile(
                     id: existingProfile?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
                     name: nameCtrl.text,
-                    colorValue: selectedColor.value,
+                    colorValue: selectedColor.toARGB32(),
                     commanderScryfallId: cmd1?.id ?? existingProfile?.commanderScryfallId,
                     commanderName: cmd1?.name ?? existingProfile?.commanderName,
                     commanderArtCropUrl: cmd1?.artCropUrl ?? existingProfile?.commanderArtCropUrl,
@@ -319,10 +321,11 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
                     secondaryCommanderArtCropUrl: cmd2?.artCropUrl ?? existingProfile?.secondaryCommanderArtCropUrl,
                   );
                   await _profileService.saveProfile(p);
+                  if (!context.mounted) return;
                   Navigator.pop(context, p);
                 }
               },
-              child: const Text("Enregistrer"),
+              child: const Text('Enregistrer'),
             )
           ],
         );
@@ -333,7 +336,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
   // Helper pour le picker de carte
   Future<ScryfallCard?> _pickCard() async {
     final result = await showModalBottomSheet(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      context: context, isScrollControlled: true, backgroundColor: AppColors.transparent,
       builder: (c) => const DeckCardPicker()
     );
     if (result != null && result.isNotEmpty) return result.first['card'];
@@ -344,10 +347,10 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
     return ListTile(
       onTap: onTap,
       dense: true,
-      tileColor: Colors.white.withOpacity(0.05),
+      tileColor: AppColors.textPrimary.withValues(alpha: 0.05),
       leading: Icon(Icons.shield, color: color),
-      title: Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-      subtitle: Text(card?.name ?? existingName ?? "Aucun", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      title: Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+      subtitle: Text(card?.name ?? existingName ?? 'Aucun', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
       trailing: const Icon(Icons.search, size: 16),
     );
   }
@@ -365,7 +368,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
           final String? avatarUrl = selectedCommander?.artCropUrl;
 
           return AlertDialog(
-            backgroundColor: const Color(0xFF1E1E1E).withOpacity(0.98),
+            backgroundColor: AppColors.surfaceDark.withValues(alpha: 0.98),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
             insetPadding: const EdgeInsets.all(20),
@@ -374,7 +377,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text("Nouveau Profil", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text('Nouveau Profil', style: AppTextStyles.pageTitle(fontSize: 22)),
                   const SizedBox(height: 24),
 
                   // 1. Avatar (Preview)
@@ -389,12 +392,12 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
                   TextField(
                     controller: nameCtrl,
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    style: AppTextStyles.sectionTitle(),
                     decoration: InputDecoration(
-                      hintText: "Nom du joueur",
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                      hintText: 'Nom du joueur',
+                      hintStyle: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.3)),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.05),
+                      fillColor: AppColors.textPrimary.withValues(alpha: 0.05),
                       contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
@@ -407,7 +410,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
                       final result = await showModalBottomSheet(
                         context: context, 
                         isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
+                        backgroundColor: AppColors.transparent,
                         builder: (c) => const DeckCardPicker()
                       );
                       if (result != null && result.isNotEmpty) {
@@ -418,9 +421,9 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
+                        color: AppColors.textPrimary.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withOpacity(0.1))
+                        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1))
                       ),
                       child: Row(
                         children: [
@@ -430,16 +433,16 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text("Commandant Favori", style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                const Text('Commandant Favori', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
                                 Text(
-                                  selectedCommander?.name ?? "Aucun sélectionné",
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  selectedCommander?.name ?? 'Aucun sélectionné',
+                                  style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
                           ),
-                          const Icon(Icons.search, color: Colors.white54),
+                          const Icon(Icons.search, color: AppColors.textMuted),
                         ],
                       ),
                     ),
@@ -459,10 +462,10 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
                         decoration: BoxDecoration(
                           color: c,
                           shape: BoxShape.circle,
-                          border: selectedColor == c ? Border.all(color: Colors.white, width: 2) : null,
-                          boxShadow: selectedColor == c ? [BoxShadow(color: c.withOpacity(0.6), blurRadius: 8)] : null,
+                          border: selectedColor == c ? Border.all(color: AppColors.textPrimary, width: 2) : null,
+                          boxShadow: selectedColor == c ? [BoxShadow(color: c.withValues(alpha: 0.6), blurRadius: 8)] : null,
                         ),
-                        child: selectedColor == c ? const Icon(Icons.check, size: 16, color: Colors.white) : null,
+                        child: selectedColor == c ? const Icon(Icons.check, size: 16, color: AppColors.textPrimary) : null,
                       ),
                     )).toList(),
                   ),
@@ -474,7 +477,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
             actions: [
               TextButton(
                 onPressed: ()=>Navigator.pop(context), 
-                child: Text("Annuler", style: TextStyle(color: Colors.white.withOpacity(0.5)))
+                child: Text('Annuler', style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5)))
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -482,7 +485,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
                     final newProfile = Profile(
                       id: DateTime.now().millisecondsSinceEpoch.toString(),
                       name: nameCtrl.text,
-                      colorValue: selectedColor.value,
+                      colorValue: selectedColor.toARGB32(),
                       commanderScryfallId: selectedCommander?.id,
                       commanderName: selectedCommander?.name,
                       commanderArtCropUrl: selectedCommander?.artCropUrl,
@@ -493,11 +496,11 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: selectedColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.textPrimary,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
                 ),
-                child: const Text("CRÉER")
+                child: const Text('CRÉER')
               )
             ],
           );

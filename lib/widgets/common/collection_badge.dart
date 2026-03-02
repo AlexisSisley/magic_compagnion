@@ -1,6 +1,7 @@
 // Fichier : lib/widgets/common/collection_badge.dart
 // Sprint 9 : Badge visuel indiquant si une carte est possedee/foil/wishlist.
 
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 /// Donnees du badge collection pour une carte.
@@ -45,7 +46,7 @@ class CollectionBadgeWidget extends StatelessWidget {
                 Text(
                   'x${badge!.totalCount}',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -53,7 +54,7 @@ class CollectionBadgeWidget extends StatelessWidget {
                 if (badge!.foilCount > 0)
                   const Padding(
                     padding: EdgeInsets.only(left: 2),
-                    child: Icon(Icons.auto_awesome, color: Colors.amber, size: 10),
+                    child: Icon(Icons.auto_awesome, color: AppColors.amber, size: 10),
                   ),
               ],
             ),

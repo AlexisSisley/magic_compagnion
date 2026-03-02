@@ -1,8 +1,9 @@
 // Fichier : lib/pages/collections/global_stats_page.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 
@@ -88,10 +89,10 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text("Analyses Collection", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.black,
+        title: Text('Analyses Collection', style: AppTextStyles.bold()),
+        backgroundColor: AppColors.textOnPrimary,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -103,18 +104,18 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
             const SizedBox(height: 24),
 
             // --- GRAPHIQUE COULEURS ---
-            _buildSectionTitle("Répartition par Couleur"),
+            _buildSectionTitle('Répartition par Couleur'),
             _buildColorPieChart(),
             const SizedBox(height: 24),
 
             // --- GRAPHIQUE RARETÉ ---
-            _buildSectionTitle("Répartition par Rareté"),
+            _buildSectionTitle('Répartition par Rareté'),
             SizedBox(height: 200, child: _buildRarityBarChart()),
             const SizedBox(height: 24),
 
             // --- TOP CARTES ---
-            _buildSectionTitle("Top 10 Cartes (Valeur unitaire)"),
-            ..._topValueCards.map((c) => _buildTopCardTile(c)).toList(),
+            _buildSectionTitle('Top 10 Cartes (Valeur unitaire)'),
+            ..._topValueCards.map((c) => _buildTopCardTile(c)),
           ],
         ),
       ),
@@ -125,22 +126,22 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.yellow.shade900.withOpacity(0.3), Colors.black]),
+        gradient: LinearGradient(colors: [AppColors.primaryShade900.withValues(alpha: 0.3), Colors.black]),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.yellow.shade800),
+        border: Border.all(color: AppColors.primaryShade800),
       ),
       child: Column(
         children: [
-          Text("Valeur Totale Estimée", style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14)),
+          Text('Valeur Totale Estimée', style: AppTextStyles.subtitle()),
           const SizedBox(height: 8),
           Text(
-            "${widget.totalValue.toStringAsFixed(2)} €",
-            style: GoogleFonts.cinzel(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+            '${widget.totalValue.toStringAsFixed(2)} €',
+            style: AppTextStyles.pageTitle(fontSize: 32),
           ),
           const SizedBox(height: 8),
           Text(
-            "${widget.collection.fold(0, (s, c) => s + c.quantity)} cartes collectées",
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
+            '${widget.collection.fold(0, (s, c) => s + c.quantity)} cartes collectées',
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
           ),
         ],
       ),
@@ -152,7 +153,7 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
     final Map<String, Color> colorMap = {
       'W': const Color(0xFFF0F2C0), 
       'U': Colors.blue.shade400, 
-      'B': Colors.grey.shade800,
+      'B': AppColors.greyShade800,
       'R': Colors.red.shade400, 
       'G': Colors.green.shade400, 
       'C': Colors.brown.shade200, // Incolore
@@ -173,7 +174,7 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
     _colorDistribution.forEach((key, value) {
       if (value > 0) {
         final double percentage = totalCount > 0 ? (value / totalCount) * 100 : 0;
-        final Color sectionColor = colorMap[key] ?? Colors.grey;
+        final Color sectionColor = colorMap[key] ?? AppColors.synergyNeutral;
 
         // 1. Création de la section du graphique
         sections.add(PieChartSectionData(
@@ -181,7 +182,7 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
           value: value.toDouble(),
           title: percentage > 5 ? '${percentage.toStringAsFixed(0)}%' : '', // Cache si < 5%
           radius: 50,
-          titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+          titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.overlayVeryDark),
         ));
 
         // 2. Création de l'item de légende
@@ -189,7 +190,7 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
       }
     });
 
-    if (sections.isEmpty) return const Center(child: Text("Pas assez de données", style: TextStyle(color: Colors.white54)));
+    if (sections.isEmpty) return const Center(child: Text('Pas assez de données', style: TextStyle(color: AppColors.textMuted)));
 
     return Column(
       children: [
@@ -227,8 +228,8 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
         ),
         const SizedBox(width: 6),
         Text(
-          "$label ($count)",
-          style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 12),
+          '$label ($count)',
+          style: AppTextStyles.label(color: AppColors.textSecondary),
         ),
       ],
     );
@@ -236,7 +237,7 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
 
   Widget _buildRarityBarChart() {
     final rarities = ['common', 'uncommon', 'rare', 'mythic'];
-    final colors = [Colors.white, Colors.blue.shade300, Colors.amber, Colors.orange.shade900];
+    final colors = [Colors.white, Colors.blue.shade300, AppColors.amber, Colors.orange.shade900];
     
     // Trouver le max pour l'échelle
     double maxY = 0;
@@ -286,7 +287,7 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
 
   Widget _buildTopCardTile(Map<String, dynamic> item) {
     return Card(
-      color: Colors.white.withOpacity(0.05),
+      color: AppColors.textPrimary.withValues(alpha: 0.05),
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
         leading: ClipRRect(
@@ -295,17 +296,17 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
             ? Image.network(item['image'], width: 30, fit: BoxFit.cover) 
             : const Icon(Icons.image),
         ),
-        title: Text(item['name'], style: GoogleFonts.cinzel(color: Colors.white)),
-        subtitle: Text("${item['set']} • x${item['quantity']}", style: const TextStyle(color: Colors.white54, fontSize: 12)),
-        trailing: Text("${item['price']} €", style: GoogleFonts.cinzel(color: Colors.yellow.shade700, fontWeight: FontWeight.bold)),
+        title: Text(item['name'], style: AppTextStyles.cinzel()),
+        subtitle: Text("${item['set']} • x${item['quantity']}", style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        trailing: Text("${item['price']} €", style: AppTextStyles.bold(color: AppColors.primaryShade700)),
       ),
     );
   }
 
   Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: EdgeInsets.only(bottom: title == "Répartition par Rareté" ? 50.0 : 12.0),
-      child: Text(title, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+      padding: EdgeInsets.only(bottom: title == 'Répartition par Rareté' ? 50.0 : 12.0),
+      child: Text(title, style: AppTextStyles.sectionTitle()),
     );
   }
 }

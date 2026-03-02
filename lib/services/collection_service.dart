@@ -150,7 +150,7 @@ class CollectionService with CardListUpsertMixin {
            }
          }
        } catch (e) {
-         log("Erreur batch import: $e");
+         log('Erreur batch import: $e');
          errorCount += batchNames.length;
        }
 
@@ -166,7 +166,7 @@ class CollectionService with CardListUpsertMixin {
     // Gestion de l'historique financier
     Future<void> recordDailyValue(double totalValue) async {
       final now = DateTime.now();
-      final todayKey = "${now.year}-${now.month}-${now.day}";
+      final todayKey = '${now.year}-${now.month}-${now.day}';
 
       if (_db != null) {
         await _db.recordDailyValue(todayKey, totalValue);

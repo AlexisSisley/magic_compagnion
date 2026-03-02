@@ -1,7 +1,8 @@
 // Fichier : lib/pages/dev_tools_page.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:io';
 
@@ -40,7 +41,7 @@ class _DevToolsPageState extends State<DevToolsPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF101010), // Fond très sombre style "Terminal"
       appBar: AppBar(
-        title: Text('🛠️ DevTools', style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+        title: Text('🛠️ DevTools', style: AppTextStyles.bold()),
         backgroundColor: Colors.red.shade900, // Couleur d'avertissement
       ),
       body: ListView(
@@ -49,12 +50,12 @@ class _DevToolsPageState extends State<DevToolsPage> {
           _buildSectionTitle('Informations Build'),
           ..._deviceData.entries.map((e) => _buildInfoTile(e.key, e.value)),
           
-          const Divider(color: Colors.white24, height: 32),
+          const Divider(color: AppColors.borderMedium, height: 32),
           
           _buildSectionTitle('Actions Debug'),
           _buildActionTile(
             icon: Icons.delete_forever,
-            color: Colors.red,
+            color: AppColors.error,
             title: 'Vider le cache image',
             onTap: () {
               PaintingBinding.instance.imageCache.clear();
@@ -63,7 +64,7 @@ class _DevToolsPageState extends State<DevToolsPage> {
           ),
           _buildActionTile(
             icon: Icons.bug_report,
-            color: Colors.orange,
+            color: AppColors.warning,
             title: 'Test Crash (Non fonctionnel)',
             onTap: () {
               // throw Exception("Test Crash !"); // Décommente pour tester Crashlytics plus tard
@@ -79,7 +80,7 @@ class _DevToolsPageState extends State<DevToolsPage> {
       padding: const EdgeInsets.only(bottom: 8.0, top: 8.0),
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.cinzel(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
+        style: AppTextStyles.bold(color: AppColors.synergyNeutral, fontSize: 12),
       ),
     );
   }
@@ -88,12 +89,12 @@ class _DevToolsPageState extends State<DevToolsPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.all(12),
-      color: Colors.white.withOpacity(0.05),
+      color: AppColors.textPrimary.withValues(alpha: 0.05),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(key, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 12)),
-          SelectableText(value, style: GoogleFonts.cinzel(color: Colors.greenAccent, fontSize: 12)),
+          Text(key, style: AppTextStyles.label(color: AppColors.textSecondary)),
+          SelectableText(value, style: AppTextStyles.cinzel(color: AppColors.accentGreen, fontSize: 12)),
         ],
       ),
     );
@@ -102,8 +103,8 @@ class _DevToolsPageState extends State<DevToolsPage> {
   Widget _buildActionTile({required IconData icon, required Color color, required String title, required VoidCallback onTap}) {
     return ListTile(
       leading: Icon(icon, color: color),
-      title: Text(title, style: GoogleFonts.cinzel(color: Colors.white)),
-      tileColor: Colors.white.withOpacity(0.05),
+      title: Text(title, style: AppTextStyles.cinzel()),
+      tileColor: AppColors.textPrimary.withValues(alpha: 0.05),
       onTap: onTap,
     );
   }

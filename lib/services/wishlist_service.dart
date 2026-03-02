@@ -67,7 +67,7 @@ class WishlistService with CardListUpsertMixin {
     if (jsonStr == null) {
       final defaultList = Wishlist(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: "Ma Wishlist",
+        name: 'Ma Wishlist',
         cards: [],
         dateCreated: DateTime.now()
       );
@@ -87,7 +87,7 @@ class WishlistService with CardListUpsertMixin {
 
         final newList = Wishlist(
           id: 'legacy_import',
-          name: "Wishlist 1",
+          name: 'Wishlist 1',
           cards: cards,
           dateCreated: DateTime.now()
         );
@@ -96,9 +96,9 @@ class WishlistService with CardListUpsertMixin {
         await prefs.remove(_oldWishlistKey);
       }
     } on FormatException catch (e) {
-      log("Erreur migration wishlist (format): $e", name: 'WishlistService');
+      log('Erreur migration wishlist (format): $e', name: 'WishlistService');
     } catch (e) {
-      log("Erreur migration wishlist: $e", name: 'WishlistService');
+      log('Erreur migration wishlist: $e', name: 'WishlistService');
     }
   }
 

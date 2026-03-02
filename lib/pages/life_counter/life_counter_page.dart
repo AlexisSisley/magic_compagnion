@@ -1,5 +1,7 @@
 // Fichier : lib/pages/life_counter/life_counter_page.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:math';
 import 'dart:async';
 
@@ -47,7 +49,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   final List<Color> _defaultColors = [
     Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
     Colors.purple.shade900, Colors.orange.shade900, Colors.teal.shade900,
-    Colors.brown.shade800, Colors.pink.shade900, Colors.indigo.shade900, Colors.grey.shade800
+    Colors.brown.shade800, Colors.pink.shade900, Colors.indigo.shade900, AppColors.greyShade800
   ];
 
   @override
@@ -83,10 +85,10 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   String _formatDuration(Duration d) {
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
     String minutes = twoDigits(d.inMinutes.remainder(60));
     String seconds = twoDigits(d.inSeconds.remainder(60));
-    return d.inHours > 0 ? "${d.inHours}:$minutes" : "$minutes:$seconds";
+    return d.inHours > 0 ? '${d.inHours}:$minutes' : '$minutes:$seconds';
   }
 
   // --- SAUVEGARDE & CHARGEMENT ---
@@ -98,9 +100,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
       _players = List.generate(_playerCount, (index) {
           final life = prefs.getInt('player_${index}_life') ?? _startingLife;
-          final colorVal = prefs.getInt('player_${index}_color') ?? _defaultColors[index % _defaultColors.length].value;
+          final colorVal = prefs.getInt('player_${index}_color') ?? _defaultColors[index % _defaultColors.length].toARGB32();
           final bgPath = prefs.getString('player_${index}_bg');
-          final name = prefs.getString('player_${index}_name') ?? "Joueur ${index + 1}";
+          final name = prefs.getString('player_${index}_name') ?? 'Joueur ${index + 1}';
           
           Map<int, int> cmdDamage = {};
           if (_startingLife == 40) {
@@ -171,12 +173,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       _players = List.generate(_playerCount, (index) {
           Map<int, int> cmdDamage = {};
           if (_startingLife == 40) {
-            for (int i = 0; i < _playerCount; i++) if (i != index) cmdDamage[i] = 0;
+            for (int i = 0; i < _playerCount; i++) {
+              if (i != index) cmdDamage[i] = 0;
+            }
           }
 
           Profile? profile = (assignedProfiles != null && index < assignedProfiles.length) ? assignedProfiles[index] : null;
-          String name = profile?.name ?? "Joueur ${index + 1}";
-          int color = profile?.colorValue ?? _defaultColors[index % _defaultColors.length].value;
+          String name = profile?.name ?? 'Joueur ${index + 1}';
+          int color = profile?.colorValue ?? _defaultColors[index % _defaultColors.length].toARGB32();
 
           return Player(
             id: index, 
@@ -214,21 +218,21 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       showDialog(
         context: context, barrierDismissible: false,
         builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1A),
-          title: Center(child: Text("Le Destin a choisi !", style: GoogleFonts.cinzel(color: Colors.white70))),
+          backgroundColor: AppColors.scaffoldBackground,
+          title: Center(child: Text('Le Destin a choisi !', style: AppTextStyles.cinzel(color: AppColors.textSecondary))),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.person, size: 50, color: Color(_players[winnerId].colorValue)),
               const SizedBox(height: 16),
-              Text(_players[winnerId].name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+              Text(_players[winnerId].name, style: AppTextStyles.pageTitle(fontSize: 32), textAlign: TextAlign.center),
             ],
           ),
           actions: [
             ElevatedButton(
               onPressed: () { Navigator.pop(context); setState(() { _highlightedPlayerId = null; _isSelectingStarter = false; }); _startGame(); }, 
               style: ElevatedButton.styleFrom(backgroundColor: Color(_players[winnerId].colorValue)), 
-              child: const Text("C'est parti !", style: TextStyle(color: Colors.white))
+              child: const Text("C'est parti !", style: TextStyle(color: AppColors.textPrimary))
             )
           ]
         ),
@@ -240,7 +244,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       builder: (ctx) => GameSetupModal(
         initialLife: _startingLife,
         onGameStart: (life, profiles) {
@@ -253,24 +257,24 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
   void _showCommanderDamageSelector(Player attacker) {
     showModalBottomSheet(
-      context: context, backgroundColor: Colors.transparent,
+      context: context, backgroundColor: AppColors.transparent,
       builder: (context) => Container(
-        decoration: BoxDecoration(color: const Color(0xFF1A1A1A).withOpacity(0.9), borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+        decoration: BoxDecoration(color: AppColors.scaffoldBackground.withValues(alpha: 0.9), borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom),
         child: Wrap(
           children: [
-            ListTile(title: Text('Dégâts de Commandant', style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)), subtitle: Text('Attaquant : ${attacker.name}', style: GoogleFonts.cinzel(color: Colors.white70))),
+            ListTile(title: Text('Dégâts de Commandant', style: AppTextStyles.bold()), subtitle: Text('Attaquant : ${attacker.name}', style: AppTextStyles.cinzel(color: AppColors.textSecondary))),
             ..._players.where((opp) => opp.id != attacker.id).map((opponent) {
               final damage = opponent.commanderDamageReceived[attacker.id] ?? 0;
               return ListTile(
                 leading: Icon(Icons.shield, color: Color(opponent.colorValue)),
-                title: Text(opponent.name, style: const TextStyle(color: Colors.white)),
+                title: Text(opponent.name, style: const TextStyle(color: AppColors.textPrimary)),
                 trailing: SizedBox(width: 150, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  IconButton(icon: const Icon(Icons.remove, color: Colors.white70), onPressed: () { 
+                  IconButton(icon: const Icon(Icons.remove, color: AppColors.textSecondary), onPressed: () { 
                     setState(() => opponent.commanderDamageReceived[attacker.id] = (damage - 1).clamp(0, 99)); _saveGame(); Navigator.pop(context); _showCommanderDamageSelector(attacker); 
                   }),
-                  Text('$damage', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                  IconButton(icon: const Icon(Icons.add, color: Colors.white70), onPressed: () { 
+                  Text('$damage', style: AppTextStyles.pageTitle()),
+                  IconButton(icon: const Icon(Icons.add, color: AppColors.textSecondary), onPressed: () { 
                     setState(() => opponent.commanderDamageReceived[attacker.id] = (damage + 1).clamp(0, 99)); _saveGame(); Navigator.pop(context); _showCommanderDamageSelector(attacker); 
                   }),
                 ])),
@@ -287,14 +291,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1A),
-          title: Text("Qui a gagné ?", style: GoogleFonts.cinzel(color: Colors.white)),
+          backgroundColor: AppColors.scaffoldBackground,
+          title: Text('Qui a gagné ?', style: AppTextStyles.cinzel()),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: _players.map((p) {
               return ListTile(
                 leading: Icon(Icons.emoji_events, color: Color(p.colorValue)),
-                title: Text(p.name, style: const TextStyle(color: Colors.white)),
+                title: Text(p.name, style: const TextStyle(color: AppColors.textPrimary)),
                 onTap: () {
                   Navigator.pop(context);
                   _showWinMethodDialog(p);
@@ -312,29 +316,29 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1A),
-          title: Text("Type de victoire ?", style: GoogleFonts.cinzel(color: Colors.white)),
+          backgroundColor: AppColors.scaffoldBackground,
+          title: Text('Type de victoire ?', style: AppTextStyles.cinzel()),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.favorite, color: Colors.redAccent),
-                title: const Text("Points de Vie (Standard)", style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.favorite, color: AppColors.accentRed),
+                title: const Text('Points de Vie (Standard)', style: TextStyle(color: AppColors.textPrimary)),
                 onTap: () => _finalizeGameSave(winner, 'normal'),
               ),
               ListTile(
-                leading: const Icon(Icons.shield, color: Colors.blueAccent),
-                title: const Text("Dégâts de Commandant", style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.shield, color: AppColors.accent),
+                title: const Text('Dégâts de Commandant', style: TextStyle(color: AppColors.textPrimary)),
                 onTap: () => _finalizeGameSave(winner, 'commander'),
               ),
               ListTile(
-                leading: const Icon(Icons.science, color: Colors.greenAccent),
-                title: const Text("Poison / Infect", style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.science, color: AppColors.accentGreen),
+                title: const Text('Poison / Infect', style: TextStyle(color: AppColors.textPrimary)),
                 onTap: () => _finalizeGameSave(winner, 'poison'),
               ),
               ListTile(
-                leading: const Icon(Icons.flag, color: Colors.white70),
-                title: const Text("Concession", style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.flag, color: AppColors.textSecondary),
+                title: const Text('Concession', style: TextStyle(color: AppColors.textPrimary)),
                 onTap: () => _finalizeGameSave(winner, 'concede'),
               ),
             ],
@@ -366,7 +370,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       date: DateTime.now(),
       durationSeconds: _gameDuration.inSeconds, // <-- Le temps de la partie
       winnerName: winner.name,
-      format: _startingLife == 40 ? "Commander" : "Standard",
+      format: _startingLife == 40 ? 'Commander' : 'Standard',
       winMethod: method,
       playerStates: snapshots,
     );
@@ -376,7 +380,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Partie enregistrée dans l'historique !"), backgroundColor: Colors.green)
+        const SnackBar(content: Text("Partie enregistrée dans l'historique !"), backgroundColor: AppColors.success)
       );
     }
   }
@@ -384,7 +388,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   // --- UI ---
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator(color: Colors.white));
+    if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
     final bool useCentralMenu = _playerCount >= 2;
 
     return Stack(
@@ -392,11 +396,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         Column(children: [
           Expanded(child: Row(children: _players.sublist(0, (_playerCount/2).ceil()).map((p) => Expanded(child: Padding(padding: const EdgeInsets.all(2), child: _buildPlayerZone(p)))).toList())),
           if (useCentralMenu) _buildCentralBar(),
-          if (!useCentralMenu) Container(height: 2, color: Colors.black),
+          if (!useCentralMenu) Container(height: 2, color: AppColors.textOnPrimary),
           Expanded(child: Row(children: _players.sublist((_playerCount/2).ceil()).map((p) => Expanded(child: Padding(padding: const EdgeInsets.all(2), child: _buildPlayerZone(p)))).toList())),
         ]),
         if (!useCentralMenu) ...[
-          Positioned(bottom: 16, right: 90, child: FloatingActionButton(heroTag: 'dice', onPressed: _showDiceSelector, backgroundColor: Colors.black54, foregroundColor: Colors.white, child: const Icon(Icons.casino_outlined))),
+          Positioned(bottom: 16, right: 90, child: FloatingActionButton(heroTag: 'dice', onPressed: _showDiceSelector, backgroundColor: AppColors.overlayDark, foregroundColor: AppColors.textPrimary, child: const Icon(Icons.casino_outlined))),
           Positioned(bottom: 16, right: 16, child: _buildSpeedDial()),
         ]
       ],
@@ -408,7 +412,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       player: p, isCommander: _startingLife == 40, isHighlighted: _highlightedPlayerId == p.id,
       onLifeChanged: (val) => _updateLife(p.id, val),
       onShowCommanderDamage: () => _showCommanderDamageSelector(p),
-      onColorChanged: (c) { setState(() => p.colorValue = c.value); _saveGame(); },
+      onColorChanged: (c) { setState(() => p.colorValue = c.toARGB32()); _saveGame(); },
       onRotationChanged: (r) { setState(() => p.quarterTurns = r); _saveGame(); },
       onSkinChanged: (path) { setState(() => p.backgroundImagePath = path); _saveGame(); },
     );
@@ -416,25 +420,25 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
   Widget _buildCentralBar() {
     return Container(
-      height: 60, color: Colors.black,
+      height: 60, color: AppColors.textOnPrimary,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          IconButton(icon: const Icon(Icons.refresh, color: Colors.white70), onPressed: () => _resetGame()),
-          IconButton(icon: const Icon(Icons.casino, color: Colors.white70), onPressed: _showDiceSelector),
+          IconButton(icon: const Icon(Icons.refresh, color: AppColors.textSecondary), onPressed: () => _resetGame()),
+          IconButton(icon: const Icon(Icons.casino, color: AppColors.textSecondary), onPressed: _showDiceSelector),
           InkWell(
             onTap: _isGameActive ? _endGame : _pickStartingPlayer,
             borderRadius: BorderRadius.circular(50),
             child: Container(
               width: 50, height: 50, alignment: Alignment.center,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black, border: Border.all(color: _isGameActive ? Colors.redAccent : Colors.yellow.shade800, width: 2)),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.textOnPrimary, border: Border.all(color: _isGameActive ? AppColors.accentRed : AppColors.primaryShade800, width: 2)),
               child: _isGameActive 
-                ? FittedBox(fit: BoxFit.scaleDown, child: Text(_formatDuration(_gameDuration), style: GoogleFonts.robotoMono(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)))
-                : const Icon(Icons.play_arrow, color: Colors.yellow),
+                ? FittedBox(fit: BoxFit.scaleDown, child: Text(_formatDuration(_gameDuration), style: GoogleFonts.robotoMono(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)))
+                : const Icon(Icons.play_arrow, color: AppColors.primary),
             ),
           ),
-          IconButton(icon: const Icon(Icons.emoji_events, color: Colors.white70), onPressed: () { context.push(AppRoutes.tournament); }),
-          IconButton(icon: const Icon(Icons.people, color: Colors.white70), onPressed: _showGameSetupDialog), // <--- Utilise la nouvelle modale
+          IconButton(icon: const Icon(Icons.emoji_events, color: AppColors.textSecondary), onPressed: () { context.push(AppRoutes.tournament); }),
+          IconButton(icon: const Icon(Icons.people, color: AppColors.textSecondary), onPressed: _showGameSetupDialog), // <--- Utilise la nouvelle modale
         ],
       ),
     );
@@ -442,7 +446,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
   Widget _buildSpeedDial() {
     return SpeedDial(
-      icon: Icons.menu, activeIcon: Icons.close, backgroundColor: Colors.black.withOpacity(0.8), foregroundColor: Colors.white, overlayColor: Colors.black, overlayOpacity: 0.4, spacing: 12,
+      icon: Icons.menu, activeIcon: Icons.close, backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.8), foregroundColor: AppColors.textPrimary, overlayColor: AppColors.textOnPrimary, overlayOpacity: 0.4, spacing: 12,
       children: [
         SpeedDialChild(child: const Icon(Icons.play_circle_fill), label: 'Qui commence ?', backgroundColor: Colors.amber.shade800, onTap: _pickStartingPlayer),
         SpeedDialChild(child: const Icon(Icons.people_alt), label: 'Config. Partie', onTap: _showGameSetupDialog),
@@ -452,15 +456,15 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   void _showDiceSelector() {
-    showModalBottomSheet(context: context, backgroundColor: const Color(0xFF1A1A1A), builder: (context) {
+    showModalBottomSheet(context: context, backgroundColor: AppColors.scaffoldBackground, builder: (context) {
         final dice = [2, 4, 6, 8, 10, 12, 20, 100];
         return Container(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text("Lancer un dé", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 22)),
+            Text('Lancer un dé', style: AppTextStyles.cinzel(fontSize: 22)),
             const SizedBox(height: 24),
             GridView.builder(shrinkWrap: true, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 12, mainAxisSpacing: 12), itemCount: dice.length, itemBuilder: (context, i) => ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.white10, padding: EdgeInsets.zero),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.borderLight, padding: EdgeInsets.zero),
                 onPressed: () { Navigator.pop(context); _rollDice(dice[i]); },
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.casino, color: Colors.white70), Text("D${dice[i]}", style: GoogleFonts.cinzel(fontSize: 12))]),
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.casino, color: AppColors.textSecondary), Text('D${dice[i]}', style: AppTextStyles.label())]),
             ))
         ]));
     });

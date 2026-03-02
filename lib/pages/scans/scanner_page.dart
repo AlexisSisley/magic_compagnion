@@ -1,6 +1,8 @@
 // Fichier : lib/pages/scans/scanner_page.dart
 // CORRECTION : Fix Race Condition permission caméra + ResolutionPreset
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
@@ -30,7 +32,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
   bool _isCameraInitialized = false;
   bool _isPermissionDenied = false;
   bool _isInitializing = false; // Verrou pour éviter la double initialisation
-  String _errorMessage = "";
+  String _errorMessage = '';
   bool _isFlashOn = false;
 
   // Animation pour la ligne de scan
@@ -107,7 +109,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
       if (mounted) {
         setState(() {
           _isPermissionDenied = false;
-          _errorMessage = "";
+          _errorMessage = '';
         });
       }
 
@@ -142,11 +144,11 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
       if (mounted) {
         setState(() {
           _isPermissionDenied = true;
-          _errorMessage = "Erreur caméra: $e";
+          _errorMessage = 'Erreur caméra: $e';
           _isInitializing = false;
         });
       }
-      log("Erreur Init Caméra: $e", name: 'ScannerPage');
+      log('Erreur Init Caméra: $e', name: 'ScannerPage');
     } finally {
       _isInitializing = false;
     }
@@ -164,7 +166,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
         _isFlashOn = !_isFlashOn;
       });
     } catch (e) {
-      log("Erreur flash: $e", name: 'ScannerPage');
+      log('Erreur flash: $e', name: 'ScannerPage');
     }
   }
   
@@ -186,7 +188,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       builder: (context) => _ManualSearchModal(localCardService: _localCardService),
     );
   }
@@ -202,20 +204,20 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.textOnPrimary,
       appBar: AppBar(
-        title: Text('Scanner', style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
-        backgroundColor: Colors.black.withValues(alpha: 0.5),
+        title: Text('Scanner', style: AppTextStyles.cinzel(fontWeight: FontWeight.w600)),
+        backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.5),
         elevation: 0, 
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
-            tooltip: "Recherche manuelle",
+            icon: const Icon(Icons.search, color: AppColors.textPrimary),
+            tooltip: 'Recherche manuelle',
             onPressed: _showManualSearch,
           ),
           IconButton(
             icon: Icon(_isFlashOn ? Icons.flash_on : Icons.flash_off),
-            color: _isFlashOn ? Colors.yellow : Colors.white,
+            color: _isFlashOn ? AppColors.primary : AppColors.textPrimary,
             onPressed: _toggleFlash,
           )
         ],       
@@ -232,23 +234,23 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.no_photography, size: 64, color: Colors.redAccent),
+              const Icon(Icons.no_photography, size: 64, color: AppColors.accentRed),
               const SizedBox(height: 16),
               Text(
-                "Accès caméra requis", 
-                style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)
+                'Accès caméra requis', 
+                style: AppTextStyles.pageTitle(fontSize: 20)
               ),
               const SizedBox(height: 8),
               Text(
                 _errorMessage.isEmpty ? "Veuillez autoriser l'accès." : _errorMessage,
-                style: const TextStyle(color: Colors.white70),
+                style: const TextStyle(color: AppColors.textSecondary),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _initializeCamera,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
-                child: const Text("Réessayer"),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+                child: const Text('Réessayer'),
               )
             ],
           ),
@@ -270,9 +272,9 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
                 Positioned(
                   top: 20, left: 0, right: 0,
                   child: Text(
-                    "Touchez pour focus • Loupe pour chercher",
+                    'Touchez pour focus • Loupe pour chercher',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12, shadows: [const Shadow(blurRadius: 4, color: Colors.black)]),
+                    style: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 12, shadows: [const Shadow(blurRadius: 4, color: AppColors.textOnPrimary)]),
                   ),
                 ),
 
@@ -280,8 +282,8 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
                   bottom: 30, left: 30,
                   child: FloatingActionButton(
                     onPressed: () => context.push(AppRoutes.scanHistory),
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black,
+                    backgroundColor: AppColors.textPrimary,
+                    foregroundColor: AppColors.textOnPrimary,
                     heroTag: 'history_button',
                     child: const Icon(Icons.history),
                   ),
@@ -290,8 +292,8 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
                   bottom: 30, right: 30,
                   child: FloatingActionButton.large(
                     onPressed: _onTakePicture,
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black,
+                    backgroundColor: AppColors.textPrimary,
+                    foregroundColor: AppColors.textOnPrimary,
                     child: const Icon(Icons.camera_alt, size: 40),
                   ),
                 ),
@@ -301,7 +303,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
          }
        );
     }
-    return const Center(child: CircularProgressIndicator(color: Colors.white));
+    return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
   }
 
   Future<void> _onTakePicture() async {
@@ -312,6 +314,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
       
       // On met en pause la caméra visuellement
       await _controller!.pausePreview();
+      if (!mounted) return;
 
       // Navigation vers la page de résultat avec le flag "Continuous Scan"
       final result = await context.push(
@@ -335,7 +338,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
       }
 
     } catch (e) {
-      log("Erreur photo: $e", name: 'ScannerPage');
+      log('Erreur photo: $e', name: 'ScannerPage');
     }
   }
 
@@ -346,7 +349,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
         return CustomPaint(
           painter: ScannerOverlayPainter(
             scanValue: _scanAnimation.value,
-            borderColor: Colors.yellow.shade700,
+            borderColor: AppColors.primaryShade700,
           ),
           child: Container(),
         );
@@ -399,7 +402,7 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
       child: Container(
         height: MediaQuery.of(context).size.height * 0.7,
         decoration: const BoxDecoration(
-          color: Color(0xFF1A1A1A),
+          color: AppColors.scaffoldBackground,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
@@ -408,37 +411,37 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                  const Icon(Icons.search, color: Colors.white54),
+                  const Icon(Icons.search, color: AppColors.textMuted),
                   const SizedBox(width: 12),
                   Expanded(
                     child: TextField(
                       controller: _controller,
                       autofocus: true,
-                      style: GoogleFonts.cinzel(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: "Nom de la carte (FR/EN)...",
-                        hintStyle: TextStyle(color: Colors.white30),
+                      style: AppTextStyles.cinzel(),
+                      decoration: const InputDecoration(
+                        hintText: 'Nom de la carte (FR/EN)...',
+                        hintStyle: TextStyle(color: AppColors.textDisabled),
                         border: InputBorder.none,
                       ),
                       onChanged: _onSearchChanged,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white54),
+                    icon: const Icon(Icons.close, color: AppColors.textMuted),
                     onPressed: () => Navigator.pop(context),
                   )
                 ],
               ),
             ),
-            const Divider(color: Colors.white10, height: 1),
+            const Divider(color: AppColors.borderLight, height: 1),
             Expanded(
               child: _results.isEmpty
                   ? Center(
                       child: Text(
                         _controller.text.isEmpty 
                             ? "Tapez le nom d'une carte" 
-                            : "Aucun résultat local.",
-                        style: GoogleFonts.cinzel(color: Colors.white30),
+                            : 'Aucun résultat local.',
+                        style: AppTextStyles.cinzel(color: AppColors.textDisabled),
                       ),
                     )
                   : ListView.builder(
@@ -446,9 +449,9 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
                       itemBuilder: (context, index) {
                         final card = _results[index];
                         return ListTile(
-                          title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white)),
-                          subtitle: Text(card.typeLine, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                          trailing: const Icon(Icons.chevron_right, color: Colors.white24),
+                          title: Text(card.name, style: AppTextStyles.cinzel()),
+                          subtitle: Text(card.typeLine, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                          trailing: const Icon(Icons.chevron_right, color: AppColors.borderMedium),
                           onTap: () {
                             Navigator.pop(context);
                             context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
@@ -488,7 +491,7 @@ class ScannerOverlayPainter extends CustomPainter {
     
     final Path overlayPath = Path.combine(PathOperation.difference, backgroundPath, cutoutPath);
 
-    paint.color = Colors.black.withOpacity(0.6);
+    paint.color = AppColors.textOnPrimary.withValues(alpha: 0.6);
     canvas.drawPath(overlayPath, paint);
 
     final borderPaint = Paint()
@@ -513,7 +516,7 @@ class ScannerOverlayPainter extends CustomPainter {
     final double scanY = top + (cardHeight * scanValue);
     final laserPaint = Paint()
       ..shader = LinearGradient(
-        colors: [borderColor.withOpacity(0), borderColor, borderColor.withOpacity(0)],
+        colors: [borderColor.withValues(alpha: 0), borderColor, borderColor.withValues(alpha: 0)],
         stops: const [0.0, 0.5, 1.0],
       ).createShader(Rect.fromLTWH(left, scanY, cardWidth, 4));
     

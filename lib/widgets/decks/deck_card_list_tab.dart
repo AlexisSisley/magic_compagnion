@@ -1,9 +1,10 @@
 // Fichier : lib/widgets/decks/deck_card_list_tab.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Pour Clipboard
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/widgets/cards/versions_selector_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
@@ -68,11 +69,11 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
   void _exportCardmarket() {
     StringBuffer sb = StringBuffer();
     for (var c in widget.cardList) {
-      sb.writeln("${c.quantity} ${c.name}");
+      sb.writeln('${c.quantity} ${c.name}');
     }
     Clipboard.setData(ClipboardData(text: sb.toString()));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Liste copiée ! Ouverture Cardmarket..."), backgroundColor: Colors.green));
-    _launchURL("https://www.cardmarket.com/en/Magic/Wants/MassEntry");
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Liste copiée ! Ouverture Cardmarket...'), backgroundColor: AppColors.success));
+    _launchURL('https://www.cardmarket.com/en/Magic/Wants/MassEntry');
   }
 
   @override
@@ -83,12 +84,12 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Aucune carte ici.', style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16)),
+            Text('Aucune carte ici.', style: AppTextStyles.subtitle(fontSize: 16)),
             // Bouton spécial si on est dans l'onglet Wishlist
             if (widget.currentBoard == DeckBoard.wishlist)
-               Padding(
-                 padding: const EdgeInsets.only(top: 16.0),
-                 child: Text("Ajoutez ici les cartes trop chères\nvia le menu 'Déplacer vers Wishlist'", textAlign: TextAlign.center, style: TextStyle(color: Colors.white30)),
+               const Padding(
+                 padding: EdgeInsets.only(top: 16.0),
+                 child: Text("Ajoutez ici les cartes trop chères\nvia le menu 'Déplacer vers Wishlist'", textAlign: TextAlign.center, style: TextStyle(color: AppColors.textDisabled)),
                )
           ],
         ),
@@ -102,39 +103,39 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
       children: [
         // Barre d'outils de la liste
         Container(
-          color: Colors.black26,
+          color: AppColors.overlayLight,
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
           child: Row(
             children: [
-              Text("${widget.cardList.fold(0, (s, c) => s + c.quantity)} cartes", style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12)),
+              Text('${widget.cardList.fold(0, (s, c) => s + c.quantity)} cartes', style: AppTextStyles.label(color: AppColors.textMuted)),
               const Spacer(),
               if (widget.currentBoard == DeckBoard.wishlist && widget.onExportToGlobalWishlist != null)
                 IconButton(
-                  icon: const Icon(Icons.cloud_upload, size: 18, color: Colors.greenAccent),
-                  tooltip: "Créer une Wishlist Globale (App)",
+                  icon: const Icon(Icons.cloud_upload, size: 18, color: AppColors.accentGreen),
+                  tooltip: 'Créer une Wishlist Globale (App)',
                   onPressed: widget.onExportToGlobalWishlist,
                 ),
               // Bouton Export Cardmarket (visible surtout pour Wishlist/Considering)
               if (widget.currentBoard == DeckBoard.wishlist || widget.currentBoard == DeckBoard.considering)
                 IconButton(
-                  icon: const Icon(Icons.shopping_cart_checkout, size: 18, color: Colors.blueAccent),
-                  tooltip: "Export Cardmarket Mass Entry",
+                  icon: const Icon(Icons.shopping_cart_checkout, size: 18, color: AppColors.accent),
+                  tooltip: 'Export Cardmarket Mass Entry',
                   onPressed: _exportCardmarket,
                 ),
               const SizedBox(width: 8),
-              const Icon(Icons.view_agenda, size: 16, color: Colors.white54),
+              const Icon(Icons.view_agenda, size: 16, color: AppColors.textMuted),
               SizedBox(
                 width: 100, 
                 child: SliderTheme(
                   data: SliderTheme.of(context).copyWith(thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6), trackHeight: 2),
                   child: Slider(
                     value: _gridColumns, min: 1, max: 5, divisions: 4, 
-                    activeColor: Colors.yellow.shade800, inactiveColor: Colors.white24,
+                    activeColor: AppColors.primaryShade800, inactiveColor: AppColors.borderMedium,
                     onChanged: (val) => setState(() => _gridColumns = val),
                   ),
                 ),
               ),
-              const Icon(Icons.grid_view, size: 16, color: Colors.white54),
+              const Icon(Icons.grid_view, size: 16, color: AppColors.textMuted),
             ],
           ),
         ),
@@ -153,7 +154,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
-                      child: Text('${group.title} (${group.cards.fold(0, (s, c) => s + c.quantity)})', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      child: Text('${group.title} (${group.cards.fold(0, (s, c) => s + c.quantity)})', style: AppTextStyles.sectionTitle()),
                     ),
                     currentCols == 1 
                         ? Column(children: group.cards.map((c) => _buildDraggableItem(c, isGrid: false)).toList())
@@ -178,7 +179,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     return LongPressDraggable<Map<String, dynamic>>(
       data: {'card': card, 'sourceBoard': widget.currentBoard},
       feedback: Material(
-        color: Colors.transparent,
+        color: AppColors.transparent,
         child: Opacity(
           opacity: 0.8,
           child: SizedBox(
@@ -195,7 +196,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
   Widget _buildItem(DeckCard card, {required bool isGrid}) {
     final bool isCommander = (widget.commanderId == card.scryfallId || widget.partnerId == card.scryfallId);
     ScryfallCard? scryfallCard;
-    try { scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId); } catch (e) { }
+    try { scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId); } catch (e) { /* Card not found */ }
     final bool isInCollection = widget.collection.any((c) => c.scryfallId == card.scryfallId);
 
     
@@ -219,7 +220,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
   void _showCardOptions(DeckCard card, ScryfallCard? scryfallCard, bool isAlreadyCommander) {
     showModalBottomSheet(
       context: context, 
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true, // Permet à la modale de prendre la taille nécessaire
       builder: (context) {
         return SafeArea(
@@ -235,26 +236,26 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Row(
                       children: [
-                        Expanded(child: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))),
+                        Expanded(child: Text(card.name, style: AppTextStyles.sectionTitle())),
                         
                         // Contrôles Quantité
                         Container(
-                          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                          decoration: BoxDecoration(color: AppColors.overlayDark, borderRadius: BorderRadius.circular(20)),
                           child: Row(
                             children: [
                               IconButton(
-                                icon: const Icon(Icons.remove, color: Colors.redAccent),
+                                icon: const Icon(Icons.remove, color: AppColors.accentRed),
                                 onPressed: () {
                                   widget.onUpdateQuantity(card, -1);
                                   setModalState(() {}); // Force le rebuild de la modale pour voir le changement
                                 },
                               ),
                               Text(
-                                "${card.quantity}", 
-                                style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)
+                                '${card.quantity}', 
+                                style: AppTextStyles.pageTitle(fontSize: 20)
                               ),
                               IconButton(
-                                icon: const Icon(Icons.add, color: Colors.greenAccent),
+                                icon: const Icon(Icons.add, color: AppColors.accentGreen),
                                 onPressed: () {
                                   widget.onUpdateQuantity(card, 1);
                                   setModalState(() {});
@@ -266,26 +267,26 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                       ],
                     ),
                   ),
-                  const Divider(color: Colors.white24),
+                  const Divider(color: AppColors.borderMedium),
                   
                   // --- ACTIONS ---
                   
                   // 1. CHANGER VERSION
                   if (scryfallCard != null && !card.scryfallId.startsWith('LOCAL:'))
                     ListTile(
-                      leading: const Icon(Icons.style, color: Colors.blueAccent),
-                      title: const Text("Changer d'illustration", style: TextStyle(color: Colors.white)),
+                      leading: const Icon(Icons.style, color: AppColors.accent),
+                      title: const Text("Changer d'illustration", style: TextStyle(color: AppColors.textPrimary)),
                       onTap: () { Navigator.pop(context); _openVersionSelector(card, scryfallCard); },
                     ),
 
                   // 2. TOGGLE FOIL
                   if (widget.onToggleFoil != null)
                     ListTile(
-                      leading: Icon(Icons.star, color: card.isFoil ? Colors.amber : Colors.grey),
-                      title: Text(card.isFoil ? "Retirer le Foil" : "Passer en Foil", style: const TextStyle(color: Colors.white)),
+                      leading: Icon(Icons.star, color: card.isFoil ? AppColors.amber : AppColors.synergyNeutral),
+                      title: Text(card.isFoil ? 'Retirer le Foil' : 'Passer en Foil', style: const TextStyle(color: AppColors.textPrimary)),
                       trailing: Switch(
                         value: card.isFoil, 
-                        activeColor: Colors.amber,
+                        activeThumbColor: AppColors.amber,
                         onChanged: (val) {
                           widget.onToggleFoil!(card);
                           setModalState(() {}); // Met à jour le switch visuellement
@@ -299,28 +300,28 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
 
                   // 3. GESTION TAGS
                   ListTile(
-                    leading: const Icon(Icons.label, color: Colors.greenAccent),
-                    title: const Text("Gérer les Tags", style: TextStyle(color: Colors.white)),
+                    leading: const Icon(Icons.label, color: AppColors.accentGreen),
+                    title: const Text('Gérer les Tags', style: TextStyle(color: AppColors.textPrimary)),
                     onTap: () { Navigator.pop(context); _showTagEditor(card); },
                   ),
 
                   // 4. DÉPLACEMENT
                   if (widget.currentBoard != DeckBoard.main)
-                    ListTile(leading: const Icon(Icons.arrow_upward, color: Colors.white54), title: const Text("Vers Mainboard", style: TextStyle(color: Colors.white)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.main); Navigator.pop(context); }),
+                    ListTile(leading: const Icon(Icons.arrow_upward, color: AppColors.textMuted), title: const Text('Vers Mainboard', style: TextStyle(color: AppColors.textPrimary)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.main); Navigator.pop(context); }),
                   if (widget.currentBoard != DeckBoard.side)
-                    ListTile(leading: const Icon(Icons.swap_horiz, color: Colors.white54), title: const Text("Vers Sideboard", style: TextStyle(color: Colors.white)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.side); Navigator.pop(context); }),
+                    ListTile(leading: const Icon(Icons.swap_horiz, color: AppColors.textMuted), title: const Text('Vers Sideboard', style: TextStyle(color: AppColors.textPrimary)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.side); Navigator.pop(context); }),
                   if (widget.currentBoard != DeckBoard.considering)
-                    ListTile(leading: const Icon(Icons.question_mark, color: Colors.white54), title: const Text("Vers Considering", style: TextStyle(color: Colors.white)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.considering); Navigator.pop(context); }),
+                    ListTile(leading: const Icon(Icons.question_mark, color: AppColors.textMuted), title: const Text('Vers Considering', style: TextStyle(color: AppColors.textPrimary)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.considering); Navigator.pop(context); }),
                   if (widget.currentBoard != DeckBoard.wishlist)
-                    ListTile(leading: const Icon(Icons.shopping_cart, color: Colors.redAccent), title: const Text("Vers Deck Wishlist (Trop cher)", style: TextStyle(color: Colors.white)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.wishlist); Navigator.pop(context); }),
+                    ListTile(leading: const Icon(Icons.shopping_cart, color: AppColors.accentRed), title: const Text('Vers Deck Wishlist (Trop cher)', style: TextStyle(color: AppColors.textPrimary)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.wishlist); Navigator.pop(context); }),
 
-                  const Divider(color: Colors.white24),
+                  const Divider(color: AppColors.borderMedium),
                   
                   // 5. COMMANDANT
                   if (widget.currentBoard == DeckBoard.main && widget.onSetCommander != null)
                     ListTile(
-                      leading: Icon(isAlreadyCommander ? Icons.person_remove : Icons.person_add, color: Colors.yellow),
-                      title: Text(isAlreadyCommander ? 'Retirer du statut Commandant' : 'Définir comme Commandant', style: const TextStyle(color: Colors.white)),
+                      leading: Icon(isAlreadyCommander ? Icons.person_remove : Icons.person_add, color: AppColors.primary),
+                      title: Text(isAlreadyCommander ? 'Retirer du statut Commandant' : 'Définir comme Commandant', style: const TextStyle(color: AppColors.textPrimary)),
                       onTap: () { Navigator.pop(context); widget.onSetCommander!(card); },
                     ),
                 ],
@@ -336,7 +337,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       builder: (context) => VersionsSelectorSheet(
         oracleId: currentScryfallCard.oracleId,
         currentCardId: currentScryfallCard.id,
@@ -358,8 +359,8 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
-            backgroundColor: const Color(0xFF1A1A1A),
-            title: const Text("Tags", style: TextStyle(color: Colors.white)),
+            backgroundColor: AppColors.scaffoldBackground,
+            title: const Text('Tags', style: TextStyle(color: AppColors.textPrimary)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -372,9 +373,9 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                 ),
                 TextField(
                   controller: ctrl,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
-                    hintText: "Nouveau tag...",
+                    hintText: 'Nouveau tag...',
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.add),
                       onPressed: () { if (ctrl.text.isNotEmpty) setState(() => tags.add(ctrl.text)); ctrl.clear(); }
@@ -384,7 +385,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
               ],
             ),
             actions: [
-              TextButton(onPressed: () { widget.onUpdateTags?.call(card, tags); Navigator.pop(ctx); }, child: const Text("OK"))
+              TextButton(onPressed: () { widget.onUpdateTags?.call(card, tags); Navigator.pop(ctx); }, child: const Text('OK'))
             ],
           );
         }

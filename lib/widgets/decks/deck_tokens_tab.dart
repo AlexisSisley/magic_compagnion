@@ -1,8 +1,9 @@
 // Fichier : lib/widgets/decks/deck_tokens_tab.dart
 // Sprint 9 : Onglet affichant les tokens requis par le deck.
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../controllers/deck_detail_controller.dart';
 
@@ -20,11 +21,11 @@ class DeckTokensTab extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.token, color: Colors.white24, size: 64),
+              const Icon(Icons.token, color: AppColors.borderMedium, size: 64),
               const SizedBox(height: 16),
               Text(
                 'Ce deck ne necessite aucun token',
-                style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 16),
+                style: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 16),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -39,11 +40,11 @@ class DeckTokensTab extends StatelessWidget {
       itemBuilder: (context, index) {
         final token = tokens[index];
         return Card(
-          color: Colors.black.withValues(alpha: 0.45),
+          color: AppColors.textOnPrimary.withValues(alpha: 0.45),
           margin: const EdgeInsets.symmetric(vertical: 4),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
-            side: const BorderSide(color: Colors.white10),
+            side: const BorderSide(color: AppColors.borderLight),
           ),
           child: Padding(
             padding: const EdgeInsets.all(8),
@@ -60,15 +61,15 @@ class DeckTokensTab extends StatelessWidget {
                           errorBuilder: (c, e, s) => Container(
                             width: 60,
                             height: 84,
-                            color: Colors.grey.shade800,
-                            child: const Icon(Icons.token, color: Colors.white30),
+                            color: AppColors.greyShade800,
+                            child: const Icon(Icons.token, color: AppColors.textDisabled),
                           ),
                         )
                       : Container(
                           width: 60,
                           height: 84,
-                          color: Colors.grey.shade800,
-                          child: const Icon(Icons.token, color: Colors.white30),
+                          color: AppColors.greyShade800,
+                          child: const Icon(Icons.token, color: AppColors.textDisabled),
                         ),
                 ),
                 const SizedBox(width: 12),
@@ -78,17 +79,13 @@ class DeckTokensTab extends StatelessWidget {
                     children: [
                       Text(
                         token.name,
-                        style: GoogleFonts.cinzel(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: AppTextStyles.bold(fontSize: 14),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         token.typeLine,
                         style: const TextStyle(
-                          color: Colors.white54,
+                          color: AppColors.textMuted,
                           fontSize: 12,
                         ),
                       ),

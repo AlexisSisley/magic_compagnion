@@ -1,9 +1,10 @@
 // Fichier : lib/widgets/decks/draw_test_simulator.dart
 // VERSION MISE À JOUR : Analyseur de Mana ajouté
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'dart:math';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
@@ -121,7 +122,7 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A).withAlpha((0.98 * 255).round()),
+          color: AppColors.scaffoldBackground.withAlpha((0.98 * 255).round()),
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(16),
             topRight: Radius.circular(16),
@@ -137,15 +138,11 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
                 children: [
                   Text(
                     'Simulateur de Main',
-                    style: GoogleFonts.cinzel(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: AppTextStyles.bold(fontSize: 20),
                   ),
                   Text(
                     'Biblio: ${_library.length} | Main: ${_hand.length}',
-                    style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14),
+                    style: AppTextStyles.subtitle(),
                   ),
                 ],
               ),
@@ -156,14 +153,14 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
               margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
               padding: const EdgeInsets.all(8.0),
               decoration: BoxDecoration(
-                color: Colors.black54,
+                color: AppColors.overlayDark,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white12),
+                border: Border.all(color: AppColors.borderSubtle),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  Text("Sources disponibles :", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  const Text('Sources disponibles :', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                   _buildManaIndicator('W', _manaSources['W'] ?? 0),
                   _buildManaIndicator('U', _manaSources['U'] ?? 0),
                   _buildManaIndicator('B', _manaSources['B'] ?? 0),
@@ -177,7 +174,7 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
             // --- Liste des cartes ---
             Expanded(
               child: _hand.isEmpty
-                  ? Center(child: Text('Main vide.', style: GoogleFonts.cinzel(color: Colors.white54)))
+                  ? Center(child: Text('Main vide.', style: AppTextStyles.cinzel(color: AppColors.textMuted)))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 8.0),
                       itemCount: _hand.length,
@@ -185,7 +182,7 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
                         final card = _hand[index];
                         
                         String? smallImageUrl;
-                        String typeLine = "";
+                        String typeLine = '';
                         try {
                           final scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId);
                           if (!scryfallCard.id.startsWith('LOCAL:')) {
@@ -198,7 +195,7 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
                         final bool isLand = typeLine.toLowerCase().contains('land');
 
                         return Card(
-                          color: isLand ? Colors.brown.shade900.withOpacity(0.3) : Colors.black.withOpacity(0.3),
+                          color: isLand ? Colors.brown.shade900.withValues(alpha: 0.3) : AppColors.textOnPrimary.withValues(alpha: 0.3),
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
@@ -214,17 +211,17 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
                                     )
                                   : Container(
                                       width: 35, height: 49,
-                                      color: Colors.grey.shade800,
-                                      child: const Icon(Icons.image_not_supported, color: Colors.white30, size: 24),
+                                      color: AppColors.greyShade800,
+                                      child: const Icon(Icons.image_not_supported, color: AppColors.textDisabled, size: 24),
                                     ),
                             ),
                             title: Text(
                               card.name,
-                              style: GoogleFonts.cinzel(color: isLand ? Colors.amber.shade100 : Colors.white, fontSize: 15),
+                              style: AppTextStyles.cinzel(color: isLand ? Colors.amber.shade100 : AppColors.textPrimary, fontSize: 15),
                               overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: isLand 
-                              ? const Text("Terrain", style: TextStyle(color: Colors.white38, fontSize: 10)) 
+                              ? const Text('Terrain', style: TextStyle(color: AppColors.borderFaint, fontSize: 10)) 
                               : null,
                             dense: true,
                           ),
@@ -245,19 +242,19 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
                     icon: const Icon(Icons.add, size: 16),
                     onPressed: _drawOneCard,
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade800),
-                    label: Text('Piocher 1', style: GoogleFonts.cinzel(color: Colors.white)),
+                    label: Text('Piocher 1', style: AppTextStyles.cinzel()),
                   ),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.refresh, size: 16),
                     onPressed: _mulligan,
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
-                    label: Text('Mulligan (${7 - _mulliganCount - 1})', style: GoogleFonts.cinzel(color: Colors.white)),
+                    label: Text('Mulligan (${7 - _mulliganCount - 1})', style: AppTextStyles.cinzel()),
                   ),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.restart_alt, size: 16),
                     onPressed: _startNewGame,
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
-                    label: Text('Reset', style: GoogleFonts.cinzel(color: Colors.white)),
+                    label: Text('Reset', style: AppTextStyles.cinzel()),
                   ),
                 ],
               ),
@@ -281,13 +278,13 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
           SvgPicture.network(
             'https://svgs.scryfall.io/card-symbols/$cleanSymbol.svg',
             width: 16, height: 16,
-            placeholderBuilder: (_) => Text(symbol, style: const TextStyle(color: Colors.white, fontSize: 12)),
+            placeholderBuilder: (_) => Text(symbol, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
           ),
           const SizedBox(height: 2),
           Text(
-            "$count",
+            '$count',
             style: TextStyle(
-              color: count > 0 ? Colors.white : Colors.grey, 
+              color: count > 0 ? Colors.white : AppColors.synergyNeutral, 
               fontWeight: FontWeight.bold, 
               fontSize: 12
             ),

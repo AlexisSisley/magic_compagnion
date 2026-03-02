@@ -332,11 +332,11 @@ void main() {
 
   group('Profile DAO', () {
     test('upsert and retrieve profiles', () async {
-      await db.upsertProfile(ProfilesCompanion(
-        id: const Value('p-1'),
-        name: const Value('Alexis'),
-        colorValue: const Value(0xFF4CAF50),
-        commanderName: const Value('Atraxa'),
+      await db.upsertProfile(const ProfilesCompanion(
+        id: Value('p-1'),
+        name: Value('Alexis'),
+        colorValue: Value(0xFF4CAF50),
+        commanderName: Value('Atraxa'),
       ));
 
       final profiles = await db.getAllProfiles();
@@ -346,13 +346,13 @@ void main() {
     });
 
     test('upsert updates existing profile', () async {
-      await db.upsertProfile(ProfilesCompanion(
-        id: const Value('p-1'),
-        name: const Value('Old Name'),
+      await db.upsertProfile(const ProfilesCompanion(
+        id: Value('p-1'),
+        name: Value('Old Name'),
       ));
-      await db.upsertProfile(ProfilesCompanion(
-        id: const Value('p-1'),
-        name: const Value('New Name'),
+      await db.upsertProfile(const ProfilesCompanion(
+        id: Value('p-1'),
+        name: Value('New Name'),
       ));
 
       final profiles = await db.getAllProfiles();
@@ -361,8 +361,8 @@ void main() {
     });
 
     test('deleteProfile removes the correct profile', () async {
-      await db.upsertProfile(ProfilesCompanion(id: const Value('p-1'), name: const Value('A')));
-      await db.upsertProfile(ProfilesCompanion(id: const Value('p-2'), name: const Value('B')));
+      await db.upsertProfile(const ProfilesCompanion(id: Value('p-1'), name: Value('A')));
+      await db.upsertProfile(const ProfilesCompanion(id: Value('p-2'), name: Value('B')));
 
       await db.deleteProfile('p-1');
 

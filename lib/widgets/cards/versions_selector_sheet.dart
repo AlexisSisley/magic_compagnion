@@ -1,9 +1,10 @@
 // Fichier : lib/widgets/cards/versions_selector_sheet.dart
 // Migre de http vers ScryfallApiService (Sprint 6)
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/scryfall_api_service.dart';
 import '../../providers/service_providers.dart';
@@ -41,7 +42,7 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
     if (widget.oracleId.isEmpty) {
       setState(() {
         _isLoading = false;
-        _errorMessage = "Impossible de trouver les autres versions (Oracle ID manquant).";
+        _errorMessage = 'Impossible de trouver les autres versions (Oracle ID manquant).';
       });
       return;
     }
@@ -65,7 +66,7 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = "Erreur réseau : $e";
+          _errorMessage = 'Erreur réseau : $e';
         });
       }
     }
@@ -76,9 +77,9 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: AppColors.scaffoldBackground,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        border: Border(top: BorderSide(color: Colors.yellow.shade800, width: 2)),
+        border: Border(top: BorderSide(color: AppColors.primaryShade800, width: 2)),
       ),
       child: Column(
         children: [
@@ -88,19 +89,19 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("Versions & Artworks", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                Text('Versions & Artworks', style: AppTextStyles.pageTitle(fontSize: 20)),
+                IconButton(icon: const Icon(Icons.close, color: AppColors.textPrimary), onPressed: () => Navigator.pop(context)),
               ],
             ),
           ),
-          const Divider(color: Colors.white24, height: 1),
+          const Divider(color: AppColors.borderMedium, height: 1),
 
           // Liste des versions
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary))
                 : _errorMessage.isNotEmpty
-                    ? Center(child: Text(_errorMessage, style: GoogleFonts.cinzel(color: Colors.red)))
+                    ? Center(child: Text(_errorMessage, style: AppTextStyles.cinzel(color: AppColors.error)))
                     : GridView.builder(
                         padding: const EdgeInsets.all(12),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -123,7 +124,7 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
                               decoration: BoxDecoration(
                                 border: isCurrent ? Border.all(color: Colors.green.shade400, width: 3) : null,
                                 borderRadius: BorderRadius.circular(8),
-                                color: Colors.black45,
+                                color: AppColors.overlayMedium,
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -135,7 +136,7 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
                                       child: Image.network(
                                         card.imageUrl.isNotEmpty ? card.imageUrl : (card.smallImageUrl ?? ''),
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_,__,___) => const Center(child: Icon(Icons.image_not_supported, color: Colors.white)),
+                                        errorBuilder: (_, _, _) => const Center(child: Icon(Icons.image_not_supported, color: AppColors.textPrimary)),
                                       ),
                                     ),
                                   ),
@@ -147,12 +148,12 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
                                       children: [
                                         Text(
                                           card.setName,
-                                          style: GoogleFonts.cinzel(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                          style: AppTextStyles.bold(fontSize: 12),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         Text(
-                                          "#${card.collectorNumber} • ${card.lang.toUpperCase()}",
-                                          style: const TextStyle(color: Colors.white54, fontSize: 10),
+                                          '#${card.collectorNumber} • ${card.lang.toUpperCase()}',
+                                          style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
                                         ),
                                         const SizedBox(height: 4),
                                         // Prix
@@ -160,13 +161,13 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
-                                              card.prices['eur'] != null ? "${card.prices['eur']}€" : "--",
-                                              style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold),
+                                              card.prices['eur'] != null ? "${card.prices['eur']}€" : '--',
+                                              style: AppTextStyles.bold(),
                                             ),
                                             if (card.prices['eur_foil'] != null)
                                               Text(
                                                 "${card.prices['eur_foil']}€",
-                                                style: GoogleFonts.cinzel(color: Colors.amber.shade300, fontWeight: FontWeight.bold, fontSize: 11),
+                                                style: AppTextStyles.bold(color: Colors.amber.shade300, fontSize: 11),
                                               ),
                                           ],
                                         )

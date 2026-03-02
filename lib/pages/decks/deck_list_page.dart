@@ -1,5 +1,7 @@
 // Fichier : lib/pages/decks/deck_list_page.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
@@ -41,10 +43,10 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
             children: [
               const Icon(Icons.auto_awesome, color: Colors.cyanAccent),
               const SizedBox(width: 12),
-              Text("La Force a effacé ce deck.", style: GoogleFonts.cinzel(color:Colors.cyanAccent,fontWeight: FontWeight.bold)),
+              Text('La Force a effacé ce deck.', style: AppTextStyles.bold(color: Colors.cyanAccent)),
             ],
           ),
-          backgroundColor: Colors.black,
+          backgroundColor: AppColors.textOnPrimary,
           duration: const Duration(seconds: 2),
         )
       );
@@ -56,19 +58,19 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
     final String? name = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: Text('Nouveau Deck', style: GoogleFonts.cinzel(color: Colors.white)),
+        backgroundColor: AppColors.scaffoldBackground,
+        title: Text('Nouveau Deck', style: AppTextStyles.cinzel()),
         content: TextField(
           controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: 'Nom du deck...', filled: true, fillColor: Colors.black45),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(hintText: 'Nom du deck...', filled: true, fillColor: AppColors.overlayMedium),
           autofocus: true,
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800),
             child: const Text('Créer'),
           ),
         ],
@@ -87,24 +89,24 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       builder: (context) {
         return Padding(
           padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
           child: Container(
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A).withOpacity(0.95),
+              color: AppColors.scaffoldBackground.withValues(alpha: 0.95),
               borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Importer un Deck', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20)),
+                Text('Importer un Deck', style: AppTextStyles.cinzel(fontSize: 20)),
                 const SizedBox(height: 16),
-                TextField(controller: nameController, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Nom du nouveau deck', filled: true, fillColor: Colors.black54)),
+                TextField(controller: nameController, style: const TextStyle(color: AppColors.textPrimary), decoration: const InputDecoration(labelText: 'Nom du nouveau deck', filled: true, fillColor: AppColors.overlayDark)),
                 const SizedBox(height: 12),
-                TextField(controller: listController, style: const TextStyle(color: Colors.white), maxLines: 8, decoration: const InputDecoration(hintText: 'Collez votre decklist ici...', filled: true, fillColor: Colors.black54)),
+                TextField(controller: listController, style: const TextStyle(color: AppColors.textPrimary), maxLines: 8, decoration: const InputDecoration(hintText: 'Collez votre decklist ici...', filled: true, fillColor: AppColors.overlayDark)),
                 const SizedBox(height: 12),
                 Consumer(builder: (context, ref, _) {
                   final isImporting = ref.watch(deckListControllerProvider).isImporting;
@@ -119,8 +121,8 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                         _controller.importDeck(resolvedName, resolvedList);
                       }
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
-                    child: isImporting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Importer'),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800),
+                    child: isImporting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2)) : const Text('Importer'),
                   );
                 }),
               ],
@@ -143,21 +145,21 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
           headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
             return <Widget>[
               SliverAppBar(
-                title: Text('Mes Decks', style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+                title: Text('Mes Decks', style: AppTextStyles.bold()),
                 centerTitle: false,
                 pinned: true,
                 floating: true,
                 snap: true,
                 expandedHeight: 120.0,
-                backgroundColor: Colors.black,
+                backgroundColor: AppColors.textOnPrimary,
                 leading: IconButton(
                   icon: const Icon(Icons.menu),
                   onPressed: () => Scaffold.of(context).openDrawer(),
                 ),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.file_upload_outlined, color: Colors.white),
-                    tooltip: "Importer une liste",
+                    icon: const Icon(Icons.file_upload_outlined, color: AppColors.textPrimary),
+                    tooltip: 'Importer une liste',
                     onPressed: _showImportDeckDialog
                   ),
                 ],
@@ -165,21 +167,21 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                   preferredSize: const Size.fromHeight(70),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    color: const Color(0xFF1A1A1A),
+                    color: AppColors.scaffoldBackground,
                     child: Container(
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: AppColors.textPrimary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: TextField(
                         controller: _searchController,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: AppColors.textPrimary),
                         decoration: const InputDecoration(
-                          hintText: "Rechercher un deck...",
-                          hintStyle: TextStyle(color: Colors.white54),
+                          hintText: 'Rechercher un deck...',
+                          hintStyle: TextStyle(color: AppColors.textMuted),
                           border: InputBorder.none,
-                          prefixIcon: Icon(Icons.search, color: Colors.white54),
+                          prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
                           contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
                         onChanged: (val) => _controller.updateSearchQuery(val),
@@ -191,7 +193,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
             ];
           },
           body: state.isLoading
-            ? const Center(child: CircularProgressIndicator(color: Colors.white))
+            ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary))
             : CustomScrollView(
                 slivers: [
                   // Filtres
@@ -215,8 +217,11 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                               items: ['Nom (A-Z)', 'Prix (Décroissant)', 'Prix (Croissant)'],
                               onSelected: (label) {
                                 String code = 'name';
-                                if(label.contains('Décroissant')) code = 'price_desc';
-                                else if(label.contains('Croissant')) code = 'price_asc';
+                                if(label.contains('Décroissant')) {
+                                  code = 'price_desc';
+                                } else if(label.contains('Croissant')) {
+                                  code = 'price_asc';
+                                }
                                 _controller.updateSort(code);
                               }
                             ),
@@ -245,10 +250,10 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
           right: 16,
           child: FloatingActionButton.extended(
             onPressed: _showCreateDeckDialog,
-            backgroundColor: Colors.yellow.shade800,
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.primaryShade800,
+            foregroundColor: AppColors.textPrimary,
             icon: const Icon(Icons.add),
-            label: Text('Nouveau Deck', style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+            label: Text('Nouveau Deck', style: AppTextStyles.bold()),
           ),
         ),
       ],
@@ -264,9 +269,9 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? Colors.yellow.shade900 : Colors.white.withOpacity(0.1),
+          color: isActive ? AppColors.primaryShade900 : AppColors.textPrimary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isActive ? Colors.yellow.shade700 : Colors.white12),
+          border: Border.all(color: isActive ? AppColors.primaryShade700 : AppColors.borderSubtle),
         ),
         child: Row(
           children: [
@@ -281,15 +286,15 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                 ),
               ),
             Text(
-              state.selectedIdentityName ?? "Couleurs",
+              state.selectedIdentityName ?? 'Couleurs',
               style: TextStyle(
-                color: isActive ? Colors.white : Colors.white70,
+                color: isActive ? Colors.white : AppColors.textSecondary,
                 fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                 fontSize: 12
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.arrow_drop_down, color: isActive ? Colors.white : Colors.white54, size: 16),
+            Icon(Icons.arrow_drop_down, color: isActive ? Colors.white : AppColors.textMuted, size: 16),
           ],
         ),
       ),
@@ -300,19 +305,19 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
     return PopupMenuButton<String>(
       onSelected: onSelected,
       itemBuilder: (ctx) => items.map((i) => PopupMenuItem(value: i, child: Text(i))).toList(),
-      color: const Color(0xFF2A2A2A),
+      color: AppColors.cardBackground,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: AppColors.textPrimary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white12),
+          border: Border.all(color: AppColors.borderSubtle),
         ),
         child: Row(
           children: [
-            Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
             const SizedBox(width: 4),
-            const Icon(Icons.arrow_drop_down, color: Colors.white54, size: 16),
+            const Icon(Icons.arrow_drop_down, color: AppColors.textMuted, size: 16),
           ],
         ),
       ),
@@ -323,7 +328,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
     final currentState = ref.read(deckListControllerProvider);
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
@@ -340,27 +345,27 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("Identité Couleur", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text('Identité Couleur', style: AppTextStyles.pageTitle(fontSize: 20)),
                       if (currentState.selectedIdentityName != null)
                         TextButton(
                           onPressed: () {
                             _controller.clearIdentityFilter();
                             Navigator.pop(context);
                           },
-                          child: const Text("Effacer", style: TextStyle(color: Colors.redAccent))
+                          child: const Text('Effacer', style: TextStyle(color: AppColors.accentRed))
                         )
                     ],
                   ),
                 ),
-                const Divider(height: 1, color: Colors.white24),
+                const Divider(height: 1, color: AppColors.borderMedium),
                 Expanded(
                   child: ListView(
                     controller: scrollController,
                     children: DeckListController.colorFamilies.entries.map((familyEntry) {
                       return ExpansionTile(
-                        title: Text(familyEntry.key, style: GoogleFonts.cinzel(color: Colors.yellow.shade800, fontWeight: FontWeight.bold)),
-                        iconColor: Colors.yellow.shade800,
-                        collapsedIconColor: Colors.white54,
+                        title: Text(familyEntry.key, style: AppTextStyles.bold(color: AppColors.primaryShade800)),
+                        iconColor: AppColors.primaryShade800,
+                        collapsedIconColor: AppColors.textMuted,
                         initiallyExpanded: true,
                         children: familyEntry.value.entries.map((colorEntry) {
                           final name = colorEntry.key;
@@ -369,7 +374,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
 
                           return ListTile(
                             selected: isSelected,
-                            selectedTileColor: Colors.yellow.shade900.withOpacity(0.2),
+                            selectedTileColor: AppColors.primaryShade900.withValues(alpha: 0.2),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
                             title: Row(
                               children: [
@@ -379,10 +384,10 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                                 )),
                                 if(colors.isEmpty) _getManaIcon('C', size: 20),
                                 const SizedBox(width: 12),
-                                Text(name, style: TextStyle(color: isSelected ? Colors.yellow : Colors.white, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                Text(name, style: TextStyle(color: isSelected ? AppColors.primary : AppColors.textPrimary, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                               ],
                             ),
-                            trailing: isSelected ? const Icon(Icons.check, color: Colors.yellow) : null,
+                            trailing: isSelected ? const Icon(Icons.check, color: AppColors.primary) : null,
                             onTap: () {
                               _controller.updateIdentityFilter(name, colors);
                               Navigator.pop(context);
@@ -415,12 +420,12 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
         decoration: BoxDecoration(color: Colors.red.shade900, borderRadius: BorderRadius.circular(12)),
         alignment: Alignment.centerRight,
         child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          Text("USE THE FORCE",style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold,fontSize: 16, letterSpacing: 1.5)),
+          Text('USE THE FORCE',style: AppTextStyles.bold(fontSize: 16).copyWith(letterSpacing: 1.5)),
           const SizedBox(width: 12),
           Stack(
             alignment: Alignment.center,
             children: [
-              const Icon(Icons.back_hand, color: Colors.white, size: 30),
+              const Icon(Icons.back_hand, color: AppColors.textPrimary, size: 30),
               Icon(Icons.flash_on, color: Colors.blueAccent.shade100, size: 40),
             ],
           ),
@@ -429,11 +434,11 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
       confirmDismiss: (d) => showDialog(
         context: context,
         builder: (c) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1A),
-          title: const Text("Supprimer ?", style: TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.scaffoldBackground,
+          title: const Text('Supprimer ?', style: TextStyle(color: AppColors.textPrimary)),
           actions: [
-            TextButton(onPressed: ()=>Navigator.pop(c,false),child: const Text("Non")),
-            TextButton(onPressed: ()=>Navigator.pop(c,true),child: const Text("Oui"))
+            TextButton(onPressed: ()=>Navigator.pop(c,false),child: const Text('Non')),
+            TextButton(onPressed: ()=>Navigator.pop(c,true),child: const Text('Oui'))
           ]
         )
       ),
@@ -441,13 +446,13 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
         _deleteDeck(deck.id);
       },
       child: Card(
-        color: Colors.black.withOpacity(0.8),
+        color: AppColors.textOnPrimary.withValues(alpha: 0.8),
         margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
         elevation: 4,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12.0),
           side: BorderSide(
-            color: isCommander ? Colors.yellow.shade800.withOpacity(0.6) : Colors.white12,
+            color: isCommander ? AppColors.primaryShade800.withValues(alpha: 0.6) : AppColors.borderSubtle,
             width: 1,
           ),
         ),
@@ -469,19 +474,19 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                         imageUrl: ScryfallApi.artCropRedirectUrl(deck.commanderScryfallId!),
                         width: 50, height: 50,
                         borderRadius: BorderRadius.circular(20),
-                        errorWidget: Icon(Icons.shield_outlined, color: Colors.yellow.shade700, size: 28),
+                        errorWidget: Icon(Icons.shield_outlined, color: AppColors.primaryShade700, size: 28),
                       )
                     else
                       Container(
                         width: 50, height: 50,
-                        decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(25)),
-                        child: Icon(Icons.style, color: Colors.white54, size: 24),
+                        decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(25)),
+                        child: const Icon(Icons.style, color: AppColors.textMuted, size: 24),
                       ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         deck.name,
-                        style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        style: AppTextStyles.sectionTitle(),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -501,23 +506,20 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: isCommander ? Colors.yellow.shade900.withOpacity(0.3) : Colors.grey.shade800,
+                        color: isCommander ? AppColors.primaryShade900.withValues(alpha: 0.3) : AppColors.greyShade800,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         isCommander ? 'COMMANDER' : 'STANDARD',
-                        style: GoogleFonts.cinzel(
-                          color: isCommander ? Colors.yellow.shade200 : Colors.white70,
-                          fontSize: 10, fontWeight: FontWeight.bold,
-                        ),
+                        style: AppTextStyles.bold(color: isCommander ? Colors.yellow.shade200 : AppColors.textSecondary, fontSize: 10),
                       ),
                     ),
                     const Spacer(),
-                    Text('$cardCount cartes', style: GoogleFonts.cinzel(color: Colors.amberAccent, fontSize: 12)),
+                    Text('$cardCount cartes', style: AppTextStyles.cinzel(color: Colors.amberAccent, fontSize: 12)),
                     const SizedBox(width: 12),
                     Text(
-                        " ≈ ${totalPrice.toStringAsFixed(0)} €",
-                        style: GoogleFonts.roboto(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                        ' ≈ ${totalPrice.toStringAsFixed(0)} €',
+                        style: GoogleFonts.roboto(color: AppColors.accentGreen, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ],
                 )
@@ -533,7 +535,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
     final url = 'https://svgs.scryfall.io/card-symbols/$symbol.svg';
     return SvgPicture.network(
       url, height: size, width: size,
-      placeholderBuilder: (_) => Text(symbol, style: TextStyle(color: Colors.white, fontSize: size)),
+      placeholderBuilder: (_) => Text(symbol, style: TextStyle(color: AppColors.textPrimary, fontSize: size)),
     );
   }
 }

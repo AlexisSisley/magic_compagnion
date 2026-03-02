@@ -1,12 +1,13 @@
 // Fichier : lib/pages/glossary_page.dart
 // VERSION MISE À JOUR (Catégories + Recherche)
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'dart:convert';
 import 'dart:developer';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/glossary_data.dart'; // Importer notre modèle (Keyword)
 import '../../router/app_router.dart';
@@ -80,7 +81,7 @@ class _GlossaryPageState extends State<GlossaryPage> {
         });
       }
     } catch (e) {
-      log("Erreur de chargement du glossaire: $e", name: 'GlossaryPage');
+      log('Erreur de chargement du glossaire: $e', name: 'GlossaryPage');
       if (mounted) setState(() { _isLoading = false; _allTerms = []; _displayedTerms = []; });
     }
   }
@@ -120,22 +121,22 @@ class _GlossaryPageState extends State<GlossaryPage> {
               Expanded(
                 child: TextField(
                   controller: _searchController,
-                  style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16),
+                  style: AppTextStyles.cinzel(fontSize: 16),
                   decoration: InputDecoration(
                     hintText: _currentLang == 'fr' 
                               ? 'Rechercher un mot-clé...' 
                               : 'Search a keyword...',
-                    hintStyle: GoogleFonts.cinzel(color: Colors.white54, fontSize: 16),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                    hintStyle: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 16),
+                    prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
                     filled: true,
-                    fillColor: Colors.black.withOpacity(0.5),
+                    fillColor: AppColors.textOnPrimary.withValues(alpha: 0.5),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.white70, width: 1),
+                      borderSide: const BorderSide(color: AppColors.textSecondary, width: 1),
                     ),
                   ),
                 ),
@@ -144,20 +145,16 @@ class _GlossaryPageState extends State<GlossaryPage> {
               TextButton(
                 onPressed: _toggleLanguage,
                 style: TextButton.styleFrom(
-                  backgroundColor: Colors.black.withOpacity(0.5),
+                  backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
-                    side: const BorderSide(color: Colors.white70, width: 1),
+                    side: const BorderSide(color: AppColors.textSecondary, width: 1),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
                 ),
                 child: Text(
                   _currentLang.toUpperCase(),
-                  style: GoogleFonts.cinzel(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16
-                  ),
+                  style: AppTextStyles.bold(fontSize: 16),
                 ),
               ),
             ],
@@ -217,11 +214,7 @@ class _GlossaryPageState extends State<GlossaryPage> {
               padding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 8.0),
               child: Text(
                 categoryName,
-                style: GoogleFonts.cinzel(
-                  color: Colors.yellow.shade800, // Couleur d'accent
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: AppTextStyles.sectionTitle(color: AppColors.primaryShade800),
               ),
             ),
             
@@ -230,7 +223,7 @@ class _GlossaryPageState extends State<GlossaryPage> {
             // car la liste externe est déjà scrollable.
             ...keywordsInCategory.map((keyword) {
               return _buildKeywordTile(keyword);
-            }).toList(),
+            }),
           ],
         );
       },
@@ -240,13 +233,13 @@ class _GlossaryPageState extends State<GlossaryPage> {
   // --- NOUVEAU WIDGET (Factorisé) : La ListTile d'un mot-clé ---
   Widget _buildKeywordTile(Keyword keyword) {
     return Card(
-      color: Colors.black.withOpacity(0.4),
+      color: AppColors.textOnPrimary.withValues(alpha: 0.4),
       elevation: 2.0,
       margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10.0),
         side: BorderSide(
-          color: Colors.yellow.shade800.withOpacity(0.6),
+          color: AppColors.primaryShade800.withValues(alpha: 0.6),
           width: 1,
         ),
       ),
@@ -254,18 +247,14 @@ class _GlossaryPageState extends State<GlossaryPage> {
       child: ListTile(
         leading: Icon(
           Icons.auto_stories_outlined,
-          color: Colors.white.withOpacity(0.7),
+          color: AppColors.textPrimary.withValues(alpha: 0.7),
         ),
         title: Text(
           keyword.term,
-          style: GoogleFonts.cinzel(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
+          style: AppTextStyles.cinzel(fontSize: 18, fontWeight: FontWeight.w600),
         ),
-        trailing: const Icon(Icons.chevron_right, color: Colors.white54),
-        splashColor: Colors.yellow.withOpacity(0.1),
+        trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
+        splashColor: Colors.yellow.withValues(alpha: 0.1),
         onTap: () {
           context.push(AppRoutes.glossaryDetail, extra: keyword);
         },

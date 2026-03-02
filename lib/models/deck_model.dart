@@ -61,11 +61,11 @@ class Deck {
     this.commanderSecondaryScryfallId,
     List<String>? colors,
     this.format = 'Standard',
-  })  : this.mainboard = mainboard ?? [],
-        this.sideboard = sideboard ?? [],
-        this.considering = considering ?? [],
-        this.wishlist = wishlist ?? [],
-        this.colors = colors ?? [];
+  })  : mainboard = mainboard ?? [],
+        sideboard = sideboard ?? [],
+        considering = considering ?? [],
+        wishlist = wishlist ?? [],
+        colors = colors ?? [];
 
   Map<String, dynamic> toJson() => {
         'id': id,

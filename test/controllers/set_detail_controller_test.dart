@@ -117,14 +117,14 @@ void main() {
 
     test('hasActiveFilters detects colors filter', () {
       final state = SetDetailState(
-        activeFilters: SearchFilters(colors: {'R'}),
+        activeFilters: const SearchFilters(colors: {'R'}),
       );
       expect(state.hasActiveFilters, true);
     });
 
     test('hasActiveFilters detects cardType filter', () {
       final state = SetDetailState(
-        activeFilters: SearchFilters(cardType: 'Creature'),
+        activeFilters: const SearchFilters(cardType: 'Creature'),
       );
       expect(state.hasActiveFilters, true);
     });
@@ -283,7 +283,7 @@ void main() {
 
     test('updateFilters stores new SearchFilters', () {
       final state = SetDetailState();
-      final newFilters = SearchFilters(colors: {'W', 'U'}, cardType: 'Instant');
+      const newFilters = SearchFilters(colors: {'W', 'U'}, cardType: 'Instant');
       final updated = state.copyWith(activeFilters: newFilters);
       expect(updated.activeFilters.colors, {'W', 'U'});
       expect(updated.activeFilters.cardType, 'Instant');

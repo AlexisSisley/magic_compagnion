@@ -1,5 +1,7 @@
 // Fichier : lib/widgets/life_counter/player_zone.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -71,7 +73,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
 
   final List<Color> _colorOptions = [
     Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
-    Colors.grey.shade800, Colors.purple.shade900, Colors.orange.shade900,
+    AppColors.greyShade800, Colors.purple.shade900, Colors.orange.shade900,
     Colors.teal.shade900, Colors.pink.shade900, Colors.brown.shade800, 
     Colors.indigo.shade900, Colors.blueGrey.shade800, Colors.black
   ];
@@ -105,7 +107,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
     final String text = (change > 0) ? '+$change' : '$change';
     Color color;
     if (isLife) {
-      color = (change > 0) ? Colors.greenAccent : Colors.redAccent;
+      color = (change > 0) ? AppColors.accentGreen : AppColors.accentRed;
     } else {
       color = _getModeColor(_editMode);
     }
@@ -144,10 +146,10 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
 
   Color _getModeColor(CounterMode mode) {
     switch (mode) {
-      case CounterMode.poison: return Colors.greenAccent; 
-      case CounterMode.energy: return Colors.blueAccent; 
-      case CounterMode.commanderTax: return Colors.amber; 
-      default: return Colors.white;
+      case CounterMode.poison: return AppColors.accentGreen; 
+      case CounterMode.energy: return AppColors.accent; 
+      case CounterMode.commanderTax: return AppColors.amber; 
+      default: return AppColors.textPrimary;
     }
   }
 
@@ -175,10 +177,11 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
       final XFile? image = await picker.pickImage(source: ImageSource.gallery);
       if (image != null && widget.onSkinChanged != null) {
         widget.onSkinChanged!(image.path);
-        Navigator.pop(context); 
+        if (!mounted) return;
+        Navigator.pop(context);
       }
     } catch (e) {
-      debugPrint("Erreur image picker: $e");
+      debugPrint('Erreur image picker: $e');
     }
   }
 
@@ -188,7 +191,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
     
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true,
       builder: (context) => _ArtworkSearchModal(
         localCardService: _localCardService,
@@ -207,25 +210,25 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: Text("Personnalisation J${widget.player.id + 1}", style: GoogleFonts.cinzel(color: Colors.white)),
+        backgroundColor: AppColors.scaffoldBackground,
+        title: Text('Personnalisation J${widget.player.id + 1}', style: AppTextStyles.cinzel()),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Bouton Artwork
             ElevatedButton.icon(
               onPressed: _openArtworkSearch,
-              icon: const Icon(Icons.palette, color: Colors.black),
-              label: Text("Choisir un Artwork", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800, foregroundColor: Colors.black),
+              icon: const Icon(Icons.palette, color: AppColors.textOnPrimary),
+              label: Text('Choisir un Artwork', style: AppTextStyles.bold()),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800, foregroundColor: AppColors.textOnPrimary),
             ),
             const SizedBox(height: 8),
             // Bouton Galerie
             OutlinedButton.icon(
               onPressed: _pickImage, 
               icon: const Icon(Icons.photo_library), 
-              label: const Text("Depuis la galerie"),
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white24)),
+              label: const Text('Depuis la galerie'),
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.textSecondary, side: const BorderSide(color: AppColors.borderMedium)),
             ),
             
             if (widget.player.backgroundImagePath != null)
@@ -234,10 +237,10 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
                    widget.onSkinChanged?.call(null); // Reset
                    Navigator.pop(ctx);
                  }, 
-                 child: const Text("Supprimer l'image", style: TextStyle(color: Colors.redAccent))
+                 child: const Text("Supprimer l'image", style: TextStyle(color: AppColors.accentRed))
                ),
-            const Divider(color: Colors.white24),
-            const Text("Couleur unie :", style: TextStyle(color: Colors.white54, fontSize: 12)),
+            const Divider(color: AppColors.borderMedium),
+            const Text('Couleur unie :', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
             const SizedBox(height: 12),
             Wrap(
               spacing: 12, runSpacing: 12,
@@ -249,8 +252,8 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
                   decoration: BoxDecoration(
                     color: c, 
                     shape: BoxShape.circle, 
-                    border: Border.all(color: Colors.white54, width: 2),
-                    boxShadow: [BoxShadow(color: c.withOpacity(0.5), blurRadius: 8)]
+                    border: Border.all(color: AppColors.textMuted, width: 2),
+                    boxShadow: [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 8)]
                   ),
                 ),
               )).toList(),
@@ -310,28 +313,28 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
         color: bgColor,
         borderRadius: BorderRadius.circular(18),
         border: widget.isHighlighted 
-            ? Border.all(color: Colors.white, width: 4) 
-            : Border.all(color: Colors.white12, width: 1),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 4, offset: const Offset(2,2))]
+            ? Border.all(color: AppColors.textPrimary, width: 4) 
+            : Border.all(color: AppColors.borderSubtle, width: 1),
+        boxShadow: [BoxShadow(color: AppColors.textOnPrimary.withValues(alpha: 0.4), blurRadius: 4, offset: const Offset(2,2))]
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
           Positioned.fill(child: backgroundWidget),
-          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.3))),
+          Positioned.fill(child: Container(color: AppColors.textOnPrimary.withValues(alpha: 0.3))),
           Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
                 flex: 1,
                 child: Material(
-                  color: Colors.transparent,
+                  color: AppColors.transparent,
                   child: InkWell(
                     onTap: () => _triggerChange(-1),
                     onLongPress: () => _triggerChange(_editMode == CounterMode.commanderTax ? -10 : -5),
                     splashColor: Colors.black12,
                     child: Center(
-                      child: FittedBox(child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(Icons.remove, color: Colors.white.withOpacity(0.6), size: 48))),
+                      child: FittedBox(child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(Icons.remove, color: AppColors.textPrimary.withValues(alpha: 0.6), size: 48))),
                     ),
                   ),
                 ),
@@ -341,30 +344,25 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
                 child: GestureDetector(
                   onTap: () { if (_editMode != CounterMode.life) _setEditMode(CounterMode.life); },
                   child: Container(
-                    color: Colors.transparent,
+                    color: AppColors.transparent,
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (_editMode != CounterMode.life)
-                          Icon(_getModeIcon(_editMode), color: _getModeColor(_editMode).withOpacity(0.8), size: 24),
+                          Icon(_getModeIcon(_editMode), color: _getModeColor(_editMode).withValues(alpha: 0.8), size: 24),
                         Flexible(
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
                               _getDisplayValue(),
-                              style: GoogleFonts.cinzel(
-                                fontSize: 60, 
-                                fontWeight: FontWeight.bold, 
-                                color: _editMode == CounterMode.life ? Colors.white : _getModeColor(_editMode), 
-                                shadows: [const Shadow(blurRadius: 5, color: Colors.black45)]
-                              ),
+                              style: AppTextStyles.bold(color: _editMode == CounterMode.life ? Colors.white : _getModeColor(_editMode), fontSize: 60).copyWith(shadows: [const Shadow(blurRadius: 5, color: AppColors.overlayMedium)]),
                             ),
                           ),
                         ),
                         if (_editMode != CounterMode.life)
                           Text(
                             _editMode.name.toUpperCase().replaceAll('COMMANDERTAX', 'TAX'),
-                            style: GoogleFonts.roboto(fontSize: 10, color: Colors.white54, fontWeight: FontWeight.bold)
+                            style: GoogleFonts.roboto(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.bold)
                           ),
                       ],
                     ),
@@ -374,13 +372,13 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
               Expanded(
                 flex: 1,
                 child: Material(
-                  color: Colors.transparent,
+                  color: AppColors.transparent,
                   child: InkWell(
                     onTap: () => _triggerChange(1),
                     onLongPress: () => _triggerChange(_editMode == CounterMode.commanderTax ? 10 : 5),
                     splashColor: Colors.black12,
                     child: Center(
-                      child: FittedBox(child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(Icons.add, color: Colors.white.withOpacity(0.6), size: 48))),
+                      child: FittedBox(child: Padding(padding: const EdgeInsets.all(8.0), child: Icon(Icons.add, color: AppColors.textPrimary.withValues(alpha: 0.6), size: 48))),
                     ),
                   ),
                 ),
@@ -398,7 +396,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
                   child: AnimatedOpacity(
                     duration: const Duration(milliseconds: 600),
                     opacity: n.opacity,
-                    child: Text(n.text, style: GoogleFonts.cinzel(fontSize: 48, fontWeight: FontWeight.bold, color: n.color, shadows: [const Shadow(blurRadius: 4, color: Colors.black)])),
+                    child: Text(n.text, style: AppTextStyles.bold(color: n.color, fontSize: 48).copyWith(shadows: [const Shadow(blurRadius: 4, color: AppColors.textOnPrimary)])),
                   ),
                 )).toList(),
               ),
@@ -407,7 +405,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
           Positioned(
             top: 0, right: 0, 
             child: IconButton(
-              icon: const Icon(Icons.palette, color: Colors.white24, size: 20),
+              icon: const Icon(Icons.palette, color: AppColors.borderMedium, size: 20),
               onPressed: _showColorPicker,
             ),
           ),
@@ -427,8 +425,8 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
               },
               child: Container(
                 padding: const EdgeInsets.all(12), 
-                color: Colors.transparent,
-                child: const Icon(Icons.rotate_right, color: Colors.white24, size: 20),
+                color: AppColors.transparent,
+                child: const Icon(Icons.rotate_right, color: AppColors.borderMedium, size: 20),
               ),
             ),
           ),
@@ -454,12 +452,12 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
           ),
           if (widget.isHighlighted)
             Container(
-              color: Colors.black45,
+              color: AppColors.overlayMedium,
               alignment: Alignment.center,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(border: Border.all(color: Colors.white, width: 2), borderRadius: BorderRadius.circular(8)),
-                child: Text("Start ?", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                decoration: BoxDecoration(border: Border.all(color: AppColors.textPrimary, width: 2), borderRadius: BorderRadius.circular(8)),
+                child: Text('Start ?', style: AppTextStyles.pageTitle()),
               ),
             )
         ],
@@ -480,17 +478,17 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
-        placeholder: (context, url) => Container(color: Colors.grey.shade900),
+        placeholder: (context, url) => Container(color: AppColors.greyShade900),
         errorWidget: (context, url, error) => Container(
-          color: Colors.grey.shade900,
-          child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white24)),
+          color: AppColors.greyShade900,
+          child: const Center(child: Icon(Icons.image_not_supported, color: AppColors.borderMedium)),
         ),
       );
     }
     return Image(image: FileImage(File(path)), fit: BoxFit.cover,
       errorBuilder: (c, e, s) => Container(
-        color: Colors.grey.shade900,
-        child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white24)),
+        color: AppColors.greyShade900,
+        child: const Center(child: Icon(Icons.image_not_supported, color: AppColors.borderMedium)),
       ),
     );
   }
@@ -507,15 +505,15 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         decoration: BoxDecoration(
-          color: isActive ? Colors.black54 : Colors.black26, 
+          color: isActive ? AppColors.overlayDark : AppColors.overlayLight, 
           borderRadius: BorderRadius.circular(12),
-          border: isActive ? Border.all(color: color, width: 1) : Border.all(color: Colors.transparent),
+          border: isActive ? Border.all(color: color, width: 1) : Border.all(color: AppColors.transparent),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 14, color: color.withOpacity(opacity)),
+            Icon(icon, size: 14, color: color.withValues(alpha: opacity)),
             const SizedBox(width: 4),
-            Text("$value", style: TextStyle(color: color.withOpacity(opacity), fontWeight: FontWeight.bold, fontSize: 14)),
+            Text('$value', style: TextStyle(color: color.withValues(alpha: opacity), fontWeight: FontWeight.bold, fontSize: 14)),
           ],
         ),
       ),
@@ -527,12 +525,12 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
       onTap: widget.onShowCommanderDamage,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: AppColors.overlayLight, borderRadius: BorderRadius.circular(12)),
         child: Row(
           children: [
-            const Icon(Icons.shield, size: 14, color: Colors.white70),
+            const Icon(Icons.shield, size: 14, color: AppColors.textSecondary),
             const SizedBox(width: 4),
-            Text('${widget.player.totalCommanderDamage}', style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+            Text('${widget.player.totalCommanderDamage}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -578,7 +576,7 @@ class _ArtworkSearchModalState extends State<_ArtworkSearchModal> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       builder: (ctx) => VersionsSelectorSheet(
         oracleId: card.oracleId,
         currentCardId: card.id,
@@ -605,23 +603,23 @@ class _ArtworkSearchModalState extends State<_ArtworkSearchModal> {
         height: MediaQuery.of(context).size.height * 0.7,
         padding: const EdgeInsets.all(16),
         decoration: const BoxDecoration(
-          color: Color(0xFF1A1A1A),
+          color: AppColors.scaffoldBackground,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
           children: [
-            Text("Choisir un Artwork", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18)),
+            Text('Choisir un Artwork', style: AppTextStyles.cinzel(fontSize: 18)),
             const SizedBox(height: 12),
             TextField(
               controller: _controller,
               autofocus: true,
-              style: GoogleFonts.cinzel(color: Colors.white),
+              style: AppTextStyles.cinzel(),
               decoration: const InputDecoration(
-                hintText: "Nom de la carte...",
-                hintStyle: TextStyle(color: Colors.white30),
-                prefixIcon: Icon(Icons.search, color: Colors.white54),
+                hintText: 'Nom de la carte...',
+                hintStyle: TextStyle(color: AppColors.textDisabled),
+                prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
                 filled: true,
-                fillColor: Colors.black45,
+                fillColor: AppColors.overlayMedium,
                 border: OutlineInputBorder(),
               ),
               onChanged: _onSearchChanged,
@@ -629,7 +627,7 @@ class _ArtworkSearchModalState extends State<_ArtworkSearchModal> {
             const SizedBox(height: 10),
             Expanded(
               child: _results.isEmpty
-                  ? Center(child: Text("Tapez le nom d'une carte", style: GoogleFonts.cinzel(color: Colors.white30)))
+                  ? Center(child: Text("Tapez le nom d'une carte", style: AppTextStyles.cinzel(color: AppColors.textDisabled)))
                   : GridView.builder(
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 3, 
@@ -650,14 +648,14 @@ class _ArtworkSearchModalState extends State<_ArtworkSearchModal> {
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                Image.network(imgUrl, fit: BoxFit.cover, errorBuilder: (_,__,___)=>Container(color: Colors.grey.shade800)),
+                                Image.network(imgUrl, fit: BoxFit.cover, errorBuilder: (_, _, _)=>Container(color: AppColors.greyShade800)),
                                 // Petit indicateur qu'il y a plusieurs versions
                                 Positioned(
                                   bottom: 0, right: 0,
                                   child: Container(
                                     padding: const EdgeInsets.all(2),
-                                    color: Colors.black54,
-                                    child: const Icon(Icons.grid_view, size: 12, color: Colors.white70),
+                                    color: AppColors.overlayDark,
+                                    child: const Icon(Icons.grid_view, size: 12, color: AppColors.textSecondary),
                                   ),
                                 )
                               ],

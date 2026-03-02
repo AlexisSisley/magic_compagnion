@@ -283,7 +283,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
       if (!isBasicLand && card.quantity >= 1) {
         return const DeckDetailActionResult(
           success: false,
-          message: "Commander : 1 seul exemplaire autorise (sauf terrains de base).",
+          message: 'Commander : 1 seul exemplaire autorise (sauf terrains de base).',
         );
       }
     }
@@ -345,7 +345,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
         if (!isBasic) {
           return const DeckDetailActionResult(
             success: false,
-            message: "Deja present dans le deck (Regle Singleton).",
+            message: 'Deja present dans le deck (Regle Singleton).',
           );
         }
       }
@@ -360,7 +360,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     state = state.copyWith(currentDeck: updatedDeck);
     _calculateDeckValue();
     return DeckDetailActionResult(
-      message: "Carte deplacee vers ${targetBoard.name.toUpperCase()} !",
+      message: 'Carte deplacee vers ${targetBoard.name.toUpperCase()} !',
     );
   }
 
@@ -451,33 +451,33 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
   String generateFullDeckText() {
     final deck = state.currentDeck;
     StringBuffer sb = StringBuffer();
-    sb.writeln("Deck: ${deck.name}");
-    sb.writeln("Format: ${deck.format}");
-    sb.writeln("");
+    sb.writeln('Deck: ${deck.name}');
+    sb.writeln('Format: ${deck.format}');
+    sb.writeln('');
 
     if (deck.commanderScryfallId != null) {
       final cmd = _findCardOrUnknown(deck.commanderScryfallId!);
-      sb.writeln("COMMANDER:");
-      sb.writeln("1 ${cmd.name}");
+      sb.writeln('COMMANDER:');
+      sb.writeln('1 ${cmd.name}');
     }
     if (deck.commanderSecondaryScryfallId != null) {
       final partner = _findCardOrUnknown(deck.commanderSecondaryScryfallId!);
-      sb.writeln("1 ${partner.name}");
+      sb.writeln('1 ${partner.name}');
     }
-    if (deck.commanderScryfallId != null) sb.writeln("");
+    if (deck.commanderScryfallId != null) sb.writeln('');
 
-    sb.writeln("MAINBOARD:");
+    sb.writeln('MAINBOARD:');
     for (var c in deck.mainboard) {
       if (c.scryfallId != deck.commanderScryfallId && c.scryfallId != deck.commanderSecondaryScryfallId) {
-        sb.writeln("${c.quantity} ${c.name}");
+        sb.writeln('${c.quantity} ${c.name}');
       }
     }
-    sb.writeln("");
+    sb.writeln('');
 
     if (deck.sideboard.isNotEmpty) {
-      sb.writeln("SIDEBOARD:");
+      sb.writeln('SIDEBOARD:');
       for (var c in deck.sideboard) {
-        sb.writeln("${c.quantity} ${c.name}");
+        sb.writeln('${c.quantity} ${c.name}');
       }
     }
 
@@ -489,10 +489,10 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     if (deck.considering.isEmpty) return null;
 
     StringBuffer sb = StringBuffer();
-    sb.writeln("Considering for: ${deck.name}");
-    sb.writeln("");
+    sb.writeln('Considering for: ${deck.name}');
+    sb.writeln('');
     for (var c in deck.considering) {
-      sb.writeln("${c.quantity} ${c.name}");
+      sb.writeln('${c.quantity} ${c.name}');
     }
     return sb.toString();
   }
@@ -502,10 +502,10 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     if (deck.wishlist.isEmpty) return null;
 
     StringBuffer sb = StringBuffer();
-    sb.writeln("Wishlist for: ${deck.name}");
-    sb.writeln("");
+    sb.writeln('Wishlist for: ${deck.name}');
+    sb.writeln('');
     for (var c in deck.wishlist) {
-      sb.writeln("${c.quantity} ${c.name}");
+      sb.writeln('${c.quantity} ${c.name}');
     }
     return sb.toString();
   }

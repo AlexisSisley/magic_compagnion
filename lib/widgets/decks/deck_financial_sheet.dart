@@ -1,6 +1,7 @@
 // Fichier : lib/widgets/decks/deck_financial_sheet.dart
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart'; // NÉCESSITE LE PLUGIN url_launcher
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
@@ -93,15 +94,15 @@ class DeckFinancialSheet extends StatelessWidget {
       builder: (context, scrollController) {
         return Container(
           decoration: const BoxDecoration(
-            color: Color(0xFF1A1A1A),
+            color: AppColors.scaffoldBackground,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20), decoration: BoxDecoration(color: Colors.grey, borderRadius: BorderRadius.circular(2)))),
-              Text('Estimation Financière', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20), decoration: BoxDecoration(color: AppColors.synergyNeutral, borderRadius: BorderRadius.circular(2)))),
+              Text('Estimation Financière', style: AppTextStyles.pageTitle(fontSize: 22)),
               const SizedBox(height: 20),
               
               Row(
@@ -129,43 +130,43 @@ class DeckFinancialSheet extends StatelessWidget {
               ),
               
               const SizedBox(height: 24),
-              Text('Détail des coûts (Top 20)', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('Détail des coûts (Top 20)', style: AppTextStyles.sectionTitle()),
               const SizedBox(height: 10),
 
               Expanded(
                 child: ListView.separated(
                   controller: scrollController,
                   itemCount: topCards.length,
-                  separatorBuilder: (ctx, i) => const Divider(color: Colors.white10),
+                  separatorBuilder: (ctx, i) => const Divider(color: AppColors.borderLight),
                   itemBuilder: (context, index) {
                     final card = topCards[index];
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: card['image'] != null 
                         ? ClipRRect(borderRadius: BorderRadius.circular(4), child: Image.network(card['image'], width: 30))
-                        : const Icon(Icons.image, color: Colors.white24),
+                        : const Icon(Icons.image, color: AppColors.borderMedium),
                       title: Row(
                         children: [
-                          Expanded(child: Text(card['name'], style: GoogleFonts.cinzel(color: Colors.white), overflow: TextOverflow.ellipsis)),
+                          Expanded(child: Text(card['name'], style: AppTextStyles.cinzel(), overflow: TextOverflow.ellipsis)),
                           if (card['isFoil']) 
-                             const Padding(padding: EdgeInsets.only(left:6), child: Icon(Icons.star, size: 14, color: Colors.amber)), // Icône Foil
+                             const Padding(padding: EdgeInsets.only(left:6), child: Icon(Icons.star, size: 14, color: AppColors.amber)), // Icône Foil
                           if (card['isProxy']) 
                             Padding(padding: const EdgeInsets.only(left:6), child: Icon(Icons.print, size: 14, color: Colors.blueGrey.shade200))
                         ],
                       ),
                       subtitle: card['isOwned'] 
-                          ? const Text("Possédé", style: TextStyle(color: Colors.green, fontSize: 10))
+                          ? const Text('Possédé', style: TextStyle(color: AppColors.success, fontSize: 10))
                           : null,
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('${(card['price'] as double).toStringAsFixed(2)} €', style: GoogleFonts.cinzel(color: Colors.yellow.shade700, fontWeight: FontWeight.bold)),
+                          Text('${(card['price'] as double).toStringAsFixed(2)} €', style: AppTextStyles.bold(color: AppColors.primaryShade700)),
                           const SizedBox(width: 12),
                           // BOUTON CARDMARKET
                           if (card['purchaseUrl'] != null)
                             IconButton(
-                              icon: const Icon(Icons.shopping_bag_outlined, color: Colors.blueAccent, size: 20),
-                              tooltip: "Voir sur Cardmarket",
+                              icon: const Icon(Icons.shopping_bag_outlined, color: AppColors.accent, size: 20),
+                              tooltip: 'Voir sur Cardmarket',
                               onPressed: () => _launchURL(card['purchaseUrl']),
                             ),
                         ],
@@ -184,15 +185,15 @@ class DeckFinancialSheet extends StatelessWidget {
   Widget _buildFinanceCard({required String title, required double amount, required String subtitle, required Color color, required IconData icon}) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withOpacity(0.3))),
+      decoration: BoxDecoration(color: AppColors.textPrimary.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withValues(alpha: 0.3))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start, 
         children: [
           Icon(icon, color: color, size: 24),
           const SizedBox(height: 8),
-          Text(title, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-          Text('${amount.toStringAsFixed(2)} €', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-          Text(subtitle, style: TextStyle(color: Colors.white38, fontSize: 10)),
+          Text(title, style: AppTextStyles.label(color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text('${amount.toStringAsFixed(2)} €', style: AppTextStyles.sectionTitle()),
+          Text(subtitle, style: const TextStyle(color: AppColors.borderFaint, fontSize: 10)),
         ]
       ),
     );

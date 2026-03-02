@@ -81,35 +81,35 @@ void main() {
     });
 
     test('activeFilterCount counts colors filter', () {
-      final state = CollectionState(
+      const state = CollectionState(
         activeFilters: SearchFilters(colors: {'W', 'U'}),
       );
       expect(state.activeFilterCount, 1);
     });
 
     test('activeFilterCount counts cardType filter', () {
-      final state = CollectionState(
+      const state = CollectionState(
         activeFilters: SearchFilters(cardType: 'Creature'),
       );
       expect(state.activeFilterCount, 1);
     });
 
     test('activeFilterCount counts tags filter', () {
-      final state = CollectionState(
+      const state = CollectionState(
         activeFilters: SearchFilters(tags: {'Commander', 'Ramp'}),
       );
       expect(state.activeFilterCount, 1);
     });
 
     test('activeFilterCount counts keyword filter', () {
-      final state = CollectionState(
+      const state = CollectionState(
         activeFilters: SearchFilters(keyword: 'flying'),
       );
       expect(state.activeFilterCount, 1);
     });
 
     test('activeFilterCount counts multiple filters', () {
-      final state = CollectionState(
+      const state = CollectionState(
         activeFilters: SearchFilters(
           colors: {'R'},
           cardType: 'Instant',
@@ -206,7 +206,7 @@ void main() {
   group('CollectionState filter transitions', () {
     test('updateFilters stores new SearchFilters', () {
       const state = CollectionState();
-      final newFilters = SearchFilters(
+      const newFilters = SearchFilters(
         colors: {'B', 'G'},
         cardType: 'Enchantment',
         tags: {'EDH'},
@@ -219,10 +219,10 @@ void main() {
     });
 
     test('updateFilters replaces previous filters', () {
-      final state = CollectionState(
+      const state = CollectionState(
         activeFilters: SearchFilters(colors: {'W'}, cardType: 'Creature'),
       );
-      final newFilters = SearchFilters(colors: {'R'});
+      const newFilters = SearchFilters(colors: {'R'});
       final updated = state.copyWith(activeFilters: newFilters);
 
       expect(updated.activeFilters.colors, {'R'});

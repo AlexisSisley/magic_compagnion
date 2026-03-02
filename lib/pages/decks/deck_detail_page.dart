@@ -1,12 +1,13 @@
 // Fichier : lib/pages/decks/deck_detail_page.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -57,7 +58,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     final result = await _ctrl.updateQuantity(card, change, board);
     if (!result.success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message), backgroundColor: Colors.orange),
+        SnackBar(content: Text(result.message), backgroundColor: AppColors.warning),
       );
     }
   }
@@ -66,7 +67,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     final result = await _ctrl.moveCard(card, targetBoard, sourceBoard);
     if (!result.success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message), backgroundColor: Colors.orange),
+        SnackBar(content: Text(result.message), backgroundColor: AppColors.warning),
       );
     } else if (result.success && result.message.isNotEmpty && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -96,16 +97,16 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     int? slot = await showDialog<int>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Definir comme...', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('Definir comme...', style: TextStyle(color: AppColors.textPrimary)),
+        backgroundColor: AppColors.scaffoldBackground,
         children: [
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, 1),
-            child: const Padding(padding: EdgeInsets.all(8.0), child: Text('Commandant Principal', style: TextStyle(color: Colors.yellow))),
+            child: const Padding(padding: EdgeInsets.all(8.0), child: Text('Commandant Principal', style: TextStyle(color: AppColors.primary))),
           ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, 2),
-            child: const Padding(padding: EdgeInsets.all(8.0), child: Text('Partenaire / Background', style: TextStyle(color: Colors.blueAccent))),
+            child: const Padding(padding: EdgeInsets.all(8.0), child: Text('Partenaire / Background', style: TextStyle(color: AppColors.accent))),
           ),
         ],
       ),
@@ -116,7 +117,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     final result = await _ctrl.setCommanderSlot(deckCard, slot);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message, style: GoogleFonts.cinzel())),
+        SnackBar(content: Text(result.message, style: AppTextStyles.cinzel())),
       );
     }
   }
@@ -124,27 +125,27 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
   Future<void> _handleExportDeckWishlistToGlobal() async {
     final currentDeckState = ref.read(deckDetailControllerProvider(widget.deck));
     if (currentDeckState.currentDeck.wishlist.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("La Wishlist du deck est vide.")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La Wishlist du deck est vide.')));
       return;
     }
 
-    final textController = TextEditingController(text: "Achats: ${currentDeckState.currentDeck.name}");
+    final textController = TextEditingController(text: 'Achats: ${currentDeckState.currentDeck.name}');
     final name = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text("Creer une Wishlist Globale", style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.scaffoldBackground,
+        title: const Text('Creer une Wishlist Globale', style: TextStyle(color: AppColors.textPrimary)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("Cela va creer une nouvelle liste dans l'onglet Wishlist de l'application avec ces cartes.", style: TextStyle(color: Colors.white70)),
+            const Text("Cela va creer une nouvelle liste dans l'onglet Wishlist de l'application avec ces cartes.", style: TextStyle(color: AppColors.textSecondary)),
             const SizedBox(height: 12),
-            TextField(controller: textController, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: "Nom de la liste")),
+            TextField(controller: textController, style: const TextStyle(color: AppColors.textPrimary), decoration: const InputDecoration(labelText: 'Nom de la liste')),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Annuler")),
-          ElevatedButton(onPressed: () => Navigator.pop(c, textController.text), child: const Text("Creer")),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Annuler')),
+          ElevatedButton(onPressed: () => Navigator.pop(c, textController.text), child: const Text('Creer')),
         ],
       ),
     );
@@ -153,7 +154,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
       final result = await _ctrl.exportDeckWishlistToGlobal(name);
       if (result != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.message), backgroundColor: Colors.green),
+          SnackBar(content: Text(result.message), backgroundColor: AppColors.success),
         );
       }
     }
@@ -163,7 +164,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
   Future<void> _captureAndShare() async {
     final captureState = ref.read(deckDetailControllerProvider(widget.deck));
     if (captureState.fullCardData.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Donnees des cartes non chargees. Veuillez patienter.")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Donnees des cartes non chargees. Veuillez patienter.')));
       return;
     }
 
@@ -172,16 +173,16 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
       barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1A),
+          backgroundColor: AppColors.scaffoldBackground,
           contentPadding: EdgeInsets.zero,
           insetPadding: const EdgeInsets.all(16),
           title: Column(
             children: [
-              Text("Apercu avant partage", style: GoogleFonts.cinzel(color: Colors.white)),
+              Text('Apercu avant partage', style: AppTextStyles.cinzel()),
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
-                  "Generation du poster en cours...",
+                  'Generation du poster en cours...',
                   style: TextStyle(color: Colors.orangeAccent.shade100, fontSize: 11, fontStyle: FontStyle.italic),
                   textAlign: TextAlign.center,
                 ),
@@ -208,17 +209,17 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text("Annuler", style: TextStyle(color: Colors.white54)),
+              child: const Text('Annuler', style: TextStyle(color: AppColors.textMuted)),
             ),
             ElevatedButton.icon(
-              icon: const Icon(Icons.share, color: Colors.black),
-              label: const Text("Partager l'image", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
+              icon: const Icon(Icons.share, color: AppColors.textOnPrimary),
+              label: const Text("Partager l'image", style: TextStyle(color: AppColors.textOnPrimary, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentOrange),
               onPressed: () async {
                 showDialog(
                   context: dialogContext,
                   barrierDismissible: false,
-                  builder: (c) => const Center(child: CircularProgressIndicator(color: Colors.orangeAccent)),
+                  builder: (c) => const Center(child: CircularProgressIndicator(color: AppColors.accentOrange)),
                 );
 
                 try {
@@ -235,20 +236,21 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                   final file = await File('${tempDir.path}/$fileName').create();
                   await file.writeAsBytes(pngBytes);
 
-                  if (mounted) Navigator.pop(dialogContext);
-                  if (mounted) Navigator.pop(dialogContext);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
 
                   final currentDeck = ref.read(deckDetailControllerProvider(widget.deck)).currentDeck;
-                  await Share.shareXFiles(
-                    [XFile(file.path)],
-                    text: "Mon deck Commander : ${currentDeck.name}",
-                  );
+                  await SharePlus.instance.share(ShareParams(
+                    files: [XFile(file.path)],
+                    text: 'Mon deck Commander : ${currentDeck.name}',
+                  ));
 
                 } catch (e) {
-                  if (mounted) Navigator.pop(dialogContext);
-                  if (mounted) Navigator.pop(dialogContext);
-                  debugPrint("Erreur capture: $e");
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Erreur lors de la generation.")));
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  debugPrint('Erreur capture: $e');
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erreur lors de la generation.')));
                 }
               },
             ),
@@ -263,42 +265,42 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
   void _shareFullDeck() {
     final text = _ctrl.generateFullDeckText();
     final deckName = ref.read(deckDetailControllerProvider(widget.deck)).currentDeck.name;
-    Share.share(text, subject: "Decklist : $deckName");
+    SharePlus.instance.share(ShareParams(text: text, subject: 'Decklist : $deckName'));
   }
 
   void _shareConsidering() {
     final text = _ctrl.generateConsideringText();
     if (text == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("La liste Considering est vide.")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La liste Considering est vide.')));
       return;
     }
     final deckName = ref.read(deckDetailControllerProvider(widget.deck)).currentDeck.name;
-    Share.share(text, subject: "Considering : $deckName");
+    SharePlus.instance.share(ShareParams(text: text, subject: 'Considering : $deckName'));
   }
 
   void _shareWishlist() {
     final text = _ctrl.generateWishlistText();
     if (text == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("La Wishlist du deck est vide.")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La Wishlist du deck est vide.')));
       return;
     }
     final deckName = ref.read(deckDetailControllerProvider(widget.deck)).currentDeck.name;
-    Share.share(text, subject: "Wishlist : $deckName");
+    SharePlus.instance.share(ShareParams(text: text, subject: 'Wishlist : $deckName'));
   }
 
   void _showValidationResults() {
     final results = _ctrl.validateDeckRules();
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       builder: (context) => SafeArea(
         child: Container(
           padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: results.entries.map((e) => ListTile(
-              title: Text(e.key, style: const TextStyle(color: Colors.white)),
-              trailing: Text(e.value, style: TextStyle(color: e.value.contains('OK') ? Colors.green : Colors.red)),
+              title: Text(e.key, style: const TextStyle(color: AppColors.textPrimary)),
+              trailing: Text(e.value, style: TextStyle(color: e.value.contains('OK') ? AppColors.success : AppColors.error)),
             )).toList(),
           ),
         ),
@@ -310,7 +312,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     final List<Map<String, dynamic>>? result = await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       builder: (context) => const DeckCardPicker(),
     );
     if (result != null && result.isNotEmpty) {
@@ -323,7 +325,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       builder: (context) => DeckFinancialSheet(
         deck: finState.currentDeck,
         fullCardData: finState.fullCardData,
@@ -337,8 +339,8 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     if (mounted && result.message.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result.message, style: GoogleFonts.cinzel(color: Colors.redAccent)),
-          backgroundColor: Colors.black,
+          content: Text(result.message, style: AppTextStyles.cinzel(color: AppColors.accentRed)),
+          backgroundColor: AppColors.textOnPrimary,
         ),
       );
     }
@@ -350,32 +352,32 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     final deck = deckState.currentDeck;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(deck.name, style: GoogleFonts.cinzel(fontWeight: FontWeight.w600, fontSize: 16)),
-            Text("${deckState.mainCount} cartes \u2022 ${deck.format}", style: const TextStyle(fontSize: 12, color: Colors.white70)),
+            Text(deck.name, style: AppTextStyles.appBarTitle()),
+            Text('${deckState.mainCount} cartes \u2022 ${deck.format}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
           ],
         ),
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.textOnPrimary,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(50),
           child: Container(
-            color: Colors.black,
+            color: AppColors.textOnPrimary,
             child: TabBar(
               controller: _tabController,
               isScrollable: true,
               indicator: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.orange, width: 1)),
+                border: Border(bottom: BorderSide(color: AppColors.warning, width: 1)),
               ),
               indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelColor: Colors.white,
-              labelStyle: GoogleFonts.cinzel(fontWeight: FontWeight.bold),
-              unselectedLabelColor: Colors.white54,
-              unselectedLabelStyle: GoogleFonts.cinzel(),
+              dividerColor: AppColors.transparent,
+              labelColor: AppColors.textPrimary,
+              labelStyle: AppTextStyles.bold(),
+              unselectedLabelColor: AppColors.textMuted,
+              unselectedLabelStyle: AppTextStyles.cinzel(),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               tabs: [
                 _buildDragTargetTab(DeckBoard.main, 'Main (${deckState.mainCount})'),
@@ -390,7 +392,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
           ),
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.add_circle, color: Colors.yellow), onPressed: _openCardPicker),
+          IconButton(icon: const Icon(Icons.add_circle, color: AppColors.primary), onPressed: _openCardPicker),
           PopupMenuButton<String>(
             onSelected: (val) {
                if (val == 'legality') _showValidationResults();
@@ -407,18 +409,18 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
               const PopupMenuItem(value: 'share_image', child: Row(children: [Icon(Icons.image, size: 18), SizedBox(width: 8), Text('Partager (Image)')])),
 
               const PopupMenuDivider(),
-              const PopupMenuItem(value: 'share_deck', child: Row(children: [Icon(Icons.text_snippet, size: 18, color: Colors.white70), SizedBox(width: 8), Text('Copier Decklist')])),
-              const PopupMenuItem(value: 'share_considering', child: Row(children: [Icon(Icons.question_mark, size: 18, color: Colors.white70), SizedBox(width: 8), Text('Copier Considering')])),
-              const PopupMenuItem(value: 'share_wishlist', child: Row(children: [Icon(Icons.star_border, size: 18, color: Colors.white70), SizedBox(width: 8), Text('Copier Wishlist')])),
+              const PopupMenuItem(value: 'share_deck', child: Row(children: [Icon(Icons.text_snippet, size: 18, color: AppColors.textSecondary), SizedBox(width: 8), Text('Copier Decklist')])),
+              const PopupMenuItem(value: 'share_considering', child: Row(children: [Icon(Icons.question_mark, size: 18, color: AppColors.textSecondary), SizedBox(width: 8), Text('Copier Considering')])),
+              const PopupMenuItem(value: 'share_wishlist', child: Row(children: [Icon(Icons.star_border, size: 18, color: AppColors.textSecondary), SizedBox(width: 8), Text('Copier Wishlist')])),
               const PopupMenuDivider(),
 
-              const PopupMenuItem(value: 'clear', child: Row(children: [Icon(Icons.delete, color: Colors.red, size: 18), SizedBox(width: 8), Text('Vider', style: TextStyle(color: Colors.red))])),
+              const PopupMenuItem(value: 'clear', child: Row(children: [Icon(Icons.delete, color: AppColors.error, size: 18), SizedBox(width: 8), Text('Vider', style: TextStyle(color: AppColors.error))])),
             ],
           ),
         ],
       ),
       body: deckState.isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary))
           : Column(
               children: [
                 _buildCommanderHeader(deckState),
@@ -494,25 +496,25 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(12),
-        color: Colors.black54,
-        child: const Text("Aucun Commandant defini", style: TextStyle(color: Colors.white54, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+        color: AppColors.overlayDark,
+        child: const Text('Aucun Commandant defini', style: TextStyle(color: AppColors.textMuted, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
       );
     }
 
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.black,
-        border: Border(bottom: BorderSide(color: Colors.yellow.shade900, width: 2)),
+        color: AppColors.textOnPrimary,
+        border: Border(bottom: BorderSide(color: AppColors.primaryShade900, width: 2)),
         image: const DecorationImage(image: AssetImage('assets/images/background_texture_black.png'), fit: BoxFit.cover, opacity: 0.5),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (c1Id != null) _buildSingleCommander(deckState, c1Id, "Commander"),
+          if (c1Id != null) _buildSingleCommander(deckState, c1Id, 'Commander'),
           if (c1Id != null && c2Id != null)
-             Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Icon(Icons.add, color: Colors.yellow.shade700)),
-          if (c2Id != null) _buildSingleCommander(deckState, c2Id, "Partenaire"),
+             Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Icon(Icons.add, color: AppColors.primaryShade700)),
+          if (c2Id != null) _buildSingleCommander(deckState, c2Id, 'Partenaire'),
         ],
       ),
     );
@@ -520,7 +522,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
 
   Widget _buildSingleCommander(DeckDetailState deckState, String id, String label) {
     String? imageUrl;
-    String name = "Chargement...";
+    String name = 'Chargement...';
     try {
       final card = deckState.fullCardData.firstWhere((c) => c.id == id);
       imageUrl = card.artCropUrl ?? card.imageUrl;
@@ -532,14 +534,14 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     return Expanded(
       child: Column(
         children: [
-          Text(label, style: const TextStyle(color: Colors.orangeAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(color: AppColors.accentOrange, fontSize: 10, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Container(
               height: 60,
               width: double.infinity,
-              color: Colors.grey.shade900,
+              color: AppColors.greyShade900,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -548,12 +550,12 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                       errorBuilder: (c, e, s) => const SizedBox()),
                   Container(
                     decoration: const BoxDecoration(
-                      gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black87]),
+                      gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [AppColors.transparent, AppColors.overlayVeryDark]),
                     ),
                   ),
                   Positioned(
                     bottom: 4, left: 4, right: 4,
-                    child: Text(name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+                    child: Text(name, style: AppTextStyles.bold(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
                   ),
                 ],
               ),
@@ -588,7 +590,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
             duration: const Duration(milliseconds: 200),
             padding: EdgeInsets.symmetric(horizontal: 8, vertical: isHovered ? 4 : 0),
             decoration: isHovered
-                ? BoxDecoration(color: Colors.yellow.shade900.withOpacity(0.5), borderRadius: BorderRadius.circular(8))
+                ? BoxDecoration(color: AppColors.primaryShade900.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(8))
                 : null,
             child: Text(label),
           ),

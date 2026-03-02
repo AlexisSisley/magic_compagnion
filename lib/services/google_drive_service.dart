@@ -12,7 +12,7 @@ class GoogleDriveService {
   GoogleSignInAccount? _currentUser;
   
   // Nom du fichier sur le Drive
-  static const String _backupFileName = "magic_companion_auto_backup.json";
+  static const String _backupFileName = 'magic_companion_auto_backup.json';
 
   /// Connecte l'utilisateur
   /// Si [silent] est true, ne tente pas d'ouvrir la popup si l'utilisateur n'est pas déjà caché.
@@ -26,7 +26,7 @@ class GoogleDriveService {
       }
       return _currentUser != null;
     } catch (e) {
-      log("Erreur Google Sign In: $e", name: 'GoogleDriveService');
+      log('Erreur Google Sign In: $e', name: 'GoogleDriveService');
       return false;
     }
   }
@@ -52,7 +52,7 @@ class GoogleDriveService {
     
     final fileList = await driveApi.files.list(
       q: "name = '$_backupFileName' and trashed = false",
-      $fields: "files(id, name, modifiedTime)",
+      $fields: 'files(id, name, modifiedTime)',
     );
 
     if (fileList.files != null && fileList.files!.isNotEmpty) {
@@ -108,7 +108,7 @@ class GoogleDriveService {
         existingFile.id!, 
         uploadMedia: media
       );
-      log("Sauvegarde Drive mise à jour : ${existingFile.id}", name: 'GoogleDriveService');
+      log('Sauvegarde Drive mise à jour : ${existingFile.id}', name: 'GoogleDriveService');
     } else {
       final fileToUpload = drive.File();
       fileToUpload.name = _backupFileName;
@@ -117,7 +117,7 @@ class GoogleDriveService {
         fileToUpload, 
         uploadMedia: media
       );
-      log("Nouvelle sauvegarde Drive créée.", name: 'GoogleDriveService');
+      log('Nouvelle sauvegarde Drive créée.', name: 'GoogleDriveService');
     }
   }
 }

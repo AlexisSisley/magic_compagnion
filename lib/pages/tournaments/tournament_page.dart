@@ -1,7 +1,8 @@
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/profile_service.dart';
 import '../../providers/service_providers.dart';
@@ -10,7 +11,7 @@ class TournamentPlayer {
   String id;
   String name;
   TournamentPlayer({required this.id, required this.name});
-  bool get isBye => name == "BYE";
+  bool get isBye => name == 'BYE';
   Map<String, dynamic> toJson() => {'id': id, 'name': name};
   factory TournamentPlayer.fromJson(Map<String, dynamic> json) => TournamentPlayer(id: json['id'], name: json['name']);
 }
@@ -129,15 +130,15 @@ class _TournamentPageState extends ConsumerState<TournamentPage> with SingleTick
     final profiles = await _profileService.loadProfiles();
     if (!mounted) return;
     if (profiles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Aucun profil enregistré.")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucun profil enregistré.')));
       return;
     }
     showModalBottomSheet(
-      context: context, backgroundColor: const Color(0xFF1A1A1A),
+      context: context, backgroundColor: AppColors.scaffoldBackground,
       builder: (ctx) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(padding: const EdgeInsets.all(16.0), child: Text("Choisir des joueurs", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18))),
+          Padding(padding: const EdgeInsets.all(16.0), child: Text('Choisir des joueurs', style: AppTextStyles.cinzel(fontSize: 18))),
           Flexible(
             child: ListView.builder(
               shrinkWrap: true,
@@ -147,8 +148,8 @@ class _TournamentPageState extends ConsumerState<TournamentPage> with SingleTick
                 final bool isReg = _players.any((tp) => tp.name == p.name);
                 return ListTile(
                   leading: CircleAvatar(backgroundColor: Color(p.colorValue)),
-                  title: Text(p.name, style: const TextStyle(color: Colors.white)),
-                  trailing: Icon(isReg ? Icons.check : Icons.add, color: isReg ? Colors.green : Colors.blue),
+                  title: Text(p.name, style: const TextStyle(color: AppColors.textPrimary)),
+                  trailing: Icon(isReg ? Icons.check : Icons.add, color: isReg ? AppColors.success : AppColors.info),
                   enabled: !isReg,
                   onTap: () {
                     setState(() { _players.add(TournamentPlayer(id: p.id, name: p.name)); });
@@ -169,7 +170,7 @@ class _TournamentPageState extends ConsumerState<TournamentPage> with SingleTick
     if (_players.length < 2) return;
     int target = _players.length <= 4 ? 4 : 8;
     for (int i = 0, len = _players.length; i < target - len; i++) {
-      _players.add(TournamentPlayer(id: "bye_$i", name: "BYE"));
+      _players.add(TournamentPlayer(id: 'bye_$i', name: 'BYE'));
     }
     _players.shuffle();
     setState(() { target == 4 ? _init4PlayersBracket() : _init8PlayersBracket(); _status = 1; });
@@ -239,14 +240,14 @@ class _TournamentPageState extends ConsumerState<TournamentPage> with SingleTick
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Scaffold(backgroundColor: Color(0xFF1A1A1A), body: Center(child: CircularProgressIndicator()));
+    if (_isLoading) return const Scaffold(backgroundColor: AppColors.scaffoldBackground, body: Center(child: CircularProgressIndicator()));
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text("Arbre de Tournoi", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.black,
-        actions: [if (_status != 0) IconButton(icon: const Icon(Icons.delete_forever, color: Colors.redAccent), onPressed: () => setState(() => _status = 0))],
-        bottom: _status == 1 ? TabBar(controller: _tabController, indicatorColor: Colors.yellow.shade800, tabs: const [Tab(text: "Winner Bracket"), Tab(text: "Loser Bracket")]) : null,
+        title: Text('Arbre de Tournoi', style: AppTextStyles.bold()),
+        backgroundColor: AppColors.textOnPrimary,
+        actions: [if (_status != 0) IconButton(icon: const Icon(Icons.delete_forever, color: AppColors.accentRed), onPressed: () => setState(() => _status = 0))],
+        bottom: _status == 1 ? TabBar(controller: _tabController, indicatorColor: AppColors.primaryShade800, tabs: const [Tab(text: 'Winner Bracket'), Tab(text: 'Loser Bracket')]) : null,
       ),
       body: SafeArea(child: _status == 0 ? _buildRegistration() : TabBarView(controller: _tabController, children: [_buildTreeCanvas(_winnerBracket), _buildTreeCanvas(_loserBracket)])),
     );
@@ -258,18 +259,18 @@ class _TournamentPageState extends ConsumerState<TournamentPage> with SingleTick
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text("Inscriptions (2 à 8)", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+          Text('Inscriptions (2 à 8)', style: AppTextStyles.pageTitle(fontSize: 22)),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: TextField(controller: _nameController, style: const TextStyle(color: Colors.white), decoration: InputDecoration(hintText: "Nom du joueur...", filled: true, fillColor: Colors.white.withOpacity(0.1), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-              IconButton(icon: const Icon(Icons.person_pin_rounded, color: Colors.blueAccent, size: 28), onPressed: _pickFromProfiles),
-              IconButton(icon: const Icon(Icons.add_circle, color: Colors.green, size: 32), onPressed: _addPlayer)
+              Expanded(child: TextField(controller: _nameController, style: const TextStyle(color: AppColors.textPrimary), decoration: InputDecoration(hintText: 'Nom du joueur...', filled: true, fillColor: AppColors.textPrimary.withValues(alpha: 0.1), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+              IconButton(icon: const Icon(Icons.person_pin_rounded, color: AppColors.accent, size: 28), onPressed: _pickFromProfiles),
+              IconButton(icon: const Icon(Icons.add_circle, color: AppColors.success, size: 32), onPressed: _addPlayer)
             ],
           ),
           const SizedBox(height: 24),
-          Expanded(child: ListView.builder(itemCount: _players.length, itemBuilder: (ctx, i) => Card(color: Colors.white.withOpacity(0.05), child: ListTile(leading: CircleAvatar(backgroundColor: Colors.blueGrey, child: Text("${i+1}")), title: Text(_players[i].name, style: GoogleFonts.cinzel(color: Colors.white)), trailing: IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => _players.removeAt(i))))))),
-          ElevatedButton(onPressed: _players.length >= 2 ? _startTournament : null, style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800, foregroundColor: Colors.black), child: Text("Générer l'Arbre", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold))),
+          Expanded(child: ListView.builder(itemCount: _players.length, itemBuilder: (ctx, i) => Card(color: AppColors.textPrimary.withValues(alpha: 0.05), child: ListTile(leading: CircleAvatar(backgroundColor: Colors.blueGrey, child: Text('${i+1}')), title: Text(_players[i].name, style: AppTextStyles.cinzel()), trailing: IconButton(icon: const Icon(Icons.close, color: AppColors.error), onPressed: () => setState(() => _players.removeAt(i))))))),
+          ElevatedButton(onPressed: _players.length >= 2 ? _startTournament : null, style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800, foregroundColor: AppColors.textOnPrimary), child: Text("Générer l'Arbre", style: AppTextStyles.bold())),
         ],
       ),
     );
@@ -277,9 +278,11 @@ class _TournamentPageState extends ConsumerState<TournamentPage> with SingleTick
 
   Widget _buildTreeCanvas(List<TournamentMatch> matches) {
     Map<int, List<TournamentMatch>> rounds = {};
-    for (var m in matches) rounds.putIfAbsent(m.roundIndex, () => []).add(m);
+    for (var m in matches) {
+      rounds.putIfAbsent(m.roundIndex, () => []).add(m);
+    }
     final sortedKeys = rounds.keys.toList()..sort();
-    return SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.all(16), child: Row(children: sortedKeys.map((k) => Row(children: [Column(mainAxisAlignment: MainAxisAlignment.spaceAround, children: rounds[k]!.map((m) => _buildMatchCard(m)).toList()), if (k != sortedKeys.last) Container(width: 20, height: 2, color: Colors.white24)])).toList()));
+    return SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.all(16), child: Row(children: sortedKeys.map((k) => Row(children: [Column(mainAxisAlignment: MainAxisAlignment.spaceAround, children: rounds[k]!.map((m) => _buildMatchCard(m)).toList()), if (k != sortedKeys.last) Container(width: 20, height: 2, color: AppColors.borderMedium)])).toList()));
   }
 
   Widget _buildMatchCard(TournamentMatch m) {
@@ -287,12 +290,12 @@ class _TournamentPageState extends ConsumerState<TournamentPage> with SingleTick
     final bool p2W = m.isFinished && m.score2 > m.score1;
     return Container(
       width: 180, margin: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(color: Colors.black, border: Border.all(color: m.isFinished ? Colors.green.shade800 : Colors.white24), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: AppColors.textOnPrimary, border: Border.all(color: m.isFinished ? Colors.green.shade800 : AppColors.borderMedium), borderRadius: BorderRadius.circular(8)),
       child: Column(children: [
-        Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 4), decoration: BoxDecoration(color: m.isBo3 ? Colors.purple.shade900.withOpacity(0.5) : Colors.white10), child: Text(m.roundName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, color: Colors.white70))),
-        ListTile(dense: true, title: Text(m.player1?.name ?? "...", style: TextStyle(color: p1W ? Colors.greenAccent : Colors.white, fontSize: 12)), trailing: Text("${m.score1}", style: const TextStyle(color: Colors.white)), onTap: () => _updateScore(m, 1), onLongPress: () => _updateScore(m, 1, delta: -1)),
-        const Divider(height: 1, color: Colors.white10),
-        ListTile(dense: true, title: Text(m.player2?.name ?? "...", style: TextStyle(color: p2W ? Colors.greenAccent : Colors.white, fontSize: 12)), trailing: Text("${m.score2}", style: const TextStyle(color: Colors.white)), onTap: () => _updateScore(m, 2), onLongPress: () => _updateScore(m, 2, delta: -1)),
+        Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 4), decoration: BoxDecoration(color: m.isBo3 ? Colors.purple.shade900.withValues(alpha: 0.5) : AppColors.borderLight), child: Text(m.roundName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary))),
+        ListTile(dense: true, title: Text(m.player1?.name ?? '...', style: TextStyle(color: p1W ? AppColors.accentGreen : AppColors.textPrimary, fontSize: 12)), trailing: Text('${m.score1}', style: const TextStyle(color: AppColors.textPrimary)), onTap: () => _updateScore(m, 1), onLongPress: () => _updateScore(m, 1, delta: -1)),
+        const Divider(height: 1, color: AppColors.borderLight),
+        ListTile(dense: true, title: Text(m.player2?.name ?? '...', style: TextStyle(color: p2W ? AppColors.accentGreen : AppColors.textPrimary, fontSize: 12)), trailing: Text('${m.score2}', style: const TextStyle(color: AppColors.textPrimary)), onTap: () => _updateScore(m, 2), onLongPress: () => _updateScore(m, 2, delta: -1)),
       ]),
     );
   }

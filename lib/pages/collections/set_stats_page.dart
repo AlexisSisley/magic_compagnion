@@ -1,4 +1,6 @@
 // Fichier : lib/pages/collections/set_stats_page.dart
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/scryfall_set_model.dart';
@@ -11,11 +13,11 @@ class SetStatsPage extends StatefulWidget {
   final List<ScryfallCard> fullSetData; // La liste officielle Scryfall du set
 
   const SetStatsPage({
-    Key? key,
+    super.key,
     required this.targetSet,
     required this.myCollection,
     required this.fullSetData,
-  }) : super(key: key);
+  });
 
   @override
   State<SetStatsPage> createState() => _SetStatsPageState();
@@ -134,16 +136,16 @@ class _SetStatsPageState extends State<SetStatsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.targetSet.name, style: GoogleFonts.cinzel(fontWeight: FontWeight.bold, fontSize: 16)),
-            Text("Statistiques & Progression", style: GoogleFonts.roboto(fontSize: 12, color: Colors.white70)),
+            Text(widget.targetSet.name, style: AppTextStyles.bold(fontSize: 16)),
+            Text('Statistiques & Progression', style: GoogleFonts.roboto(fontSize: 12, color: AppColors.textSecondary)),
           ],
         ),
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.textOnPrimary,
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -156,41 +158,41 @@ class _SetStatsPageState extends State<SetStatsPage> {
             const SizedBox(height: 24),
 
             // --- 2. PROGRESSION ---
-            _buildSectionTitle("Avancement"),
+            _buildSectionTitle('Avancement'),
             _buildCompletionIndicator(),
             const SizedBox(height: 24),
 
             // --- 3. GRAPHIQUE FOIL vs NORMAL ---
-            _buildSectionTitle("Finitions"),
+            _buildSectionTitle('Finitions'),
             Row(
               children: [
-                Expanded(child: _buildStatCard("Normal", "$normalCount", Icons.copy, Colors.blueGrey.shade200)),
+                Expanded(child: _buildStatCard('Normal', '$normalCount', Icons.copy, Colors.blueGrey.shade200)),
                 const SizedBox(width: 12),
-                Expanded(child: _buildStatCard("Foil", "$foilCount", Icons.star, Colors.amber)),
+                Expanded(child: _buildStatCard('Foil', '$foilCount', Icons.star, AppColors.amber)),
               ],
             ),
             const SizedBox(height: 24),
 
             // --- 4. OPPORTUNITÉS FOIL ---
             if (upgradeOpportunities.isNotEmpty) ...[
-              _buildSectionTitle("Opportunités Foil (${upgradeOpportunities.length})"),
+              _buildSectionTitle('Opportunités Foil (${upgradeOpportunities.length})'),
               _buildExpandableList(
-                title: "Voir les cartes upgradables",
+                title: 'Voir les cartes upgradables',
                 cards: upgradeOpportunities,
                 icon: Icons.auto_awesome,
-                iconColor: Colors.amber,
+                iconColor: AppColors.amber,
               ),
               const SizedBox(height: 24),
             ],
 
             // --- 5. CARTES MANQUANTES (Top 10 Chères) ---
             if (missingCards.isNotEmpty) ...[
-              _buildSectionTitle("Manquantes les plus chères"),
+              _buildSectionTitle('Manquantes les plus chères'),
               _buildExpandableList(
-                title: "Voir le Top 10 manquant",
+                title: 'Voir le Top 10 manquant',
                 cards: missingCards.take(10).toList(),
                 icon: Icons.shopping_cart_outlined,
-                iconColor: Colors.redAccent,
+                iconColor: AppColors.accentRed,
                 showPrice: true,
               ),
             ],
@@ -204,21 +206,21 @@ class _SetStatsPageState extends State<SetStatsPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.5),
+        color: AppColors.textOnPrimary.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.borderLight),
       ),
       child: Row(
         children: [
           // Icône du Set
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(8)),
             child: Image.network(
-              widget.targetSet.iconSvgUri ?? "",
+              widget.targetSet.iconSvgUri ?? '',
               width: 40, height: 40,
-              color: Colors.white,
-              errorBuilder: (_,__,___) => const Icon(Icons.category, color: Colors.white, size: 40),
+              color: AppColors.textPrimary,
+              errorBuilder: (_, _, _) => const Icon(Icons.category, color: AppColors.textPrimary, size: 40),
             ),
           ),
           const SizedBox(width: 16),
@@ -228,17 +230,17 @@ class _SetStatsPageState extends State<SetStatsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "$uniqueOwnedCount / $totalSetCards cartes uniques",
-                  style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  '$uniqueOwnedCount / $totalSetCards cartes uniques',
+                  style: AppTextStyles.bold(fontSize: 16),
                 ),
                 Text(
-                  "$totalOwnedQuantity cartes au total",
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  '$totalOwnedQuantity cartes au total',
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  "Valeur estimée : ${estimatedSetValuation.toStringAsFixed(2)} €",
-                  style: GoogleFonts.roboto(color: Colors.greenAccent, fontWeight: FontWeight.bold),
+                  'Valeur estimée : ${estimatedSetValuation.toStringAsFixed(2)} €',
+                  style: GoogleFonts.roboto(color: AppColors.accentGreen, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -256,22 +258,22 @@ class _SetStatsPageState extends State<SetStatsPage> {
           child: LinearProgressIndicator(
             value: completionPercentage,
             minHeight: 20,
-            backgroundColor: Colors.white10,
+            backgroundColor: AppColors.borderLight,
             color: _getProgressColor(completionPercentage),
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          "${(completionPercentage * 100).toStringAsFixed(1)}% Complété",
-          style: GoogleFonts.cinzel(color: _getProgressColor(completionPercentage), fontWeight: FontWeight.bold, fontSize: 18),
+          '${(completionPercentage * 100).toStringAsFixed(1)}% Complété',
+          style: AppTextStyles.sectionTitle(color: _getProgressColor(completionPercentage)),
         ),
       ],
     );
   }
 
   Color _getProgressColor(double pct) {
-    if (pct < 0.3) return Colors.redAccent;
-    if (pct < 0.7) return Colors.orangeAccent;
+    if (pct < 0.3) return AppColors.accentRed;
+    if (pct < 0.7) return AppColors.accentOrange;
     if (pct < 1.0) return Colors.lightGreenAccent;
     return Colors.amberAccent; // 100% Or
   }
@@ -280,15 +282,15 @@ class _SetStatsPageState extends State<SetStatsPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
           Icon(icon, color: color, size: 28),
           const SizedBox(height: 8),
-          Text(value, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(value, style: AppTextStyles.pageTitle()),
           Text(label, style: TextStyle(color: color, fontSize: 12)),
         ],
       ),
@@ -303,30 +305,30 @@ class _SetStatsPageState extends State<SetStatsPage> {
     bool showPrice = false,
   }) {
     return Card(
-      color: Colors.white.withOpacity(0.05),
+      color: AppColors.textPrimary.withValues(alpha: 0.05),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ExpansionTile(
         title: Row(
           children: [
             Icon(icon, color: iconColor, size: 20),
             const SizedBox(width: 12),
-            Text(title, style: GoogleFonts.cinzel(color: Colors.white)),
+            Text(title, style: AppTextStyles.cinzel()),
           ],
         ),
         iconColor: iconColor,
-        collapsedIconColor: Colors.white54,
+        collapsedIconColor: AppColors.textMuted,
         children: cards.map((card) {
           final price = card.prices['eur'] ?? '--';
           return ListTile(
             dense: true,
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.network(card.smallImageUrl ?? '', width: 30, errorBuilder: (_,__,___)=>const Icon(Icons.image, size: 20)),
+              child: Image.network(card.smallImageUrl ?? '', width: 30, errorBuilder: (_, _, _)=>const Icon(Icons.image, size: 20)),
             ),
-            title: Text(card.name, style: const TextStyle(color: Colors.white)),
-            subtitle: Text("#${card.collectorNumber} • ${card.rarity}", style: const TextStyle(color: Colors.white38, fontSize: 10)),
+            title: Text(card.name, style: const TextStyle(color: AppColors.textPrimary)),
+            subtitle: Text('#${card.collectorNumber} • ${card.rarity}', style: const TextStyle(color: AppColors.borderFaint, fontSize: 10)),
             trailing: showPrice 
-                ? Text("$price €", style: TextStyle(color: Colors.yellow.shade700, fontWeight: FontWeight.bold))
+                ? Text('$price €', style: TextStyle(color: AppColors.primaryShade700, fontWeight: FontWeight.bold))
                 : null,
           );
         }).toList(),
@@ -335,6 +337,6 @@ class _SetStatsPageState extends State<SetStatsPage> {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Text(title, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold));
+    return Text(title, style: AppTextStyles.bold(color: AppColors.textSecondary, fontSize: 16));
   }
 }

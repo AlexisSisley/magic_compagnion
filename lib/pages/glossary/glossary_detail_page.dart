@@ -1,7 +1,8 @@
 // Fichier : lib/pages/glossary_detail_page.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../data/glossary_data.dart'; // Importer notre modèle
 
 class GlossaryDetailPage extends StatelessWidget {
@@ -12,10 +13,10 @@ class GlossaryDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
         title: Text(keyword.term),
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.textOnPrimary,
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -26,7 +27,7 @@ class GlossaryDetailPage extends StatelessWidget {
               // --- Définition (Inchangé) ---
               Text(
                 keyword.definition,
-                style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.5),
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, height: 1.5),
               ),
 
               // --- NOUVEAU : Affichage de l'image ---
@@ -45,18 +46,13 @@ class GlossaryDetailPage extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(12.0),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
+                      color: AppColors.textOnPrimary.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(color: Colors.white24),
+                      border: Border.all(color: AppColors.borderMedium),
                     ),
                     child: Text(
                       keyword.example!,
-                      style: GoogleFonts.cinzel(
-                        color: Colors.white70,
-                        fontSize: 15,
-                        fontStyle: FontStyle.italic,
-                        height: 1.4,
-                      ),
+                      style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 15, fontStyle: FontStyle.italic).copyWith(height: 1.4),
                     ),
                   ),
                 ),

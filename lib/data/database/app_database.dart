@@ -197,8 +197,11 @@ class AppDatabase extends _$AppDatabase {
 
     if (existing != null) {
       int newQuantity = existing.quantity;
-      if (quantityToAdd != null) newQuantity += quantityToAdd;
-      else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
+      if (quantityToAdd != null) {
+        newQuantity += quantityToAdd;
+      } else if (absoluteQuantity != null) {
+        newQuantity = absoluteQuantity;
+      }
 
       final List<String> tags = newTags ?? decodeTags(existing.tags);
 
@@ -214,8 +217,11 @@ class AppDatabase extends _$AppDatabase {
       }
     } else {
       int newQuantity = 0;
-      if (quantityToAdd != null) newQuantity = quantityToAdd;
-      else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
+      if (quantityToAdd != null) {
+        newQuantity = quantityToAdd;
+      } else if (absoluteQuantity != null) {
+        newQuantity = absoluteQuantity;
+      }
 
       if (newQuantity > 0) {
         await into(collectionCards).insert(CollectionCardsCompanion.insert(
@@ -338,8 +344,11 @@ class AppDatabase extends _$AppDatabase {
 
     if (existing != null) {
       int newQuantity = existing.quantity;
-      if (quantityToAdd != null) newQuantity += quantityToAdd;
-      else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
+      if (quantityToAdd != null) {
+        newQuantity += quantityToAdd;
+      } else if (absoluteQuantity != null) {
+        newQuantity = absoluteQuantity;
+      }
 
       if (newQuantity <= 0) {
         await (delete(deckCards)..where((c) => c.id.equals(existing.id))).go();
@@ -354,8 +363,11 @@ class AppDatabase extends _$AppDatabase {
       }
     } else {
       int newQuantity = 0;
-      if (quantityToAdd != null) newQuantity = quantityToAdd;
-      else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
+      if (quantityToAdd != null) {
+        newQuantity = quantityToAdd;
+      } else if (absoluteQuantity != null) {
+        newQuantity = absoluteQuantity;
+      }
 
       if (newQuantity > 0) {
         await into(deckCards).insert(DeckCardsCompanion.insert(
@@ -417,8 +429,11 @@ class AppDatabase extends _$AppDatabase {
 
     if (existing != null) {
       int newQuantity = existing.quantity;
-      if (quantityToAdd != null) newQuantity += quantityToAdd;
-      else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
+      if (quantityToAdd != null) {
+        newQuantity += quantityToAdd;
+      } else if (absoluteQuantity != null) {
+        newQuantity = absoluteQuantity;
+      }
 
       if (newQuantity <= 0) {
         await (delete(wishlistCards)..where((c) => c.id.equals(existing.id))).go();
@@ -432,8 +447,11 @@ class AppDatabase extends _$AppDatabase {
       }
     } else {
       int newQuantity = 0;
-      if (quantityToAdd != null) newQuantity = quantityToAdd;
-      else if (absoluteQuantity != null) newQuantity = absoluteQuantity;
+      if (quantityToAdd != null) {
+        newQuantity = quantityToAdd;
+      } else if (absoluteQuantity != null) {
+        newQuantity = absoluteQuantity;
+      }
 
       if (newQuantity > 0) {
         await into(wishlistCards).insert(WishlistCardsCompanion.insert(

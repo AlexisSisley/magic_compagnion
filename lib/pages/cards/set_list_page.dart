@@ -1,10 +1,11 @@
 // Fichier : lib/pages/set_list_page.dart
 // Devenu un composant (Tab) réutilisable
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/scryfall_set_model.dart';
 import '../../services/set_service.dart';
 import '../../services/collection_service.dart';
@@ -112,19 +113,19 @@ class _SetListTabState extends ConsumerState<SetListTab> {
         // Filtres (Compactés pour tenir dans l'onglet)
         Container(
           padding: const EdgeInsets.all(8.0),
-          color: Colors.black.withOpacity(0.2),
+          color: AppColors.textOnPrimary.withValues(alpha: 0.2),
           child: Row(
             children: [
               Expanded(
                 flex: 2,
                 child: TextField(
                   controller: _searchController,
-                  style: GoogleFonts.cinzel(color: Colors.white, fontSize: 14),
+                  style: AppTextStyles.body(),
                   decoration: InputDecoration(
                     hintText: 'Nom ou Code...',
-                    hintStyle: const TextStyle(color: Colors.white54, fontSize: 12),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white70, size: 18),
-                    filled: true, fillColor: Colors.black54,
+                    hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                    prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary, size: 18),
+                    filled: true, fillColor: AppColors.overlayDark,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
@@ -137,14 +138,14 @@ class _SetListTabState extends ConsumerState<SetListTab> {
                 flex: 2,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: AppColors.overlayDark, borderRadius: BorderRadius.circular(8)),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: _typeLabels.containsKey(_selectedType) ? _selectedType : 'all',
-                      dropdownColor: const Color(0xFF1A1A1A),
+                      dropdownColor: AppColors.scaffoldBackground,
                       isDense: true,
-                      icon: Icon(Icons.filter_list, color: Colors.yellow.shade800, size: 18),
-                      style: GoogleFonts.cinzel(color: Colors.white, fontSize: 12),
+                      icon: Icon(Icons.filter_list, color: AppColors.primaryShade800, size: 18),
+                      style: AppTextStyles.label(),
                       isExpanded: true,
                       items: _typeLabels.entries.map((entry) {
                         return DropdownMenuItem<String>(
@@ -178,9 +179,9 @@ class _SetListTabState extends ConsumerState<SetListTab> {
   }
 
   Widget _buildSetTile(ScryfallSet set) {
-    Color typeColor = Colors.grey;
+    Color typeColor = AppColors.synergyNeutral;
     if (set.setType == 'expansion') typeColor = Colors.blue.shade400;
-    if (set.setType == 'commander') typeColor = Colors.yellow.shade700;
+    if (set.setType == 'commander') typeColor = AppColors.primaryShade700;
     if (set.setType == 'core') typeColor = Colors.green.shade400;
     if (set.setType == 'masters') typeColor = Colors.purple.shade300;
 
@@ -188,7 +189,7 @@ class _SetListTabState extends ConsumerState<SetListTab> {
     final int total = set.cardCount > 0 ? set.cardCount : 1;
     final double percent = (owned / total).clamp(0.0, 1.0);
     return Card(
-      color: Colors.black.withOpacity(0.4),
+      color: AppColors.textOnPrimary.withValues(alpha: 0.4),
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Column( // Changé ListTile en Column pour ajouter la barre en bas
         children: [
@@ -201,13 +202,13 @@ class _SetListTabState extends ConsumerState<SetListTab> {
               child: set.iconSvgUri != null
                   ? SvgPicture.network(
                       set.iconSvgUri!,
-                      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                      placeholderBuilder: (_) => const Icon(Icons.broken_image, color: Colors.white24),
+                      colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn),
+                      placeholderBuilder: (_) => const Icon(Icons.broken_image, color: AppColors.borderMedium),
                     )
-                  : const Icon(Icons.circle, color: Colors.white24),
+                  : const Icon(Icons.circle, color: AppColors.borderMedium),
             ),
-            title: Text(set.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: Text('${set.code.toUpperCase()} • $owned/$total cartes', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            title: Text(set.name, style: AppTextStyles.bold()),
+            subtitle: Text('${set.code.toUpperCase()} • $owned/$total cartes', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
             trailing: Icon(Icons.chevron_right, color: typeColor),
             onTap: () => widget.onSetSelected(set),
           ),
@@ -216,8 +217,8 @@ class _SetListTabState extends ConsumerState<SetListTab> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: LinearProgressIndicator(
               value: percent,
-              backgroundColor: Colors.white10,
-              color: owned == total ? Colors.green : Colors.blueAccent, // Vert si 100%
+              backgroundColor: AppColors.borderLight,
+              color: owned == total ? AppColors.success : AppColors.accent, // Vert si 100%
               minHeight: 4,
               borderRadius: BorderRadius.circular(2),
             ),

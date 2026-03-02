@@ -1,9 +1,10 @@
 // Fichier : lib/widgets/life_counter/dice_roll_dialog.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class DiceRollAnimationDialog extends StatefulWidget {
   final int sides;
@@ -67,9 +68,9 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF1A1A1A),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.white.withOpacity(0.2))),
-      title: _isAnimating ? null : Center(child: Text(_getTitle(), style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 18))),
+      backgroundColor: AppColors.scaffoldBackground,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.2))),
+      title: _isAnimating ? null : Center(child: Text(_getTitle(), style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 18))),
       content: SizedBox(
         height: 150,
         child: Center(child: _isAnimating ? _buildAnimatedView() : _buildFinalResultView()),
@@ -87,14 +88,14 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
              return Transform(
               alignment: Alignment.center,
               transform: Matrix4.identity()..setEntry(3, 2, 0.001)..rotateY(_animation.value),
-              child: Icon(Icons.monetization_on, size: 100, color: showHeads ? Colors.amber : Colors.blueGrey.shade300),
+              child: Icon(Icons.monetization_on, size: 100, color: showHeads ? AppColors.amber : Colors.blueGrey.shade300),
             );
         }
         return Stack(
           alignment: Alignment.center,
           children: [
-            Transform.rotate(angle: _animation.value, child: Icon(_getIconForDice(widget.sides), size: 100, color: Colors.white12)),
-            Text('$_currentSpinValue', style: GoogleFonts.cinzel(color: Colors.white.withOpacity(0.7), fontSize: 50, fontWeight: FontWeight.bold)),
+            Transform.rotate(angle: _animation.value, child: Icon(_getIconForDice(widget.sides), size: 100, color: AppColors.borderSubtle)),
+            Text('$_currentSpinValue', style: AppTextStyles.bold(fontSize: 50).copyWith(color: AppColors.textPrimary.withValues(alpha: 0.7))),
           ],
         );
       },
@@ -110,7 +111,7 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
   }
 
   String _getTitle() {
-     if (widget.sides == 2) return "Pile ou Face";
+     if (widget.sides == 2) return 'Pile ou Face';
      if (widget.sides == 20 && widget.finalResult == 1) return 'POUR FRODON !';
      if (widget.sides == 20 && widget.finalResult == 20) return 'FUS RO DAH !!! 🐉';
      return 'Résultat D${widget.sides}';
@@ -118,12 +119,12 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
 
   Widget _buildFinalResultView() {
     String content = '${widget.finalResult}';
-    Color contentColor = Colors.yellow.shade700;
+    Color contentColor = AppColors.primaryShade700;
     double fontSize = 80;
 
     if (widget.sides == 2) {
-      content = widget.finalResult == 1 ? "FACE" : "PILE";
-      contentColor = widget.finalResult == 1 ? Colors.amber : Colors.blueGrey;
+      content = widget.finalResult == 1 ? 'FACE' : 'PILE';
+      contentColor = widget.finalResult == 1 ? AppColors.amber : Colors.blueGrey;
       fontSize = 40;
     }
     if (widget.sides == 20 && widget.finalResult == 1) {
@@ -135,7 +136,7 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
       contentColor = Colors.cyanAccent; 
     }
 
-    return Text(content, textAlign: TextAlign.center, style: GoogleFonts.cinzel(color: contentColor, fontSize: fontSize, fontWeight: FontWeight.bold, shadows: [BoxShadow(color: contentColor.withOpacity(0.5), blurRadius: 20)]));
+    return Text(content, textAlign: TextAlign.center, style: AppTextStyles.cinzel(color: contentColor, fontSize: fontSize, fontWeight: FontWeight.bold).copyWith(shadows: [BoxShadow(color: contentColor.withValues(alpha: 0.5), blurRadius: 20)]));
   }
 
   List<Widget> _buildActions() {
@@ -143,8 +144,8 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          TextButton.icon(onPressed: widget.onReroll, icon: const Icon(Icons.refresh, color: Colors.white54), label: Text('Relancer', style: GoogleFonts.cinzel(color: Colors.white54))),
-          ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: Colors.white10), child: Text('OK', style: GoogleFonts.cinzel(color: Colors.white))),
+          TextButton.icon(onPressed: widget.onReroll, icon: const Icon(Icons.refresh, color: AppColors.textMuted), label: Text('Relancer', style: AppTextStyles.cinzel(color: AppColors.textMuted))),
+          ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: AppColors.borderLight), child: Text('OK', style: AppTextStyles.cinzel())),
         ],
       ),
     ];

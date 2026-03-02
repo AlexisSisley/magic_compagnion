@@ -1,9 +1,10 @@
 // Fichier : lib/widgets/decks/deck_stats_tab.dart
 // VERSION MISE À JOUR : Répartition Couleurs par Type (Stacked Bar Chart)
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 
@@ -34,7 +35,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
 
   final List<Color> _pieColors = [
     Colors.blue.shade700, Colors.red.shade700, Colors.green.shade700,
-    Colors.grey.shade700, Colors.purple.shade700, Colors.orange.shade700, Colors.yellow.shade800,
+    Colors.grey.shade700, Colors.purple.shade700, Colors.orange.shade700, AppColors.primaryShade800,
   ];
 
   final Map<String, Color> _manaColors = {
@@ -96,7 +97,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     Map<String, Map<String, int>> data = {};
 
     for (final deckCard in widget.mainboard) {
-      String type = "Autres";
+      String type = 'Autres';
       List<String> colors = [];
       
       try {
@@ -143,7 +144,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
         } else {
           curve[cmc] = (curve[cmc] ?? 0) + deckCard.quantity;
         }
-      } catch (e) { }
+      } catch (e) { /* Card not found in data */ }
     }
     return curve;
   }
@@ -151,7 +152,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
   Map<String, int> _calculateCardTypes() {
     Map<String, int> types = {};
     for (final deckCard in widget.mainboard) {
-      String type = "Autres";
+      String type = 'Autres';
       try {
         if (deckCard.scryfallId.startsWith('LOCAL:')) {
            type = _getPrimaryType(deckCard.name);
@@ -181,7 +182,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
             pipCount[pip] = (pipCount[pip] ?? 0) + (1 * deckCard.quantity);
           }
         }
-      } catch (e) { }
+      } catch (e) { /* Card not found in data */ }
     }
     pipCount.removeWhere((key, value) => value == 0);
     return pipCount;
@@ -206,7 +207,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
         } else if (scryfallCard.typeLine.toLowerCase().contains('artifact') && (scryfallCard.name.contains('Signet') || scryfallCard.name.contains('Sol Ring') || scryfallCard.name.contains('Arcane Signet'))) {
            if (scryfallCard.name.contains('Sol Ring')) sources['C'] = (sources['C'] ?? 0) + deckCard.quantity;
         }
-      } catch (e) { }
+      } catch (e) { /* Card not found in data */ }
     }
     sources.removeWhere((key, value) => value == 0);
     return sources;
@@ -233,15 +234,15 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
       child: Column(
         children: [
           _buildStatsCard(
-            title: "Balance des Couleurs",
-            subtitle: "Dévotion (Symboles) vs Sources (Terrains)",
+            title: 'Balance des Couleurs',
+            subtitle: 'Dévotion (Symboles) vs Sources (Terrains)',
             height: 300,
             child: _buildRadarChart(),
           ),
           const SizedBox(height: 16),
           
           _buildStatsCard(
-            title: "Courbe de Mana",
+            title: 'Courbe de Mana',
             height: 200,
             child: _buildManaCurveChart(), // Existant
           ),
@@ -249,8 +250,8 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
           const SizedBox(height: 16),
           
           _buildStatsCard(
-            title: "Analyseur de Mana",
-            subtitle: "Comparaison : Pips (Besoins) vs Terrains (Sources)",
+            title: 'Analyseur de Mana',
+            subtitle: 'Comparaison : Pips (Besoins) vs Terrains (Sources)',
             child: _buildManaAnalysisChart(),
             height: 250,
           ),
@@ -259,21 +260,21 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
           
           // --- NOUVEAU GRAPHIQUE ---
           _buildStatsCard(
-            title: "Couleurs par Type",
-            subtitle: "Répartition des couleurs pour chaque type de carte",
+            title: 'Couleurs par Type',
+            subtitle: 'Répartition des couleurs pour chaque type de carte',
             child: _buildColorByTypeChart(),
             height: 250,
           ),
 
           const SizedBox(height: 16),
           _buildStatsCard(
-            title: "Courbe de Mana",
+            title: 'Courbe de Mana',
             child: _buildManaCurveChart(),
             height: 200,
           ),
           const SizedBox(height: 16),
           _buildStatsCard(
-            title: "Types de Cartes",
+            title: 'Types de Cartes',
             child: _buildCardTypeChart(),
             height: 300, 
           ),
@@ -299,34 +300,34 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
         dataSets: [
           // Dataset 1 : Pips (Besoins)
           RadarDataSet(
-            fillColor: Colors.orangeAccent.withOpacity(0.2),
-            borderColor: Colors.orangeAccent,
+            fillColor: AppColors.accentOrange.withValues(alpha: 0.2),
+            borderColor: AppColors.accentOrange,
             entryRadius: 3,
             dataEntries: colors.map((c) => RadarEntry(value: (_pipCountData[c]??0).toDouble())).toList(),
             borderWidth: 2,
           ),
           // Dataset 2 : Sources (Terrains)
           RadarDataSet(
-            fillColor: Colors.blueAccent.withOpacity(0.2),
-            borderColor: Colors.blueAccent,
+            fillColor: AppColors.accent.withValues(alpha: 0.2),
+            borderColor: AppColors.accent,
             entryRadius: 3,
             dataEntries: colors.map((c) => RadarEntry(value: (_sourceCountData[c]??0).toDouble())).toList(),
             borderWidth: 2,
           ),
         ],
-        radarBackgroundColor: Colors.transparent,
+        radarBackgroundColor: AppColors.transparent,
         borderData: FlBorderData(show: false),
-        radarBorderData: const BorderSide(color: Colors.white12),
+        radarBorderData: const BorderSide(color: AppColors.borderSubtle),
         titlePositionPercentageOffset: 0.1,
-        titleTextStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+        titleTextStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
         getTitle: (index, angle) {
-          if (index >= colors.length) return const RadarChartTitle(text: "");
+          if (index >= colors.length) return const RadarChartTitle(text: '');
           return RadarChartTitle(text: colors[index]); // Affiche W, U, B...
         },
         tickCount: 3,
-        ticksTextStyle: const TextStyle(color: Colors.transparent),
-        tickBorderData: const BorderSide(color: Colors.white10),
-        gridBorderData: const BorderSide(color: Colors.white24, width: 1),
+        ticksTextStyle: const TextStyle(color: AppColors.transparent),
+        tickBorderData: const BorderSide(color: AppColors.borderLight),
+        gridBorderData: const BorderSide(color: AppColors.borderMedium, width: 1),
       ),
       swapAnimationDuration: const Duration(milliseconds: 400),
     );
@@ -334,16 +335,16 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
   
   Widget _buildSummaryCard() {
     return Card(
-      color: Colors.black.withOpacity(0.4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: BorderSide(color: Colors.yellow.shade800.withOpacity(0.6))),
+      color: AppColors.textOnPrimary.withValues(alpha: 0.4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: BorderSide(color: AppColors.primaryShade800.withValues(alpha: 0.6))),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildSummaryItem("CMC Moyen", _averageCmc.toStringAsFixed(2)),
-            Container(width: 1, height: 40, color: Colors.white24),
-            _buildSummaryItem("Prix Est.", "${_totalPrice.toStringAsFixed(2)} €"),
+            _buildSummaryItem('CMC Moyen', _averageCmc.toStringAsFixed(2)),
+            Container(width: 1, height: 40, color: AppColors.borderMedium),
+            _buildSummaryItem('Prix Est.', '${_totalPrice.toStringAsFixed(2)} €'),
           ],
         ),
       ),
@@ -353,26 +354,26 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
   Widget _buildSummaryItem(String label, String value) {
     return Column(
       children: [
-        Text(label, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14)),
+        Text(label, style: AppTextStyles.subtitle()),
         const SizedBox(height: 4),
-        Text(value, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+        Text(value, style: AppTextStyles.pageTitle(fontSize: 20)),
       ],
     );
   }
 
   Widget _buildStatsCard({required String title, String? subtitle, required Widget child, required double height}) {
     return Card(
-      color: Colors.black.withAlpha((0.4 * 255).round()), 
+      color: AppColors.textOnPrimary.withAlpha((0.4 * 255).round()), 
       elevation: 2.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: BorderSide(color: Colors.yellow.shade800.withAlpha((0.6 * 255).round()), width: 1)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: BorderSide(color: AppColors.primaryShade800.withAlpha((0.6 * 255).round()), width: 1)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(title, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(title, style: AppTextStyles.pageTitle(fontSize: 20)),
             if (subtitle != null) 
-               Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+               Text(subtitle, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
             const SizedBox(height: 24),
             SizedBox(height: height, child: child),
           ],
@@ -383,7 +384,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
 
   // --- NOUVEAU GRAPHIQUE STACKED ---
   Widget _buildColorByTypeChart() {
-    if (_colorByTypeData.isEmpty) return _buildEmptyChartState("Pas assez de données.");
+    if (_colorByTypeData.isEmpty) return _buildEmptyChartState('Pas assez de données.');
 
     final types = _colorByTypeData.keys.toList()..sort();
     
@@ -402,7 +403,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
         gridData: FlGridData(
           show: true, 
           drawVerticalLine: false,
-          getDrawingHorizontalLine: (v) => FlLine(color: Colors.white10, strokeWidth: 1)
+          getDrawingHorizontalLine: (v) => const FlLine(color: AppColors.borderLight, strokeWidth: 1)
         ),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
@@ -421,7 +422,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
                 if (label.length > 4) label = label.substring(0, 4); 
                 return Padding(
                   padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(label.toUpperCase(), style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                  child: Text(label.toUpperCase(), style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
                 );
               },
             ),
@@ -466,8 +467,8 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
               // Pour simplifier, on affiche le total du type
               int total = _colorByTypeData[type]!.values.fold(0, (a, b) => a + b);
               return BarTooltipItem(
-                "$type\nTotal: $total",
-                const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                '$type\nTotal: $total',
+                const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
               );
             },
           ),
@@ -495,7 +496,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
           barRods: [
             BarChartRodData(
               toY: needs,
-              color: _manaColors[colorKey]!.withOpacity(0.3),
+              color: _manaColors[colorKey]!.withValues(alpha: 0.3),
               width: 12, borderRadius: BorderRadius.circular(2),
               borderSide: BorderSide(color: _manaColors[colorKey]!, width: 1)
             ),
@@ -509,13 +510,13 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
       );
     }
 
-    if (barGroups.isEmpty) return _buildEmptyChartState("Pas assez de données de mana.");
+    if (barGroups.isEmpty) return _buildEmptyChartState('Pas assez de données de mana.');
 
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
         maxY: maxY * 1.1,
-        gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (v) => FlLine(color: Colors.white10, strokeWidth: 1)),
+        gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (v) => const FlLine(color: AppColors.borderLight, strokeWidth: 1)),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -527,7 +528,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
                 if (index >= 0 && index < colors.length) {
                   final c = colors[index];
                   if ((_pipCountData[c] ?? 0) == 0 && (_sourceCountData[c] ?? 0) == 0) return const SizedBox();
-                  return Padding(padding: const EdgeInsets.only(top: 8.0), child: Text(c, style: GoogleFonts.cinzel(color: _manaColors[c], fontWeight: FontWeight.bold)));
+                  return Padding(padding: const EdgeInsets.only(top: 8.0), child: Text(c, style: AppTextStyles.bold(color: _manaColors[c])));
                 }
                 return const SizedBox();
               },
@@ -541,7 +542,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
               final colorKey = colors[group.x];
               final isSource = rodIndex == 1; 
               return BarTooltipItem(
-                isSource ? "Sources: ${rod.toY.toInt()}" : "Pips: ${rod.toY.toInt()}",
+                isSource ? 'Sources: ${rod.toY.toInt()}' : 'Pips: ${rod.toY.toInt()}',
                 TextStyle(color: _manaColors[colorKey], fontWeight: FontWeight.bold)
               );
             }
@@ -552,19 +553,19 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
   }
 
   Widget _buildManaCurveChart() {
-    if (_manaCurveData.values.every((v) => v == 0)) return _buildEmptyChartState("Aucune donnée.");
+    if (_manaCurveData.values.every((v) => v == 0)) return _buildEmptyChartState('Aucune donnée.');
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
         barTouchData: BarTouchData(
            touchTooltipData: BarTouchTooltipData(
-              getTooltipItem: (g, gi, rod, ri) => BarTooltipItem('${rod.toY.toInt()} cartes', const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              getTooltipItem: (g, gi, rod, ri) => BarTooltipItem('${rod.toY.toInt()} cartes', const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
            ),
         ),
         titlesData: FlTitlesData(
           show: true,
           bottomTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, m) => Text(v.toInt() == 7 ? "7+" : v.toInt().toString(), style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 12)), reservedSize: 30),
+            sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, m) => Text(v.toInt() == 7 ? '7+' : v.toInt().toString(), style: AppTextStyles.label(color: AppColors.textSecondary)), reservedSize: 30),
           ),
           leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -573,14 +574,14 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
         borderData: FlBorderData(show: false),
         gridData: const FlGridData(show: false),
         barGroups: _manaCurveData.entries.map((entry) {
-          return BarChartGroupData(x: entry.key, barRods: [BarChartRodData(toY: entry.value.toDouble(), color: Colors.yellow.shade800, width: 16, borderRadius: BorderRadius.circular(4))]);
+          return BarChartGroupData(x: entry.key, barRods: [BarChartRodData(toY: entry.value.toDouble(), color: AppColors.primaryShade800, width: 16, borderRadius: BorderRadius.circular(4))]);
         }).toList(),
       ),
     );
   }
 
   Widget _buildCardTypeChart() {
-    if (_cardTypeData.isEmpty) return _buildEmptyChartState("Aucune donnée.");
+    if (_cardTypeData.isEmpty) return _buildEmptyChartState('Aucune donnée.');
     final double totalCount = _cardTypeData.values.fold(0, (a, b) => a + b).toDouble();
     int i = 0;
     final List<PieChartSectionData> sections = [];
@@ -590,7 +591,7 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     for (final entry in sortedEntries) {
       final color = _pieColors[i % _pieColors.length];
       final percentage = (entry.value / totalCount) * 100;
-      sections.add(PieChartSectionData(color: color, value: entry.value.toDouble(), title: '${percentage.toStringAsFixed(0)}%', radius: 80, titleStyle: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)));
+      sections.add(PieChartSectionData(color: color, value: entry.value.toDouble(), title: '${percentage.toStringAsFixed(0)}%', radius: 80, titleStyle: AppTextStyles.bold()));
       legendItems.add(_buildLegendItem(color, entry.key, entry.value));
       i++;
     }
@@ -604,10 +605,10 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
   }
   
   Widget _buildLegendItem(Color color, String text, int count) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 12, height: 12, color: color), const SizedBox(width: 8), Text('$text ($count)', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 14))]);
+    return Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 12, height: 12, color: color), const SizedBox(width: 8), Text('$text ($count)', style: AppTextStyles.body())]);
   }
   
   Widget _buildEmptyChartState(String message) {
-     return Center(child: Text(message, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center));
+     return Center(child: Text(message, style: AppTextStyles.subtitle(), textAlign: TextAlign.center));
   }
 }

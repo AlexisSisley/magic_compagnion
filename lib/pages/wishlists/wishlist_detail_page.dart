@@ -1,9 +1,9 @@
 // Fichier : lib/pages/wishlists/wishlist_detail_page.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/models/search_filters.dart';
 import 'package:magic_companion/models/wishlist_model.dart';
@@ -97,12 +97,12 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: Text("Vider la liste ?", style: GoogleFonts.cinzel(color: Colors.white)),
-        content: const Text("Toutes les cartes seront supprimées de cette wishlist.", style: TextStyle(color: Colors.white70)),
+        backgroundColor: AppColors.scaffoldBackground,
+        title: Text('Vider la liste ?', style: AppTextStyles.cinzel()),
+        content: const Text('Toutes les cartes seront supprimées de cette wishlist.', style: TextStyle(color: AppColors.textSecondary)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("Annuler")),
-          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text("Vider", style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Annuler')),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Vider', style: TextStyle(color: AppColors.error))),
         ],
       )
     );
@@ -122,19 +122,19 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
       String name = c.name; 
       try {
         final sc = _fullCardData.firstWhere((s) => s.id == c.scryfallId);
-        name = "$name (${sc.setCode})"; 
-      } catch(e) {}
-      
-      sb.writeln("${c.quantity} $name");
+        name = '$name (${sc.setCode})'; 
+      } catch(e) { /* Card not found in data */ }
+
+      sb.writeln('${c.quantity} $name');
     }
     
-    Share.share(sb.toString(), subject: "Export CardMarket - ${_currentWishlist.name}");
+    SharePlus.instance.share(ShareParams(text: sb.toString(), subject: 'Export CardMarket - ${_currentWishlist.name}'));
   }
 
   void _showCoverPicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true,
       builder: (context) {
         return Container(
@@ -142,7 +142,7 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              Text("Choisir une couverture", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              Text('Choisir une couverture', style: AppTextStyles.pageTitle(fontSize: 20)),
               const SizedBox(height: 16),
               Expanded(
                 child: GridView.builder(
@@ -158,13 +158,14 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
                     ScryfallCard? scryfallCard;
                     try {
                       scryfallCard = _fullCardData.firstWhere((s) => s.id == card.scryfallId);
-                    } catch(e) {}
+                    } catch(e) { /* Card not found in data */ }
 
                     return GestureDetector(
                       onTap: () async {
                         await _wishlistService.setWishlistIcon(_currentWishlist.id, card.scryfallId);
+                        if (!context.mounted) return;
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Image de couverture mise à jour !"), backgroundColor: Colors.green));
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Image de couverture mise à jour !'), backgroundColor: AppColors.success));
                         setState(() { _currentWishlist.iconScryfallId = card.scryfallId; });
                       },
                       child: ClipRRect(
@@ -180,10 +181,11 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
               TextButton(
                 onPressed: () async {
                    await _wishlistService.setWishlistIcon(_currentWishlist.id, null);
+                   if (!context.mounted) return;
                    Navigator.pop(context);
                    setState(() { _currentWishlist.iconScryfallId = null; });
                 },
-                child: const Text("Réinitialiser (Automatique)", style: TextStyle(color: Colors.redAccent)),
+                child: const Text('Réinitialiser (Automatique)', style: TextStyle(color: AppColors.accentRed)),
               )
             ],
           ),
@@ -195,10 +197,10 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text(_currentWishlist.name, style: GoogleFonts.cinzel()),
-        backgroundColor: Colors.black,
+        title: Text(_currentWishlist.name, style: AppTextStyles.cinzel()),
+        backgroundColor: AppColors.textOnPrimary,
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
@@ -208,16 +210,16 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
               if (val == 'cover') _showCoverPicker();
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(value: 'export', child: Row(children: [Icon(Icons.upload_file, color: Colors.blue), SizedBox(width: 8), Text("Export CardMarket")])),
-              const PopupMenuItem(value: 'cover', child: Row(children: [Icon(Icons.image, color: Colors.amber), SizedBox(width: 8), Text("Changer Couverture")])),
-              const PopupMenuItem(value: 'clear', child: Row(children: [Icon(Icons.delete_sweep, color: Colors.red), SizedBox(width: 8), Text("Vider la liste")])),
+              const PopupMenuItem(value: 'export', child: Row(children: [Icon(Icons.upload_file, color: AppColors.info), SizedBox(width: 8), Text('Export CardMarket')])),
+              const PopupMenuItem(value: 'cover', child: Row(children: [Icon(Icons.image, color: AppColors.amber), SizedBox(width: 8), Text('Changer Couverture')])),
+              const PopupMenuItem(value: 'clear', child: Row(children: [Icon(Icons.delete_sweep, color: AppColors.error), SizedBox(width: 8), Text('Vider la liste')])),
             ],
           )
         ],
       ),
       // --- MODIFICATION ICI : CHARGEMENT ---
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Colors.white))
+        ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary))
         : Column(
             children: [
               _buildSpecificFinanceHeader(),
@@ -226,7 +228,7 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
                   cards: _currentWishlist.cards,
                   fullCardData: _fullCardData,
                   filterQuery: '',
-                  activeFilters: SearchFilters(),
+                  activeFilters: const SearchFilters(),
                   currentSort: 'Type',
                   isWishlist: true,
                   financialTotal: _totalValue,
@@ -274,14 +276,14 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      color: Colors.black.withOpacity(0.5),
+      color: AppColors.textOnPrimary.withValues(alpha: 0.5),
       child: Column(
         children: [
-          Text("Coût estimé de cette liste", style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12)),
+          Text('Coût estimé de cette liste', style: AppTextStyles.label(color: AppColors.textMuted)),
           const SizedBox(height: 4),
           Text(
-            "${_totalValue.toStringAsFixed(2)} €",
-            style: GoogleFonts.cinzel(color: Colors.blue.shade200, fontSize: 28, fontWeight: FontWeight.bold),
+            '${_totalValue.toStringAsFixed(2)} €',
+            style: AppTextStyles.pageTitle(color: Colors.blue.shade200, fontSize: 28),
           ),
         ],
       ),

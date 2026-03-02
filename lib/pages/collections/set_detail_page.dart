@@ -1,5 +1,7 @@
 // Fichier : lib/pages/collections/set_detail_page.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -44,8 +46,8 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
       final result = await _ctrl.addSelectedToCollection();
       if (mounted && result.count > 0) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("${result.count} cartes ajoutees !", style: GoogleFonts.cinzel()),
-          backgroundColor: Colors.green,
+          content: Text('${result.count} cartes ajoutees !', style: AppTextStyles.cinzel()),
+          backgroundColor: AppColors.success,
         ));
       }
     } else {
@@ -54,8 +56,8 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
       final result = await _ctrl.addSelectedToWishlist(wishlistId);
       if (mounted && result.count > 0) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("${result.count} cartes ajoutees !", style: GoogleFonts.cinzel()),
-          backgroundColor: Colors.green,
+          content: Text('${result.count} cartes ajoutees !', style: AppTextStyles.cinzel()),
+          backgroundColor: AppColors.success,
         ));
       }
     }
@@ -64,18 +66,18 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
   Future<void> _removeSelectedFrom(bool fromCollection) async {
     final state = ref.read(setDetailControllerProvider(widget.set));
     final String targetName =
-        fromCollection ? "votre Collection" : "toutes vos Wishlists";
+        fromCollection ? 'votre Collection' : 'toutes vos Wishlists';
 
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (c) => _buildThemedDialog(
         context: c,
-        title: "Retirer des cartes ?",
+        title: 'Retirer des cartes ?',
         content:
-            "Vous etes sur le point de retirer ${state.selectedKeys.length} cartes de $targetName.\nCette action est irreversible.",
+            'Vous etes sur le point de retirer ${state.selectedKeys.length} cartes de $targetName.\nCette action est irreversible.',
         icon: Icons.delete_forever,
-        iconColor: Colors.redAccent,
-        confirmText: "RETIRER",
+        iconColor: AppColors.accentRed,
+        confirmText: 'RETIRER',
         confirmColor: Colors.red.shade900,
       ),
     );
@@ -91,28 +93,29 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
 
     if (mounted && result.count > 0) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text("${result.count} cartes retirees !", style: GoogleFonts.cinzel()),
-        backgroundColor: Colors.redAccent,
+        content: Text('${result.count} cartes retirees !', style: AppTextStyles.cinzel()),
+        backgroundColor: AppColors.accentRed,
       ));
     }
   }
 
   Future<String?> _askWishlistDestination() async {
     final wishlists = await _ctrl.getWishlists();
+    if (!mounted) return null;
     final String setName = widget.set.name;
 
     return showModalBottomSheet<String>(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       isScrollControlled: true,
       builder: (context) {
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
+            color: AppColors.scaffoldBackground,
             borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(20)),
             border: Border(
-                top: BorderSide(color: Colors.yellow.shade800, width: 2)),
+                top: BorderSide(color: AppColors.primaryShade800, width: 2)),
           ),
           constraints: BoxConstraints(
               maxHeight: MediaQuery.of(context).size.height * 0.6),
@@ -121,50 +124,47 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text("Choisir une Wishlist",
-                    style: GoogleFonts.cinzel(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold)),
+                child: Text('Choisir une Wishlist',
+                    style: AppTextStyles.bold(fontSize: 20)),
               ),
-              const Divider(color: Colors.white10, height: 1),
+              const Divider(color: AppColors.borderLight, height: 1),
               ListTile(
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.2),
+                      color: Colors.green.withValues(alpha: 0.2),
                       shape: BoxShape.circle),
-                  child: const Icon(Icons.add, color: Colors.greenAccent),
+                  child: const Icon(Icons.add, color: AppColors.accentGreen),
                 ),
-                title: Text("Nouvelle liste : $setName",
+                title: Text('Nouvelle liste : $setName',
                     style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold)),
+                        color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                 onTap: () async {
                   final newId =
                       await _ctrl.createWishlistAndGetId(setName);
-                  if (mounted && newId != null) Navigator.pop(context, newId);
+                  if (context.mounted && newId != null) Navigator.pop(context, newId);
                 },
               ),
-              const Divider(color: Colors.white10),
+              const Divider(color: AppColors.borderLight),
               Expanded(
                 child: ListView.separated(
                   itemCount: wishlists.length,
-                  separatorBuilder: (_, __) =>
-                      const Divider(color: Colors.white10, height: 1),
+                  separatorBuilder: (_, _) =>
+                      const Divider(color: AppColors.borderLight, height: 1),
                   itemBuilder: (context, index) {
                     final w = wishlists[index];
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 24, vertical: 4),
                       leading: const Icon(Icons.bookmark_border,
-                          color: Colors.blueAccent),
+                          color: AppColors.accent),
                       title: Text(w.name,
-                          style: GoogleFonts.cinzel(color: Colors.white70)),
-                      subtitle: Text("${w.totalCards} cartes",
+                          style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+                      subtitle: Text('${w.totalCards} cartes',
                           style: const TextStyle(
-                              color: Colors.white30, fontSize: 12)),
+                              color: AppColors.textDisabled, fontSize: 12)),
                       onTap: () => Navigator.pop(context, w.id),
                     );
                   },
@@ -199,7 +199,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -212,8 +212,8 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                 decoration: BoxDecoration(
                   border: Border(
                       top: BorderSide(
-                          color: Colors.yellow.shade800, width: 2)),
-                  color: const Color(0xFF1A1A1A),
+                          color: AppColors.primaryShade800, width: 2)),
+                  color: AppColors.scaffoldBackground,
                   borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(20)),
                 ),
@@ -221,17 +221,14 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text("Filtres du Set",
-                        style: GoogleFonts.cinzel(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold),
+                    Text('Filtres du Set',
+                        style: AppTextStyles.bold(fontSize: 20),
                         textAlign: TextAlign.center),
                     const SizedBox(height: 20),
 
                     // --- 1. COULEURS ---
-                    Text("Couleurs",
-                        style: GoogleFonts.cinzel(color: Colors.white70)),
+                    Text('Couleurs',
+                        style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 12,
@@ -265,8 +262,8 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                     const SizedBox(height: 20),
 
                     // --- 2. TYPES ---
-                    Text("Type de carte",
-                        style: GoogleFonts.cinzel(color: Colors.white70)),
+                    Text('Type de carte',
+                        style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
@@ -291,12 +288,12 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                                   cardType: val ? type : null);
                             });
                           },
-                          selectedColor: Colors.yellow.shade900,
-                          backgroundColor: Colors.black45,
+                          selectedColor: AppColors.primaryShade900,
+                          backgroundColor: AppColors.overlayMedium,
                           labelStyle: TextStyle(
                               color: isSelected
                                   ? Colors.white
-                                  : Colors.white70),
+                                  : AppColors.textSecondary),
                         );
                       }).toList(),
                     ),
@@ -304,32 +301,32 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
 
                     // --- 3. OPTIONS ---
                     Text("Options d'affichage",
-                        style: GoogleFonts.cinzel(color: Colors.white70)),
+                        style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: currentFilters.rarity,
+                            initialValue: currentFilters.rarity,
                             decoration: const InputDecoration(
-                                labelText: "Rarete",
+                                labelText: 'Rarete',
                                 filled: true,
-                                fillColor: Colors.black45),
-                            dropdownColor: const Color(0xFF2A2A2A),
+                                fillColor: AppColors.overlayMedium),
+                            dropdownColor: AppColors.cardBackground,
                             items: const [
                               DropdownMenuItem(
-                                  value: null, child: Text("Toutes")),
+                                  value: null, child: Text('Toutes')),
                               DropdownMenuItem(
                                   value: 'common',
-                                  child: Text("Commune")),
+                                  child: Text('Commune')),
                               DropdownMenuItem(
                                   value: 'uncommon',
-                                  child: Text("Unco")),
+                                  child: Text('Unco')),
                               DropdownMenuItem(
-                                  value: 'rare', child: Text("Rare")),
+                                  value: 'rare', child: Text('Rare')),
                               DropdownMenuItem(
                                   value: 'mythic',
-                                  child: Text("Mythique")),
+                                  child: Text('Mythique')),
                             ],
                             onChanged: (val) => setModalState(() =>
                                 currentFilters =
@@ -339,13 +336,13 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: FilterChip(
-                            label: const Text("Masquer possedees"),
+                            label: const Text('Masquer possedees'),
                             selected: currentHideOwned,
                             onSelected: (val) => setModalState(
                                 () => currentHideOwned = val),
                             selectedColor:
-                                Colors.green.withOpacity(0.3),
-                            checkmarkColor: Colors.greenAccent,
+                                Colors.green.withValues(alpha: 0.3),
+                            checkmarkColor: AppColors.accentGreen,
                           ),
                         ),
                       ],
@@ -359,14 +356,11 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.yellow.shade800,
+                          backgroundColor: AppColors.primaryShade800,
                           padding: const EdgeInsets.symmetric(
                               vertical: 16)),
-                      child: Text("APPLIQUER",
-                          style: GoogleFonts.cinzel(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16)),
+                      child: Text('APPLIQUER',
+                          style: AppTextStyles.bold(color: AppColors.textOnPrimary, fontSize: 16)),
                     )
                   ],
                 ),
@@ -385,24 +379,24 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
     final state = ref.watch(setDetailControllerProvider(widget.set));
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.set.name, style: GoogleFonts.cinzel(fontSize: 16)),
+            Text(widget.set.name, style: AppTextStyles.cinzel(fontSize: 16)),
             Text(
-                "${widget.set.code.toUpperCase()} \u2022 ${state.gridItems.length} items",
+                '${widget.set.code.toUpperCase()} \u2022 ${state.gridItems.length} items',
                 style: GoogleFonts.roboto(
-                    fontSize: 12, color: Colors.white70)),
+                    fontSize: 12, color: AppColors.textSecondary)),
           ],
         ),
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.textOnPrimary,
         actions: [
           if (!state.isLoading)
             IconButton(
-                icon: const Icon(Icons.pie_chart, color: Colors.amber),
-                tooltip: "Stats",
+                icon: const Icon(Icons.pie_chart, color: AppColors.amber),
+                tooltip: 'Stats',
                 onPressed: _openStats),
           if (state.selectedKeys.isNotEmpty)
             IconButton(
@@ -416,7 +410,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
       ),
       body: state.isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Colors.white))
+              child: CircularProgressIndicator(color: AppColors.textPrimary))
           : Column(
               children: [
                 _buildStatsHeader(state),
@@ -450,24 +444,24 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
   Widget _buildControlBar(SetDetailState state) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: Colors.black.withOpacity(0.3),
+      color: AppColors.textOnPrimary.withValues(alpha: 0.3),
       child: Row(
         children: [
           Expanded(
             child: Container(
               height: 40,
               decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: AppColors.textPrimary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8)),
               child: TextField(
                 controller: _searchController,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: AppColors.textPrimary),
                 decoration: const InputDecoration(
-                  hintText: "Rechercher...",
-                  hintStyle: TextStyle(color: Colors.white54, fontSize: 14),
+                  hintText: 'Rechercher...',
+                  hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
                   border: InputBorder.none,
                   prefixIcon:
-                      Icon(Icons.search, color: Colors.white54, size: 20),
+                      Icon(Icons.search, color: AppColors.textMuted, size: 20),
                   contentPadding: EdgeInsets.symmetric(vertical: 10),
                 ),
                 onChanged: (val) => _ctrl.updateSearchQuery(val),
@@ -478,18 +472,18 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
           Container(
             decoration: BoxDecoration(
                 color: state.hasActiveFilters
-                    ? Colors.yellow.shade900
-                    : Colors.white.withOpacity(0.1),
+                    ? AppColors.primaryShade900
+                    : AppColors.textPrimary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8)),
             child: IconButton(
-              icon: const Icon(Icons.filter_list, color: Colors.white70),
+              icon: const Icon(Icons.filter_list, color: AppColors.textSecondary),
               onPressed: _openFilterModal,
             ),
           ),
           const SizedBox(width: 4),
           Container(
             decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: AppColors.textPrimary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8)),
             child: _buildSortMenu(state),
           ),
@@ -503,15 +497,15 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.filter_none, size: 48, color: Colors.white24),
+          const Icon(Icons.filter_none, size: 48, color: AppColors.borderMedium),
           const SizedBox(height: 16),
           Text(
-            "Ce ne sont pas les cartes que vous recherchez...",
-            style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16),
+            'Ce ne sont pas les cartes que vous recherchez...',
+            style: AppTextStyles.subtitle(fontSize: 16),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
-          const Text("\uD83D\uDC4B\uD83E\uDD16",
+          const Text('\uD83D\uDC4B\uD83E\uDD16',
               style: TextStyle(fontSize: 24)),
         ],
       ),
@@ -520,8 +514,8 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
 
   Widget _buildSortMenu(SetDetailState state) {
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.sort, color: Colors.white70, size: 20),
-      color: const Color(0xFF1A1A1A),
+      icon: const Icon(Icons.sort, color: AppColors.textSecondary, size: 20),
+      color: AppColors.scaffoldBackground,
       onSelected: (val) => _ctrl.updateSort(val),
       itemBuilder: (ctx) => [
         _buildPopupItem('number', 'Numero', Icons.format_list_numbered, state),
@@ -540,15 +534,15 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
       child: Row(
         children: [
           Icon(icon,
-              color: isSelected ? Colors.yellow : Colors.white54, size: 18),
+              color: isSelected ? AppColors.primary : AppColors.textMuted, size: 18),
           const SizedBox(width: 12),
           Text(text,
               style: TextStyle(
-                  color: isSelected ? Colors.yellow : Colors.white)),
+                  color: isSelected ? AppColors.primary : AppColors.textPrimary)),
           if (isSelected) ...[
             const Spacer(),
             Icon(state.sortAsc ? Icons.arrow_upward : Icons.arrow_downward,
-                color: Colors.yellow, size: 14)
+                color: AppColors.primary, size: 14)
           ]
         ],
       ),
@@ -570,17 +564,14 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight)),
         child: Center(
-            child: Text("M",
-                style: GoogleFonts.cinzel(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16))),
+            child: Text('M',
+                style: AppTextStyles.bold(color: AppColors.textOnPrimary, fontSize: 16))),
       );
     } else {
       content = SvgPicture.network(
         'https://svgs.scryfall.io/card-symbols/$code.svg',
         placeholderBuilder: (_) =>
-            CircleAvatar(backgroundColor: Colors.grey, child: Text(code)),
+            CircleAvatar(backgroundColor: AppColors.synergyNeutral, child: Text(code)),
       );
     }
 
@@ -604,7 +595,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
           decoration: isSelected
               ? BoxDecoration(shape: BoxShape.circle, boxShadow: [
                   BoxShadow(
-                      color: Colors.white.withOpacity(0.3), blurRadius: 10)
+                      color: AppColors.textPrimary.withValues(alpha: 0.3), blurRadius: 10)
                 ])
               : null,
           child: content,
@@ -623,39 +614,36 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
     required Color confirmColor,
   }) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppColors.surfaceDark,
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: iconColor.withOpacity(0.5), width: 1.5)),
+          side: BorderSide(color: iconColor.withValues(alpha: 0.5), width: 1.5)),
       title: Row(
         children: [
           Icon(icon, color: iconColor),
           const SizedBox(width: 12),
           Expanded(
               child: Text(title,
-                  style: GoogleFonts.cinzel(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold))),
+                  style: AppTextStyles.bold(fontSize: 18))),
         ],
       ),
       content: Text(content,
           style: const TextStyle(
-              color: Colors.white70, fontSize: 15, height: 1.4)),
+              color: AppColors.textSecondary, fontSize: 15, height: 1.4)),
       actionsPadding: const EdgeInsets.all(16),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text("Annuler",
-                style: GoogleFonts.cinzel(color: Colors.white54))),
+            child: Text('Annuler',
+                style: AppTextStyles.cinzel(color: AppColors.textMuted))),
         ElevatedButton(
           onPressed: () => Navigator.pop(context, true),
           style: ElevatedButton.styleFrom(
               backgroundColor: confirmColor,
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.textPrimary,
               elevation: 4),
           child: Text(confirmText,
-              style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+              style: AppTextStyles.bold()),
         ),
       ],
     );
@@ -683,7 +671,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                   side: isSelected
-                      ? BorderSide(color: Colors.yellow.shade700, width: 3)
+                      ? BorderSide(color: AppColors.primaryShade700, width: 3)
                       : (isOwned
                           ? BorderSide(
                               color: Colors.green.shade800, width: 2)
@@ -703,10 +691,10 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                            Colors.transparent,
-                            Colors.purple.withOpacity(0.3),
-                            Colors.transparent,
-                            Colors.amber.withOpacity(0.3)
+                            AppColors.transparent,
+                            Colors.purple.withValues(alpha: 0.3),
+                            AppColors.transparent,
+                            Colors.amber.withValues(alpha: 0.3)
                           ],
                               stops: const [
                             0.0,
@@ -725,9 +713,9 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                 right: 4,
                 child: Container(
                     decoration: const BoxDecoration(
-                        color: Colors.black87, shape: BoxShape.circle),
+                        color: AppColors.overlayVeryDark, shape: BoxShape.circle),
                     child: const Icon(Icons.check_circle,
-                        color: Colors.yellow, size: 24))),
+                        color: AppColors.primary, size: 24))),
           if (isOwned && !isSelected)
             Positioned(
                 top: 4,
@@ -735,9 +723,9 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                 child: Container(
                     padding: const EdgeInsets.all(2),
                     decoration: const BoxDecoration(
-                        color: Colors.black54, shape: BoxShape.circle),
+                        color: AppColors.overlayDark, shape: BoxShape.circle),
                     child: const Icon(Icons.inventory_2,
-                        color: Colors.green, size: 16))),
+                        color: AppColors.success, size: 16))),
           if (isWanted && !isSelected && !isOwned)
             Positioned(
                 top: 4,
@@ -745,7 +733,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                 child: Container(
                     padding: const EdgeInsets.all(2),
                     decoration: const BoxDecoration(
-                        color: Colors.black54, shape: BoxShape.circle),
+                        color: AppColors.overlayDark, shape: BoxShape.circle),
                     child: Icon(Icons.star,
                         color: Colors.blue.shade400, size: 16))),
           Positioned(
@@ -755,13 +743,13 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   decoration: BoxDecoration(
-                      color: Colors.black87,
+                      color: AppColors.overlayVeryDark,
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.white24)),
-                  child: Text(isFoilSlot ? "FOIL" : "NORM",
+                      border: Border.all(color: AppColors.borderMedium)),
+                  child: Text(isFoilSlot ? 'FOIL' : 'NORM',
                       style: TextStyle(
                           color:
-                              isFoilSlot ? Colors.amberAccent : Colors.white,
+                              isFoilSlot ? Colors.amberAccent : AppColors.textPrimary,
                           fontSize: 9,
                           fontWeight: FontWeight.bold)))),
           Positioned(
@@ -771,11 +759,11 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   decoration: BoxDecoration(
-                      color: Colors.black54,
+                      color: AppColors.overlayDark,
                       borderRadius: BorderRadius.circular(4)),
-                  child: Text("#${card.collectorNumber}",
+                  child: Text('#${card.collectorNumber}',
                       style: const TextStyle(
-                          color: Colors.white, fontSize: 10)))),
+                          color: AppColors.textPrimary, fontSize: 10)))),
         ],
       ),
     );
@@ -784,13 +772,13 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
   Widget _buildBottomActionAmount(SetDetailState state) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: AppColors.scaffoldBackground,
         gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [Color(0xFF2C2C2C), Color(0xFF111111)]),
         border: Border(
-            top: BorderSide(color: Colors.yellow.shade800, width: 2.0)),
+            top: BorderSide(color: AppColors.primaryShade800, width: 2.0)),
       ),
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
       child: SafeArea(
@@ -800,13 +788,10 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.style, color: Colors.yellow.shade800, size: 16),
+                Icon(Icons.style, color: AppColors.primaryShade800, size: 16),
                 const SizedBox(width: 8),
-                Text("${state.selectedKeys.length} selectionne(s)",
-                    style: GoogleFonts.cinzel(
-                        color: const Color(0xFFE0E0E0),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14)),
+                Text('${state.selectedKeys.length} selectionne(s)',
+                    style: AppTextStyles.bold(color: const Color(0xFFE0E0E0), fontSize: 14)),
               ],
             ),
             const SizedBox(height: 12),
@@ -819,15 +804,15 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                           child: _buildActionButton(
                               icon: Icons.star_border,
                               color: Colors.red.shade300,
-                              label: "Suppr.",
+                              label: 'Suppr.',
                               isNegative: true,
                               onTap: () => _removeSelectedFrom(false))),
                       const SizedBox(width: 4),
                       Expanded(
                           child: _buildActionButton(
                               icon: Icons.star,
-                              color: Colors.blueAccent,
-                              label: "Wishlist",
+                              color: AppColors.accent,
+                              label: 'Wishlist',
                               onTap: () => _addSelectedTo(false))),
                     ],
                   ),
@@ -835,7 +820,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                 Container(
                     height: 32,
                     width: 1,
-                    color: Colors.white12,
+                    color: AppColors.borderSubtle,
                     margin: const EdgeInsets.symmetric(horizontal: 8)),
                 Expanded(
                   child: Row(
@@ -844,15 +829,15 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                           child: _buildActionButton(
                               icon: Icons.inventory_2_outlined,
                               color: Colors.red.shade300,
-                              label: "Suppr.",
+                              label: 'Suppr.',
                               isNegative: true,
                               onTap: () => _removeSelectedFrom(true))),
                       const SizedBox(width: 4),
                       Expanded(
                           child: _buildActionButton(
                               icon: Icons.inventory_2,
-                              color: Colors.green,
-                              label: "Collect.",
+                              color: AppColors.success,
+                              label: 'Collect.',
                               onTap: () => _addSelectedTo(true))),
                     ],
                   ),
@@ -875,9 +860,9 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
       onPressed: onTap,
       style: ElevatedButton.styleFrom(
         backgroundColor:
-            isNegative ? color.withOpacity(0.1) : color.withOpacity(0.2),
+            isNegative ? color.withValues(alpha: 0.1) : color.withValues(alpha: 0.2),
         foregroundColor: color,
-        side: BorderSide(color: color.withOpacity(0.5), width: 1),
+        side: BorderSide(color: color.withValues(alpha: 0.5), width: 1),
         padding: const EdgeInsets.symmetric(vertical: 12),
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -908,10 +893,10 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
       decoration: BoxDecoration(
         color: const Color(0xFF151515),
         border: Border(
-            bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+            bottom: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.05))),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.5),
+              color: AppColors.textOnPrimary.withValues(alpha: 0.5),
               blurRadius: 8,
               offset: const Offset(0, 4))
         ],
@@ -926,29 +911,21 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("PROGRESSION",
-                      style: GoogleFonts.cinzel(
-                          color: Colors.white38,
-                          fontSize: 10,
-                          letterSpacing: 1.5,
-                          fontWeight: FontWeight.bold)),
+                  Text('PROGRESSION',
+                      style: AppTextStyles.cinzel(color: AppColors.borderFaint, fontSize: 10).copyWith(letterSpacing: 1.5, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text("$ownedCount",
-                          style: GoogleFonts.cinzel(
-                              color: Colors.greenAccent,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold)),
-                      Text(" / $totalCount",
-                          style: GoogleFonts.cinzel(
-                              color: Colors.white54, fontSize: 14)),
+                      Text('$ownedCount',
+                          style: AppTextStyles.bold(color: AppColors.accentGreen, fontSize: 20)),
+                      Text(' / $totalCount',
+                          style: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 14)),
                       const SizedBox(width: 8),
-                      Text("$percentage%",
+                      Text('$percentage%',
                           style: GoogleFonts.roboto(
-                              color: Colors.blueAccent,
+                              color: AppColors.accent,
                               fontSize: 12,
                               fontWeight: FontWeight.bold)),
                     ],
@@ -957,13 +934,13 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
               ),
               Row(
                 children: [
-                  _buildRarityBadge("M", Colors.orange.shade900,
+                  _buildRarityBadge('M', Colors.orange.shade900,
                       state.rarityCounts['mythic'] ?? 0),
                   const SizedBox(width: 6),
-                  _buildRarityBadge("R", Colors.amber,
+                  _buildRarityBadge('R', AppColors.amber,
                       state.rarityCounts['rare'] ?? 0),
                   const SizedBox(width: 6),
-                  _buildRarityBadge("U", Colors.blueGrey,
+                  _buildRarityBadge('U', Colors.blueGrey,
                       state.rarityCounts['uncommon'] ?? 0),
                 ],
               ),
@@ -976,7 +953,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                 height: 6,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: AppColors.textPrimary.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
@@ -997,7 +974,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                            color: Colors.greenAccent.withOpacity(0.4),
+                            color: AppColors.accentGreen.withValues(alpha: 0.4),
                             blurRadius: 6,
                             spreadRadius: 0,
                             offset: const Offset(0, 0))
@@ -1017,19 +994,18 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.4), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
       ),
       child: Row(
         children: [
           Text(letter,
-              style: GoogleFonts.cinzel(
-                  color: color, fontSize: 10, fontWeight: FontWeight.w900)),
+              style: AppTextStyles.cinzel(color: color, fontSize: 10, fontWeight: FontWeight.w900)),
           const SizedBox(width: 4),
-          Text("$count",
+          Text('$count',
               style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
+                  color: AppColors.textPrimary.withValues(alpha: 0.8),
                   fontSize: 10,
                   fontWeight: FontWeight.bold)),
         ],

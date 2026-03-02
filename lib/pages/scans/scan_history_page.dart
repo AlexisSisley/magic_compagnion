@@ -1,11 +1,12 @@
 // Fichier : lib/pages/scan_history_page.dart
 // NOUVEAU FICHIER
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:io'; // Pour afficher l'image depuis le chemin (File)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/scan_history_model.dart';
 import '../../services/scan_history_service.dart';
 import '../../services/collection_service.dart';
@@ -51,20 +52,20 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
     final bool? confirm = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: Text('Vider l\'historique ?', style: GoogleFonts.cinzel(color: Colors.white)),
+        backgroundColor: AppColors.scaffoldBackground,
+        title: Text('Vider l\'historique ?', style: AppTextStyles.cinzel()),
         content: Text(
           'Tous les scans de votre historique seront supprimés.',
-          style: GoogleFonts.cinzel(color: Colors.white70),
+          style: AppTextStyles.cinzel(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Annuler', style: GoogleFonts.cinzel(color: Colors.white70)),
+            child: Text('Annuler', style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Vider', style: GoogleFonts.cinzel(color: Colors.red.shade300)),
+            child: Text('Vider', style: AppTextStyles.cinzel(color: Colors.red.shade300)),
           ),
         ],
       ),
@@ -85,7 +86,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
     
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('"${item.cardName}" ajouté à la collection',
-          style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)),
+          style: AppTextStyles.bold(color: AppColors.textOnPrimary)),
       backgroundColor: Colors.green.shade700,
       duration: const Duration(seconds: 1),
     ));
@@ -98,13 +99,13 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
         title: Text(
           'Historique des Scans',
-          style: GoogleFonts.cinzel(fontWeight: FontWeight.w600),
+          style: AppTextStyles.cinzel(fontWeight: FontWeight.w600),
         ),
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.textOnPrimary,
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_sweep_outlined),
@@ -114,7 +115,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary))
           : _history.isEmpty
               ? _buildEmptyState()
               : _buildHistoryList(),
@@ -127,7 +128,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
         padding: const EdgeInsets.all(16.0),
         child: Text(
           'Votre historique de scan est vide.',
-          style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16),
+          style: AppTextStyles.subtitle(fontSize: 16),
           textAlign: TextAlign.center,
         ),
       ),
@@ -150,21 +151,21 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               // Si l'image n'existe plus (ex: cache vidé), affiche une icône
-              return const Icon(Icons.broken_image, color: Colors.white30);
+              return const Icon(Icons.broken_image, color: AppColors.textDisabled);
             },
           );
         } else {
-          leadingImage = const Icon(Icons.image_not_supported, color: Colors.white30);
+          leadingImage = const Icon(Icons.image_not_supported, color: AppColors.textDisabled);
         }
 
         return Card(
-          color: Colors.black.withAlpha(102),
+          color: AppColors.textOnPrimary.withAlpha(102),
           elevation: 2.0,
           margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10.0),
             side: BorderSide(
-              color: Colors.yellow.shade800.withAlpha(153),
+              color: AppColors.primaryShade800.withAlpha(153),
               width: 1,
             ),
           ),
@@ -175,24 +176,20 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
               child: Container(
                 width: 50,
                 height: 70,
-                color: Colors.grey.shade800,
+                color: AppColors.greyShade800,
                 child: leadingImage,
               ),
             ),
             title: Text(
               item.cardName,
-              style: GoogleFonts.cinzel(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.cinzel(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
               _dateFormatter.format(item.timestamp), // Affiche la date
-              style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 14),
+              style: AppTextStyles.subtitle(),
             ),
             trailing: IconButton(
-              icon: const Icon(Icons.add_circle_outline, color: Colors.white54),
+              icon: const Icon(Icons.add_circle_outline, color: AppColors.textMuted),
               tooltip: 'Ajouter à la collection',
               onPressed: () => _addToCollection(item),
             ),

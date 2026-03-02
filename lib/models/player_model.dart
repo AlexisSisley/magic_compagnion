@@ -17,7 +17,7 @@ class Player {
 
   Player({
     required this.id,
-    this.name = "Joueur",
+    this.name = 'Joueur',
     required this.life,
     this.colorValue = 0xFF000000,
     this.backgroundImagePath, // <--- NOUVEAU 

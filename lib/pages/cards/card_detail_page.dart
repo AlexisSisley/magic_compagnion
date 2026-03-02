@@ -1,11 +1,12 @@
 // Fichier : lib/pages/cards/card_detail_page.dart
 // VERSION REFACTOREE : Logique metier extraite dans CardDetailController
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -60,17 +61,17 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
 
     // Calcul de l'icône Collection dynamique
     IconData collIcon = Icons.inventory_2_outlined;
-    Color collColor = Colors.white;
+    Color collColor = AppColors.textPrimary;
     if (state.collectionNormalCount > 0 || state.collectionFoilCount > 0) {
       collIcon = Icons.inventory_2;
       collColor = Colors.green.shade400;
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text(state.pageState == ResultPageState.selection ? "Choisissez la carte" : "Détail Carte", style: GoogleFonts.cinzel(fontWeight: FontWeight.w600)),
-        backgroundColor: Colors.black,
+        title: Text(state.pageState == ResultPageState.selection ? 'Choisissez la carte' : 'Détail Carte', style: AppTextStyles.cinzel(fontWeight: FontWeight.w600)),
+        backgroundColor: AppColors.textOnPrimary,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context, false),
@@ -80,13 +81,13 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
             if (widget.isContinuousScan)
               TextButton.icon(
                 onPressed: () => Navigator.pop(context, true),
-                icon: const Icon(Icons.camera_alt, color: Colors.yellow, size: 18),
-                label: const Text("Suivante", style: TextStyle(color: Colors.yellow, fontWeight: FontWeight.bold)),
-                style: TextButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.1)),
+                icon: const Icon(Icons.camera_alt, color: AppColors.primary, size: 18),
+                label: const Text('Suivante', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                style: TextButton.styleFrom(backgroundColor: AppColors.textPrimary.withValues(alpha: 0.1)),
               ),
-            IconButton(icon: const Icon(Icons.style, color: Colors.white), onPressed: () => _showVersionsModal(state, controller)),
+            IconButton(icon: const Icon(Icons.style, color: AppColors.textPrimary), onPressed: () => _showVersionsModal(state, controller)),
             IconButton(
-              icon: Icon(state.inWishlist ? Icons.star : Icons.star_border_outlined, color: state.inWishlist ? Colors.blue.shade400 : Colors.white),
+              icon: Icon(state.inWishlist ? Icons.star : Icons.star_border_outlined, color: state.inWishlist ? Colors.blue.shade400 : AppColors.textPrimary),
               onPressed: () => _openWishlistManager(controller),
             ),
             IconButton(
@@ -98,7 +99,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
       ),
       body: _buildContent(state, controller),
       floatingActionButton: state.pageState == ResultPageState.success
-          ? FloatingActionButton(onPressed: () => _showDeckPicker(state, controller), backgroundColor: Colors.yellow.shade800, child: const Icon(Icons.add_to_photos_outlined))
+          ? FloatingActionButton(onPressed: () => _showDeckPicker(state, controller), backgroundColor: AppColors.primaryShade800, child: const Icon(Icons.add_to_photos_outlined))
           : null,
     );
   }
@@ -108,33 +109,33 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
 
     switch (state.pageState) {
       case ResultPageState.loading:
-        return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text(state.statusMessage, style: GoogleFonts.cinzel(color: Colors.white))]));
+        return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text(state.statusMessage, style: AppTextStyles.cinzel())]));
 
       case ResultPageState.selection:
         return Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Text("Plusieurs correspondances trouvées.\nVeuillez sélectionner la bonne carte :",
-                style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16), textAlign: TextAlign.center),
+              child: Text('Plusieurs correspondances trouvées.\nVeuillez sélectionner la bonne carte :',
+                style: AppTextStyles.subtitle(fontSize: 16), textAlign: TextAlign.center),
             ),
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.all(8),
                 itemCount: state.candidates.length,
-                separatorBuilder: (_, __) => const Divider(color: Colors.white10),
+                separatorBuilder: (_, _) => const Divider(color: AppColors.borderLight),
                 itemBuilder: (context, index) {
                   final card = state.candidates[index];
                   final imgUrl = card.smallImageUrl ?? card.imageUrl;
                   return Card(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: AppColors.textPrimary.withValues(alpha: 0.05),
                     child: ListTile(
                       leading: imgUrl.isNotEmpty
                           ? Image.network(imgUrl, width: 40, fit: BoxFit.cover)
-                          : const Icon(Icons.image, color: Colors.white24),
-                      title: Text(card.name, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
-                      subtitle: Text("${card.typeLine}\n${card.setName} • ${card.collectorNumber}", style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                      trailing: const Icon(Icons.chevron_right, color: Colors.yellow),
+                          : const Icon(Icons.image, color: AppColors.borderMedium),
+                      title: Text(card.name, style: AppTextStyles.bold()),
+                      subtitle: Text('${card.typeLine}\n${card.setName} • ${card.collectorNumber}', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                      trailing: const Icon(Icons.chevron_right, color: AppColors.primary),
                       onTap: () {
                         _searchController.text = card.name;
                         controller.selectCard(card);
@@ -155,16 +156,16 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Card(
-                color: Colors.black.withValues(alpha: 0.4),
+                color: AppColors.textOnPrimary.withValues(alpha: 0.4),
                 elevation: 4.0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: BorderSide(color: Colors.yellow.shade800.withValues(alpha: 0.6), width: 1)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: BorderSide(color: AppColors.primaryShade800.withValues(alpha: 0.6), width: 1)),
                 child: Column(children: [
-                    Image.network(foundCard.imageUrl, fit: BoxFit.fitWidth, errorBuilder: (c, e, s) => const SizedBox(height: 300, child: Center(child: Icon(Icons.broken_image, size: 50, color: Colors.white)))),
+                    Image.network(foundCard.imageUrl, fit: BoxFit.fitWidth, errorBuilder: (c, e, s) => const SizedBox(height: 300, child: Center(child: Icon(Icons.broken_image, size: 50, color: AppColors.textPrimary)))),
                     Padding(padding: const EdgeInsets.all(12.0), child: Column(children: [
                           _buildManaCostRow(foundCard.manaCost),
                           const SizedBox(height: 8),
-                          Text(foundCard.printedName ?? foundCard.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                          Text(foundCard.typeLine, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+                          Text(foundCard.printedName ?? foundCard.name, style: AppTextStyles.pageTitle(), textAlign: TextAlign.center),
+                          Text(foundCard.typeLine, style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 16, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
                           if (state.collectionNormalCount > 0 || state.collectionFoilCount > 0)
                             Padding(
                               padding: const EdgeInsets.only(top: 8),
@@ -177,7 +178,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                                 ),
                                 child: Text(
                                   'Collection : ${state.collectionNormalCount} normal${state.collectionNormalCount > 1 ? 's' : ''}${state.collectionFoilCount > 0 ? ' + ${state.collectionFoilCount} foil${state.collectionFoilCount > 1 ? 's' : ''}' : ''}',
-                                  style: GoogleFonts.cinzel(color: Colors.green.shade300, fontSize: 12, fontWeight: FontWeight.bold),
+                                  style: AppTextStyles.bold(color: Colors.green.shade300, fontSize: 12),
                                 ),
                               ),
                             ),
@@ -198,16 +199,16 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(state.statusMessage, style: GoogleFonts.cinzel(color: Colors.red.shade300), textAlign: TextAlign.center),
+              Text(state.statusMessage, style: AppTextStyles.cinzel(color: Colors.red.shade300), textAlign: TextAlign.center),
               const SizedBox(height: 20),
               TextField(
                 controller: _searchController,
-                style: GoogleFonts.cinzel(color: Colors.white),
-                decoration: InputDecoration(hintText: 'Nom de la carte', filled: true, fillColor: Colors.white10, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
+                style: AppTextStyles.cinzel(),
+                decoration: InputDecoration(hintText: 'Nom de la carte', filled: true, fillColor: AppColors.borderLight, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
                 onSubmitted: (val) => controller.searchForCandidates(val),
               ),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: () => controller.searchForCandidates(_searchController.text), style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800), child: Text('Rechercher', style: GoogleFonts.cinzel())),
+              ElevatedButton(onPressed: () => controller.searchForCandidates(_searchController.text), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800), child: Text('Rechercher', style: AppTextStyles.cinzel())),
             ],
           ),
         );
@@ -223,7 +224,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true,
       builder: (context) {
         return StatefulBuilder(
@@ -235,20 +236,20 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Gérer ma Collection", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text('Gérer ma Collection', style: AppTextStyles.pageTitle(fontSize: 20)),
                     const SizedBox(height: 24),
                     _buildQuantityRow(
-                      "Normal",
+                      'Normal',
                       tempNormal,
-                      Colors.white,
+                      AppColors.textPrimary,
                       () { setModalState(() => tempNormal = (tempNormal - 1).clamp(0, 99)); },
                       () { setModalState(() => tempNormal++); },
                     ),
                     const SizedBox(height: 16),
                     _buildQuantityRow(
-                      "Foil (Brillant)",
+                      'Foil (Brillant)',
                       tempFoil,
-                      Colors.amber,
+                      AppColors.amber,
                       () { setModalState(() => tempFoil = (tempFoil - 1).clamp(0, 99)); },
                       () { setModalState(() => tempFoil++); },
                     ),
@@ -263,10 +264,10 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                           );
                           if (!context.mounted) return;
                           Navigator.pop(context);
-                          _showFeedback("Collection mise à jour", Colors.green);
+                          _showFeedback('Collection mise à jour', AppColors.success);
                         },
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, padding: const EdgeInsets.symmetric(vertical: 16)),
-                        child: Text("ENREGISTRER", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold)),
+                        child: Text('ENREGISTRER', style: AppTextStyles.bold()),
                       ),
                     )
                   ],
@@ -289,29 +290,29 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: Text("Ajouter à la Wishlist", style: GoogleFonts.cinzel(color: Colors.white)),
+        backgroundColor: AppColors.scaffoldBackground,
+        title: Text('Ajouter à la Wishlist', style: AppTextStyles.cinzel()),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: const Text("Version Normale", style: TextStyle(color: Colors.white)),
-              leading: const Icon(Icons.style, color: Colors.white),
+              title: const Text('Version Normale', style: TextStyle(color: AppColors.textPrimary)),
+              leading: const Icon(Icons.style, color: AppColors.textPrimary),
               onTap: () async {
                 await controller.addToWishlist(listId: targetListId, isFoil: false);
                 if (!ctx.mounted) return;
                 Navigator.pop(ctx);
-                _showFeedback("Ajouté à la Wishlist (Normal)", Colors.blueAccent);
+                _showFeedback('Ajouté à la Wishlist (Normal)', AppColors.accent);
               },
             ),
             ListTile(
-              title: const Text("Version Foil", style: TextStyle(color: Colors.amber)),
-              leading: const Icon(Icons.star, color: Colors.amber),
+              title: const Text('Version Foil', style: TextStyle(color: AppColors.amber)),
+              leading: const Icon(Icons.star, color: AppColors.amber),
               onTap: () async {
                 await controller.addToWishlist(listId: targetListId, isFoil: true);
                 if (!ctx.mounted) return;
                 Navigator.pop(ctx);
-                _showFeedback("Ajouté à la Wishlist (Foil)", Colors.blueAccent);
+                _showFeedback('Ajouté à la Wishlist (Foil)', AppColors.accent);
               },
             ),
           ],
@@ -323,22 +324,22 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
   Widget _buildQuantityRow(String label, int value, Color color, VoidCallback onMinus, VoidCallback onPlus) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: AppColors.textPrimary.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
-              Icon(label.contains("Foil") ? Icons.star : Icons.style, color: color),
+              Icon(label.contains('Foil') ? Icons.star : Icons.style, color: color),
               const SizedBox(width: 12),
-              Text(label, style: GoogleFonts.cinzel(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(label, style: AppTextStyles.bold(color: color, fontSize: 16)),
             ],
           ),
           Row(
             children: [
-              IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.white54), onPressed: onMinus),
-              SizedBox(width: 30, child: Text("$value", textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))),
-              IconButton(icon: const Icon(Icons.add_circle, color: Colors.greenAccent), onPressed: onPlus),
+              IconButton(icon: const Icon(Icons.remove_circle_outline, color: AppColors.textMuted), onPressed: onMinus),
+              SizedBox(width: 30, child: Text('$value', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold))),
+              IconButton(icon: const Icon(Icons.add_circle, color: AppColors.accentGreen), onPressed: onPlus),
             ],
           )
         ],
@@ -352,7 +353,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
 
     return showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true,
       builder: (context) {
         return SafeArea(
@@ -363,10 +364,10 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Padding(padding: const EdgeInsets.all(16.0), child: Text("Choisir une Wishlist", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
+                  Padding(padding: const EdgeInsets.all(16.0), child: Text('Choisir une Wishlist', style: AppTextStyles.sectionTitle())),
                   ListTile(
-                    leading: const Icon(Icons.add_circle, color: Colors.greenAccent),
-                    title: Text("Créer une nouvelle liste", style: GoogleFonts.cinzel(color: Colors.white)),
+                    leading: const Icon(Icons.add_circle, color: AppColors.accentGreen),
+                    title: Text('Créer une nouvelle liste', style: AppTextStyles.cinzel()),
                     onTap: () async {
                       final name = await _showCreateWishlistDialog(controller);
                       if (name != null && mounted) {
@@ -376,7 +377,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                       }
                     },
                   ),
-                  const Divider(color: Colors.white24),
+                  const Divider(color: AppColors.borderMedium),
                   Expanded(
                     child: ListView.builder(
                       shrinkWrap: true,
@@ -384,9 +385,9 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                       itemBuilder: (context, index) {
                         final list = wishlists[index];
                         return ListTile(
-                          leading: const Icon(Icons.bookmark_border, color: Colors.blueAccent),
-                          title: Text(list.name, style: const TextStyle(color: Colors.white)),
-                          subtitle: Text("${list.totalCards} cartes", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          leading: const Icon(Icons.bookmark_border, color: AppColors.accent),
+                          title: Text(list.name, style: const TextStyle(color: AppColors.textPrimary)),
+                          subtitle: Text('${list.totalCards} cartes', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
                           onTap: () => Navigator.pop(context, list.id),
                         );
                       },
@@ -406,16 +407,16 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     return showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text("Nouvelle Liste", style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.scaffoldBackground,
+        title: const Text('Nouvelle Liste', style: TextStyle(color: AppColors.textPrimary)),
         content: TextField(
           controller: textController,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: "Nom de la liste"),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(hintText: 'Nom de la liste'),
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Annuler")),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () async {
               if (textController.text.isNotEmpty) {
@@ -423,7 +424,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                 if (c.mounted) Navigator.pop(c, textController.text);
               }
             },
-            child: const Text("Créer"),
+            child: const Text('Créer'),
           )
         ],
       ),
@@ -437,24 +438,24 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        Column(children: [Text('Normal', style: GoogleFonts.cinzel(color: Colors.white70)), Text('$priceEur €', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))]),
-        Container(width: 1, height: 30, color: Colors.white24),
-        Column(children: [Text('Foil (Brillant)', style: GoogleFonts.cinzel(color: Colors.amber.shade200)), Text('$priceEurFoil €', style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))]),
+        Column(children: [Text('Normal', style: AppTextStyles.cinzel(color: AppColors.textSecondary)), Text('$priceEur €', style: AppTextStyles.pageTitle(fontSize: 20))]),
+        Container(width: 1, height: 30, color: AppColors.borderMedium),
+        Column(children: [Text('Foil (Brillant)', style: AppTextStyles.cinzel(color: Colors.amber.shade200)), Text('$priceEurFoil €', style: AppTextStyles.pageTitle(fontSize: 20))]),
       ],
     );
   }
 
   Widget _buildRulingsList(CardDetailState state) {
     if (state.isLoadingRulings) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (state.rulings.isEmpty) return Text('(Aucune décision)', style: GoogleFonts.cinzel(color: Colors.white70, fontStyle: FontStyle.italic));
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: state.rulings.map((r) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(r.date, style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)), Text(r.comment, style: const TextStyle(color: Colors.white))]))).toList());
+    if (state.rulings.isEmpty) return Text('(Aucune décision)', style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: state.rulings.map((r) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(r.date, style: AppTextStyles.bold()), Text(r.comment, style: const TextStyle(color: AppColors.textPrimary))]))).toList());
   }
 
   Widget _buildInfoCard({required String title, required Widget child}) {
     return Card(
-      color: Colors.black.withValues(alpha: 0.4), elevation: 2, margin: const EdgeInsets.symmetric(vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.yellow.shade800.withValues(alpha: 0.6))),
-      child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600)), const Divider(color: Colors.white24), const SizedBox(height: 8), child])),
+      color: AppColors.textOnPrimary.withValues(alpha: 0.4), elevation: 2, margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: AppColors.primaryShade800.withValues(alpha: 0.6))),
+      child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: AppTextStyles.cinzel(fontSize: 20, fontWeight: FontWeight.w600)), const Divider(color: AppColors.borderMedium), const SizedBox(height: 8), child])),
     );
   }
 
@@ -462,27 +463,27 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     const formats = ['standard', 'commander', 'modern', 'pioneer'];
     return Wrap(spacing: 12, runSpacing: 8, children: formats.map((fmt) {
        final status = legalities[fmt] ?? 'not_legal';
-       Color c = status == 'legal' ? Colors.green : (status == 'banned' ? Colors.red : Colors.grey);
-       return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: c.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4), border: Border.all(color: c)), child: Text('${fmt[0].toUpperCase()}${fmt.substring(1)}', style: GoogleFonts.cinzel(color: c, fontWeight: FontWeight.bold)));
+       Color c = status == 'legal' ? AppColors.success : (status == 'banned' ? AppColors.error : AppColors.synergyNeutral);
+       return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: c.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4), border: Border.all(color: c)), child: Text('${fmt[0].toUpperCase()}${fmt.substring(1)}', style: AppTextStyles.bold(color: c)));
     }).toList());
   }
 
   Future<void> _showVersionsModal(CardDetailState state, CardDetailController controller) async {
     if (state.foundCard == null) return;
     showModalBottomSheet(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      context: context, isScrollControlled: true, backgroundColor: AppColors.transparent,
       builder: (context) => VersionsSelectorSheet(oracleId: state.foundCard!.oracleId, currentCardId: state.foundCard!.id, onVersionSelected: (v) => controller.selectCard(v)),
     );
   }
 
   Future<void> _showDeckPicker(CardDetailState state, CardDetailController controller) async {
     if (state.foundCard == null) return;
-    showModalBottomSheet(context: context, backgroundColor: Colors.transparent, isScrollControlled: true, builder: (c) => DeckPickerModal(cardToAdd: state.foundCard!, deckService: controller.deckService, onCardAdded: (d, c) => _showFeedback("Ajouté au deck $d", Colors.green)));
+    showModalBottomSheet(context: context, backgroundColor: AppColors.transparent, isScrollControlled: true, builder: (c) => DeckPickerModal(cardToAdd: state.foundCard!, deckService: controller.deckService, onCardAdded: (d, c) => _showFeedback('Ajouté au deck $d', AppColors.success)));
   }
 
   void _showFeedback(String message, Color color) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message, style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)), backgroundColor: color, duration: const Duration(seconds: 1)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message, style: AppTextStyles.bold(color: AppColors.textOnPrimary)), backgroundColor: color, duration: const Duration(seconds: 1)));
   }
 
   InlineSpan _buildKeywordSpans(String textChunk, CardDetailController controller) {
@@ -492,16 +493,16 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
       final String word = words[i];
       final Keyword? keyword = controller.findKeyword(word);
       if (keyword != null) {
-        spans.add(TextSpan(text: '$word ', style: GoogleFonts.cinzel(color: Colors.blue.shade300, fontWeight: FontWeight.bold, decoration: TextDecoration.underline, decorationColor: Colors.blue.shade300), recognizer: TapGestureRecognizer()..onTap = () { context.push(AppRoutes.glossaryDetail, extra: keyword); }));
+        spans.add(TextSpan(text: '$word ', style: AppTextStyles.bold(color: Colors.blue.shade300).copyWith(decoration: TextDecoration.underline, decorationColor: Colors.blue.shade300), recognizer: TapGestureRecognizer()..onTap = () { context.push(AppRoutes.glossaryDetail, extra: keyword); }));
       } else {
-        spans.add(TextSpan(text: '$word ', style: const TextStyle(color: Colors.white, height: 1.4)));
+        spans.add(TextSpan(text: '$word ', style: const TextStyle(color: AppColors.textPrimary, height: 1.4)));
       }
     }
     return TextSpan(children: spans);
   }
 
   Widget _buildClickableRulesText(String text, String lang, CardDetailController controller) {
-    if (text.isEmpty) return Text("(Pas de texte)", style: GoogleFonts.cinzel(color: Colors.white70, fontStyle: FontStyle.italic));
+    if (text.isEmpty) return Text('(Pas de texte)', style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
     final List<InlineSpan> spans = [];
     text.splitMapJoin(_manaSymbolRegex, onMatch: (Match match) {
         final String symbol = match.group(0)!;
@@ -519,6 +520,6 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
 
   Widget _getManaIcon(String symbol) {
      final clean = symbol.replaceAll(RegExp(r'[{}/]'), '').toUpperCase();
-     return SvgPicture.network('https://svgs.scryfall.io/card-symbols/$clean.svg', width: 16, placeholderBuilder: (_) => Text(symbol, style: const TextStyle(color: Colors.white)));
+     return SvgPicture.network('https://svgs.scryfall.io/card-symbols/$clean.svg', width: 16, placeholderBuilder: (_) => Text(symbol, style: const TextStyle(color: AppColors.textPrimary)));
   }
 }

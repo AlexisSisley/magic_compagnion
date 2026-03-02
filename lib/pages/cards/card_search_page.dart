@@ -1,6 +1,8 @@
 // Fichier : lib/pages/cards/card_search_page.dart
 // VERSION REFACTOREE : Logique metier extraite dans CardSearchController
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -68,8 +70,8 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
     _tabController.animateTo(0);
     _searchCards();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text("Edition : ${set.name}"),
-      backgroundColor: Colors.yellow.shade800,
+      content: Text('Edition : ${set.name}'),
+      backgroundColor: AppColors.primaryShade800,
       duration: const Duration(seconds: 1),
     ));
   }
@@ -77,7 +79,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
   Future<void> _openFilterModal() async {
     final state = ref.read(cardSearchControllerProvider);
     final newFilters = await showModalBottomSheet<SearchFilters>(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      context: context, isScrollControlled: true, backgroundColor: AppColors.transparent,
       builder: (context) { return SearchFilterModal(initialFilters: state.activeFilters); },
     );
     if (newFilters != null) {
@@ -93,16 +95,16 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
     return Column(
       children: [
         Container(
-          color: Colors.black.withValues(alpha: 0.5),
+          color: AppColors.textOnPrimary.withValues(alpha: 0.5),
           child: TabBar(
             controller: _tabController,
-            indicatorColor: Colors.yellow.shade800,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white54,
-            labelStyle: GoogleFonts.cinzel(fontWeight: FontWeight.bold),
+            indicatorColor: AppColors.primaryShade800,
+            labelColor: AppColors.textPrimary,
+            unselectedLabelColor: AppColors.textMuted,
+            labelStyle: AppTextStyles.bold(),
             tabs: const [
-              Tab(text: "Cartes", icon: Icon(Icons.search)),
-              Tab(text: "Editions", icon: Icon(Icons.layers)),
+              Tab(text: 'Cartes', icon: Icon(Icons.search)),
+              Tab(text: 'Editions', icon: Icon(Icons.layers)),
             ],
           ),
         ),
@@ -117,20 +119,20 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                   if (state.searchResults.isNotEmpty && !state.isLoading)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      color: Colors.black26,
+                      color: AppColors.overlayLight,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             state.resultCountLabel,
-                            style: GoogleFonts.cinzel(color: Colors.white54, fontSize: 12),
+                            style: AppTextStyles.label(color: AppColors.textMuted),
                           ),
                           Row(
                             children: [
                               PopupMenuButton<String>(
-                                icon: Icon(Icons.sort, color: Colors.yellow.shade700, size: 20),
-                                color: const Color(0xFF1A1A1A),
-                                tooltip: "Trier par...",
+                                icon: Icon(Icons.sort, color: AppColors.primaryShade700, size: 20),
+                                color: AppColors.scaffoldBackground,
+                                tooltip: 'Trier par...',
                                 onSelected: (val) {
                                   final changed = ref.read(cardSearchControllerProvider.notifier).updateSort(val);
                                   if (changed) _searchCards();
@@ -146,7 +148,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                               const SizedBox(width: 8),
                               InkWell(
                                 onTap: () => ref.read(cardSearchControllerProvider.notifier).toggleGridView(),
-                                child: Icon(state.isGridView ? Icons.grid_view : Icons.view_list, color: Colors.white70, size: 20),
+                                child: Icon(state.isGridView ? Icons.grid_view : Icons.view_list, color: AppColors.textSecondary, size: 20),
                               ),
                             ],
                           )
@@ -176,11 +178,11 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
         children: [
           Icon(
             state.sortBy == value ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-            color: state.sortBy == value ? Colors.yellow.shade800 : Colors.white54,
+            color: state.sortBy == value ? AppColors.primaryShade800 : AppColors.textMuted,
             size: 18,
           ),
           const SizedBox(width: 8),
-          Text(label, style: const TextStyle(color: Colors.white)),
+          Text(label, style: const TextStyle(color: AppColors.textPrimary)),
         ],
       ),
     );
@@ -192,23 +194,23 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
       padding: const EdgeInsets.all(12.0),
       child: TextField(
         controller: _searchController,
-        style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16),
+        style: AppTextStyles.cinzel(fontSize: 16),
         onChanged: _onSearchChanged,
         decoration: InputDecoration(
           hintText: state.activeFilters.setCode != null ? 'Dans: ${state.activeFilters.setCode!.toUpperCase()}...' : 'Nom de la carte...',
-          hintStyle: GoogleFonts.cinzel(color: Colors.white54, fontSize: 14),
+          hintStyle: AppTextStyles.subtitle(color: AppColors.textMuted),
           prefixIcon: IconButton(
-            icon: Icon(Icons.filter_list, color: hasFilters ? Colors.yellow.shade700 : Colors.white70),
+            icon: Icon(Icons.filter_list, color: hasFilters ? AppColors.primaryShade700 : AppColors.textSecondary),
             onPressed: _openFilterModal,
-            tooltip: "Filtres avances",
+            tooltip: 'Filtres avances',
           ),
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
                if (hasFilters)
                 IconButton(
-                  icon: const Icon(Icons.highlight_off, color: Colors.red),
-                  tooltip: "Reinitialiser filtres",
+                  icon: const Icon(Icons.highlight_off, color: AppColors.error),
+                  tooltip: 'Reinitialiser filtres',
                   onPressed: () {
                     _searchController.clear();
                     ref.read(cardSearchControllerProvider.notifier).resetFilters();
@@ -216,7 +218,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                 )
                else if (_searchController.text.isNotEmpty)
                  IconButton(
-                   icon: const Icon(Icons.clear, color: Colors.white54),
+                   icon: const Icon(Icons.clear, color: AppColors.textMuted),
                    onPressed: () {
                       _searchController.clear();
                       ref.read(cardSearchControllerProvider.notifier).clearSearchResults();
@@ -224,13 +226,13 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                  ),
 
               IconButton(
-                icon: const Icon(Icons.search, color: Colors.white70),
+                icon: const Icon(Icons.search, color: AppColors.textSecondary),
                 onPressed: _searchCards,
               ),
             ],
           ),
           filled: true,
-          fillColor: Colors.black.withValues(alpha: 0.55),
+          fillColor: AppColors.textOnPrimary.withValues(alpha: 0.55),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
         ),
         onSubmitted: (_) => _searchCards(),
@@ -244,7 +246,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
     }
 
     if (state.searchResults.isEmpty) {
-      return Center(child: Padding(padding: const EdgeInsets.all(16.0), child: Text(state.statusMessage, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 16), textAlign: TextAlign.center)));
+      return Center(child: Padding(padding: const EdgeInsets.all(16.0), child: Text(state.statusMessage, style: AppTextStyles.subtitle(fontSize: 16), textAlign: TextAlign.center)));
     }
 
     return ListView.builder(
@@ -275,7 +277,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
 
   Widget _buildListTile(CardSearchState state, ScryfallCard card) {
     final String cardName = card.name;
-    final String? imageUrl = card.smallImageUrl ?? card.imageUrl;
+    final String imageUrl = card.smallImageUrl ?? card.imageUrl;
     final String price = card.prices['eur'] ?? '--';
 
     final bool inWishlist = state.isCardInWishlist(cardName);
@@ -283,10 +285,10 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
     final badge = _getBadge(state, card.id, cardName);
 
     return Card(
-      color: Colors.black.withValues(alpha: 0.45),
+      color: AppColors.textOnPrimary.withValues(alpha: 0.45),
       elevation: 2.0,
       margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: BorderSide(color: Colors.white10, width: 1)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: const BorderSide(color: AppColors.borderLight, width: 1)),
       child: InkWell(
         onTap: () => _navigateToDetail(cardName),
         borderRadius: BorderRadius.circular(10.0),
@@ -296,31 +298,31 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(6.0),
-                child: imageUrl != null && imageUrl.isNotEmpty
-                    ? Image.network(imageUrl, width: 60, height: 84, fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(width: 60, height: 84, color: Colors.grey.shade800))
-                    : Container(width: 60, height: 84, color: Colors.grey.shade800, child: const Icon(Icons.image, color: Colors.white30)),
+                child: imageUrl.isNotEmpty
+                    ? Image.network(imageUrl, width: 60, height: 84, fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(width: 60, height: 84, color: AppColors.greyShade800))
+                    : Container(width: 60, height: 84, color: AppColors.greyShade800, child: const Icon(Icons.image, color: AppColors.textDisabled)),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(cardName, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    Text(card.typeLine, style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(cardName, style: AppTextStyles.bold(fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(card.typeLine, style: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
                     Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white24)),
-                          child: Text(card.setCode.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                          decoration: BoxDecoration(color: AppColors.overlayDark, borderRadius: BorderRadius.circular(4), border: Border.all(color: AppColors.borderMedium)),
+                          child: Text(card.setCode.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold)),
                         ),
                         const SizedBox(width: 8),
-                        Text("${card.cmc?.toInt() ?? 0} CMC", style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                        Text('${card.cmc?.toInt() ?? 0} CMC', style: const TextStyle(color: AppColors.borderFaint, fontSize: 10)),
                         const SizedBox(width: 8),
                         _buildRarityBadge(card.rarity),
                         const Spacer(),
-                        Text('$price EUR', style: TextStyle(color: Colors.yellow.shade700, fontWeight: FontWeight.bold, fontSize: 14)),
+                        Text('$price EUR', style: TextStyle(color: AppColors.primaryShade700, fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
                     ),
                   ],
@@ -329,8 +331,8 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
               Column(
                 children: [
                   if (badge != null) CollectionBadgeWidget(badge: badge),
-                  _buildActionButton(icon: inWishlist ? Icons.star : Icons.star_border, color: inWishlist ? Colors.blue : Colors.white30, onTap: () => _toggleWishlist(card.id, cardName, inWishlist)),
-                  _buildActionButton(icon: inCollection ? Icons.inventory_2 : Icons.inventory_2_outlined, color: inCollection ? Colors.green : Colors.white30, onTap: () => _toggleCollection(card.id, cardName, inCollection)),
+                  _buildActionButton(icon: inWishlist ? Icons.star : Icons.star_border, color: inWishlist ? AppColors.info : AppColors.textDisabled, onTap: () => _toggleWishlist(card.id, cardName, inWishlist)),
+                  _buildActionButton(icon: inCollection ? Icons.inventory_2 : Icons.inventory_2_outlined, color: inCollection ? AppColors.success : AppColors.textDisabled, onTap: () => _toggleCollection(card.id, cardName, inCollection)),
                 ],
               )
             ],
@@ -346,7 +348,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
     }
 
     if (state.searchResults.isEmpty) {
-      return Center(child: Text(state.statusMessage, style: GoogleFonts.cinzel(color: Colors.white70)));
+      return Center(child: Text(state.statusMessage, style: AppTextStyles.cinzel(color: AppColors.textSecondary)));
     }
 
     return GridView.builder(
@@ -370,21 +372,21 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
         return GestureDetector(
           onTap: () => _navigateToDetail(card.name),
           child: Card(
-            clipBehavior: Clip.antiAlias, color: Colors.black, elevation: 4,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.white12, width: 1)),
+            clipBehavior: Clip.antiAlias, color: AppColors.textOnPrimary, elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: AppColors.borderSubtle, width: 1)),
             child: Stack(
               fit: StackFit.expand,
               children: [
                 imageUrl.isNotEmpty
                     ? Image.network(imageUrl, fit: BoxFit.cover)
-                    : Container(color: Colors.grey.shade900, child: Center(child: Text(card.name, textAlign: TextAlign.center, style: GoogleFonts.cinzel(color: Colors.white70, fontSize: 10)))),
-                Positioned(bottom: 0, left: 0, right: 0, height: 40, child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withValues(alpha: 0.9), Colors.transparent])))),
+                    : Container(color: AppColors.greyShade900, child: Center(child: Text(card.name, textAlign: TextAlign.center, style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 10)))),
+                Positioned(bottom: 0, left: 0, right: 0, height: 40, child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withValues(alpha: 0.9), AppColors.transparent])))),
                 Positioned(
                   bottom: 4, left: 4, right: 4,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("${card.prices['eur'] ?? '-'}EUR", style: TextStyle(color: Colors.yellow.shade700, fontSize: 12, fontWeight: FontWeight.bold)),
+                      Text("${card.prices['eur'] ?? '-'}EUR", style: TextStyle(color: AppColors.primaryShade700, fontSize: 12, fontWeight: FontWeight.bold)),
                       _buildRarityBadge(card.rarity, small: true),
                     ],
                   ),
@@ -405,15 +407,15 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
   Widget _buildRarityBadge(String rarity, {bool small = false}) {
     Color c;
     switch(rarity) {
-      case 'common': c = Colors.white; break;
+      case 'common': c = AppColors.textPrimary; break;
       case 'uncommon': c = Colors.blue.shade300; break;
-      case 'rare': c = Colors.amber; break;
+      case 'rare': c = AppColors.amber; break;
       case 'mythic': c = Colors.orange.shade800; break;
-      default: c = Colors.grey;
+      default: c = AppColors.synergyNeutral;
     }
     return Container(
       width: small ? 8 : 12, height: small ? 8 : 12,
-      decoration: BoxDecoration(color: c, shape: BoxShape.circle, border: Border.all(color: Colors.black, width: 1)),
+      decoration: BoxDecoration(color: c, shape: BoxShape.circle, border: Border.all(color: AppColors.textOnPrimary, width: 1)),
     );
   }
 
@@ -431,7 +433,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
 
     return showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true,
       builder: (context) {
         return SafeArea(
@@ -444,15 +446,16 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Text("Choisir une Wishlist", style: GoogleFonts.cinzel(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    child: Text('Choisir une Wishlist', style: AppTextStyles.sectionTitle()),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.add_circle, color: Colors.greenAccent),
-                    title: Text("Creer une nouvelle liste", style: GoogleFonts.cinzel(color: Colors.white)),
+                    leading: const Icon(Icons.add_circle, color: AppColors.accentGreen),
+                    title: Text('Creer une nouvelle liste', style: AppTextStyles.cinzel()),
                     onTap: () async {
                       final name = await _showCreateWishlistDialog();
-                      if (name != null && mounted) {
+                      if (name != null && context.mounted) {
                         final updatedLists = await wishlistService.loadWishlists();
+                        if (!context.mounted) return;
                         try {
                           final newList = updatedLists.lastWhere((w) => w.name == name);
                           Navigator.pop(context, newList.id);
@@ -462,7 +465,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                       }
                     },
                   ),
-                  const Divider(color: Colors.white24),
+                  const Divider(color: AppColors.borderMedium),
                   Expanded(
                     child: ListView.builder(
                       shrinkWrap: true,
@@ -470,9 +473,9 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                       itemBuilder: (context, index) {
                         final list = wishlists[index];
                         return ListTile(
-                          leading: const Icon(Icons.bookmark_border, color: Colors.blueAccent),
-                          title: Text(list.name, style: const TextStyle(color: Colors.white)),
-                          subtitle: Text("${list.totalCards} cartes", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          leading: const Icon(Icons.bookmark_border, color: AppColors.accent),
+                          title: Text(list.name, style: const TextStyle(color: AppColors.textPrimary)),
+                          subtitle: Text('${list.totalCards} cartes', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
                           onTap: () => Navigator.pop(context, list.id),
                         );
                       },
@@ -493,24 +496,24 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
     return showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text("Nouvelle Liste", style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.scaffoldBackground,
+        title: const Text('Nouvelle Liste', style: TextStyle(color: AppColors.textPrimary)),
         content: TextField(
           controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: "Nom de la liste"),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(hintText: 'Nom de la liste'),
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Annuler")),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () async {
               if (controller.text.isNotEmpty) {
                 await wishlistService.createWishlist(controller.text);
-                if (mounted) Navigator.pop(c, controller.text);
+                if (c.mounted) Navigator.pop(c, controller.text);
               }
             },
-            child: const Text("Creer"),
+            child: const Text('Creer'),
           )
         ],
       )
@@ -547,7 +550,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
   void _showFeedback(String message, Color color) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message, style: GoogleFonts.cinzel(color: Colors.black, fontWeight: FontWeight.bold)),
+      content: Text(message, style: AppTextStyles.bold(color: AppColors.textOnPrimary)),
       backgroundColor: color,
       duration: const Duration(seconds: 1),
     ));

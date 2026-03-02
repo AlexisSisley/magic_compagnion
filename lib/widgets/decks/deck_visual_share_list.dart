@@ -1,5 +1,7 @@
 // Fichier : lib/widgets/decks/deck_visual_share_list.dart
 
+import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -43,11 +45,11 @@ class DeckVisualShareList extends StatelessWidget {
     const double fixedWidth = 1080.0; 
     const double padding = 32.0;
     // Calcul pour 5 colonnes de cartes
-    final double cardWidth = (fixedWidth - (padding * 2) - (12 * 4)) / 5; 
+    const double cardWidth = (fixedWidth - (padding * 2) - (12 * 4)) / 5; 
 
     return Container(
       width: fixedWidth, // Largeur forcée pour l'export HD
-      color: const Color(0xFF121212),
+      color: AppColors.surfaceDarkest,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -62,14 +64,14 @@ class DeckVisualShareList extends StatelessWidget {
                 if (commanderCard != null)
                   _buildCommanderBackground(commanderCard)
                 else
-                  Container(color: Colors.grey.shade900),
+                  Container(color: AppColors.greyShade900),
                 
                 // Dégradé sombre
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Color(0xFF121212)],
+                      colors: [AppColors.transparent, AppColors.surfaceDarkest],
                       stops: [0.3, 1.0],
                     ),
                   ),
@@ -85,11 +87,11 @@ class DeckVisualShareList extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(deck.name, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 42, fontWeight: FontWeight.bold, shadows: [const Shadow(color: Colors.black, blurRadius: 10)])),
+                            Text(deck.name, style: AppTextStyles.pageTitle(fontSize: 42).copyWith(shadows: [const Shadow(color: AppColors.textOnPrimary, blurRadius: 10)])),
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                Text("${deck.format} • $totalCount cartes", style: GoogleFonts.roboto(color: Colors.white70, fontSize: 20, fontWeight: FontWeight.w500)),
+                                Text('${deck.format} • $totalCount cartes', style: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 20, fontWeight: FontWeight.w500)),
                                 const SizedBox(width: 16),
                                 _buildColorIdentityRow(deck.colors),
                               ],
@@ -101,13 +103,13 @@ class DeckVisualShareList extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
+                          color: AppColors.textOnPrimary.withValues(alpha: 0.6),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.orangeAccent),
+                          border: Border.all(color: AppColors.accentOrange),
                         ),
                         child: Text(
-                          "${totalPrice.toStringAsFixed(0)} €",
-                          style: GoogleFonts.cinzel(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                          '${totalPrice.toStringAsFixed(0)} €',
+                          style: AppTextStyles.pageTitle(fontSize: 32),
                         ),
                       ),
                     ],
@@ -129,14 +131,14 @@ class DeckVisualShareList extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStatItem(Icons.pets, "$creatureCount", "Créatures"),
-                      _buildStatItem(Icons.landscape, "$landCount", "Terrains"),
-                      _buildStatItem(Icons.bolt, "${totalCount - creatureCount - landCount}", "Sorts"),
+                      _buildStatItem(Icons.pets, '$creatureCount', 'Créatures'),
+                      _buildStatItem(Icons.landscape, '$landCount', 'Terrains'),
+                      _buildStatItem(Icons.bolt, '${totalCount - creatureCount - landCount}', 'Sorts'),
                     ],
                   ),
                 ),
                 // Séparateur
-                Container(width: 1, height: 80, color: Colors.white12, margin: const EdgeInsets.symmetric(horizontal: 32)),
+                Container(width: 1, height: 80, color: AppColors.borderSubtle, margin: const EdgeInsets.symmetric(horizontal: 32)),
                 // Courbe (Colonne droite)
                 Expanded(
                   flex: 3,
@@ -156,8 +158,8 @@ class DeckVisualShareList extends StatelessWidget {
                             sideTitles: SideTitles(
                               showTitles: true,
                               getTitlesWidget: (val, meta) => Text(
-                                val.toInt() == 7 ? "7+" : "${val.toInt()}",
-                                style: const TextStyle(color: Colors.white54, fontSize: 14, fontWeight: FontWeight.bold)
+                                val.toInt() == 7 ? '7+' : '${val.toInt()}',
+                                style: const TextStyle(color: AppColors.textMuted, fontSize: 14, fontWeight: FontWeight.bold)
                               ),
                             ),
                           ),
@@ -166,7 +168,7 @@ class DeckVisualShareList extends StatelessWidget {
                           return BarChartGroupData(
                             x: e.key,
                             barRods: [
-                              BarChartRodData(toY: e.value.toDouble(), color: Colors.blueAccent, width: 16, borderRadius: BorderRadius.circular(4))
+                              BarChartRodData(toY: e.value.toDouble(), color: AppColors.accent, width: 16, borderRadius: BorderRadius.circular(4))
                             ],
                           );
                         }).toList(),
@@ -178,7 +180,7 @@ class DeckVisualShareList extends StatelessWidget {
             ),
           ),
 
-          const Divider(color: Colors.white10, height: 1),
+          const Divider(color: AppColors.borderLight, height: 1),
           const SizedBox(height: 24),
 
           // --- CONTENU DU DECK ---
@@ -189,7 +191,7 @@ class DeckVisualShareList extends StatelessWidget {
               children: [
                 // COMMANDANTS
                 if (commanderCard != null || partnerCard != null) ...[
-                  _buildSectionTitle("Zone de Commandement"),
+                  _buildSectionTitle('Zone de Commandement'),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -212,7 +214,7 @@ class DeckVisualShareList extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildSectionTitle("$category (${cards.fold(0, (sum, c) => sum + c.quantity)})"),
+                      _buildSectionTitle('$category (${cards.fold(0, (sum, c) => sum + c.quantity)})'),
                       const SizedBox(height: 16),
                       Wrap(
                         spacing: 12,
@@ -230,11 +232,11 @@ class DeckVisualShareList extends StatelessWidget {
           // --- FOOTER ---
           Container(
             padding: const EdgeInsets.symmetric(vertical: 24),
-            color: Colors.white.withOpacity(0.02),
+            color: AppColors.textPrimary.withValues(alpha: 0.02),
             child: Center(
               child: Text(
-                "Généré avec Magic Companion",
-                style: GoogleFonts.cinzel(color: Colors.white24, fontSize: 16, fontWeight: FontWeight.bold),
+                'Généré avec Magic Companion',
+                style: AppTextStyles.bold(color: AppColors.borderMedium, fontSize: 16),
               ),
             ),
           ),
@@ -248,25 +250,25 @@ class DeckVisualShareList extends StatelessWidget {
   Widget _buildCommanderBackground(DeckCard cmd) {
     final scryfall = _getScryfallData(cmd);
     final url = scryfall?.imageUrl ?? scryfall?.smallImageUrl;
-    if (url == null) return Container(color: Colors.grey.shade900);
+    if (url == null) return Container(color: AppColors.greyShade900);
     
     return Image.network(
       url,
       fit: BoxFit.cover,
       alignment: Alignment.topCenter,
-      errorBuilder: (_,__,___) => Container(color: Colors.grey.shade900),
+      errorBuilder: (_, _, _) => Container(color: AppColors.greyShade900),
     );
   }
 
   Widget _buildColorIdentityRow(List<String> colors) {
-    if (colors.isEmpty) return const Icon(Icons.circle_outlined, color: Colors.grey, size: 24);
+    if (colors.isEmpty) return const Icon(Icons.circle_outlined, color: AppColors.synergyNeutral, size: 24);
     return Row(
       children: colors.map((c) => Padding(
         padding: const EdgeInsets.only(right: 8),
         child: SvgPicture.network(
           'https://svgs.scryfall.io/card-symbols/$c.svg',
           width: 28, height: 28,
-          placeholderBuilder: (_) => Text(c, style: const TextStyle(color: Colors.white, fontSize: 20)),
+          placeholderBuilder: (_) => Text(c, style: const TextStyle(color: AppColors.textPrimary, fontSize: 20)),
         ),
       )).toList(),
     );
@@ -275,10 +277,10 @@ class DeckVisualShareList extends StatelessWidget {
   Widget _buildStatItem(IconData icon, String value, String label) {
     return Column(
       children: [
-        Icon(icon, color: Colors.white54, size: 32),
+        Icon(icon, color: AppColors.textMuted, size: 32),
         const SizedBox(height: 8),
-        Text(value, style: GoogleFonts.cinzel(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(color: Colors.white30, fontSize: 14)),
+        Text(value, style: AppTextStyles.pageTitle(fontSize: 28)),
+        Text(label, style: const TextStyle(color: AppColors.textDisabled, fontSize: 14)),
       ],
     );
   }
@@ -286,11 +288,11 @@ class DeckVisualShareList extends StatelessWidget {
   Widget _buildSectionTitle(String title) {
     return Row(
       children: [
-        Container(width: 4, height: 24, color: Colors.orangeAccent),
+        Container(width: 4, height: 24, color: AppColors.accentOrange),
         const SizedBox(width: 12),
-        Text(title.toUpperCase(), style: GoogleFonts.cinzel(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+        Text(title.toUpperCase(), style: AppTextStyles.pageTitle(fontSize: 20).copyWith(letterSpacing: 1.5)),
         const SizedBox(width: 12),
-        Expanded(child: Container(height: 1, color: Colors.white10)),
+        Expanded(child: Container(height: 1, color: AppColors.borderLight)),
       ],
     );
   }
@@ -304,8 +306,8 @@ class DeckVisualShareList extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orangeAccent.withOpacity(0.5), width: 2),
-          color: Colors.black54,
+          border: Border.all(color: AppColors.accentOrange.withValues(alpha: 0.5), width: 2),
+          color: AppColors.overlayDark,
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
@@ -313,12 +315,12 @@ class DeckVisualShareList extends StatelessWidget {
           children: [
             ScryfallImage(imageUrl: imageUrl, alignment: Alignment.topCenter),
             
-            Container(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [Colors.black87, Colors.transparent, Colors.black87]))),
+            Container(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [AppColors.overlayVeryDark, AppColors.transparent, AppColors.overlayVeryDark]))),
             
             Center(
               child: Text(
                 card.name,
-                style: GoogleFonts.cinzel(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, shadows: [const Shadow(color: Colors.black, blurRadius: 10)]),
+                style: AppTextStyles.pageTitle(fontSize: 22).copyWith(shadows: [const Shadow(color: AppColors.textOnPrimary, blurRadius: 10)]),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -343,8 +345,8 @@ class DeckVisualShareList extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white12),
-                color: Colors.grey.shade900,
+                border: Border.all(color: AppColors.borderSubtle),
+                color: AppColors.greyShade900,
               ),
               clipBehavior: Clip.antiAlias,
               child: ScryfallImage(imageUrl: imageUrl),
@@ -357,12 +359,12 @@ class DeckVisualShareList extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4)),
-                child: Text("${card.quantity}", style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(4)),
+                child: Text('${card.quantity}', style: const TextStyle(color: AppColors.accentOrange, fontSize: 12, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(card.name, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500), maxLines: 2, overflow: TextOverflow.ellipsis),
+                child: Text(card.name, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w500), maxLines: 2, overflow: TextOverflow.ellipsis),
               ),
             ],
           )
@@ -395,19 +397,30 @@ class DeckVisualShareList extends StatelessWidget {
       String type = 'Other';
       if (scryfall != null) {
         final tl = scryfall.typeLine.toLowerCase();
-        if (tl.contains('land')) type = 'Land';
-        else if (tl.contains('creature')) type = 'Creature';
-        else if (tl.contains('planeswalker')) type = 'Planeswalker';
-        else if (tl.contains('instant')) type = 'Instant';
-        else if (tl.contains('sorcery')) type = 'Sorcery';
-        else if (tl.contains('artifact')) type = 'Artifact';
-        else if (tl.contains('enchantment')) type = 'Enchantment';
-        else if (tl.contains('battle')) type = 'Battle';
+        if (tl.contains('land')) {
+          type = 'Land';
+        } else if (tl.contains('creature')) {
+          type = 'Creature';
+        } else if (tl.contains('planeswalker')) {
+          type = 'Planeswalker';
+        } else if (tl.contains('instant')) {
+          type = 'Instant';
+        } else if (tl.contains('sorcery')) {
+          type = 'Sorcery';
+        } else if (tl.contains('artifact')) {
+          type = 'Artifact';
+        } else if (tl.contains('enchantment')) {
+          type = 'Enchantment';
+        } else if (tl.contains('battle')) {
+          type = 'Battle';
+        }
       }
       if (!categories.containsKey(type)) categories[type] = [];
       categories[type]!.add(deckCard);
     }
-    for(var k in categories.keys) categories[k]!.sort((a,b) => a.name.compareTo(b.name));
+    for(var k in categories.keys) {
+      categories[k]!.sort((a,b) => a.name.compareTo(b.name));
+    }
     return categories;
   }
 
@@ -427,8 +440,11 @@ class DeckVisualShareList extends StatelessWidget {
       final sc = _getScryfallData(c);
       if (sc != null && !sc.typeLine.toLowerCase().contains('land')) {
         int cmc = (sc.cmc ?? 0).toInt();
-        if (cmc >= 7) curve[7] = (curve[7] ?? 0) + c.quantity;
-        else curve[cmc] = (curve[cmc] ?? 0) + c.quantity;
+        if (cmc >= 7) {
+          curve[7] = (curve[7] ?? 0) + c.quantity;
+        } else {
+          curve[cmc] = (curve[cmc] ?? 0) + c.quantity;
+        }
       }
     }
     return curve;
