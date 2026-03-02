@@ -23,6 +23,7 @@ import '../../widgets/decks/deck_card_picker.dart';
 // IMPORT DU NOUVEAU WIDGET
 import '../../widgets/decks/deck_visual_share_list.dart';
 import '../../widgets/decks/deck_tokens_tab.dart';
+import '../../widgets/decks/deck_legality_tab.dart';
 
 class DeckDetailPage extends ConsumerStatefulWidget {
   final Deck deck;
@@ -39,7 +40,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 7, vsync: this);
+    _tabController = TabController(length: 8, vsync: this);
   }
 
   @override
@@ -387,6 +388,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                 Tab(text: 'Tokens (${deckState.tokens.length})'),
                 const Tab(text: 'Stats'),
                 const Tab(text: 'Suggestions'),
+                const Tab(icon: Icon(Icons.gavel, size: 18), text: 'Legalite'),
               ],
             ),
           ),
@@ -479,6 +481,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                       DeckTokensTab(tokens: deckState.tokens),
                       DeckStatsTab(mainboard: deck.mainboard, cardData: deckState.fullCardData),
                       DeckSuggestionsTab(deck: deck),
+                      DeckLegalityTab(report: _ctrl.generateLegalityReport()),
                     ],
                   ),
                 ),

@@ -29,6 +29,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
   late RangeValues _cmcRange;
   late String? _selectedRarity;
   late TextEditingController _maxPriceController;
+  late String? _selectedLanguage;
 
   final List<String> _cardTypes = [
     'Creature', 'Instant', 'Sorcery', 'Artifact',
@@ -57,6 +58,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
     _maxPriceController = TextEditingController(
       text: widget.initialFilters.maxPrice?.toString() ?? '',
     );
+    _selectedLanguage = widget.initialFilters.searchLanguage;
   }
 
   @override
@@ -86,6 +88,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
       rarity: _selectedRarity,
       keyword: keyword,
       maxPrice: maxPrice,
+      searchLanguage: _selectedLanguage,
     );
     Navigator.pop(context, newFilters);
   }
@@ -235,6 +238,33 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                   style: const TextStyle(color: AppColors.textPrimary),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: _buildInputDecoration(hintText: 'Prix max (EUR)', icon: Icons.euro),
+                ),
+
+                const SizedBox(height: 16),
+                // --- Sprint 12 Feature #9 : Langue de recherche ---
+                Text('Langue de recherche', style: AppTextStyles.subtitle()),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: _selectedLanguage,
+                  hint: Text('Par défaut', style: AppTextStyles.cinzel(color: AppColors.textMuted)),
+                  dropdownColor: AppColors.cardBackground,
+                  decoration: _buildInputDecoration(hintText: '', icon: Icons.language),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: null,
+                      child: Text('Par défaut', style: TextStyle(color: AppColors.textPrimary)),
+                    ),
+                    ...SearchFilters.supportedLanguages.map((lang) => DropdownMenuItem<String>(
+                      value: lang['code'],
+                      child: Text(
+                        '${lang['name']} (${lang['code']})',
+                        style: const TextStyle(color: AppColors.textPrimary),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    )),
+                  ],
+                  onChanged: (v) => setState(() => _selectedLanguage = v),
                 ),
 
                 const SizedBox(height: 24),

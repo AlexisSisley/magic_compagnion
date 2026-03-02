@@ -12,6 +12,7 @@ import '../../models/deck_model.dart';
 import '../../router/app_router.dart';
 import '../../services/scryfall_api.dart';
 import '../../widgets/cards/scryfall_image.dart';
+import '../../widgets/decks/deck_import_modal.dart';
 
 class DeckListPage extends ConsumerStatefulWidget {
   const DeckListPage({super.key});
@@ -83,53 +84,11 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
   }
 
   Future<void> _showImportDeckDialog() async {
-    final nameController = TextEditingController();
-    final listController = TextEditingController();
-
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.transparent,
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: AppColors.scaffoldBackground.withValues(alpha: 0.95),
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Importer un Deck', style: AppTextStyles.cinzel(fontSize: 20)),
-                const SizedBox(height: 16),
-                TextField(controller: nameController, style: const TextStyle(color: AppColors.textPrimary), decoration: const InputDecoration(labelText: 'Nom du nouveau deck', filled: true, fillColor: AppColors.overlayDark)),
-                const SizedBox(height: 12),
-                TextField(controller: listController, style: const TextStyle(color: AppColors.textPrimary), maxLines: 8, decoration: const InputDecoration(hintText: 'Collez votre decklist ici...', filled: true, fillColor: AppColors.overlayDark)),
-                const SizedBox(height: 12),
-                Consumer(builder: (context, ref, _) {
-                  final isImporting = ref.watch(deckListControllerProvider).isImporting;
-                  return ElevatedButton(
-                    onPressed: () {
-                      final String deckName = nameController.text.trim();
-                      final String deckList = listController.text.trim();
-                      // --- EASTER EGG CHECK ---
-                      final (resolvedName, resolvedList) = _controller.resolveEasterEgg(deckName, deckList);
-                      if (resolvedName != deckName || (deckName.isNotEmpty && deckList.isNotEmpty)) {
-                        Navigator.pop(context);
-                        _controller.importDeck(resolvedName, resolvedList);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800),
-                    child: isImporting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2)) : const Text('Importer'),
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (context) => const DeckImportModal(),
     );
   }
 

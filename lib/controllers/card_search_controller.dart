@@ -131,6 +131,19 @@ class CardSearchController extends StateNotifier<CardSearchState> {
   final WishlistService _wishlistService;
   final ScryfallApiService _apiService;
 
+  /// Detects whether the query uses Scryfall advanced search operators.
+  /// When true, the query is sent as-is to Scryfall instead of wrapping
+  /// it with filter prefixes.
+  static bool isAdvancedScryfallSyntax(String query) {
+    final advancedPattern = RegExp(
+      r'(^|\s)(c:|cmc[<>=]|t:|o:|is:|set:|r:|e:|pow[<>=]|tou[<>=]|'
+      r'id:|mv[<>=]|mana:|f:|banned:|restricted:|'
+      r'year[<>=]|usd[<>=]|eur[<>=]|new:|name:|oracle:)',
+      caseSensitive: false,
+    );
+    return advancedPattern.hasMatch(query);
+  }
+
   Timer? _debounce;
 
   CardSearchController({
@@ -342,30 +355,42 @@ class CardSearchController extends StateNotifier<CardSearchState> {
       return false;
     }
 
-    List<String> queryParts = [];
-    if (query.isNotEmpty) queryParts.add(query);
+    // Sprint 12 - Feature #8: Advanced Scryfall syntax passthrough
+    // When the query contains Scryfall operators, send it as-is to the API
+    // without wrapping it with filter prefixes.
+    final bool isAdvanced = isAdvancedScryfallSyntax(query);
+
+    final String finalQuery;
+    if (isAdvanced) {
+      finalQuery = query;
+    } else {
+      List<String> queryParts = [];
+      if (query.isNotEmpty) queryParts.add(query);
+
+      final filters = state.activeFilters;
+      if (filters.setCode != null) queryParts.add('e:${filters.setCode}');
+      if (filters.colors.isNotEmpty) {
+        queryParts.add('c:${filters.colors.join()}');
+      }
+      if (filters.cardType != null) queryParts.add('t:${filters.cardType}');
+      if (filters.rarity != null) queryParts.add('r:${filters.rarity}');
+      if (filters.minCmc != null) {
+        queryParts.add('cmc>=${filters.minCmc!.toInt()}');
+      }
+      if (filters.maxCmc != null) {
+        queryParts.add('cmc<=${filters.maxCmc!.toInt()}');
+      }
+      if (filters.keyword != null) {
+        queryParts
+            .add('o:"${filters.keyword!.replaceAll('"', '')}"');
+      }
+      finalQuery = queryParts.join(' ');
+    }
 
     final filters = state.activeFilters;
-    if (filters.setCode != null) queryParts.add('e:${filters.setCode}');
-    if (filters.colors.isNotEmpty) {
-      queryParts.add('c:${filters.colors.join()}');
-    }
-    if (filters.cardType != null) queryParts.add('t:${filters.cardType}');
-    if (filters.rarity != null) queryParts.add('r:${filters.rarity}');
-    if (filters.minCmc != null) {
-      queryParts.add('cmc>=${filters.minCmc!.toInt()}');
-    }
-    if (filters.maxCmc != null) {
-      queryParts.add('cmc<=${filters.maxCmc!.toInt()}');
-    }
-    if (filters.keyword != null) {
-      queryParts
-          .add('o:"${filters.keyword!.replaceAll('"', '')}"');
-    }
-
-    final String finalQuery = queryParts.join(' ');
     final prefs = await SharedPreferences.getInstance();
-    final String lang = prefs.getString('glossaryLang') ?? 'fr';
+    // Sprint 12 - Feature #9: Use searchLanguage from filters if set, else fallback to glossaryLang pref
+    final String lang = filters.searchLanguage ?? prefs.getString('glossaryLang') ?? 'fr';
 
     try {
       String unique = filters.setCode != null ? 'prints' : 'cards';

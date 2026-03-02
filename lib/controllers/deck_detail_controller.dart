@@ -8,8 +8,11 @@ import 'package:flutter_riverpod/legacy.dart';
 import '../models/deck_model.dart';
 import '../models/scryfall_card_model.dart';
 import '../providers/service_providers.dart';
+import '../models/legality_report.dart';
 import '../services/collection_service.dart';
+import '../services/deck_format_service.dart';
 import '../services/deck_service.dart';
+import '../services/legality_service.dart';
 import '../services/scryfall_api_service.dart';
 import '../services/wishlist_service.dart';
 
@@ -445,6 +448,15 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
       message: '"${scryfallCard.name}" defini en slot $slot.',
     );
   }
+
+  // --- EXPORT MULTI-FORMAT (TXT, CSV) & LEGALITY REPORT ---
+
+  String exportAsTxt() => DeckFormatService.exportToTxt(state.currentDeck);
+  String exportAsCsv() => DeckFormatService.exportToCsv(state.currentDeck);
+  LegalityReport generateLegalityReport() => LegalityService.generateReport(
+    deck: state.currentDeck,
+    fullCardData: state.fullCardData,
+  );
 
   // --- SHARE / EXPORT LOGIC (text generation, no BuildContext) ---
 

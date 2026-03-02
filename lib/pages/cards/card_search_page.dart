@@ -18,6 +18,7 @@ import '../../models/scryfall_card_model.dart';
 
 // --- IMPORT DU NOUVEAU WIDGET ---
 import '../../widgets/search/skyrim_sneak_loader.dart';
+import '../../widgets/search/scryfall_syntax_help.dart';
 import '../../widgets/common/collection_badge.dart';
 
 class CardSearchPage extends ConsumerStatefulWidget {
@@ -225,6 +226,11 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                    },
                  ),
 
+              IconButton(
+                icon: const Icon(Icons.help_outline, color: AppColors.textSecondary),
+                tooltip: 'Aide syntaxe Scryfall',
+                onPressed: () => ScryfallSyntaxHelp.show(context),
+              ),
               IconButton(
                 icon: const Icon(Icons.search, color: AppColors.textSecondary),
                 onPressed: _searchCards,

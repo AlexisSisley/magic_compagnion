@@ -4,6 +4,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/database/app_database.dart';
 import '../services/backup_service.dart';
+import '../services/bulk_data_service.dart';
 import '../services/collection_service.dart';
 import '../services/deck_service.dart';
 import '../services/edhrec_service.dart';
@@ -75,6 +76,10 @@ final backupServiceProvider = Provider<BackupService>((ref) => BackupService());
 final googleDriveServiceProvider = Provider<GoogleDriveService>((ref) => GoogleDriveService());
 final oracleServiceProvider = Provider<OracleService>((ref) => OracleService());
 final localCardServiceProvider = Provider<LocalCardService>((ref) => LocalCardService());
+final bulkDataServiceProvider = Provider<BulkDataService>((ref) {
+  final api = ref.watch(scryfallApiServiceProvider);
+  return BulkDataService(api: api);
+});
 
 // --- Provider pour le chargement initial des cartes locales ---
 

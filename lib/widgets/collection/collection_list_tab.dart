@@ -11,6 +11,7 @@ import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../models/search_filters.dart';
 import '../../router/app_router.dart';
+import '../common/tag_editor_dialog.dart';
 
 class CollectionListTab extends StatefulWidget {
   final List<DeckCard> cards;
@@ -242,72 +243,16 @@ class _CollectionListTabState extends State<CollectionListTab> {
     } catch(e) { return 0.0; }
   }
 
-  void _showTagEditor(DeckCard card) {
-    final List<String> currentTags = List.from(card.tags);
-    final TextEditingController newTagCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: AppColors.scaffoldBackground,
-              title: Text('Tags : ${card.name}', style: AppTextStyles.cinzel()),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 8, runSpacing: 8,
-                      children: currentTags.map((t) => Chip(
-                        label: Text(t),
-                        backgroundColor: AppColors.accent.withValues(alpha: 0.3),
-                        onDeleted: () => setState(() => currentTags.remove(t)),
-                      )).toList(),
-                    ),
-                    const Divider(color: AppColors.borderMedium),
-                    const Text('Ajouter un tag :', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                    Row(
-                      children: [
-                        Expanded(child: TextField(controller: newTagCtrl, style: const TextStyle(color: AppColors.textPrimary), decoration: const InputDecoration(hintText: 'Nouveau...'))),
-                        IconButton(icon: const Icon(Icons.add, color: AppColors.success), onPressed: () {
-                          if (newTagCtrl.text.isNotEmpty) {
-                            setState(() => currentTags.add(newTagCtrl.text.trim()));
-                            newTagCtrl.clear();
-                          }
-                        })
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text('Existants :', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                    Wrap(
-                      spacing: 6,
-                      children: widget.availableTags.where((t) => !currentTags.contains(t)).map((t) => ActionChip(
-                        label: Text(t),
-                        onPressed: () => setState(() => currentTags.add(t)),
-                      )).toList(),
-                    )
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
-                ElevatedButton(
-                  onPressed: () {
-                    widget.onUpdateTags?.call(card, currentTags);
-                    Navigator.pop(context);
-                  }, 
-                  child: const Text('Sauvegarder')
-                )
-              ],
-            );
-          }
-        );
-      }
+  Future<void> _showTagEditor(DeckCard card) async {
+    final updatedTags = await TagEditorDialog.show(
+      context,
+      cardName: card.name,
+      currentTags: List.from(card.tags),
+      availableTags: widget.availableTags,
     );
+    if (updatedTags != null) {
+      widget.onUpdateTags?.call(card, updatedTags);
+    }
   }
 
   // --- BUILD ---
