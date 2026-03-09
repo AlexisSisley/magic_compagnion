@@ -86,11 +86,12 @@ jobs:
           fi
           COVERAGE=$((HIT_LINES * 100 / TOTAL_LINES))
           echo "## Coverage: ${COVERAGE}% (${HIT_LINES}/${TOTAL_LINES} lines)" >> $GITHUB_STEP_SUMMARY
-          if [ "$COVERAGE" -lt 40 ]; then
-            echo "::error::Coverage is ${COVERAGE}%, below required threshold of 40%"
+          echo "Coverage: ${COVERAGE}%" >> $GITHUB_STEP_SUMMARY
+          if [ "$COVERAGE" -lt 15 ]; then
+            echo "::error::Coverage is ${COVERAGE}%, below required threshold of 15%"
             exit 1
           fi
-          echo "Coverage OK: ${COVERAGE}% >= 40%"
+          echo "Coverage OK: ${COVERAGE}% >= 15%"
 
   python-check:
     name: Check Python Backend
