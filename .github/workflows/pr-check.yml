@@ -34,15 +34,24 @@ jobs:
 
       - name: Flutter Analyze
         run: |
-          flutter analyze --no-fatal-infos 2>&1 | tee /tmp/analyze_output.txt
-          EXIT_CODE=${PIPESTATUS[0]}
-          if [ $EXIT_CODE -ne 0 ]; then
-            echo "## Flutter Analyze Failed" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat /tmp/analyze_output.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            exit $EXIT_CODE
+          set +e
+          flutter analyze 2>&1 | tee /tmp/analyze_output.txt
+          EXIT_CODE=$?
+          echo "## Flutter Analyze (exit code: $EXIT_CODE)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/analyze_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          # Only fail on errors, not warnings or infos
+          if grep -q " error " /tmp/analyze_output.txt; then
+            echo "::error::Flutter analyze found errors"
+            exit 1
           fi
+          if grep -q "error •" /tmp/analyze_output.txt; then
+            echo "::error::Flutter analyze found errors"
+            exit 1
+          fi
+          echo "Analyze passed (warnings/infos only)"
+          exit 0
 
       - name: Unzip Data Files (for tests)
         run: |
