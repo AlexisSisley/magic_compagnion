@@ -9,12 +9,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Permissions nécessaires pour créer le Tag et la Release
+# Permissions necessaires pour creer le Tag et la Release
 permissions:
   contents: write
 
 jobs:
-  # --- 1. NOUVEAU JOB : VÉRIFICATION PYTHON ---
+  # --- 1. VERIFICATION PYTHON ---
   check-backend:
     name: Check Python Backend
     runs-on: ubuntu-latest
@@ -34,57 +34,81 @@ jobs:
 
       - name: Lint with Flake8
         run: |
-          # Vérifie les erreurs de syntaxe fatales (E9, F63, F7, F82)
           flake8 backend_rag --count --select=E9,F63,F7,F82 --show-source --statistics
-          
+
+  # --- 2. BUILD, TEST, RELEASE & DEPLOY ---
   build-and-release:
-    name: Calculate Version & Build
+    name: Build & Release
     runs-on: ubuntu-latest
     if: ${{ !contains(github.event.head_commit.message, 'skip') }}
 
     steps:
-      # 1. Récupérer le code (avec l'historique complet pour calculer la version)
+      # 1. Checkout avec historique complet (pour le changelog)
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. CALCUL DE LA VERSION (Modifié selon tes critères)
-      - name: Calculate Semantic Version
+      # 2. LECTURE DE LA VERSION DEPUIS pubspec.yaml (source de verite)
+      - name: Read version from pubspec.yaml
         id: version_step
-        uses: PaulHatch/semantic-version@v5.4.0
-        with:
-          tag_prefix: "v"
-          version_format: "${major}.${minor}.${patch}"
-          
-          # --- TES RÈGLES DE VERSIONNING ---
-          # 1. Major : Si le commit contient "refactor" ou "BREAKING CHANGE"
-          major_pattern: "(refactor|BREAKING CHANGE|Mise à jour majeure)"
-          
-          # 2. Minor : Si le commit contient "feat"
-          minor_pattern: "(feat|Feat|feature|Feature|Ajout|New|Nouvelle|Mise à jour)"
-          
-          # 3. Patch : Par défaut pour tout autre commit (fix, docs, etc.)
-          bump_each_commit: true 
-          
-          search_commit_body: true
-          user_format_type: csv
+        run: |
+          # Extraire la version depuis pubspec.yaml (ex: 1.10.0+1)
+          FULL_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d '[:space:]')
+          # Separer version et build number
+          VERSION_NAME=$(echo "$FULL_VERSION" | cut -d'+' -f1)
 
-      # 3. Setup Java
+          echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "Version lue depuis pubspec.yaml: $VERSION_NAME"
+
+          # Calculer le build number depuis le nombre de commits
+          BUILD_NUMBER=$(git rev-list --count HEAD)
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "Build number (commits count): $BUILD_NUMBER"
+
+          # Generer le tag avec phase: beta pour les builds main
+          TAG_NAME="v${VERSION_NAME}-beta.${BUILD_NUMBER}"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Tag: $TAG_NAME"
+
+          # Generer un changelog depuis le dernier tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            CHANGELOG=$(git log "$LAST_TAG"..HEAD --pretty=format:"- %s" --no-merges | head -30)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s" --no-merges -10)
+          fi
+
+          # Ecrire le changelog dans un fichier (multi-ligne safe)
+          echo "$CHANGELOG" > /tmp/changelog.txt
+          echo "changelog_file=/tmp/changelog.txt" >> $GITHUB_OUTPUT
+
+      # 3. Verifier que le tag n'existe pas deja
+      - name: Check tag does not exist
+        run: |
+          TAG="${{ steps.version_step.outputs.tag_name }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists. Update the version in pubspec.yaml."
+            exit 1
+          fi
+          echo "Tag $TAG is available"
+
+      # 4. Setup Java
       - name: Setup Java (JDK)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 4. Setup Flutter
+      # 5. Setup Flutter (version fixee)
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.35.6'
           channel: 'stable'
           cache: true
 
-      # 5. Cache Gradle
+      # 6. Cache Gradle
       - name: Cache Gradle Dependencies
         uses: actions/cache@v4
         with:
@@ -95,18 +119,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # 6. Dépendances Flutter
+      # 7. Dependances Flutter
       - name: Install dependencies
         run: flutter pub get
 
-      # 7. ANALYSE STATIQUE & TESTS
+      # 8. ANALYSE STATIQUE & TESTS
       - name: Flutter Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Unzip Data Files (for tests)
         run: |
-          echo "Décompression des données..."
-          unzip assets/json/cards_data.zip -d assets/json/
+          if [ -f assets/json/cards_data.zip ]; then
+            echo "Decompression des donnees..."
+            unzip -o assets/json/cards_data.zip -d assets/json/
+          fi
 
       - name: Run Flutter Tests with Coverage
         run: flutter test --coverage
@@ -114,78 +140,93 @@ jobs:
       - name: Check Coverage Threshold
         run: |
           if [ ! -f coverage/lcov.info ]; then
-            echo "No coverage file found, skipping threshold check"
+            echo "::warning::No coverage file found, skipping threshold check"
             exit 0
           fi
-          # Calcul couverture globale
           TOTAL_LINES=$(grep -c "DA:" coverage/lcov.info || echo "0")
           HIT_LINES=$(grep "DA:" coverage/lcov.info | grep -v ",0$" | wc -l || echo "0")
           if [ "$TOTAL_LINES" -eq 0 ]; then
-            echo "No coverage data found"
+            echo "::warning::No coverage data found"
             exit 0
           fi
           COVERAGE=$((HIT_LINES * 100 / TOTAL_LINES))
-          echo "Coverage: $COVERAGE% ($HIT_LINES/$TOTAL_LINES lines)"
-          if [ "$COVERAGE" -lt 30 ]; then
-            echo "::warning::Coverage is $COVERAGE%, below threshold of 30%"
+          echo "## Coverage: ${COVERAGE}% (${HIT_LINES}/${TOTAL_LINES} lines)" >> $GITHUB_STEP_SUMMARY
+          if [ "$COVERAGE" -lt 15 ]; then
+            echo "::error::Coverage is ${COVERAGE}%, below required threshold of 15%"
+            exit 1
           fi
+          echo "Coverage OK: ${COVERAGE}% >= 15%"
 
-      # 8. KEYSTORE
+      # 9. KEYSTORE
       - name: Decode Keystore
         run: |
           echo "${{ secrets.PLAY_STORE_UPLOAD_KEY }}" | base64 --decode > android/app/upload-keystore.jks
 
-      # 9. BUILD APK AVEC LA NOUVELLE VERSION
+      # 10. BUILD APK avec version depuis pubspec.yaml
       - name: Build Release APK
         run: |
           VERSION_NAME=${{ steps.version_step.outputs.version }}
-          BUILD_NUMBER=${{ steps.version_step.outputs.increment }}
+          BUILD_NUMBER=${{ steps.version_step.outputs.build_number }}
           echo "BUILDING VERSION: $VERSION_NAME+$BUILD_NUMBER"
           flutter build apk --release --build-name=$VERSION_NAME --build-number=$BUILD_NUMBER
         env:
-          # Ces variables sont maintenant requises par build.gradle.kts
           KEYSTORE_PATH: "upload-keystore.jks"
           KEYSTORE_KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
           KEYSTORE_KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
           KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
 
-      # 9. RENOMMAGE (Inspiré de ton exemple)
-      # On renomme l'APK pour qu'il soit propre dans la release (ex: MagicCompagnion-v1.0.1.apk)
+      # 11. RENOMMAGE APK
       - name: Rename APK
         id: rename_apk
         run: |
           OLD_PATH="build/app/outputs/flutter-apk/app-release.apk"
-          NEW_FILENAME="MagicCompagnion-v${{ steps.version_step.outputs.version }}.apk"
+          TAG="${{ steps.version_step.outputs.tag_name }}"
+          NEW_FILENAME="MagicCompagnion-${TAG}.apk"
           NEW_PATH="build/app/outputs/flutter-apk/$NEW_FILENAME"
-          
-          echo "Renommage de $OLD_PATH vers $NEW_PATH"
-          mv $OLD_PATH $NEW_PATH
-          
-          # On sauvegarde le chemin dans une variable de sortie
+
+          echo "Renommage: $OLD_PATH -> $NEW_PATH"
+          mv "$OLD_PATH" "$NEW_PATH"
           echo "apk_path=$NEW_PATH" >> $GITHUB_OUTPUT
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: MagicCompagnion-v${{ steps.version_step.outputs.version }}
+          name: MagicCompagnion-${{ steps.version_step.outputs.tag_name }}
           path: ${{ steps.rename_apk.outputs.apk_path }}
           retention-days: 5
-      # 10. CRÉER LA RELEASE GITHUB (Avec softprops, le plus fiable)
+
+      # 12. CREER LA RELEASE GITHUB avec tag MAJOR.MINOR.PATCH-beta.N
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version_step.outputs.version }}
-          name: Release v${{ steps.version_step.outputs.version }}
-          body: ${{ steps.version_step.outputs.changelog }}
+          tag_name: ${{ steps.version_step.outputs.tag_name }}
+          name: Release ${{ steps.version_step.outputs.tag_name }}
+          body_path: /tmp/changelog.txt
           files: ${{ steps.rename_apk.outputs.apk_path }}
           fail_on_unmatched_files: true
-          make_latest: true
+          prerelease: true
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-        
-      # 11. DÉPLOIEMENT FIREBASE (Nouveau !)
-      # On utilise l'APK généré et renommé à l'étape 9
+      # 13. Preparer les release notes Firebase
+      - name: Prepare Firebase release notes
+        id: firebase_notes
+        run: |
+          CHANGELOG=$(cat /tmp/changelog.txt)
+          NOTES="${{ steps.version_step.outputs.tag_name }}
+
+          Commits inclus:
+          ${CHANGELOG}
+
+          Dernier commit:
+          ${{ github.event.head_commit.message }}"
+
+          # Ecrire dans un fichier pour eviter les problemes de multi-ligne
+          echo "$NOTES" > /tmp/firebase_notes.txt
+          echo "notes_file=/tmp/firebase_notes.txt" >> $GITHUB_OUTPUT
+
+      # 14. DEPLOIEMENT FIREBASE App Distribution
       - name: Upload to Firebase App Distribution
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
@@ -193,11 +234,4 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CREDENTIALS }}
           groups: testers
           file: ${{ steps.rename_apk.outputs.apk_path }}
-          releaseNotes: |
-            v${{ steps.version_step.outputs.version }}
-            
-            CHANGELOG AUTOMATIQUE :
-            ${{ steps.version_step.outputs.changelog }}
-            
-            DÉTAIL DU DERNIER COMMIT :
-            ${{ github.event.head_commit.message }}
+          releaseNotesFile: /tmp/firebase_notes.txt

@@ -3,7 +3,7 @@ name: Release to Play Store
 on:
   push:
     branches:
-      - 'release/**'  # Se déclenche ex: release/v1.0.0
+      - 'release/**'  # Se declenche ex: release/v1.10.0
 
 jobs:
   build-and-sign:
@@ -11,13 +11,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Récupération du Code
+      # 1. Recuperation du Code
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. Configuration de l'environnement
+      # 2. Lecture de la version depuis pubspec.yaml (source de verite)
+      - name: Read version from pubspec.yaml
+        id: version_step
+        run: |
+          FULL_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d '[:space:]')
+          VERSION_NAME=$(echo "$FULL_VERSION" | cut -d'+' -f1)
+          BUILD_NUMBER=$(git rev-list --count HEAD)
+
+          # Format release stable: MAJOR.MINOR.PATCH-rc.N
+          TAG_NAME="v${VERSION_NAME}-rc.${BUILD_NUMBER}"
+          echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Release version: $TAG_NAME"
+
+      # 3. Configuration de l'environnement
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -27,47 +42,56 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.35.6'
           channel: 'stable'
           cache: true
 
-      # 3. Préparation des dépendances et des données
+      # 4. Preparation des dependances et des donnees
       - name: Install Dependencies
         run: flutter pub get
 
       - name: Unzip Data Files
         run: |
-          echo "Décompression des données..."
-          unzip assets/json/cards_data.zip -d assets/json/
+          if [ -f assets/json/cards_data.zip ]; then
+            echo "Decompression des donnees..."
+            unzip -o assets/json/cards_data.zip -d assets/json/
+          fi
 
-      # 4. DÉCODAGE DE LA CLÉ DE SIGNATURE
-      # On prend le secret (texte base64) et on le transforme en fichier .jks réel
+      # 5. DECODAGE DE LA CLE DE SIGNATURE
       - name: Decode Keystore
         run: |
           echo "${{ secrets.PLAY_STORE_UPLOAD_KEY }}" | base64 --decode > android/app/upload-keystore.jks
 
-      # 5. BUILD SIGNÉ (AAB pour le Play Store)
-      # Les variables d'environnement sont passées ici pour que Gradle puisse signer
+      # 6. BUILD SIGNE (AAB pour le Play Store)
       - name: Build Signed App Bundle
-        run: flutter build appbundle --release
+        run: |
+          VERSION_NAME=${{ steps.version_step.outputs.version }}
+          BUILD_NUMBER=${{ steps.version_step.outputs.build_number }}
+          echo "BUILDING RELEASE: $VERSION_NAME+$BUILD_NUMBER"
+          flutter build appbundle --release --build-name=$VERSION_NAME --build-number=$BUILD_NUMBER
         env:
           KEYSTORE_PATH: "upload-keystore.jks"
           KEYSTORE_KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
           KEYSTORE_KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
           KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
 
-      # 6. Sauvegarde de l'artefact (pour que tu puisses le télécharger)
+      # 7. Sauvegarde de l'artefact
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-bundle
+          name: MagicCompagnion-${{ steps.version_step.outputs.tag_name }}
           path: build/app/outputs/bundle/release/app-release.aab
           retention-days: 5
 
-      # 7. (Optionnel) Création d'une Release GitHub avec le fichier
+      # 8. Creation d'une Release GitHub (stable)
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/heads/release/')
         with:
+          tag_name: ${{ steps.version_step.outputs.tag_name }}
+          name: Release ${{ steps.version_step.outputs.tag_name }}
           files: build/app/outputs/bundle/release/app-release.aab
           generate_release_notes: true
-          draft: true  # Crée un brouillon pour que tu vérifies avant de publier
+          draft: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
