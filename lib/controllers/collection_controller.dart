@@ -10,6 +10,7 @@ import '../models/scryfall_card_model.dart';
 import '../models/search_filters.dart';
 import '../models/wishlist_model.dart';
 import '../providers/service_providers.dart';
+import '../utils/price_helper.dart';
 import '../services/collection_service.dart';
 import '../services/deck_service.dart';
 import '../services/local_card_service.dart';
@@ -218,14 +219,9 @@ class CollectionController extends StateNotifier<CollectionState> {
     List<ScryfallCard> fullCardData,
   ) async {
     double getPrice(String id, bool isFoil) {
-      try {
-        final c = fullCardData.firstWhere((s) => s.id == id);
-        if (isFoil) {
-          return double.tryParse(c.prices['eur_foil'] ?? c.prices['eur'] ?? '0') ?? 0.0;
-        } else {
-          return double.tryParse(c.prices['eur'] ?? '0') ?? 0.0;
-        }
-      } catch (e) { return 0.0; }
+      final c = fullCardData.where((s) => s.id == id).firstOrNull;
+      if (c == null) return 0.0;
+      return PriceHelper.bestPrice(c.prices, isFoil: isFoil);
     }
 
     final totalCollectionValue = collection.fold(0.0, (sum, c) => sum + (getPrice(c.scryfallId, c.isFoil) * c.quantity));
@@ -332,8 +328,9 @@ class CollectionController extends StateNotifier<CollectionState> {
     state = state.copyWith(isLoading: true);
     int count = 0;
     for (String id in state.selectedCardIds) {
+      final collectionCard = state.collection.where((c) => c.scryfallId == id).firstOrNull;
+      if (collectionCard == null) continue;
       try {
-        final collectionCard = state.collection.firstWhere((c) => c.scryfallId == id);
         await _deckService.upsertCardInDeck(
           deckId: deckId,
           scryfallId: id,

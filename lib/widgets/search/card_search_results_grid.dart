@@ -5,6 +5,7 @@ import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:flutter/material.dart';
 
 import '../../controllers/card_search_controller.dart';
+import '../../utils/price_helper.dart';
 import '../common/collection_badge.dart';
 import 'skyrim_sneak_loader.dart';
 
@@ -105,7 +106,7 @@ class CardSearchResultsGrid extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("${card.prices['eur'] ?? '-'}EUR",
+                      Text(PriceHelper.formatCompact(card.prices),
                           style: TextStyle(
                               color: AppColors.primaryShade700,
                               fontSize: 12,

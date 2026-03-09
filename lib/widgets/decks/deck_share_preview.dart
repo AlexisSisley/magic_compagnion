@@ -28,17 +28,17 @@ class DeckSharePreview extends StatelessWidget {
     String? cmdImageUrl;
     String cmdName = 'Deck sans Commandant';
     if (deck.commanderScryfallId != null) {
-      try {
-        final cmd = fullCardData.firstWhere((c) => c.id == deck.commanderScryfallId);
+      final cmd = fullCardData.where((c) => c.id == deck.commanderScryfallId).firstOrNull;
+      if (cmd != null) {
         cmdImageUrl = cmd.artCropUrl ?? (cmd.imageUrl.isNotEmpty ? cmd.imageUrl : cmd.smallImageUrl);
         cmdName = cmd.name;
-      } catch (e) { /* */ }
+      }
     } else if (deck.mainboard.isNotEmpty) {
-       try {
-         final first = fullCardData.firstWhere((c) => c.id == deck.mainboard.first.scryfallId);
-         cmdImageUrl = first.imageUrl;
-         cmdName = deck.name;
-       } catch (e) { /* */ }
+      final first = fullCardData.where((c) => c.id == deck.mainboard.first.scryfallId).firstOrNull;
+      if (first != null) {
+        cmdImageUrl = first.imageUrl;
+        cmdName = deck.name;
+      }
     }
 
     int creatureCount = 0;
@@ -49,23 +49,22 @@ class DeckSharePreview extends StatelessWidget {
 
     for (var deckCard in deck.mainboard) {
       if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-      try {
-        final card = fullCardData.firstWhere((c) => c.id == deckCard.scryfallId);
-        final type = card.typeLine.toLowerCase();
-        
-        if (type.contains('land')) {
-          landCount += deckCard.quantity;
+      final card = fullCardData.where((c) => c.id == deckCard.scryfallId).firstOrNull;
+      if (card == null) continue;
+      final type = card.typeLine.toLowerCase();
+
+      if (type.contains('land')) {
+        landCount += deckCard.quantity;
+      } else {
+        if (type.contains('creature')) creatureCount += deckCard.quantity;
+
+        int cmc = (card.cmc ?? 0).toInt();
+        if (cmc >= 7) {
+          curve[7] = (curve[7] ?? 0) + deckCard.quantity;
         } else {
-          if (type.contains('creature')) creatureCount += deckCard.quantity;
-          
-          int cmc = (card.cmc ?? 0).toInt();
-          if (cmc >= 7) {
-            curve[7] = (curve[7] ?? 0) + deckCard.quantity;
-          } else {
-            curve[cmc] = (curve[cmc] ?? 0) + deckCard.quantity;
-          }
+          curve[cmc] = (curve[cmc] ?? 0) + deckCard.quantity;
         }
-      } catch (e) { /* */ }
+      }
     }
 
     return Container(

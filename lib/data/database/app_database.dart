@@ -1,5 +1,21 @@
 // Fichier : lib/data/database/app_database.dart
 // Base de donnees drift pour Magic Companion (Sprint 4)
+//
+// ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+//   V I V R E   C A R D
+// │                                                     │
+//       Cette base de donnees est comme une
+// │     Vivre Card : elle pointe toujours vers           │
+//       les donnees de son proprietaire, peu
+// │     importe la distance.                             │
+//
+// │     Si cette base disparait, c'est que               │
+//       son proprietaire a arrete de jouer.
+// │     Et ca, c'est la vraie tragedie.                  │
+//
+// │     "Meme si on est separes... nos Vivre Cards       │
+//       brulent toujours !"  — Portgas D. Ace
+// └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
 
 import 'dart:convert';
 import 'package:drift/drift.dart';
@@ -301,6 +317,14 @@ class AppDatabase extends _$AppDatabase {
       'diffValue': diffValue,
       'diffPercentage': diffPercentage,
     };
+  }
+
+  /// Retourne tous les points de valeur historiques, tries par date.
+  /// Utilise pour le graphique d'evolution de la collection (US-14.7).
+  Future<List<DbCollectionValueEntry>> getCollectionValueHistory() async {
+    return (select(collectionValueHistory)
+          ..orderBy([(t) => OrderingTerm.asc(t.dateKey)]))
+        .get();
   }
 
   // ============================================================

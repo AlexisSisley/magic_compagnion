@@ -223,6 +223,26 @@ class CollectionService with CardListUpsertMixin {
        };
     }
 
+    /// Retourne la liste des (dateKey, totalValue) tries par date,
+    /// pour alimenter le graphique d'evolution (US-14.7).
+    Future<List<({String dateKey, double value})>> getValueHistory() async {
+      if (_db != null) {
+        final entries = await _db.getCollectionValueHistory();
+        return entries
+            .map((e) => (dateKey: e.dateKey, value: e.totalValue))
+            .toList();
+      }
+      // Fallback SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final jsonHistory = prefs.getString('collection_value_history');
+      if (jsonHistory == null) return [];
+      final Map<String, dynamic> history = json.decode(jsonHistory);
+      final sortedKeys = history.keys.toList()..sort();
+      return sortedKeys
+          .map((k) => (dateKey: k, value: (history[k] as num).toDouble()))
+          .toList();
+    }
+
     Future<void> clearCollection() async {
       if (_db != null) {
         await _db.clearCollection();

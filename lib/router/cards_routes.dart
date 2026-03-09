@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../pages/cards/card_detail_page.dart';
 import '../pages/cards/card_search_page.dart';
 import 'app_routes.dart';
+import 'page_transitions.dart';
 
 /// Routes de detail pour les cartes (push par-dessus le shell).
 List<RouteBase> cardDetailRoutes() {
@@ -28,8 +29,9 @@ List<RouteBase> cardDetailRoutes() {
 GoRoute cardSearchShellRoute() {
   return GoRoute(
     path: '/search',
-    pageBuilder: (context, state) => const NoTransitionPage(
-      child: CardSearchPage(),
+    pageBuilder: (context, state) => FadeThroughPage(
+      key: state.pageKey,
+      child: const CardSearchPage(),
     ),
   );
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../utils/price_helper.dart';
 
 // ==========================================
 // 1. VUE LISTE CLASSIQUE (Ligne horizontale)
@@ -30,7 +31,7 @@ class DeckCardTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageUrl = scryfallCard?.smallImageUrl;
-    final price = scryfallCard?.prices['eur'];
+    final price = scryfallCard != null ? PriceHelper.rawPrice(scryfallCard!.prices) : null;
 
     return Card(
       color: AppColors.textOnPrimary.withValues(alpha: 0.4),

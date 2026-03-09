@@ -45,17 +45,28 @@ class ScryfallCard {
   final Map<String, dynamic> prices;
   final String lang;
   final List<String> colorIdentity;
-  
+
   final String setName;
   final String setCode;
   final String collectorNumber;
-  final String rarity; 
-  
+  final String rarity;
+
   // --- NOUVEAU : Liens d'achat ---
   final Map<String, String> purchaseUris;
 
   // --- NOUVEAU Sprint 9 : Parties liees (tokens, meld, etc.) ---
   final List<RelatedCard> allParts;
+
+  // --- Sprint 14 : Face verso pour cartes double-faced (DFC) ---
+  final String? backFaceImageUrl;
+  final String? backFaceSmallImageUrl;
+  final String? backFaceName;
+  final String? backFaceTypeLine;
+  final String? backFaceManaCost;
+  final String? backFaceRulesText;
+
+  /// Vrai si la carte possede 2 faces avec images distinctes (transform, modal_dfc, etc.)
+  bool get isDoubleFaced => backFaceImageUrl != null && backFaceImageUrl!.isNotEmpty;
 
   ScryfallCard({
     required this.id,
@@ -76,9 +87,15 @@ class ScryfallCard {
     required this.setName,
     required this.setCode,
     required this.collectorNumber,
-    required this.rarity, 
+    required this.rarity,
     required this.purchaseUris,
     this.allParts = const [],
+    this.backFaceImageUrl,
+    this.backFaceSmallImageUrl,
+    this.backFaceName,
+    this.backFaceTypeLine,
+    this.backFaceManaCost,
+    this.backFaceRulesText,
   });
 
   factory ScryfallCard.fromJson(Map<String, dynamic> json) {
@@ -90,6 +107,14 @@ class ScryfallCard {
     String? printedName;
     double? cmc;
 
+    // Sprint 14 : Back face data
+    String? backFaceImageUrl;
+    String? backFaceSmallImageUrl;
+    String? backFaceName;
+    String? backFaceTypeLine;
+    String? backFaceManaCost;
+    String? backFaceRulesText;
+
     if (json['card_faces'] != null && json['card_faces'][0]['image_uris'] != null) {
       final face = json['card_faces'][0];
       imageUrl = face['image_uris']['normal'] ?? '';
@@ -99,6 +124,18 @@ class ScryfallCard {
       manaCost = face['mana_cost'];
       printedName = face['printed_name'];
       cmc = (json['cmc'] as num?)?.toDouble();
+
+      // Sprint 14 : Parse de la face verso (index 1) si elle existe
+      final List faces = json['card_faces'] as List;
+      if (faces.length >= 2 && faces[1]['image_uris'] != null) {
+        final backFace = faces[1];
+        backFaceImageUrl = backFace['image_uris']['normal'] as String?;
+        backFaceSmallImageUrl = backFace['image_uris']['small'] as String?;
+        backFaceName = backFace['printed_name'] as String? ?? backFace['name'] as String?;
+        backFaceTypeLine = backFace['type_line'] as String?;
+        backFaceManaCost = backFace['mana_cost'] as String?;
+        backFaceRulesText = backFace['printed_text'] as String? ?? backFace['oracle_text'] as String?;
+      }
     } else {
       if (json['image_uris'] != null) {
         imageUrl = json['image_uris']['normal'] ?? '';
@@ -148,6 +185,12 @@ class ScryfallCard {
       rarity: json['rarity'] ?? 'common', 
       purchaseUris: uris,
       allParts: parts,
+      backFaceImageUrl: backFaceImageUrl,
+      backFaceSmallImageUrl: backFaceSmallImageUrl,
+      backFaceName: backFaceName,
+      backFaceTypeLine: backFaceTypeLine,
+      backFaceManaCost: backFaceManaCost,
+      backFaceRulesText: backFaceRulesText,
     );
   }
 }

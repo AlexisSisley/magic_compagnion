@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../pages/scans/scan_history_page.dart';
 import '../pages/scans/scanner_page.dart';
 import 'app_routes.dart';
+import 'page_transitions.dart';
 
 /// Routes de detail pour le scanner (push par-dessus le shell).
 List<RouteBase> scannerDetailRoutes() {
@@ -21,8 +22,9 @@ List<RouteBase> scannerDetailRoutes() {
 GoRoute scannerShellRoute() {
   return GoRoute(
     path: '/scanner',
-    pageBuilder: (context, state) => const NoTransitionPage(
-      child: ScannerPage(),
+    pageBuilder: (context, state) => FadeThroughPage(
+      key: state.pageKey,
+      child: const ScannerPage(),
     ),
   );
 }

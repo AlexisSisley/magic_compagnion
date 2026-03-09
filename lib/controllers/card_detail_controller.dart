@@ -518,12 +518,8 @@ class CardDetailController extends StateNotifier<CardDetailState> {
   Keyword? findKeyword(String word) {
     if (state.activeGlossary.isEmpty) return null;
     final normalizedWord = word.toLowerCase().replaceAll(RegExp(r'[,\.]'), '');
-    try {
-      return state.activeGlossary
-          .firstWhere((k) => k.term.toLowerCase() == normalizedWord);
-    } catch (e) {
-      return null;
-    }
+    return state.activeGlossary
+        .where((k) => k.term.toLowerCase() == normalizedWord).firstOrNull;
   }
 }
 

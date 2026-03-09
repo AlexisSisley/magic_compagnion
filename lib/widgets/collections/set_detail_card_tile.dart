@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../controllers/set_detail_controller.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../utils/price_helper.dart';
 
 class SetDetailCardTile extends StatelessWidget {
   final SetDetailState state;
@@ -136,6 +137,21 @@ class SetDetailCardTile extends StatelessWidget {
                   child: Text('#${card.collectorNumber}',
                       style: const TextStyle(
                           color: AppColors.textPrimary, fontSize: 10)))),
+          // Prix via PriceTag
+          Positioned(
+              bottom: 20,
+              right: 4,
+              child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                      color: AppColors.overlayVeryDark,
+                      borderRadius: BorderRadius.circular(4)),
+                  child: PriceTag(
+                    prices: card.prices,
+                    isFoil: isFoilSlot,
+                    fontSize: 10,
+                  ))),
         ],
       ),
     );

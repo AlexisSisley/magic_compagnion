@@ -11,6 +11,7 @@ import '../models/deck_model.dart';
 import '../models/scryfall_card_model.dart';
 import '../models/search_filters.dart';
 import '../providers/service_providers.dart';
+import '../utils/price_helper.dart';
 import '../services/collection_service.dart';
 import '../services/local_card_service.dart';
 import '../services/scryfall_api_service.dart';
@@ -459,14 +460,10 @@ class CardSearchController extends StateNotifier<CardSearchState> {
         break;
       case 'eur':
       case 'price_desc':
-        list.sort((a, b) =>
-            (double.tryParse(b.prices['eur']?.toString() ?? '0') ?? 0)
-                .compareTo(double.tryParse(a.prices['eur']?.toString() ?? '0') ?? 0));
+        list.sort((a, b) => PriceHelper.compareByPrice(b.prices, a.prices));
         break;
       case 'price_asc':
-        list.sort((a, b) =>
-            (double.tryParse(a.prices['eur']?.toString() ?? '0') ?? 0)
-                .compareTo(double.tryParse(b.prices['eur']?.toString() ?? '0') ?? 0));
+        list.sort((a, b) => PriceHelper.compareByPrice(a.prices, b.prices));
         break;
       case 'name':
       default:
@@ -480,9 +477,8 @@ class CardSearchController extends StateNotifier<CardSearchState> {
     final maxPrice = state.activeFilters.maxPrice;
     if (maxPrice == null) return cards;
     return cards.where((card) {
-      final priceStr = card.prices['eur']?.toString();
-      if (priceStr == null) return false;
-      final price = double.tryParse(priceStr) ?? 0;
+      final price = PriceHelper.bestPrice(card.prices);
+      if (price == 0) return false;
       return price <= maxPrice;
     }).toList();
   }

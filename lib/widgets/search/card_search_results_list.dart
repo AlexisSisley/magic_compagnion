@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../controllers/card_search_controller.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../utils/price_helper.dart';
 import '../common/collection_badge.dart';
 import 'skyrim_sneak_loader.dart';
 
@@ -98,7 +99,7 @@ class _CardSearchListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final String cardName = card.name;
     final String imageUrl = card.smallImageUrl ?? card.imageUrl;
-    final String price = card.prices['eur'] ?? '--';
+    final String price = PriceHelper.formatCompact(card.prices);
 
     final bool inWishlist = state.isCardInWishlist(cardName);
     final bool inCollection = state.isCardInCollection(card.id);
@@ -165,7 +166,7 @@ class _CardSearchListTile extends StatelessWidget {
                         const SizedBox(width: 8),
                         _buildRarityBadge(card.rarity),
                         const Spacer(),
-                        Text('$price EUR',
+                        Text(price,
                             style: TextStyle(
                                 color: AppColors.primaryShade700,
                                 fontWeight: FontWeight.bold,

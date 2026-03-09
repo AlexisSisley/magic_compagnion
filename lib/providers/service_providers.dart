@@ -1,5 +1,15 @@
 // Fichier : lib/providers/service_providers.dart
 // Providers Riverpod pour les services (avec injection AppDatabase + ScryfallApiService)
+//
+// Purupurupurupuru... Purupurupurupuru...
+// Gatcha!
+//
+// "Ici le QG des Mugiwara, poste d'ecoute des Providers.
+//  Tous les services sont en ligne, Capitaine.
+//  La connexion Scryfall est stable. Le Log Pose est calibre.
+//  On attend vos ordres."
+//
+//  — Den Den Mushi de service
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/database/app_database.dart';

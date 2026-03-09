@@ -123,6 +123,24 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     }
   }
 
+  Future<void> _handleAddToCollection(DeckCard card, int quantity) async {
+    final result = await _ctrl.addToCollection(card, quantity);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message), backgroundColor: AppColors.success),
+      );
+    }
+  }
+
+  Future<void> _handleAddToWishlist(DeckCard card, int quantity, String? wishlistId) async {
+    final result = await _ctrl.addToWishlist(card, quantity, wishlistId);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message), backgroundColor: AppColors.success),
+      );
+    }
+  }
+
   Future<void> _handleExportDeckWishlistToGlobal() async {
     final currentDeckState = ref.read(deckDetailControllerProvider(widget.deck));
     if (currentDeckState.currentDeck.wishlist.isEmpty) {
@@ -444,6 +462,8 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                         onSetCommander: _handleSetCommander,
                         onToggleFoil: (c) => _ctrl.toggleFoil(c, DeckBoard.main),
                         onSwitchVersion: (c, newV) => _ctrl.switchVersion(c, newV, DeckBoard.main),
+                        onAddToCollection: (c, qty) => _handleAddToCollection(c, qty),
+                        onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
                       ),
                       DeckCardListTab(
                         cardList: deck.sideboard,
@@ -455,6 +475,8 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                         onUpdateTags: (c, tags) => _ctrl.updateTags(c, tags, DeckBoard.side),
                         onToggleFoil: (c) => _ctrl.toggleFoil(c, DeckBoard.side),
                         onSwitchVersion: (c, newV) => _ctrl.switchVersion(c, newV, DeckBoard.side),
+                        onAddToCollection: (c, qty) => _handleAddToCollection(c, qty),
+                        onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
                       ),
                       DeckCardListTab(
                         cardList: deck.considering,
@@ -466,6 +488,8 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                         onUpdateTags: (c, tags) => _ctrl.updateTags(c, tags, DeckBoard.considering),
                         onToggleFoil: (c) => _ctrl.toggleFoil(c, DeckBoard.considering),
                         onSwitchVersion: (c, newV) => _ctrl.switchVersion(c, newV, DeckBoard.considering),
+                        onAddToCollection: (c, qty) => _handleAddToCollection(c, qty),
+                        onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
                       ),
                       DeckCardListTab(
                         cardList: deck.wishlist,
@@ -478,6 +502,8 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                         onExportToGlobalWishlist: _handleExportDeckWishlistToGlobal,
                         onToggleFoil: (c) => _ctrl.toggleFoil(c, DeckBoard.wishlist),
                         onSwitchVersion: (c, newV) => _ctrl.switchVersion(c, newV, DeckBoard.wishlist),
+                        onAddToCollection: (c, qty) => _handleAddToCollection(c, qty),
+                        onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
                       ),
                       DeckTokensTab(tokens: deckState.tokens),
                       DeckStatsTab(mainboard: deck.mainboard, cardData: deckState.fullCardData),
@@ -527,12 +553,10 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
   Widget _buildSingleCommander(DeckDetailState deckState, String id, String label) {
     String? imageUrl;
     String name = 'Chargement...';
-    try {
-      final card = deckState.fullCardData.firstWhere((c) => c.id == id);
+    final card = deckState.fullCardData.where((c) => c.id == id).firstOrNull;
+    if (card != null) {
       imageUrl = card.artCropUrl ?? card.imageUrl;
       name = card.name;
-    } catch (e) {
-      /* card not loaded yet */
     }
 
     return Expanded(

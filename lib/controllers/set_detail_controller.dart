@@ -8,6 +8,7 @@ import '../models/scryfall_set_model.dart';
 import '../models/search_filters.dart';
 import '../models/wishlist_model.dart';
 import '../providers/service_providers.dart';
+import '../utils/price_helper.dart';
 import '../services/collection_service.dart';
 import '../services/wishlist_service.dart';
 import '../services/scryfall_api_service.dart';
@@ -297,8 +298,8 @@ class SetDetailController extends StateNotifier<SetDetailState> {
           result = (rarities[a.rarity] ?? 0).compareTo(rarities[b.rarity] ?? 0);
           break;
         case 'price':
-          double pA = double.tryParse(a.prices['eur'] ?? '0') ?? 0;
-          double pB = double.tryParse(b.prices['eur'] ?? '0') ?? 0;
+          double pA = PriceHelper.bestPrice(a.prices);
+          double pB = PriceHelper.bestPrice(b.prices);
           result = pA.compareTo(pB);
           break;
         case 'number':
@@ -316,9 +317,9 @@ class SetDetailController extends StateNotifier<SetDetailState> {
     // Build grid items (normal + foil variants)
     List<SetCardDisplayItem> newGridItems = [];
     for (var card in filtered) {
-      bool hasNormal = card.prices['eur'] != null || card.prices['usd'] != null;
+      bool hasNormal = PriceHelper.rawPrice(card.prices) != null || PriceHelper.rawPrice(card.prices, currency: PriceCurrency.usd) != null;
       bool hasFoil =
-          card.prices['eur_foil'] != null || card.prices['usd_foil'] != null;
+          PriceHelper.rawPrice(card.prices, isFoil: true) != null || PriceHelper.rawPrice(card.prices, isFoil: true, currency: PriceCurrency.usd) != null;
       if (!hasNormal && !hasFoil) hasNormal = true;
 
       if (hasNormal) newGridItems.add(SetCardDisplayItem(card, false));
@@ -369,12 +370,13 @@ class SetDetailController extends StateNotifier<SetDetailState> {
       final parts = key.split('|');
       final id = parts[0];
       final isFoil = parts[1] == 'foil';
+      final card = state.allCards.where((c) => c.id == id).firstOrNull;
+      if (card == null) continue;
       try {
-        final card = state.allCards.firstWhere((c) => c.id == id);
         await _collectionService.addCard(card, 1, isFoil: isFoil);
         count++;
       } catch (e) {
-        /* card not found or service error */
+        /* service error */
       }
     }
 
@@ -397,8 +399,9 @@ class SetDetailController extends StateNotifier<SetDetailState> {
       final parts = key.split('|');
       final id = parts[0];
       final isFoil = parts[1] == 'foil';
+      final card = state.allCards.where((c) => c.id == id).firstOrNull;
+      if (card == null) continue;
       try {
-        final card = state.allCards.firstWhere((c) => c.id == id);
         await _wishlistService.upsertCard(
           wishlistId: wishlistId,
           scryfallId: card.id,
@@ -408,7 +411,7 @@ class SetDetailController extends StateNotifier<SetDetailState> {
         );
         count++;
       } catch (e) {
-        /* card not found or service error */
+        /* service error */
       }
     }
 
@@ -430,8 +433,9 @@ class SetDetailController extends StateNotifier<SetDetailState> {
       final parts = key.split('|');
       final id = parts[0];
       final isFoil = parts[1] == 'foil';
+      final card = state.allCards.where((c) => c.id == id).firstOrNull;
+      if (card == null) continue;
       try {
-        final card = state.allCards.firstWhere((c) => c.id == id);
         await _collectionService.upsertCardInCollection(
           scryfallId: id,
           cardName: card.name,
@@ -440,7 +444,7 @@ class SetDetailController extends StateNotifier<SetDetailState> {
         );
         count++;
       } catch (e) {
-        /* card not found or service error */
+        /* service error */
       }
     }
 
@@ -462,8 +466,9 @@ class SetDetailController extends StateNotifier<SetDetailState> {
       final parts = key.split('|');
       final id = parts[0];
       final isFoil = parts[1] == 'foil';
+      final card = state.allCards.where((c) => c.id == id).firstOrNull;
+      if (card == null) continue;
       try {
-        final card = state.allCards.firstWhere((c) => c.id == id);
         final lists = await _wishlistService.loadWishlists();
         for (var list in lists) {
           await _wishlistService.upsertCard(

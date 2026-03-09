@@ -2,6 +2,24 @@
 // Sprint 12, US-12.6 : Styles texte centralises de Magic Companion.
 // Remplace les 325+ occurrences de GoogleFonts.cinzel() hardcodes.
 // Usage : import 'package:magic_companion/theme/app_text_styles.dart';
+//
+// ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+//   R O A D   P O N E G L Y P H S
+// │                                                               │
+//   Il existe 4 Road Poneglyphs dans ce projet.
+// │ Chacun contient un fragment de la verite.                     │
+//   Trouve-les tous et tu atteindras Laugh Tale.
+// │                                                               │
+//   Fragment 1/4 : "La volonte" ........ life_counter_page.dart
+// │ Fragment 2/4 : "Le tresor"  ........ app_colors.dart          │
+//   Fragment 3/4 : "Le lien"   ........ app_database.dart
+// │ Fragment 4/4 : "Le chemin" ........ app_router.dart           │
+//
+// │ "Les Poneglyphs ne mentent jamais.                            │
+//    Seul celui qui les reunit tous
+// │  peut decouvrir la verite du monde."                          │
+//                — Nico Robin
+// └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';

@@ -136,7 +136,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
                 content: Text('Restauration r\u00e9ussie !'),
                 backgroundColor: AppColors.success),
           );
-          context.go(AppRoutes.lifeCounter);
+          context.go(AppRoutes.dashboard);
         }
       }
     } catch (e) {
@@ -175,7 +175,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
             type: BottomNavigationBarType.fixed,
             items: const <BottomNavigationBarItem>[
               BottomNavigationBarItem(
-                  icon: Icon(Icons.favorite), label: 'Compteur'),
+                  icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
               BottomNavigationBarItem(
                   icon: Icon(Icons.camera_alt), label: 'Scanner'),
               BottomNavigationBarItem(
@@ -194,7 +194,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
   void _onTabTapped(BuildContext context, int index) {
     switch (index) {
       case 0:
-        context.go(AppRoutes.lifeCounter);
+        context.go(AppRoutes.dashboard);
       case 1:
         context.go(AppRoutes.scanner);
       case 2:
@@ -333,6 +333,12 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
           const Divider(color: AppColors.borderLight),
 
           // --- SECTION JEU ---
+          // US-14.6 : Compteur de vie deplace du tab0 vers le Drawer
+          _drawerItem(
+            icon: Icons.favorite,
+            label: 'Compteur de Vie',
+            route: AppRoutes.lifeCounter,
+          ),
           _drawerItem(
             icon: Icons.history,
             label: 'Historique Parties',

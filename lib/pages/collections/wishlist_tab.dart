@@ -9,6 +9,7 @@ import '../../models/scryfall_card_model.dart';
 import '../../models/wishlist_model.dart';
 import '../../router/app_router.dart';
 import '../../services/wishlist_service.dart';
+import '../../utils/price_helper.dart';
 
 class WishlistTab extends StatefulWidget {
   final List<Wishlist> wishlists;
@@ -146,19 +147,13 @@ class _WishlistTabState extends State<WishlistTab> {
     
     for (var list in widget.wishlists) {
       for (var card in list.cards) {
-        try {
-          final sc = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId);
-          uniqueCardsMap[sc.id] = sc; 
-        } catch(e) { /* */ }
+        final sc = widget.fullCardData.where((s) => s.id == card.scryfallId).firstOrNull;
+        if (sc != null) uniqueCardsMap[sc.id] = sc;
       }
     }
 
     final List<ScryfallCard> sortedCards = uniqueCardsMap.values.toList();
-    sortedCards.sort((a, b) {
-      final pA = double.tryParse(a.prices['eur'] ?? '0') ?? 0.0;
-      final pB = double.tryParse(b.prices['eur'] ?? '0') ?? 0.0;
-      return pB.compareTo(pA);
-    });
+    sortedCards.sort((a, b) => PriceHelper.compareByPrice(b.prices, a.prices));
 
     final top10 = sortedCards.take(10).toList();
 
@@ -218,7 +213,7 @@ class _WishlistTabState extends State<WishlistTab> {
                itemCount: top10.length,
                itemBuilder: (context, index) {
                  final card = top10[index];
-                 final price = card.prices['eur'] ?? 'N/A';
+                 final price = PriceHelper.formatCompact(card.prices);
                  return GestureDetector(
                    onTap: () {
                       context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
@@ -249,7 +244,7 @@ class _WishlistTabState extends State<WishlistTab> {
                              borderRadius: BorderRadius.circular(4),
                              border: Border.all(color: AppColors.primaryShade800.withValues(alpha: 0.5))
                            ),
-                           child: Text('$price €', style: AppTextStyles.bold(fontSize: 12))
+                           child: Text(price, style: AppTextStyles.bold(fontSize: 12))
                          ),
                        ],
                      ),
@@ -281,17 +276,13 @@ class _WishlistTabState extends State<WishlistTab> {
                     String? coverImageUrl;
                     
                     if (list.iconScryfallId != null) {
-                      try {
-                        final card = widget.fullCardData.firstWhere((s) => s.id == list.iconScryfallId);
-                        coverImageUrl = card.smallImageUrl ?? card.imageUrl;
-                      } catch(e) { /* Card not found in data */ }
+                      final card = widget.fullCardData.where((s) => s.id == list.iconScryfallId).firstOrNull;
+                      if (card != null) coverImageUrl = card.smallImageUrl ?? card.imageUrl;
                     }
                     if (coverImageUrl == null && list.cards.isNotEmpty) {
-                      try {
-                         final cId = list.cards.first.scryfallId;
-                         final card = widget.fullCardData.firstWhere((s) => s.id == cId);
-                         coverImageUrl = card.smallImageUrl;
-                      } catch(e) { /* Card not found in data */ }
+                      final cId = list.cards.first.scryfallId;
+                      final card = widget.fullCardData.where((s) => s.id == cId).firstOrNull;
+                      if (card != null) coverImageUrl = card.smallImageUrl;
                     }
 
                     return Card(

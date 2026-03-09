@@ -16,6 +16,7 @@ import '../../router/app_router.dart';
 import '../../services/local_card_service.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../providers/service_providers.dart';
+import '../../utils/price_helper.dart';
 
 class ScannerPage extends ConsumerStatefulWidget {
   const ScannerPage({super.key});
@@ -451,7 +452,14 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
                         return ListTile(
                           title: Text(card.name, style: AppTextStyles.cinzel()),
                           subtitle: Text(card.typeLine, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                          trailing: const Icon(Icons.chevron_right, color: AppColors.borderMedium),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              PriceTag(prices: card.prices, fontSize: 12),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.chevron_right, color: AppColors.borderMedium),
+                            ],
+                          ),
                           onTap: () {
                             Navigator.pop(context);
                             context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});

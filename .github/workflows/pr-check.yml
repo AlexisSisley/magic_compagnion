@@ -1,0 +1,80 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-check:
+    name: Flutter Analyze & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Flutter Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Unzip Data Files (for tests)
+        run: |
+          if [ -f assets/json/cards_data.zip ]; then
+            unzip -o assets/json/cards_data.zip -d assets/json/
+          fi
+
+      - name: Run Flutter Tests with Coverage
+        run: flutter test --coverage
+
+      - name: Check Coverage Threshold (>40%)
+        run: |
+          if [ ! -f coverage/lcov.info ]; then
+            echo "::warning::No coverage file found, skipping threshold check"
+            exit 0
+          fi
+          TOTAL_LINES=$(grep -c "DA:" coverage/lcov.info || echo "0")
+          HIT_LINES=$(grep "DA:" coverage/lcov.info | grep -v ",0$" | wc -l || echo "0")
+          if [ "$TOTAL_LINES" -eq 0 ]; then
+            echo "::warning::No coverage data found"
+            exit 0
+          fi
+          COVERAGE=$((HIT_LINES * 100 / TOTAL_LINES))
+          echo "## Coverage: ${COVERAGE}% (${HIT_LINES}/${TOTAL_LINES} lines)" >> $GITHUB_STEP_SUMMARY
+          if [ "$COVERAGE" -lt 40 ]; then
+            echo "::error::Coverage is ${COVERAGE}%, below required threshold of 40%"
+            exit 1
+          fi
+          echo "Coverage OK: ${COVERAGE}% >= 40%"
+
+  python-check:
+    name: Check Python Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend_rag
+          pip install fastapi uvicorn langchain-chroma langchain-ollama flake8
+
+      - name: Lint with Flake8
+        run: |
+          flake8 backend_rag --count --select=E9,F63,F7,F82 --show-source --statistics

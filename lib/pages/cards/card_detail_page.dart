@@ -1,6 +1,8 @@
 // Fichier : lib/pages/cards/card_detail_page.dart
 // VERSION REFACTOREE : Logique metier extraite dans CardDetailController
 
+import 'dart:math' as math;
+
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/gestures.dart';
@@ -15,7 +17,10 @@ import 'package:magic_companion/widgets/decks/deck_picker_modal.dart';
 import '../../router/app_router.dart';
 
 import '../../controllers/card_detail_controller.dart';
+import '../../widgets/cards/price_sparkline.dart';
+import '../../providers/service_providers.dart';
 import '../../data/glossary_data.dart';
+import '../../utils/price_helper.dart';
 import '../../widgets/cards/versions_selector_sheet.dart';
 
 class RecognitionResultPage extends ConsumerStatefulWidget {
@@ -29,11 +34,19 @@ class RecognitionResultPage extends ConsumerStatefulWidget {
   ConsumerState<RecognitionResultPage> createState() => _RecognitionResultPageState();
 }
 
-class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
+class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   final RegExp _manaSymbolRegex = RegExp(r'(\{.*?\})');
 
+  /// US-14.5 : Pool de TapGestureRecognizer pour dispose correct (evite les leaks).
+  final List<TapGestureRecognizer> _tapRecognizers = [];
+
   late final CardDetailParams _params;
+
+  /// Sprint 14 : Animation flip 3D pour cartes double-faced.
+  late final AnimationController _flipController;
+  late final Animation<double> _flipAnimation;
+  bool _showingBackFace = false;
 
   @override
   void initState() {
@@ -46,11 +59,35 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
     if (widget.cardName != null) {
       _searchController.text = widget.cardName!;
     }
+
+    _flipController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _flipAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _flipController, curve: Curves.easeInOut),
+    );
+  }
+
+  void _toggleCardFace() {
+    if (_flipController.isAnimating) return;
+    if (_showingBackFace) {
+      _flipController.reverse();
+    } else {
+      _flipController.forward();
+    }
+    setState(() => _showingBackFace = !_showingBackFace);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _flipController.dispose();
+    // US-14.5 : Dispose de tous les TapGestureRecognizer pour eviter les leaks.
+    for (final recognizer in _tapRecognizers) {
+      recognizer.dispose();
+    }
+    _tapRecognizers.clear();
     super.dispose();
   }
 
@@ -150,6 +187,20 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
 
       case ResultPageState.success:
         final foundCard = state.foundCard!;
+        // Sprint 14 : Determine le nom/type/texte a afficher selon la face
+        final displayName = _showingBackFace && foundCard.isDoubleFaced
+            ? (foundCard.backFaceName ?? foundCard.name)
+            : (foundCard.printedName ?? foundCard.name);
+        final displayTypeLine = _showingBackFace && foundCard.isDoubleFaced
+            ? (foundCard.backFaceTypeLine ?? foundCard.typeLine)
+            : foundCard.typeLine;
+        final displayManaCost = _showingBackFace && foundCard.isDoubleFaced
+            ? foundCard.backFaceManaCost
+            : foundCard.manaCost;
+        final displayRulesText = _showingBackFace && foundCard.isDoubleFaced
+            ? (foundCard.backFaceRulesText ?? '')
+            : foundCard.rulesText;
+
         return SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + mediaQuery.padding.bottom + 80.0),
           child: Column(
@@ -160,12 +211,73 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                 elevation: 4.0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0), side: BorderSide(color: AppColors.primaryShade800.withValues(alpha: 0.6), width: 1)),
                 child: Column(children: [
-                    Image.network(foundCard.imageUrl, fit: BoxFit.fitWidth, errorBuilder: (c, e, s) => const SizedBox(height: 300, child: Center(child: Icon(Icons.broken_image, size: 50, color: AppColors.textPrimary)))),
+                    // Sprint 14 : Image avec flip 3D pour cartes double-faced
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (foundCard.isDoubleFaced)
+                          AnimatedBuilder(
+                            animation: _flipAnimation,
+                            builder: (context, child) {
+                              final angle = _flipAnimation.value * math.pi;
+                              final isFront = angle < math.pi / 2;
+                              return Transform(
+                                alignment: Alignment.center,
+                                transform: Matrix4.identity()
+                                  ..setEntry(3, 2, 0.001)
+                                  ..rotateY(angle),
+                                child: isFront
+                                    ? Image.network(foundCard.imageUrl, fit: BoxFit.fitWidth, errorBuilder: (c, e, s) => const SizedBox(height: 300, child: Center(child: Icon(Icons.broken_image, size: 50, color: AppColors.textPrimary))))
+                                    : Transform(
+                                        alignment: Alignment.center,
+                                        transform: Matrix4.identity()..rotateY(math.pi),
+                                        child: Image.network(foundCard.backFaceImageUrl!, fit: BoxFit.fitWidth, errorBuilder: (c, e, s) => const SizedBox(height: 300, child: Center(child: Icon(Icons.broken_image, size: 50, color: AppColors.textPrimary)))),
+                                      ),
+                              );
+                            },
+                          )
+                        else
+                          // US-14.8 : Hero animation pour les images de cartes
+                          Hero(
+                            tag: 'card_image_${foundCard.id}',
+                            child: Image.network(foundCard.imageUrl, fit: BoxFit.fitWidth, errorBuilder: (c, e, s) => const SizedBox(height: 300, child: Center(child: Icon(Icons.broken_image, size: 50, color: AppColors.textPrimary)))),
+                          ),
+                        // Bouton flip pour les cartes double-faced
+                        if (foundCard.isDoubleFaced)
+                          Positioned(
+                            bottom: 8, right: 8,
+                            child: Material(
+                              color: AppColors.overlayDark,
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _toggleCardFace,
+                                child: const Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: Icon(
+                                    Icons.flip,
+                                    color: AppColors.textPrimary,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     Padding(padding: const EdgeInsets.all(12.0), child: Column(children: [
-                          _buildManaCostRow(foundCard.manaCost),
+                          _buildManaCostRow(displayManaCost),
                           const SizedBox(height: 8),
-                          Text(foundCard.printedName ?? foundCard.name, style: AppTextStyles.pageTitle(), textAlign: TextAlign.center),
-                          Text(foundCard.typeLine, style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 16, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+                          Text(displayName, style: AppTextStyles.pageTitle(), textAlign: TextAlign.center),
+                          Text(displayTypeLine, style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 16, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+                          if (foundCard.isDoubleFaced)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                _showingBackFace ? '▲ Face recto' : '▼ Face verso',
+                                style: AppTextStyles.cinzel(color: AppColors.primary, fontSize: 12),
+                              ),
+                            ),
                           if (state.collectionNormalCount > 0 || state.collectionFoilCount > 0)
                             Padding(
                               padding: const EdgeInsets.only(top: 8),
@@ -185,7 +297,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
                     ]))
                 ]),
               ),
-              _buildInfoCard(title: 'Texte des règles', child: _buildClickableRulesText(foundCard.rulesText, foundCard.lang, controller)),
+              _buildInfoCard(title: 'Texte des règles', child: _buildClickableRulesText(displayRulesText, foundCard.lang, controller)),
               _buildInfoCard(title: 'Prix & Marché', child: _buildPriceInfo(foundCard.prices)),
               _buildInfoCard(title: 'Légalité', child: _buildLegalities(foundCard.legalities)),
               _buildInfoCard(title: 'Décisions de Règles', child: _buildRulingsList(state)),
@@ -433,14 +545,21 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
 
   // --- HELPERS UI ---
   Widget _buildPriceInfo(Map<String, dynamic> prices) {
-    final String priceEur = prices['eur'] ?? 'N/A';
-    final String priceEurFoil = prices['eur_foil'] ?? 'N/A';
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
+    final String priceEur = PriceHelper.format(prices);
+    final String priceEurFoil = PriceHelper.format(prices, isFoil: true);
+    return Column(
       children: [
-        Column(children: [Text('Normal', style: AppTextStyles.cinzel(color: AppColors.textSecondary)), Text('$priceEur €', style: AppTextStyles.pageTitle(fontSize: 20))]),
-        Container(width: 1, height: 30, color: AppColors.borderMedium),
-        Column(children: [Text('Foil (Brillant)', style: AppTextStyles.cinzel(color: Colors.amber.shade200)), Text('$priceEurFoil €', style: AppTextStyles.pageTitle(fontSize: 20))]),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            Column(children: [Text('Normal', style: AppTextStyles.cinzel(color: AppColors.textSecondary)), Text(priceEur, style: AppTextStyles.pageTitle(fontSize: 20))]),
+            Container(width: 1, height: 30, color: AppColors.borderMedium),
+            Column(children: [Text('Foil (Brillant)', style: AppTextStyles.cinzel(color: Colors.amber.shade200)), Text(priceEurFoil, style: AppTextStyles.pageTitle(fontSize: 20))]),
+          ],
+        ),
+        // US-14.10 : Sparkline evolution prix (proxy via historique collection)
+        const SizedBox(height: 12),
+        _PriceSparklineSection(),
       ],
     );
   }
@@ -493,7 +612,10 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
       final String word = words[i];
       final Keyword? keyword = controller.findKeyword(word);
       if (keyword != null) {
-        spans.add(TextSpan(text: '$word ', style: AppTextStyles.bold(color: Colors.blue.shade300).copyWith(decoration: TextDecoration.underline, decorationColor: Colors.blue.shade300), recognizer: TapGestureRecognizer()..onTap = () { context.push(AppRoutes.glossaryDetail, extra: keyword); }));
+        // US-14.5 : Les TapGestureRecognizer sont stockes pour etre disposes.
+        final recognizer = TapGestureRecognizer()..onTap = () { context.push(AppRoutes.glossaryDetail, extra: keyword); };
+        _tapRecognizers.add(recognizer);
+        spans.add(TextSpan(text: '$word ', style: AppTextStyles.bold(color: Colors.blue.shade300).copyWith(decoration: TextDecoration.underline, decorationColor: Colors.blue.shade300), recognizer: recognizer));
       } else {
         spans.add(TextSpan(text: '$word ', style: const TextStyle(color: AppColors.textPrimary, height: 1.4)));
       }
@@ -503,6 +625,11 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
 
   Widget _buildClickableRulesText(String text, String lang, CardDetailController controller) {
     if (text.isEmpty) return Text('(Pas de texte)', style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
+    // US-14.5 : Dispose les anciens recognizers avant d'en creer de nouveaux.
+    for (final recognizer in _tapRecognizers) {
+      recognizer.dispose();
+    }
+    _tapRecognizers.clear();
     final List<InlineSpan> spans = [];
     text.splitMapJoin(_manaSymbolRegex, onMatch: (Match match) {
         final String symbol = match.group(0)!;
@@ -521,5 +648,43 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> {
   Widget _getManaIcon(String symbol) {
      final clean = symbol.replaceAll(RegExp(r'[{}/]'), '').toUpperCase();
      return SvgPicture.network('https://svgs.scryfall.io/card-symbols/$clean.svg', width: 16, placeholderBuilder: (_) => Text(symbol, style: const TextStyle(color: AppColors.textPrimary)));
+  }
+}
+
+/// US-14.10 : Section sparkline dans la fiche prix.
+/// Charge l'historique de valeur de la collection comme proxy
+/// (Scryfall ne fournit pas d'historique de prix par carte).
+class _PriceSparklineSection extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final collectionService = ref.read(collectionServiceProvider);
+    return FutureBuilder<List<({String dateKey, double value})>>(
+      future: collectionService.getValueHistory(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 50,
+            child: Center(
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: AppColors.textDisabled,
+                ),
+              ),
+            ),
+          );
+        }
+        final data = snapshot.data ?? [];
+        if (data.isEmpty) {
+          return const PriceSparkline(values: [], label: 'Evolution collection 30j');
+        }
+        return PriceSparkline(
+          values: data.map((e) => e.value).toList(),
+          label: 'Tendance collection 30j',
+        );
+      },
+    );
   }
 }

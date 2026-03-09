@@ -79,26 +79,23 @@ class DeckExportService {
   // --- PRIVATE HELPERS ---
 
   static ScryfallCard _findCardOrUnknown(String scryfallId, List<ScryfallCard> fullCardData) {
-    try {
-      return fullCardData.firstWhere((c) => c.id == scryfallId);
-    } catch (e) {
-      return ScryfallCard(
-        id: '',
-        oracleId: '',
-        name: 'Inconnu',
-        imageUrl: '',
-        rulesText: '',
-        typeLine: '',
-        legalities: {},
-        prices: {},
-        lang: '',
-        colorIdentity: [],
-        setName: '',
-        setCode: '',
-        collectorNumber: '',
-        rarity: '',
-        purchaseUris: {},
-      );
-    }
+    return fullCardData.where((c) => c.id == scryfallId).firstOrNull ??
+        ScryfallCard(
+          id: '',
+          oracleId: '',
+          name: 'Inconnu',
+          imageUrl: '',
+          rulesText: '',
+          typeLine: '',
+          legalities: {},
+          prices: {},
+          lang: '',
+          colorIdentity: [],
+          setName: '',
+          setCode: '',
+          collectorNumber: '',
+          rarity: '',
+          purchaseUris: {},
+        );
   }
 }

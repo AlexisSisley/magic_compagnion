@@ -9,6 +9,7 @@ import '../data/secondary_breakfast.dart';
 import '../models/deck_model.dart';
 import '../models/scryfall_card_model.dart';
 import '../providers/service_providers.dart';
+import '../utils/price_helper.dart';
 import '../services/deck_service.dart';
 import '../services/local_card_service.dart';
 import '../services/scryfall_api_service.dart';
@@ -135,7 +136,7 @@ class DeckListController extends StateNotifier<DeckListState> {
       for (var card in deck.mainboard) {
         final localCard = _localCardService.getCardById(card.scryfallId);
         if (localCard != null) {
-          double price = double.tryParse(localCard.prices['eur'] ?? '0') ?? 0.0;
+          double price = PriceHelper.bestPrice(localCard.prices);
           total += price * card.quantity;
         }
       }
@@ -276,7 +277,7 @@ class DeckListController extends StateNotifier<DeckListState> {
 
     await _deckService.createNewDeck(deckName);
     final decks = await _deckService.loadDecks();
-    Deck newDeck = decks.firstWhere((d) => d.name == deckName);
+    Deck newDeck = decks.where((d) => d.name == deckName).first;
     newDeck.colors = sortedColors;
     newDeck.format = commanderName != null ? 'Commander' : 'Standard';
     newDeck.mainboard = parsedMain.map((p) => DeckCard(scryfallId: _findId(scryfallData, p['name']), name: p['name'], quantity: p['quantity'])).toList();
@@ -299,7 +300,7 @@ class DeckListController extends StateNotifier<DeckListState> {
   // --- HELPERS ---
 
   String _findId(List<ScryfallCard> data, String name) {
-    try { return data.firstWhere((s) => s.name.toLowerCase() == name.toLowerCase()).id; } catch (e) { return 'LOCAL:$name'; }
+    return data.where((s) => s.name.toLowerCase() == name.toLowerCase()).firstOrNull?.id ?? 'LOCAL:$name';
   }
 
   String getSortLabel(String code) {

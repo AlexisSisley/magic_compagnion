@@ -7,7 +7,7 @@ import 'package:magic_companion/main.dart';
 void main() {
   testWidgets('MagicCompanionApp builds without crashing', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
+      ProviderScope(
         child: MagicCompanionApp(),
       ),
     );

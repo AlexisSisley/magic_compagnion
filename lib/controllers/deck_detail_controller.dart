@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import '../models/deck_model.dart';
 import '../models/scryfall_card_model.dart';
 import '../providers/service_providers.dart';
+import '../utils/price_helper.dart';
 import '../models/legality_report.dart';
 import '../services/collection_service.dart';
 import '../services/deck_format_service.dart';
@@ -138,7 +139,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
 
   Future<void> _loadFullCardData() async {
     final deck = state.currentDeck;
-    final allCards = [...deck.mainboard, ...deck.sideboard];
+    final allCards = [...deck.mainboard, ...deck.sideboard, ...deck.considering, ...deck.wishlist];
 
     final uniqueIds = allCards
         .map((c) => c.scryfallId)
@@ -202,16 +203,10 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
 
     for (var deckCard in activeCards) {
       if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-      ScryfallCard? scryfallCard;
-      try {
-        scryfallCard = state.fullCardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-      } catch (e) {
-        continue;
-      }
+      final scryfallCard = state.fullCardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+      if (scryfallCard == null) continue;
 
-      String priceKey = deckCard.isFoil ? 'eur_foil' : 'eur';
-      final double unitPrice =
-          double.tryParse(scryfallCard.prices[priceKey] ?? scryfallCard.prices['eur'] ?? '0') ?? 0.0;
+      final double unitPrice = PriceHelper.bestPrice(scryfallCard.prices, isFoil: deckCard.isFoil);
 
       final int realQuantity = (deckCard.quantity - deckCard.proxyQuantity).clamp(0, deckCard.quantity);
       total += (realQuantity * unitPrice);
@@ -275,12 +270,10 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
 
     if (change > 0 && board == DeckBoard.main && deck.format.toLowerCase() == 'commander') {
       bool isBasicLand = false;
-      try {
-        final scryfall = state.fullCardData.firstWhere((s) => s.id == card.scryfallId);
+      final scryfall = state.fullCardData.where((s) => s.id == card.scryfallId).firstOrNull;
+      if (scryfall != null) {
         if (scryfall.typeLine.toLowerCase().contains('basic land')) isBasicLand = true;
         if (scryfall.rulesText.toLowerCase().contains('a deck can have any number')) isBasicLand = true;
-      } catch (e) {
-        /* Local card fallback */
       }
 
       if (!isBasicLand && card.quantity >= 1) {
@@ -338,12 +331,8 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
       bool exists = deck.mainboard.any((c) => c.scryfallId == card.scryfallId);
       if (exists) {
         bool isBasic = false;
-        try {
-          final sc = state.fullCardData.firstWhere((s) => s.id == card.scryfallId);
-          if (sc.typeLine.toLowerCase().contains('basic land')) isBasic = true;
-        } catch (e) {
-          /* ignore */
-        }
+        final sc = state.fullCardData.where((s) => s.id == card.scryfallId).firstOrNull;
+        if (sc != null && sc.typeLine.toLowerCase().contains('basic land')) isBasic = true;
 
         if (!isBasic) {
           return const DeckDetailActionResult(
@@ -378,6 +367,35 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     state = state.copyWith(currentDeck: updatedDeck);
   }
 
+  // --- COLLECTION / WISHLIST MULTI-ADD ---
+
+  /// Ajoute une carte du deck dans la collection globale.
+  Future<DeckDetailActionResult> addToCollection(DeckCard card, int quantity) async {
+    await _collectionService.upsertCardInCollection(
+      scryfallId: card.scryfallId,
+      cardName: card.name,
+      quantityToAdd: quantity,
+      isFoil: card.isFoil,
+    );
+    return DeckDetailActionResult(
+      message: '${card.name} x$quantity ajoutee a la collection.',
+    );
+  }
+
+  /// Ajoute une carte du deck dans une wishlist globale.
+  Future<DeckDetailActionResult> addToWishlist(DeckCard card, int quantity, String? wishlistId) async {
+    await _wishlistService.upsertCard(
+      wishlistId: wishlistId,
+      scryfallId: card.scryfallId,
+      cardName: card.name,
+      quantityToAdd: quantity,
+      isFoil: card.isFoil,
+    );
+    return DeckDetailActionResult(
+      message: '${card.name} x$quantity ajoutee a la wishlist.',
+    );
+  }
+
   // --- COMMANDER LOGIC ---
 
   /// Returns a DeckDetailActionResult indicating what happened.
@@ -387,13 +405,13 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
 
     if (deckCard.scryfallId == deck.commanderScryfallId) {
       await _deckService.unsetCommander(deck.id, slot: 1);
-      final d = (await _deckService.loadDecks()).firstWhere((d) => d.id == deck.id);
+      final d = (await _deckService.loadDecks()).where((d) => d.id == deck.id).first;
       state = state.copyWith(currentDeck: d);
       return const DeckDetailActionResult(message: 'Retire du slot Commandant.');
     }
     if (deckCard.scryfallId == deck.commanderSecondaryScryfallId) {
       await _deckService.unsetCommander(deck.id, slot: 2);
-      final d = (await _deckService.loadDecks()).firstWhere((d) => d.id == deck.id);
+      final d = (await _deckService.loadDecks()).where((d) => d.id == deck.id).first;
       state = state.copyWith(currentDeck: d);
       return const DeckDetailActionResult(message: 'Retire du slot Partenaire.');
     }
@@ -408,12 +426,8 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
       return 'Carte locale : Impossible de definir comme Cdt.';
     }
 
-    ScryfallCard scryfallCard;
-    try {
-      scryfallCard = state.fullCardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-    } catch (e) {
-      return 'Erreur: Donnees carte introuvables.';
-    }
+    final scryfallCard = state.fullCardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+    if (scryfallCard == null) return 'Erreur: Donnees carte introuvables.';
 
     if (!scryfallCard.typeLine.toLowerCase().contains('legendary') &&
         !scryfallCard.rulesText.toLowerCase().contains('can be your commander')) {
@@ -432,15 +446,13 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
   /// Sets a card as commander in the given slot (1 or 2).
   /// The UI is responsible for showing the slot picker dialog.
   Future<DeckDetailActionResult> setCommanderSlot(DeckCard deckCard, int slot) async {
-    ScryfallCard scryfallCard;
-    try {
-      scryfallCard = state.fullCardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-    } catch (e) {
+    final scryfallCard = state.fullCardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+    if (scryfallCard == null) {
       return const DeckDetailActionResult(success: false, message: 'Erreur: Donnees carte introuvables.');
     }
 
     await _deckService.setCommander(state.currentDeck.id, scryfallCard.id, slot: slot);
-    final reloadedDeck = (await _deckService.loadDecks()).firstWhere((d) => d.id == state.currentDeck.id);
+    final reloadedDeck = (await _deckService.loadDecks()).where((d) => d.id == state.currentDeck.id).first;
 
     state = state.copyWith(currentDeck: reloadedDeck);
     await _loadFullCardData();
@@ -587,7 +599,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
         board: DeckBoard.main,
       );
     }
-    final updated = (await _deckService.loadDecks()).firstWhere((d) => d.id == state.currentDeck.id);
+    final updated = (await _deckService.loadDecks()).where((d) => d.id == state.currentDeck.id).first;
     state = state.copyWith(currentDeck: updated);
     await loadInitialData();
   }
@@ -597,7 +609,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
   Future<DeckDetailActionResult> clearDeck() async {
     bool hadCards = state.currentDeck.mainboard.isNotEmpty;
     await _deckService.clearDeck(state.currentDeck.id);
-    final d = (await _deckService.loadDecks()).firstWhere((d) => d.id == state.currentDeck.id);
+    final d = (await _deckService.loadDecks()).where((d) => d.id == state.currentDeck.id).first;
     state = state.copyWith(
       currentDeck: d,
       fullCardData: [],
@@ -614,27 +626,24 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
   // --- PRIVATE HELPERS ---
 
   ScryfallCard _findCardOrUnknown(String scryfallId) {
-    try {
-      return state.fullCardData.firstWhere((c) => c.id == scryfallId);
-    } catch (e) {
-      return ScryfallCard(
-        id: '',
-        oracleId: '',
-        name: 'Inconnu',
-        imageUrl: '',
-        rulesText: '',
-        typeLine: '',
-        legalities: {},
-        prices: {},
-        lang: '',
-        colorIdentity: [],
-        setName: '',
-        setCode: '',
-        collectorNumber: '',
-        rarity: '',
-        purchaseUris: {},
-      );
-    }
+    return state.fullCardData.where((c) => c.id == scryfallId).firstOrNull ??
+        ScryfallCard(
+          id: '',
+          oracleId: '',
+          name: 'Inconnu',
+          imageUrl: '',
+          rulesText: '',
+          typeLine: '',
+          legalities: {},
+          prices: {},
+          lang: '',
+          colorIdentity: [],
+          setName: '',
+          setCode: '',
+          collectorNumber: '',
+          rarity: '',
+          purchaseUris: {},
+        );
   }
 }
 

@@ -40,6 +40,11 @@ class ScryfallApiService {
       headers: {
         'User-Agent': 'MagicCompanion/1.0',
         'Accept': 'application/json',
+        // --- Egg: Binks' Sake --- Headers secrets One Piece
+        // Visibles uniquement dans les outils reseau (DevTools, Charles, etc.)
+        'X-Pirate-Crew': 'Mugiwara',
+        'X-Grand-Line': 'Scryfall-is-our-Log-Pose',
+        'X-Dream': 'Find-the-One-Piece',
       },
     ));
   }

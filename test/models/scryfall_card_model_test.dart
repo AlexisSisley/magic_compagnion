@@ -106,6 +106,86 @@ void main() {
       // printed_text is used for rulesText on faces
       expect(card.rulesText, 'Au debut...');
       expect(card.cmc, 1.0);
+
+      // Sprint 14 : Back face data
+      expect(card.isDoubleFaced, true);
+      expect(card.backFaceImageUrl, 'https://example.com/insectile.jpg');
+      expect(card.backFaceSmallImageUrl, 'https://example.com/insectile-small.jpg');
+      expect(card.backFaceName, 'Insectile Aberration');
+      expect(card.backFaceManaCost, '');
+      expect(card.backFaceRulesText, 'Flying');
+    });
+
+    test('single-faced card has isDoubleFaced = false', () {
+      final json = {
+        'id': 'single-1',
+        'oracle_id': 'oracle-single',
+        'name': 'Lightning Bolt',
+        'image_uris': {
+          'normal': 'https://example.com/bolt.jpg',
+          'small': 'https://example.com/bolt-small.jpg',
+        },
+        'oracle_text': 'Deal 3 damage.',
+        'type_line': 'Instant',
+        'legalities': {},
+        'prices': {},
+        'lang': 'en',
+        'color_identity': ['R'],
+        'set_name': 'Alpha',
+        'set': 'lea',
+        'collector_number': '161',
+        'rarity': 'common',
+        'purchase_uris': {},
+      };
+
+      final card = ScryfallCard.fromJson(json);
+      expect(card.isDoubleFaced, false);
+      expect(card.backFaceImageUrl, isNull);
+      expect(card.backFaceName, isNull);
+    });
+
+    test('DFC with printed_name on back face uses printed_name', () {
+      final json = {
+        'id': 'dfc-fr',
+        'oracle_id': 'oracle-dfc-fr',
+        'name': 'Fable of the Mirror-Breaker // Reflection of Kiki-Jiki',
+        'cmc': 3.0,
+        'card_faces': [
+          {
+            'name': 'Fable of the Mirror-Breaker',
+            'printed_name': 'Fable du Briseur de Miroir',
+            'mana_cost': '{2}{R}',
+            'oracle_text': 'When this enters...',
+            'image_uris': {'normal': 'https://example.com/fable-front.jpg', 'small': 'https://example.com/fable-front-s.jpg'},
+          },
+          {
+            'name': 'Reflection of Kiki-Jiki',
+            'printed_name': 'Reflet de Kiki-Jiki',
+            'mana_cost': '',
+            'oracle_text': '{T}: Copy target creature.',
+            'printed_text': '{T} : Copiez une creature ciblee.',
+            'type_line': 'Legendary Enchantment Creature',
+            'image_uris': {'normal': 'https://example.com/kiki-back.jpg', 'small': 'https://example.com/kiki-back-s.jpg'},
+          },
+        ],
+        'type_line': 'Enchantment — Saga // Legendary Enchantment Creature',
+        'legalities': {},
+        'prices': {},
+        'lang': 'fr',
+        'color_identity': ['R'],
+        'set_name': 'Kamigawa',
+        'set': 'neo',
+        'collector_number': '141',
+        'rarity': 'rare',
+        'purchase_uris': {},
+      };
+
+      final card = ScryfallCard.fromJson(json);
+      expect(card.isDoubleFaced, true);
+      expect(card.backFaceName, 'Reflet de Kiki-Jiki');
+      expect(card.backFaceTypeLine, 'Legendary Enchantment Creature');
+      expect(card.backFaceRulesText, '{T} : Copiez une creature ciblee.');
+      expect(card.backFaceImageUrl, 'https://example.com/kiki-back.jpg');
     });
 
     test('parses card with missing optional fields', () {

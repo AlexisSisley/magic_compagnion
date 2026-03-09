@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import '../../controllers/card_detail_controller.dart';
 import '../../data/glossary_data.dart';
 import '../../router/app_router.dart';
+import '../../utils/price_helper.dart';
 
 /// Reusable info card wrapper used on the card detail page.
 class CardDetailInfoCard extends StatelessWidget {
@@ -50,21 +51,21 @@ class CardDetailPriceInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String priceEur = prices['eur'] ?? 'N/A';
-    final String priceEurFoil = prices['eur_foil'] ?? 'N/A';
+    final String priceEur = PriceHelper.format(prices);
+    final String priceEurFoil = PriceHelper.format(prices, isFoil: true);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         Column(children: [
           Text('Normal', style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
-          Text('$priceEur \u20AC',
+          Text(priceEur,
               style: AppTextStyles.bold(fontSize: 20))
         ]),
         Container(width: 1, height: 30, color: AppColors.borderMedium),
         Column(children: [
           Text('Foil (Brillant)',
               style: AppTextStyles.cinzel(color: Colors.amber.shade200)),
-          Text('$priceEurFoil \u20AC',
+          Text(priceEurFoil,
               style: AppTextStyles.bold(fontSize: 20))
         ]),
       ],
@@ -165,11 +166,11 @@ class CardDetailManaCostRow extends StatelessWidget {
 }
 
 /// Displays the rules text with clickable keyword links and mana symbols.
-class CardDetailClickableRulesText extends StatelessWidget {
+/// US-14.5 : Converti en StatefulWidget pour dispose correct des TapGestureRecognizer.
+class CardDetailClickableRulesText extends StatefulWidget {
   final String text;
   final String lang;
   final CardDetailController controller;
-  static final RegExp _manaSymbolRegex = RegExp(r'(\{.*?\})');
 
   const CardDetailClickableRulesText({
     super.key,
@@ -179,13 +180,38 @@ class CardDetailClickableRulesText extends StatelessWidget {
   });
 
   @override
+  State<CardDetailClickableRulesText> createState() => _CardDetailClickableRulesTextState();
+}
+
+class _CardDetailClickableRulesTextState extends State<CardDetailClickableRulesText> {
+  static final RegExp _manaSymbolRegex = RegExp(r'(\{.*?\})');
+
+  /// US-14.5 : Pool de TapGestureRecognizer pour dispose correct.
+  final List<TapGestureRecognizer> _tapRecognizers = [];
+
+  @override
+  void dispose() {
+    for (final recognizer in _tapRecognizers) {
+      recognizer.dispose();
+    }
+    _tapRecognizers.clear();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (text.isEmpty) {
+    if (widget.text.isEmpty) {
       return Text('(Pas de texte)',
           style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
     }
+    // Dispose les anciens recognizers avant de reconstruire.
+    for (final recognizer in _tapRecognizers) {
+      recognizer.dispose();
+    }
+    _tapRecognizers.clear();
+
     final List<InlineSpan> spans = [];
-    text.splitMapJoin(_manaSymbolRegex, onMatch: (Match match) {
+    widget.text.splitMapJoin(_manaSymbolRegex, onMatch: (Match match) {
       final String symbol = match.group(0)!;
       spans.add(WidgetSpan(
           alignment: PlaceholderAlignment.middle,
@@ -205,15 +231,17 @@ class CardDetailClickableRulesText extends StatelessWidget {
     final List<InlineSpan> spans = [];
     for (int i = 0; i < words.length; i++) {
       final String word = words[i];
-      final Keyword? keyword = controller.findKeyword(word);
+      final Keyword? keyword = widget.controller.findKeyword(word);
       if (keyword != null) {
+        final recognizer = TapGestureRecognizer()
+          ..onTap = () {
+            context.push(AppRoutes.glossaryDetail, extra: keyword);
+          };
+        _tapRecognizers.add(recognizer);
         spans.add(TextSpan(
             text: '$word ',
             style: AppTextStyles.bold(color: Colors.blue.shade300).copyWith(decoration: TextDecoration.underline, decorationColor: Colors.blue.shade300),
-            recognizer: TapGestureRecognizer()
-              ..onTap = () {
-                context.push(AppRoutes.glossaryDetail, extra: keyword);
-              }));
+            recognizer: recognizer));
       } else {
         spans.add(TextSpan(
             text: '$word ',

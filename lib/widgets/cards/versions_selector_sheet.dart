@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/scryfall_api_service.dart';
 import '../../providers/service_providers.dart';
+import '../../utils/price_helper.dart';
 
 class VersionsSelectorSheet extends ConsumerStatefulWidget {
   final String oracleId;
@@ -161,12 +162,12 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
-                                              card.prices['eur'] != null ? "${card.prices['eur']}€" : '--',
+                                              PriceHelper.formatCompact(card.prices),
                                               style: AppTextStyles.bold(),
                                             ),
-                                            if (card.prices['eur_foil'] != null)
+                                            if (PriceHelper.rawPrice(card.prices, isFoil: true) != null)
                                               Text(
-                                                "${card.prices['eur_foil']}€",
+                                                PriceHelper.formatCompact(card.prices, isFoil: true),
                                                 style: AppTextStyles.bold(color: Colors.amber.shade300, fontSize: 11),
                                               ),
                                           ],

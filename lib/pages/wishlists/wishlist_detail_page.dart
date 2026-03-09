@@ -12,6 +12,7 @@ import 'package:magic_companion/widgets/collection/collection_list_tab.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/scryfall_api_service.dart';
 import '../../providers/service_providers.dart';
+import '../../utils/price_helper.dart';
 
 class WishlistDetailPage extends ConsumerStatefulWidget {
   final Wishlist wishlist;
@@ -76,17 +77,12 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
   void _calculateValue() {
     double total = 0.0;
     for (var c in _currentWishlist.cards) {
-      try {
-        final sc = _fullCardData.firstWhere((s) => s.id == c.scryfallId);
-        
-        // Si la carte est Foil, on cherche le prix foil, sinon normal
-        // Si le prix foil n'existe pas, on fallback sur le normal
-        String priceKey = c.isFoil ? 'eur_foil' : 'eur';
-        final priceStr = sc.prices[priceKey] ?? sc.prices['eur'] ?? '0';
-        
-        final price = double.tryParse(priceStr) ?? 0.0;
-        total += price * c.quantity;
-      } catch (e) { /* */ }
+      final sc = _fullCardData.where((s) => s.id == c.scryfallId).firstOrNull;
+      if (sc == null) continue;
+      // Si la carte est Foil, on cherche le prix foil, sinon normal
+      // Si le prix foil n'existe pas, on fallback sur le normal
+      final price = PriceHelper.bestPrice(sc.prices, isFoil: c.isFoil);
+      total += price * c.quantity;
     }
     setState(() => _totalValue = total);
   }
@@ -119,11 +115,9 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
   void _exportCardMarket() {
     final StringBuffer sb = StringBuffer();
     for (var c in _currentWishlist.cards) {
-      String name = c.name; 
-      try {
-        final sc = _fullCardData.firstWhere((s) => s.id == c.scryfallId);
-        name = '$name (${sc.setCode})'; 
-      } catch(e) { /* Card not found in data */ }
+      String name = c.name;
+      final sc = _fullCardData.where((s) => s.id == c.scryfallId).firstOrNull;
+      if (sc != null) name = '$name (${sc.setCode})';
 
       sb.writeln('${c.quantity} $name');
     }
@@ -157,7 +151,7 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
                     final card = _currentWishlist.cards[index];
                     ScryfallCard? scryfallCard;
                     try {
-                      scryfallCard = _fullCardData.firstWhere((s) => s.id == card.scryfallId);
+                      scryfallCard = _fullCardData.where((s) => s.id == card.scryfallId).firstOrNull;
                     } catch(e) { /* Card not found in data */ }
 
                     return GestureDetector(
@@ -249,9 +243,11 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
                     
                     // Rafraichissement local
                     final updatedLists = await _wishlistService.loadWishlists();
-                    final updatedList = updatedLists.firstWhere((w) => w.id == _currentWishlist.id);
-                    setState(() => _currentWishlist = updatedList);
-                    _calculateValue(); // Recalcule le prix total (Foil vs Normal)
+                    final updatedList = updatedLists.where((w) => w.id == _currentWishlist.id).firstOrNull;
+                    if (updatedList != null) {
+                      setState(() => _currentWishlist = updatedList);
+                      _calculateValue(); // Recalcule le prix total (Foil vs Normal)
+                    }
                   },
                   onUpdateQuantity: (card, qty) async {
                     await _wishlistService.upsertCard(
@@ -261,9 +257,11 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
                       quantityToAdd: qty
                     );
                     final updatedLists = await _wishlistService.loadWishlists();
-                    final updatedList = updatedLists.firstWhere((w) => w.id == _currentWishlist.id);
-                    setState(() => _currentWishlist = updatedList);
-                    _calculateValue();
+                    final updatedList = updatedLists.where((w) => w.id == _currentWishlist.id).firstOrNull;
+                    if (updatedList != null) {
+                      setState(() => _currentWishlist = updatedList);
+                      _calculateValue();
+                    }
                   },
                 ),
               ),

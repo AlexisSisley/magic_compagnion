@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/scryfall_set_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../models/deck_model.dart';
+import '../../utils/price_helper.dart';
 
 class SetStatsPage extends StatefulWidget {
   final ScryfallSet targetSet;
@@ -75,8 +76,8 @@ class _SetStatsPageState extends State<SetStatsPage> {
       final myCopies = myCollectionMap[scryfallCard.id];
 
       // Calcul du prix (pour la valeur possédée et manquante)
-      double priceNormal = double.tryParse(scryfallCard.prices['eur'] ?? '0') ?? 0.0;
-      double priceFoil = double.tryParse(scryfallCard.prices['eur_foil'] ?? '0') ?? 0.0;
+      double priceNormal = PriceHelper.bestPrice(scryfallCard.prices);
+      double priceFoil = PriceHelper.bestPrice(scryfallCard.prices, isFoil: true);
 
       if (myCopies != null && myCopies.isNotEmpty) {
         // POSSÉDÉ
@@ -113,9 +114,7 @@ class _SetStatsPageState extends State<SetStatsPage> {
     // Tri des listes
     tempMissing.sort((a, b) {
       // Tri par prix décroissant pour voir les plus chères manquantes
-      double pA = double.tryParse(a.prices['eur'] ?? '0') ?? 0;
-      double pB = double.tryParse(b.prices['eur'] ?? '0') ?? 0;
-      return pB.compareTo(pA);
+      return PriceHelper.compareByPrice(b.prices, a.prices);
     });
 
     setState(() {
@@ -318,7 +317,7 @@ class _SetStatsPageState extends State<SetStatsPage> {
         iconColor: iconColor,
         collapsedIconColor: AppColors.textMuted,
         children: cards.map((card) {
-          final price = card.prices['eur'] ?? '--';
+          final price = PriceHelper.formatCompact(card.prices);
           return ListTile(
             dense: true,
             leading: ClipRRect(
@@ -328,7 +327,7 @@ class _SetStatsPageState extends State<SetStatsPage> {
             title: Text(card.name, style: const TextStyle(color: AppColors.textPrimary)),
             subtitle: Text('#${card.collectorNumber} • ${card.rarity}', style: const TextStyle(color: AppColors.borderFaint, fontSize: 10)),
             trailing: showPrice 
-                ? Text('$price €', style: TextStyle(color: AppColors.primaryShade700, fontWeight: FontWeight.bold))
+                ? Text(price, style: TextStyle(color: AppColors.primaryShade700, fontWeight: FontWeight.bold))
                 : null,
           );
         }).toList(),

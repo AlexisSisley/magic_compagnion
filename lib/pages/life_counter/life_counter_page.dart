@@ -1,4 +1,12 @@
 // Fichier : lib/pages/life_counter/life_counter_page.dart
+//
+// "Les points de vie ne sont qu'un chiffre.
+//  La volonte de vaincre, elle, est infinie."
+//  — Monkey D. Luffy (probablement, s'il jouait a Magic)
+//
+// Note au developpeur curieux : chaque point de vie perdu
+// est une aventure gagnee. Chaque partie terminee est une
+// ile conquise sur le Grand Line. Continue a naviguer, Nakama.
 
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
@@ -200,7 +208,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   
   void _updateLife(int playerId, int change) {
     if (_isSelectingStarter) return;
-    setState(() => _players.firstWhere((p) => p.id == playerId).life += change);
+    final player = _players.where((p) => p.id == playerId).firstOrNull;
+    if (player == null) return;
+    setState(() => player.life += change);
     _saveGame();
   }
 

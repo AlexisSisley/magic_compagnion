@@ -31,6 +31,8 @@ class DeckCardListTab extends StatefulWidget {
 
   final Function(DeckCard)? onToggleFoil;
   final Function(DeckCard, ScryfallCard)? onSwitchVersion;
+  final Function(DeckCard, int)? onAddToCollection;
+  final Function(DeckCard, int, String?)? onAddToWishlist;
 
   const DeckCardListTab({
     super.key,
@@ -47,6 +49,8 @@ class DeckCardListTab extends StatefulWidget {
     this.onExportToGlobalWishlist,
     this.onToggleFoil,
     this.onSwitchVersion,
+    this.onAddToCollection,
+    this.onAddToWishlist,
   });
 
   @override
@@ -196,7 +200,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
   Widget _buildItem(DeckCard card, {required bool isGrid}) {
     final bool isCommander = (widget.commanderId == card.scryfallId || widget.partnerId == card.scryfallId);
     ScryfallCard? scryfallCard;
-    try { scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId); } catch (e) { /* Card not found */ }
+    scryfallCard = widget.fullCardData.where((sc) => sc.id == card.scryfallId).firstOrNull;
     final bool isInCollection = widget.collection.any((c) => c.scryfallId == card.scryfallId);
 
     
@@ -219,10 +223,13 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
 
   void _showCardOptions(DeckCard card, ScryfallCard? scryfallCard, bool isAlreadyCommander) {
     showModalBottomSheet(
-      context: context, 
+      context: context,
       backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true, // Permet à la modale de prendre la taille nécessaire
-      builder: (context) {
+      builder: (modalContext) {
+        // Variable locale mutable pour tracker la quantite en temps reel
+        int currentQuantity = card.quantity;
+
         return SafeArea(
           // StatefulBuilder permet de mettre à jour l'affichage de la quantité DANS la modale
           child: StatefulBuilder(
@@ -237,7 +244,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                     child: Row(
                       children: [
                         Expanded(child: Text(card.name, style: AppTextStyles.sectionTitle())),
-                        
+
                         // Contrôles Quantité
                         Container(
                           decoration: BoxDecoration(color: AppColors.overlayDark, borderRadius: BorderRadius.circular(20)),
@@ -246,19 +253,49 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                               IconButton(
                                 icon: const Icon(Icons.remove, color: AppColors.accentRed),
                                 onPressed: () {
+                                  if (currentQuantity <= 1) {
+                                    // Confirmation avant suppression
+                                    showDialog(
+                                      context: context,
+                                      builder: (dialogCtx) => AlertDialog(
+                                        backgroundColor: AppColors.scaffoldBackground,
+                                        title: const Text('Supprimer la carte ?', style: TextStyle(color: AppColors.textPrimary)),
+                                        content: Text('Retirer "${card.name}" de la liste ?', style: const TextStyle(color: AppColors.textSecondary)),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(dialogCtx),
+                                            child: const Text('Annuler'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.pop(dialogCtx); // Fermer le dialog
+                                              Navigator.pop(context);   // Fermer la modale
+                                              widget.onUpdateQuantity(card, -1);
+                                            },
+                                            child: const Text('Supprimer', style: TextStyle(color: AppColors.accentRed)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    return;
+                                  }
                                   widget.onUpdateQuantity(card, -1);
-                                  setModalState(() {}); // Force le rebuild de la modale pour voir le changement
+                                  setModalState(() {
+                                    currentQuantity--;
+                                  });
                                 },
                               ),
                               Text(
-                                '${card.quantity}', 
+                                '$currentQuantity',
                                 style: AppTextStyles.pageTitle(fontSize: 20)
                               ),
                               IconButton(
                                 icon: const Icon(Icons.add, color: AppColors.accentGreen),
                                 onPressed: () {
                                   widget.onUpdateQuantity(card, 1);
-                                  setModalState(() {});
+                                  setModalState(() {
+                                    currentQuantity++;
+                                  });
                                 },
                               ),
                             ],
@@ -315,8 +352,28 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
                   if (widget.currentBoard != DeckBoard.wishlist)
                     ListTile(leading: const Icon(Icons.shopping_cart, color: AppColors.accentRed), title: const Text('Vers Deck Wishlist (Trop cher)', style: TextStyle(color: AppColors.textPrimary)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.wishlist); Navigator.pop(context); }),
 
+                  // 4b. AJOUT COLLECTION / WISHLIST GLOBALE
+                  if (widget.onAddToCollection != null)
+                    ListTile(
+                      leading: const Icon(Icons.inventory_2, color: AppColors.accentGreen),
+                      title: const Text('Ajouter a la Collection', style: TextStyle(color: AppColors.textPrimary)),
+                      onTap: () {
+                        widget.onAddToCollection!(card, currentQuantity);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  if (widget.onAddToWishlist != null)
+                    ListTile(
+                      leading: const Icon(Icons.favorite, color: AppColors.accentRed),
+                      title: const Text('Ajouter a une Wishlist', style: TextStyle(color: AppColors.textPrimary)),
+                      onTap: () {
+                        widget.onAddToWishlist!(card, currentQuantity, null);
+                        Navigator.pop(context);
+                      },
+                    ),
+
                   const Divider(color: AppColors.borderMedium),
-                  
+
                   // 5. COMMANDANT
                   if (widget.currentBoard == DeckBoard.main && widget.onSetCommander != null)
                     ListTile(
@@ -397,10 +454,8 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     Map<String, List<DeckCard>> groupedMap = { 'Créatures': [], 'Planeswalkers': [], 'Sorts': [], 'Artefacts': [], 'Enchantements': [], 'Terrains': [], 'Autres': [] };
     for (final deckCard in cardList) {
       String type = 'Autres';
-      try {
-        final sc = widget.fullCardData.firstWhere((s) => s.id == deckCard.scryfallId);
-        type = _getPrimaryType(sc.typeLine);
-      } catch (e) { type = _getPrimaryType(deckCard.name); }
+      final sc = widget.fullCardData.where((s) => s.id == deckCard.scryfallId).firstOrNull;
+      type = sc != null ? _getPrimaryType(sc.typeLine) : _getPrimaryType(deckCard.name);
       groupedMap[type]?.add(deckCard);
     }
     List<_GroupedCardList> groupedList = [];

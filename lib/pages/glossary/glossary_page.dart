@@ -1,5 +1,22 @@
 // Fichier : lib/pages/glossary_page.dart
 // VERSION MISE À JOUR (Catégories + Recherche)
+//
+// ┌──────────────────────────────────────────┐
+// │        D A V Y  B A C K  F I G H T      │
+// │                                          │
+// │  Ce glossaire est le Devil Fruit Book    │
+// │  de Magic: The Gathering.                │
+// │                                          │
+// │  Chaque mot-cle est un pouvoir.          │
+// │  Chaque regle est une technique.         │
+// │  Celui qui les maitrise tous             │
+// │  devient le Roi des Pirates...           │
+// │  ou du moins, le roi de sa table EDH.    │
+// │                                          │
+// │  "Je ne connais pas les regles.          │
+// │   Mais je sais que je vais gagner."      │
+// │              — Monkey D. Luffy           │
+// └──────────────────────────────────────────┘
 
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';

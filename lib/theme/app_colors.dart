@@ -5,6 +5,18 @@
 
 import 'package:flutter/material.dart';
 
+// ┌─────────────────────────────────────────┐
+// │  WANTED  DEAD OR ALIVE                  │
+// │                                         │
+// │  « LE DEVELOPPEUR CURIEUX »             │
+// │                                         │
+// │  Reward: B 0,000,000,000                │
+// │                                         │
+// │  Tu as trouve le tresor cache dans      │
+// │  les couleurs. Bienvenue dans           │
+// │  l'equipage des Mugiwara.               │
+// └─────────────────────────────────────────┘
+
 /// Couleurs centralisees de Magic Companion.
 /// Toutes les couleurs hardcodees doivent etre remplacees par des references AppColors.
 abstract final class AppColors {

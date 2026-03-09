@@ -377,16 +377,16 @@ class DeckVisualShareList extends StatelessWidget {
 
   DeckCard? _getCommanderCard() {
     if (deck.commanderScryfallId == null) return null;
-    try { return deck.mainboard.firstWhere((c) => c.scryfallId == deck.commanderScryfallId); } catch (e) { return null; }
+    return deck.mainboard.where((c) => c.scryfallId == deck.commanderScryfallId).firstOrNull;
   }
   DeckCard? _getPartnerCard() {
     if (deck.commanderSecondaryScryfallId == null) return null;
-    try { return deck.mainboard.firstWhere((c) => c.scryfallId == deck.commanderSecondaryScryfallId); } catch (e) { return null; }
+    return deck.mainboard.where((c) => c.scryfallId == deck.commanderSecondaryScryfallId).firstOrNull;
   }
 
   ScryfallCard? _getScryfallData(DeckCard card) {
     if (card.scryfallId.startsWith('LOCAL:')) return null;
-    try { return fullCardData.firstWhere((s) => s.id == card.scryfallId); } catch (e) { return null; }
+    return fullCardData.where((s) => s.id == card.scryfallId).firstOrNull;
   }
 
   Map<String, List<DeckCard>> _categorizeDeck() {

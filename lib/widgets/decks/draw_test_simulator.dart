@@ -86,26 +86,23 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
     for (final card in _hand) {
       if (card.scryfallId.startsWith('LOCAL:')) continue;
 
-      try {
-        final scryfallData = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId);
-        
-        // On ne compte que les Terrains pour l'instant (approximation fiable)
-        if (scryfallData.typeLine.toLowerCase().contains('land')) {
-          if (scryfallData.colorIdentity.isEmpty) {
-             // Terrain incolore (ex: Reliquary Tower)
-             newStats['C'] = (newStats['C'] ?? 0) + 1;
-          } else {
-            // Ajoute 1 à chaque couleur que le terrain peut produire
-            // (C'est une estimation basée sur l'identité couleur)
-            for (final color in scryfallData.colorIdentity) {
-              if (newStats.containsKey(color)) {
-                newStats[color] = (newStats[color] ?? 0) + 1;
-              }
+      final scryfallData = widget.fullCardData.where((s) => s.id == card.scryfallId).firstOrNull;
+      if (scryfallData == null) continue;
+
+      // On ne compte que les Terrains pour l'instant (approximation fiable)
+      if (scryfallData.typeLine.toLowerCase().contains('land')) {
+        if (scryfallData.colorIdentity.isEmpty) {
+           // Terrain incolore (ex: Reliquary Tower)
+           newStats['C'] = (newStats['C'] ?? 0) + 1;
+        } else {
+          // Ajoute 1 à chaque couleur que le terrain peut produire
+          // (C'est une estimation basée sur l'identité couleur)
+          for (final color in scryfallData.colorIdentity) {
+            if (newStats.containsKey(color)) {
+              newStats[color] = (newStats[color] ?? 0) + 1;
             }
           }
         }
-      } catch (e) {
-        // Ignorer si données manquantes
       }
     }
 
@@ -183,13 +180,11 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
                         
                         String? smallImageUrl;
                         String typeLine = '';
-                        try {
-                          final scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == card.scryfallId);
-                          if (!scryfallCard.id.startsWith('LOCAL:')) {
-                            smallImageUrl = scryfallCard.smallImageUrl;
-                            typeLine = scryfallCard.typeLine;
-                          }
-                        } catch (e) { /* fallback */ }
+                        final scryfallCard = widget.fullCardData.where((sc) => sc.id == card.scryfallId).firstOrNull;
+                        if (scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
+                          smallImageUrl = scryfallCard.smallImageUrl;
+                          typeLine = scryfallCard.typeLine;
+                        }
 
                         // Indication visuelle si c'est un terrain (pour aider à comprendre l'analyse)
                         final bool isLand = typeLine.toLowerCase().contains('land');

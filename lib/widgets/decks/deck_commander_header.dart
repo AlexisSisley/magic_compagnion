@@ -71,12 +71,10 @@ class DeckCommanderHeader extends StatelessWidget {
   Widget _buildSingleCommander(String id, String label) {
     String? imageUrl;
     String name = 'Chargement...';
-    try {
-      final card = deckState.fullCardData.firstWhere((c) => c.id == id);
+    final card = deckState.fullCardData.where((c) => c.id == id).firstOrNull;
+    if (card != null) {
       imageUrl = card.artCropUrl ?? card.imageUrl;
       name = card.name;
-    } catch (e) {
-      /* card not loaded yet */
     }
 
     return Expanded(

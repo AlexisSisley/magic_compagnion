@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/legacy.dart';
 
 import '../models/deck_model.dart';
 import '../models/scryfall_card_model.dart';
+import '../utils/price_helper.dart';
 
 // --- ETAT IMMUTABLE ---
 
@@ -86,18 +87,15 @@ class DeckStatsController extends StateNotifier<DeckStatsState> {
 
     for (final deckCard in mainboard) {
       if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-      try {
-        final scryfallCard = cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-        final String? priceStr = scryfallCard.prices['eur'] as String?;
-        if (priceStr != null) {
-          tempPrice += (double.tryParse(priceStr) ?? 0) * deckCard.quantity;
-        }
-        if (!scryfallCard.typeLine.toLowerCase().contains('land')) {
-          totalCmc += (scryfallCard.cmc ?? 0) * deckCard.quantity;
-          totalNonLandCards += deckCard.quantity;
-        }
-      } catch (_) {
-        // Card not found in cardData, skip
+      final scryfallCard = cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+      if (scryfallCard == null) continue;
+      final double unitPrice = PriceHelper.bestPrice(scryfallCard.prices);
+      if (unitPrice > 0) {
+        tempPrice += unitPrice * deckCard.quantity;
+      }
+      if (!scryfallCard.typeLine.toLowerCase().contains('land')) {
+        totalCmc += (scryfallCard.cmc ?? 0) * deckCard.quantity;
+        totalNonLandCards += deckCard.quantity;
       }
     }
 
@@ -119,18 +117,15 @@ class DeckStatsController extends StateNotifier<DeckStatsState> {
   Map<int, int> _calculateManaCurve(List<DeckCard> mainboard, List<ScryfallCard> cardData) {
     Map<int, int> curve = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0};
     for (final deckCard in mainboard) {
-      try {
-        if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-        final scryfallCard = cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-        if (scryfallCard.typeLine.toLowerCase().contains('land')) continue;
-        int cmc = (scryfallCard.cmc ?? 0).toInt();
-        if (cmc >= 7) {
-          curve[7] = (curve[7] ?? 0) + deckCard.quantity;
-        } else {
-          curve[cmc] = (curve[cmc] ?? 0) + deckCard.quantity;
-        }
-      } catch (_) {
-        // Card not found in cardData, skip
+      if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
+      final scryfallCard = cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+      if (scryfallCard == null) continue;
+      if (scryfallCard.typeLine.toLowerCase().contains('land')) continue;
+      int cmc = (scryfallCard.cmc ?? 0).toInt();
+      if (cmc >= 7) {
+        curve[7] = (curve[7] ?? 0) + deckCard.quantity;
+      } else {
+        curve[cmc] = (curve[cmc] ?? 0) + deckCard.quantity;
       }
     }
     return curve;
@@ -140,15 +135,11 @@ class DeckStatsController extends StateNotifier<DeckStatsState> {
     Map<String, int> types = {};
     for (final deckCard in mainboard) {
       String type = 'Autres';
-      try {
-        if (deckCard.scryfallId.startsWith('LOCAL:')) {
-          type = getPrimaryType(deckCard.name);
-        } else {
-          final scryfallCard = cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-          type = getPrimaryType(scryfallCard.typeLine);
-        }
-      } catch (_) {
+      if (deckCard.scryfallId.startsWith('LOCAL:')) {
         type = getPrimaryType(deckCard.name);
+      } else {
+        final scryfallCard = cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+        type = scryfallCard != null ? getPrimaryType(scryfallCard.typeLine) : getPrimaryType(deckCard.name);
       }
       types[type] = (types[type] ?? 0) + deckCard.quantity;
     }
@@ -158,20 +149,17 @@ class DeckStatsController extends StateNotifier<DeckStatsState> {
   Map<String, int> _calculatePipCount(List<DeckCard> mainboard, List<ScryfallCard> cardData) {
     Map<String, int> pipCount = {'W': 0, 'U': 0, 'B': 0, 'R': 0, 'G': 0};
     for (final deckCard in mainboard) {
-      try {
-        if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-        final scryfallCard = cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-        if (scryfallCard.typeLine.toLowerCase().contains('land')) continue;
-        final manaCost = scryfallCard.manaCost ?? '';
-        final matches = _manaPipRegex.allMatches(manaCost);
-        for (final match in matches) {
-          final pip = match.group(1);
-          if (pip != null) {
-            pipCount[pip] = (pipCount[pip] ?? 0) + (1 * deckCard.quantity);
-          }
+      if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
+      final scryfallCard = cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+      if (scryfallCard == null) continue;
+      if (scryfallCard.typeLine.toLowerCase().contains('land')) continue;
+      final manaCost = scryfallCard.manaCost ?? '';
+      final matches = _manaPipRegex.allMatches(manaCost);
+      for (final match in matches) {
+        final pip = match.group(1);
+        if (pip != null) {
+          pipCount[pip] = (pipCount[pip] ?? 0) + (1 * deckCard.quantity);
         }
-      } catch (_) {
-        // Card not found in cardData, skip
       }
     }
     pipCount.removeWhere((key, value) => value == 0);
@@ -182,28 +170,25 @@ class DeckStatsController extends StateNotifier<DeckStatsState> {
     Map<String, int> sources = {'W': 0, 'U': 0, 'B': 0, 'R': 0, 'G': 0, 'C': 0};
     for (final deckCard in mainboard) {
       if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-      try {
-        final scryfallCard = cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-        if (scryfallCard.typeLine.toLowerCase().contains('land')) {
-          if (scryfallCard.colorIdentity.isEmpty) {
-            sources['C'] = (sources['C'] ?? 0) + deckCard.quantity;
-          } else {
-            for (var color in scryfallCard.colorIdentity) {
-              if (sources.containsKey(color)) {
-                sources[color] = (sources[color] ?? 0) + deckCard.quantity;
-              }
+      final scryfallCard = cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+      if (scryfallCard == null) continue;
+      if (scryfallCard.typeLine.toLowerCase().contains('land')) {
+        if (scryfallCard.colorIdentity.isEmpty) {
+          sources['C'] = (sources['C'] ?? 0) + deckCard.quantity;
+        } else {
+          for (var color in scryfallCard.colorIdentity) {
+            if (sources.containsKey(color)) {
+              sources[color] = (sources[color] ?? 0) + deckCard.quantity;
             }
           }
-        } else if (scryfallCard.typeLine.toLowerCase().contains('artifact') &&
-            (scryfallCard.name.contains('Signet') ||
-                scryfallCard.name.contains('Sol Ring') ||
-                scryfallCard.name.contains('Arcane Signet'))) {
-          if (scryfallCard.name.contains('Sol Ring')) {
-            sources['C'] = (sources['C'] ?? 0) + deckCard.quantity;
-          }
         }
-      } catch (_) {
-        // Card not found in cardData, skip
+      } else if (scryfallCard.typeLine.toLowerCase().contains('artifact') &&
+          (scryfallCard.name.contains('Signet') ||
+              scryfallCard.name.contains('Sol Ring') ||
+              scryfallCard.name.contains('Arcane Signet'))) {
+        if (scryfallCard.name.contains('Sol Ring')) {
+          sources['C'] = (sources['C'] ?? 0) + deckCard.quantity;
+        }
       }
     }
     sources.removeWhere((key, value) => value == 0);
@@ -217,17 +202,17 @@ class DeckStatsController extends StateNotifier<DeckStatsState> {
       String type = 'Autres';
       List<String> colors = [];
 
-      try {
-        if (deckCard.scryfallId.startsWith('LOCAL:')) {
-          type = getPrimaryType(deckCard.name);
-          colors = [];
-        } else {
-          final scryfallCard = cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
+      if (deckCard.scryfallId.startsWith('LOCAL:')) {
+        type = getPrimaryType(deckCard.name);
+        colors = [];
+      } else {
+        final scryfallCard = cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+        if (scryfallCard != null) {
           type = getPrimaryType(scryfallCard.typeLine);
           colors = scryfallCard.colorIdentity;
+        } else {
+          type = getPrimaryType(deckCard.name);
         }
-      } catch (_) {
-        type = getPrimaryType(deckCard.name);
       }
 
       // Determination de la categorie de couleur

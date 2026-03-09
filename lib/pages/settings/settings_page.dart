@@ -19,6 +19,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   BulkDataService get _bulkDataService => ref.read(bulkDataServiceProvider);
   bool _isLoading = false;
 
+  // --- Egg: 7 taps sur la version ---
+  int _versionTapCount = 0;
+  DateTime? _lastVersionTap;
+
   // Bulk data state
   bool _isBulkChecking = false;
   bool? _bulkUpdateAvailable; // null = not checked, true/false = result
@@ -190,14 +194,96 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             _buildSectionTitle('Application'),
             Card(
               color: AppColors.textPrimary.withValues(alpha: 0.05),
-              child: const ListTile(
-                leading: Icon(Icons.info_outline, color: AppColors.textSecondary),
-                title: Text('Version', style: TextStyle(color: AppColors.textPrimary)),
-                trailing: Text('1.0.0', style: TextStyle(color: AppColors.textMuted)),
+              child: ListTile(
+                leading: const Icon(Icons.info_outline, color: AppColors.textSecondary),
+                title: const Text('Version', style: TextStyle(color: AppColors.textPrimary)),
+                trailing: const Text('1.0.0', style: TextStyle(color: AppColors.textMuted)),
+                onTap: _onVersionTap,
               ),
             ),
           ],
         ),
+    );
+  }
+
+  // --- Egg: 7 taps sur la version deverrouille un message secret ---
+  void _onVersionTap() {
+    final now = DateTime.now();
+    if (_lastVersionTap != null &&
+        now.difference(_lastVersionTap!).inMilliseconds > 2000) {
+      _versionTapCount = 0;
+    }
+    _lastVersionTap = now;
+    _versionTapCount++;
+
+    if (_versionTapCount >= 7) {
+      _versionTapCount = 0;
+      _showOnePieceSecret();
+    }
+  }
+
+  void _showOnePieceSecret() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.scaffoldBackground,
+        title: const Text(
+          '☠ Avis de Recherche ☠',
+          style: TextStyle(color: AppColors.primaryBright, fontSize: 20),
+          textAlign: TextAlign.center,
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'WANTED\nDEAD OR ALIVE',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 12),
+            Text(
+              '« MAGIC COMPANION »',
+              style: TextStyle(
+                color: AppColors.primaryGold,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Reward: The One Piece',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 16),
+            Text(
+              '"Les gens qui rêvent n\'ont\npas de limites."',
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontStyle: FontStyle.italic,
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              '— Monkey D. Luffy',
+              style: TextStyle(color: AppColors.textDisabled, fontSize: 11),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Nakama !', style: TextStyle(color: AppColors.primaryGold)),
+          ),
+        ],
+      ),
     );
   }
 

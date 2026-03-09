@@ -12,6 +12,7 @@ import 'package:magic_companion/widgets/search/search_filter_modal.dart';
 import '../../controllers/card_search_controller.dart';
 import '../../providers/service_providers.dart';
 import '../../router/app_router.dart';
+import '../../utils/price_helper.dart';
 import 'set_list_page.dart';
 import '../../models/scryfall_set_model.dart';
 import '../../models/scryfall_card_model.dart';
@@ -284,7 +285,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
   Widget _buildListTile(CardSearchState state, ScryfallCard card) {
     final String cardName = card.name;
     final String imageUrl = card.smallImageUrl ?? card.imageUrl;
-    final String price = card.prices['eur'] ?? '--';
+    final String price = PriceHelper.formatCompact(card.prices);
 
     final bool inWishlist = state.isCardInWishlist(cardName);
     final bool inCollection = state.isCardInCollection(card.id);
@@ -328,7 +329,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                         const SizedBox(width: 8),
                         _buildRarityBadge(card.rarity),
                         const Spacer(),
-                        Text('$price EUR', style: TextStyle(color: AppColors.primaryShade700, fontWeight: FontWeight.bold, fontSize: 14)),
+                        Text(price, style: TextStyle(color: AppColors.primaryShade700, fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
                     ),
                   ],
@@ -392,7 +393,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("${card.prices['eur'] ?? '-'}EUR", style: TextStyle(color: AppColors.primaryShade700, fontSize: 12, fontWeight: FontWeight.bold)),
+                      Text(PriceHelper.formatCompact(card.prices), style: TextStyle(color: AppColors.primaryShade700, fontSize: 12, fontWeight: FontWeight.bold)),
                       _buildRarityBadge(card.rarity, small: true),
                     ],
                   ),

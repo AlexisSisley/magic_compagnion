@@ -11,6 +11,7 @@ import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../models/search_filters.dart';
 import '../../router/app_router.dart';
+import '../../utils/price_helper.dart';
 import '../common/tag_editor_dialog.dart';
 
 class CollectionListTab extends StatefulWidget {
@@ -108,19 +109,18 @@ class _CollectionListTabState extends State<CollectionListTab> {
     
     for (final deckCard in widget.cards) {
        if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-       try {
-         final scryfallCard = widget.fullCardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-         final double unitPrice = double.tryParse(scryfallCard.prices['eur'] ?? '0') ?? 0.0;
-         if (unitPrice > 0) {
-           topCards.add({
-             'name': scryfallCard.name,
-             'unitPrice': unitPrice,
-             'quantity': deckCard.quantity,
-             'totalPrice': unitPrice * deckCard.quantity,
-             'image': scryfallCard.smallImageUrl
-           });
-         }
-       } catch (e) { /* ... */ }
+       final scryfallCard = widget.fullCardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+       if (scryfallCard == null) continue;
+       final double unitPrice = PriceHelper.bestPrice(scryfallCard.prices);
+       if (unitPrice > 0) {
+         topCards.add({
+           'name': scryfallCard.name,
+           'unitPrice': unitPrice,
+           'quantity': deckCard.quantity,
+           'totalPrice': unitPrice * deckCard.quantity,
+           'image': scryfallCard.smallImageUrl
+         });
+       }
     }
 
     // Tri par prix total décroissant
@@ -193,17 +193,16 @@ class _CollectionListTabState extends State<CollectionListTab> {
         if (!widget.activeFilters.tags.every((tag) => card.tags.contains(tag))) return false;
       }
       if (widget.activeFilters.cardType != null || widget.activeFilters.colors.isNotEmpty || widget.activeFilters.minCmc != null || widget.activeFilters.keyword != null) {
-        try {
-          final sc = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId);
-          if (widget.activeFilters.cardType != null && !sc.typeLine.toLowerCase().contains(widget.activeFilters.cardType!.toLowerCase())) return false;
-          if (widget.activeFilters.colors.isNotEmpty) {
-             final colors = sc.colorIdentity.toSet();
-             if (!widget.activeFilters.colors.every((c) => colors.contains(c))) return false;
-          }
-          if (widget.activeFilters.minCmc != null && (sc.cmc ?? 0) < widget.activeFilters.minCmc!) return false;
-          if (widget.activeFilters.maxCmc != null && (sc.cmc ?? 0) > widget.activeFilters.maxCmc!) return false;
-          if (widget.activeFilters.keyword != null && !sc.rulesText.toLowerCase().contains(widget.activeFilters.keyword!.toLowerCase())) return false;
-        } catch (e) { return false; }
+        final sc = widget.fullCardData.where((s) => s.id == card.scryfallId).firstOrNull;
+        if (sc == null) return false;
+        if (widget.activeFilters.cardType != null && !sc.typeLine.toLowerCase().contains(widget.activeFilters.cardType!.toLowerCase())) return false;
+        if (widget.activeFilters.colors.isNotEmpty) {
+           final colors = sc.colorIdentity.toSet();
+           if (!widget.activeFilters.colors.every((c) => colors.contains(c))) return false;
+        }
+        if (widget.activeFilters.minCmc != null && (sc.cmc ?? 0) < widget.activeFilters.minCmc!) return false;
+        if (widget.activeFilters.maxCmc != null && (sc.cmc ?? 0) > widget.activeFilters.maxCmc!) return false;
+        if (widget.activeFilters.keyword != null && !sc.rulesText.toLowerCase().contains(widget.activeFilters.keyword!.toLowerCase())) return false;
       }
       return true;
     }).toList();
@@ -229,18 +228,14 @@ class _CollectionListTabState extends State<CollectionListTab> {
   }
 
   double _getPrice(DeckCard c) {
-    try {
-      final sc = widget.fullCardData.firstWhere((s) => s.id == c.scryfallId);
-      final key = c.isFoil ? 'eur_foil' : 'eur';
-      return double.tryParse(sc.prices[key] ?? sc.prices['eur'] ?? '0') ?? 0.0;
-    } catch (e) { return 0.0; }
+    final sc = widget.fullCardData.where((s) => s.id == c.scryfallId).firstOrNull;
+    if (sc == null) return 0.0;
+    return PriceHelper.bestPrice(sc.prices, isFoil: c.isFoil);
   }
-  
+
   double _getCmc(DeckCard c) {
-    try {
-      final sc = widget.fullCardData.firstWhere((s) => s.id == c.scryfallId);
-      return sc.cmc ?? 0.0;
-    } catch(e) { return 0.0; }
+    final sc = widget.fullCardData.where((s) => s.id == c.scryfallId).firstOrNull;
+    return sc?.cmc ?? 0.0;
   }
 
   Future<void> _showTagEditor(DeckCard card) async {
@@ -344,10 +339,9 @@ class _CollectionListTabState extends State<CollectionListTab> {
   // --- TUILE LISTE (CORRIGÉE AVEC BORDURE RARETÉ & ÉDITION) ---
   Widget _buildCardTile(DeckCard card) {
     ScryfallCard? scryfallCard;
-    try { scryfallCard = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId); } catch(e) { /* Card not found */ }
+    scryfallCard = widget.fullCardData.where((s) => s.id == card.scryfallId).firstOrNull;
 
     final bool isSelected = widget.isSelectionMode && widget.selectedIds.contains(card.scryfallId);
-    final String priceDisplay = _getPrice(card).toStringAsFixed(2);
     final String setCode = scryfallCard?.setCode.toUpperCase() ?? '';
     final String rarity = scryfallCard?.rarity ?? 'common';
     
@@ -417,7 +411,11 @@ class _CollectionListTabState extends State<CollectionListTab> {
                 // Mana Cost
                 _buildManaCostRow(scryfallCard?.manaCost, size: 12),
                 const Spacer(),
-                Text('$priceDisplay €', style: TextStyle(color: AppColors.primaryShade700, fontSize: 12)),
+                PriceTag(
+                  prices: scryfallCard?.prices ?? const {},
+                  isFoil: card.isFoil,
+                  fontSize: 12,
+                ),
               ],
             ),
             // Tags
@@ -448,7 +446,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
   // --- GRID TILE (COMPLETE) ---
   Widget _buildGridTile(DeckCard card) {
     ScryfallCard? scryfallCard;
-    try { scryfallCard = widget.fullCardData.firstWhere((s) => s.id == card.scryfallId); } catch(e) { /* Card not found */ }
+    scryfallCard = widget.fullCardData.where((s) => s.id == card.scryfallId).firstOrNull;
     final isSelected = widget.isSelectionMode && widget.selectedIds.contains(card.scryfallId);
     final imageUrl = scryfallCard?.smallImageUrl ?? scryfallCard?.imageUrl;
     
@@ -539,7 +537,11 @@ class _CollectionListTabState extends State<CollectionListTab> {
             // Prix en bas
             Positioned(
               bottom: 4, right: 4,
-              child: Text('${_getPrice(card).toStringAsFixed(2)}€', style: TextStyle(color: AppColors.primaryShade700, fontWeight: FontWeight.bold, fontSize: 12)),
+              child: PriceTag(
+                prices: scryfallCard?.prices ?? const {},
+                isFoil: card.isFoil,
+                fontSize: 12,
+              ),
             )
           ],
         ),

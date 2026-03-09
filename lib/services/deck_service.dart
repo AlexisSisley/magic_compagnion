@@ -182,7 +182,7 @@ class DeckService with CardListUpsertMixin {
         newTags: newTags,
         isFoil: isFoil,
       );
-      final rawDeck = (await _db.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
+      final rawDeck = (await _db.getAllDecksRaw()).where((d) => d.id == deckId).first;
       final cards = await _db.getDeckCardsByDeckId(deckId);
       return _dbDeckToDeck(rawDeck, cards);
     }
@@ -260,7 +260,7 @@ class DeckService with CardListUpsertMixin {
           format: const Value('Commander'),
         ));
       }
-      final rawDeck = (await _db.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
+      final rawDeck = (await _db.getAllDecksRaw()).where((d) => d.id == deckId).first;
       final cards = await _db.getDeckCardsByDeckId(deckId);
       return _dbDeckToDeck(rawDeck, cards);
     }
@@ -299,7 +299,7 @@ class DeckService with CardListUpsertMixin {
         commanderSecondaryScryfallId: Value(newCmd2),
         format: Value(newFormat),
       ));
-      final updatedDeck = (await _db.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
+      final updatedDeck = (await _db.getAllDecksRaw()).where((d) => d.id == deckId).first;
       final cards = await _db.getDeckCardsByDeckId(deckId);
       return _dbDeckToDeck(updatedDeck, cards);
     }
@@ -330,7 +330,7 @@ class DeckService with CardListUpsertMixin {
         commanderSecondaryScryfallId: Value(null),
         format: Value('Standard'),
       ));
-      final updatedDeck = (await _db.getAllDecksRaw()).firstWhere((d) => d.id == deckId);
+      final updatedDeck = (await _db.getAllDecksRaw()).where((d) => d.id == deckId).first;
       final cards = await _db.getDeckCardsByDeckId(deckId);
       return _dbDeckToDeck(updatedDeck, cards);
     }

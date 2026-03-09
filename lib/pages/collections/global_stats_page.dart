@@ -6,6 +6,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../utils/price_helper.dart';
 
 class GlobalStatsPage extends StatefulWidget {
   final List<DeckCard> collection;
@@ -42,38 +43,36 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
     for (var deckCard in widget.collection) {
       if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
 
-      try {
-        final card = widget.fullCardData.firstWhere((c) => c.id == deckCard.scryfallId);
-        
-        // 1. Couleurs (Basé sur l'identité couleur)
-        if (card.colorIdentity.isEmpty) {
-          colors['C'] = (colors['C'] ?? 0) + deckCard.quantity;
-        } else if (card.colorIdentity.length > 1) {
-          colors['M'] = (colors['M'] ?? 0) + deckCard.quantity;
-        } else {
-          String c = card.colorIdentity.first;
-          colors[c] = (colors[c] ?? 0) + deckCard.quantity;
-        }
+      final card = widget.fullCardData.where((c) => c.id == deckCard.scryfallId).firstOrNull;
+      if (card == null) continue;
 
-        // 2. Rareté
-        String r = card.rarity.toLowerCase();
-        if (rarities.containsKey(r)) {
-          rarities[r] = (rarities[r] ?? 0) + deckCard.quantity;
-        }
+      // 1. Couleurs (Basé sur l'identité couleur)
+      if (card.colorIdentity.isEmpty) {
+        colors['C'] = (colors['C'] ?? 0) + deckCard.quantity;
+      } else if (card.colorIdentity.length > 1) {
+        colors['M'] = (colors['M'] ?? 0) + deckCard.quantity;
+      } else {
+        String c = card.colorIdentity.first;
+        colors[c] = (colors[c] ?? 0) + deckCard.quantity;
+      }
 
-        // 3. Top Valeur
-        double price = double.tryParse(card.prices['eur'] ?? '0') ?? 0.0;
-        if (price > 1.0) { // On ne garde que les cartes > 1€ pour le top
-          valuableCards.add({
-            'name': card.name,
-            'price': price,
-            'image': card.smallImageUrl,
-            'set': card.setCode.toUpperCase(),
-            'quantity': deckCard.quantity
-          });
-        }
+      // 2. Rareté
+      String r = card.rarity.toLowerCase();
+      if (rarities.containsKey(r)) {
+        rarities[r] = (rarities[r] ?? 0) + deckCard.quantity;
+      }
 
-      } catch (e) { /* ignore */ }
+      // 3. Top Valeur
+      double price = PriceHelper.bestPrice(card.prices);
+      if (price > 1.0) { // On ne garde que les cartes > 1€ pour le top
+        valuableCards.add({
+          'name': card.name,
+          'price': price,
+          'image': card.smallImageUrl,
+          'set': card.setCode.toUpperCase(),
+          'quantity': deckCard.quantity
+        });
+      }
     }
 
     // Tri des cartes par valeur

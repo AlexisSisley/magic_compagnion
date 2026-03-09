@@ -7,6 +7,7 @@ void main() {
   group('AppRoutes constants', () {
     test('all route paths start with /', () {
       final routes = [
+        AppRoutes.dashboard,
         AppRoutes.lifeCounter,
         AppRoutes.scanner,
         AppRoutes.search,
@@ -30,6 +31,7 @@ void main() {
 
     test('all route paths are unique', () {
       final routes = [
+        AppRoutes.dashboard,
         AppRoutes.lifeCounter,
         AppRoutes.scanner,
         AppRoutes.search,
@@ -51,7 +53,8 @@ void main() {
     });
 
     test('tab routes match expected paths', () {
-      expect(AppRoutes.lifeCounter, '/');
+      // US-14.6 : Dashboard est tab0 (route '/'), LifeCounter est dans le Drawer
+      expect(AppRoutes.dashboard, '/');
       expect(AppRoutes.scanner, '/scanner');
       expect(AppRoutes.search, '/search');
       expect(AppRoutes.decks, '/decks');
@@ -59,6 +62,7 @@ void main() {
     });
 
     test('drawer routes have meaningful paths', () {
+      expect(AppRoutes.lifeCounter, '/life-counter');
       expect(AppRoutes.gameHistory, '/game-history');
       expect(AppRoutes.tournament, '/tournament');
       expect(AppRoutes.oracle, '/oracle');
@@ -79,7 +83,7 @@ void main() {
       expect(router, isNotNull);
     });
 
-    test('initial location is life counter', () {
+    test('initial location is dashboard', () {
       final router = createAppRouter();
       expect(router.routeInformationProvider.value.uri.path, '/');
     });

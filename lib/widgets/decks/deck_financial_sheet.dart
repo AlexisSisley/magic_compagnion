@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart'; // NÉCESSITE LE PLUGIN url_launcher
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../utils/price_helper.dart';
 
 class DeckFinancialSheet extends StatelessWidget {
   final Deck deck;
@@ -41,15 +42,11 @@ class DeckFinancialSheet extends StatelessWidget {
     for (final deckCard in allDeckCards) {
       if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
 
-      ScryfallCard? scryfallCard;
-      try {
-        scryfallCard = fullCardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-      } catch (e) { continue; }
+      final scryfallCard = fullCardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+      if (scryfallCard == null) continue;
 
       // --- LOGIQUE PRIX (FOIL ou NORMAL) ---
-      String priceKey = deckCard.isFoil ? 'eur_foil' : 'eur';
-      // Fallback : si pas de prix foil, on prend le normal (et inversement)
-      double unitPrice = double.tryParse(scryfallCard.prices[priceKey] ?? scryfallCard.prices['eur'] ?? '0') ?? 0.0;
+      double unitPrice = PriceHelper.bestPrice(scryfallCard.prices, isFoil: deckCard.isFoil);
       
       final collectionEntry = collection.firstWhere(
         (c) => c.scryfallId == deckCard.scryfallId,

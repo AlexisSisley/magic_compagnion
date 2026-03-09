@@ -59,17 +59,31 @@ class PlayerZone extends ConsumerStatefulWidget {
   ConsumerState<PlayerZone> createState() => _PlayerZoneState();
 }
 
-class _PlayerZoneState extends ConsumerState<PlayerZone> {
+class _PlayerZoneState extends ConsumerState<PlayerZone>
+    with TickerProviderStateMixin {
   LocalCardService get _localCardService => ref.read(localCardServiceProvider);
 
   final List<_FloatingNumber> _floatingNumbers = [];
-  
+
   int _nextNumberId = 0;
   CounterMode _editMode = CounterMode.life;
   Timer? _resetModeTimer;
   double _dragAccumulator = 0.0;
   Offset _lastLongPressPosition = Offset.zero;
   final double _rotationThreshold = 40.0;
+
+  // --- US-14.3 : Animation controllers ---
+  /// Pulse : scale up/down quand la vie change.
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
+
+  /// Shake : tremblement horizontal quand degats.
+  late final AnimationController _shakeController;
+  late final Animation<double> _shakeAnimation;
+
+  /// Glow : lueur doree permanente quand monarch.
+  late final AnimationController _glowController;
+  late final Animation<double> _glowAnimation;
 
   final List<Color> _colorOptions = [
     Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
@@ -81,17 +95,84 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
   @override
   void initState() {
     super.initState();
-    // Préchauffage du service pour la recherche d'artwork
+
+    // --- US-14.3 : Initialisation des animations ---
+    // Pulse (scale) : 200ms, rebondit a 1.15x puis revient a 1.0x
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _pulseAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.15), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.15, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeOut));
+
+    // Shake (translation X) : 300ms, oscille gauche-droite
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _shakeAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0, end: -6), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: -6, end: 6), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: 6, end: -4), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: -4, end: 4), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: 4, end: 0), weight: 25),
+    ]).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
+
+    // Glow (opacity pulsation) : 1.5s, boucle infinie
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _glowAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.3, end: 0.8), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 0.8, end: 0.3), weight: 50),
+    ]).animate(CurvedAnimation(parent: _glowController, curve: Curves.easeInOut));
+
+    // Si le joueur est deja monarch, lancer le glow
+    if (widget.player.isMonarch) {
+      _glowController.repeat();
+    }
+
+    // Prechauffage du service pour la recherche d'artwork
     if (!_localCardService.isLoaded) {
       _localCardService.loadLocalData();
     }
   }
 
+  @override
+  void dispose() {
+    _resetModeTimer?.cancel();
+    _pulseController.dispose();
+    _shakeController.dispose();
+    _glowController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant PlayerZone oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // US-14.3 : Gerer le glow monarch quand le state change
+    if (widget.player.isMonarch && !_glowController.isAnimating) {
+      _glowController.repeat();
+    } else if (!widget.player.isMonarch && _glowController.isAnimating) {
+      _glowController.stop();
+      _glowController.reset();
+    }
+  }
+
   void _triggerChange(int change) {
-    _resetAutoReturnTimer(); 
+    _resetAutoReturnTimer();
     if (_editMode == CounterMode.life) {
       widget.onLifeChanged(change);
       _showFloatingNumber(change, isLife: true);
+      // US-14.3 : Declenche l'animation appropriee
+      if (change > 0) {
+        _pulseController.forward(from: 0);
+      } else if (change < 0) {
+        _shakeController.forward(from: 0);
+      }
     } else {
       setState(() {
         if (_editMode == CounterMode.poison) widget.player.poison = (widget.player.poison + change).clamp(0, 99);
@@ -308,16 +389,31 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
       backgroundWidget = Container(color: bgColor);
     }
 
-    Widget content = Container(
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(18),
-        border: widget.isHighlighted 
-            ? Border.all(color: AppColors.textPrimary, width: 4) 
-            : Border.all(color: AppColors.borderSubtle, width: 1),
-        boxShadow: [BoxShadow(color: AppColors.textOnPrimary.withValues(alpha: 0.4), blurRadius: 4, offset: const Offset(2,2))]
-      ),
-      clipBehavior: Clip.antiAlias,
+    // US-14.3 : Glow monarch via AnimatedBuilder
+    Widget content = AnimatedBuilder(
+      animation: _glowController,
+      builder: (context, child) {
+        final bool isMonarch = widget.player.isMonarch;
+        final double glowOpacity = isMonarch && _glowController.isAnimating ? _glowAnimation.value : 0.0;
+        return Container(
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(18),
+            border: widget.isHighlighted
+                ? Border.all(color: AppColors.textPrimary, width: 4)
+                : isMonarch
+                    ? Border.all(color: AppColors.primaryBright.withValues(alpha: glowOpacity), width: 3)
+                    : Border.all(color: AppColors.borderSubtle, width: 1),
+            boxShadow: [
+              BoxShadow(color: AppColors.textOnPrimary.withValues(alpha: 0.4), blurRadius: 4, offset: const Offset(2, 2)),
+              if (isMonarch)
+                BoxShadow(color: AppColors.primaryBright.withValues(alpha: glowOpacity * 0.6), blurRadius: 16, spreadRadius: 2),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: child,
+        );
+      },
       child: Stack(
         children: [
           Positioned.fill(child: backgroundWidget),
@@ -350,12 +446,27 @@ class _PlayerZoneState extends ConsumerState<PlayerZone> {
                       children: [
                         if (_editMode != CounterMode.life)
                           Icon(_getModeIcon(_editMode), color: _getModeColor(_editMode).withValues(alpha: 0.8), size: 24),
+                        // US-14.3 : Animations pulse (gain vie) et shake (degats)
                         Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              _getDisplayValue(),
-                              style: AppTextStyles.bold(color: _editMode == CounterMode.life ? Colors.white : _getModeColor(_editMode), fontSize: 60).copyWith(shadows: [const Shadow(blurRadius: 5, color: AppColors.overlayMedium)]),
+                          child: AnimatedBuilder(
+                            animation: Listenable.merge([_pulseController, _shakeController]),
+                            builder: (context, child) {
+                              final double scale = _pulseController.isAnimating ? _pulseAnimation.value : 1.0;
+                              final double shakeX = _shakeController.isAnimating ? _shakeAnimation.value : 0.0;
+                              return Transform.translate(
+                                offset: Offset(shakeX, 0),
+                                child: Transform.scale(
+                                  scale: scale,
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                _getDisplayValue(),
+                                style: AppTextStyles.bold(color: _editMode == CounterMode.life ? Colors.white : _getModeColor(_editMode), fontSize: 60).copyWith(shadows: [const Shadow(blurRadius: 5, color: AppColors.overlayMedium)]),
+                              ),
                             ),
                           ),
                         ),

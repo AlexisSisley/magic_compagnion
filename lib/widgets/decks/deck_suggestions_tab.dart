@@ -13,6 +13,7 @@ import '../../controllers/deck_suggestions_controller.dart';
 import '../../models/deck_model.dart';
 import '../../router/app_router.dart';
 import '../../services/edhrec_service.dart';
+import '../../utils/price_helper.dart';
 import 'deck_combos_section.dart';
 
 class DeckSuggestionsTab extends ConsumerStatefulWidget {
@@ -451,7 +452,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
     final card = suggestion.card;
     final String? imageUrl =
         card.smallImageUrl ?? (card.imageUrl.isNotEmpty ? card.imageUrl : null);
-    final String price = card.prices['eur'] ?? '--';
+    final String price = PriceHelper.formatCompact(card.prices);
     final bool isFallback = card.id.startsWith('edhrec_');
     final synergyColor = suggestion.synergy >= 0
         ? AppColors.synergyPositive
@@ -562,7 +563,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
                       const Spacer(),
                       if (!isFallback)
                         Text(
-                          '$price \u20ac',
+                          price,
                           style: TextStyle(
                             color: AppColors.primaryShade700,
                             fontWeight: FontWeight.bold,

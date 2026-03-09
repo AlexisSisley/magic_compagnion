@@ -7,6 +7,7 @@ import '../models/deck_model.dart';
 import '../pages/decks/deck_detail_page.dart';
 import '../pages/decks/deck_list_page.dart';
 import 'app_routes.dart';
+import 'page_transitions.dart';
 
 /// Routes de detail pour les decks (push par-dessus le shell).
 List<RouteBase> deckDetailRoutes() {
@@ -25,8 +26,9 @@ List<RouteBase> deckDetailRoutes() {
 GoRoute deckShellRoute() {
   return GoRoute(
     path: '/decks',
-    pageBuilder: (context, state) => const NoTransitionPage(
-      child: DeckListPage(),
+    pageBuilder: (context, state) => FadeThroughPage(
+      key: state.pageKey,
+      child: const DeckListPage(),
     ),
   );
 }

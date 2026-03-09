@@ -13,6 +13,7 @@ import '../pages/collections/set_detail_page.dart';
 import '../pages/collections/set_stats_page.dart';
 import '../pages/wishlists/wishlist_detail_page.dart';
 import 'app_routes.dart';
+import 'page_transitions.dart';
 
 /// Routes de detail pour les collections (push par-dessus le shell).
 List<RouteBase> collectionDetailRoutes() {
@@ -60,8 +61,9 @@ List<RouteBase> collectionDetailRoutes() {
 GoRoute collectionShellRoute() {
   return GoRoute(
     path: '/collection',
-    pageBuilder: (context, state) => const NoTransitionPage(
-      child: CollectionPage(),
+    pageBuilder: (context, state) => FadeThroughPage(
+      key: state.pageKey,
+      child: const CollectionPage(),
     ),
   );
 }

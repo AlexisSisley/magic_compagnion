@@ -15,6 +15,7 @@ import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/collection_service.dart';
 import '../../providers/service_providers.dart';
+import '../../utils/price_helper.dart';
 import '../cards/versions_selector_sheet.dart'; // Import du sélecteur
 
 class DeckCardPicker extends ConsumerStatefulWidget {
@@ -156,8 +157,8 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
 
       switch (_collectionSort) {
         case 'price':
-           double priceA = double.tryParse(cardA?.prices['eur'] ?? '0') ?? 0;
-           double priceB = double.tryParse(cardB?.prices['eur'] ?? '0') ?? 0;
+           double priceA = PriceHelper.bestPrice(cardA?.prices ?? {});
+           double priceB = PriceHelper.bestPrice(cardB?.prices ?? {});
            return priceB.compareTo(priceA);
         case 'type':
            return (cardA?.typeLine ?? '').compareTo(cardB?.typeLine ?? '');

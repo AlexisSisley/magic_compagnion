@@ -7,6 +7,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../utils/price_helper.dart';
 
 class DeckStatsTab extends StatefulWidget {
   final List<DeckCard> mainboard;
@@ -75,17 +76,16 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
 
     for (final deckCard in widget.mainboard) {
       if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-      try {
-        final scryfallCard = widget.cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-        final String? priceStr = scryfallCard.prices['eur'];
-        if (priceStr != null) {
-          tempPrice += (double.tryParse(priceStr) ?? 0) * deckCard.quantity;
-        }
-        if (!scryfallCard.typeLine.toLowerCase().contains('land')) {
-           totalCmc += (scryfallCard.cmc ?? 0) * deckCard.quantity;
-           totalNonLandCards += deckCard.quantity;
-        }
-      } catch (e) { /* ignore */ }
+      final scryfallCard = widget.cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+      if (scryfallCard == null) continue;
+      final double unitPrice = PriceHelper.bestPrice(scryfallCard.prices);
+      if (unitPrice > 0) {
+        tempPrice += unitPrice * deckCard.quantity;
+      }
+      if (!scryfallCard.typeLine.toLowerCase().contains('land')) {
+         totalCmc += (scryfallCard.cmc ?? 0) * deckCard.quantity;
+         totalNonLandCards += deckCard.quantity;
+      }
     }
 
     _totalPrice = tempPrice;
@@ -100,16 +100,18 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
       String type = 'Autres';
       List<String> colors = [];
       
-      try {
-        if (deckCard.scryfallId.startsWith('LOCAL:')) {
-           type = _getPrimaryType(deckCard.name);
-           colors = []; // Local = Incolore par défaut ou à déduire
-        } else {
-          final scryfallCard = widget.cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
+      if (deckCard.scryfallId.startsWith('LOCAL:')) {
+         type = _getPrimaryType(deckCard.name);
+         colors = [];
+      } else {
+        final scryfallCard = widget.cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+        if (scryfallCard != null) {
           type = _getPrimaryType(scryfallCard.typeLine);
-          colors = scryfallCard.colorIdentity; // Ou scryfallCard.colors si dispo dans le modèle
+          colors = scryfallCard.colorIdentity;
+        } else {
+          type = _getPrimaryType(deckCard.name);
         }
-      } catch (e) { type = _getPrimaryType(deckCard.name); }
+      }
 
       // Détermination de la catégorie de couleur
       String colorKey = 'C';
@@ -134,17 +136,16 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
   Map<int, int> _calculateManaCurve() {
     Map<int, int> curve = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0};
     for (final deckCard in widget.mainboard) {
-      try {
-        if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-        final scryfallCard = widget.cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-        if (scryfallCard.typeLine.toLowerCase().contains('land')) continue;
-        int cmc = (scryfallCard.cmc ?? 0).toInt(); 
-        if (cmc >= 7) {
-          curve[7] = (curve[7] ?? 0) + deckCard.quantity;
-        } else {
-          curve[cmc] = (curve[cmc] ?? 0) + deckCard.quantity;
-        }
-      } catch (e) { /* Card not found in data */ }
+      if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
+      final scryfallCard = widget.cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+      if (scryfallCard == null) continue;
+      if (scryfallCard.typeLine.toLowerCase().contains('land')) continue;
+      int cmc = (scryfallCard.cmc ?? 0).toInt();
+      if (cmc >= 7) {
+        curve[7] = (curve[7] ?? 0) + deckCard.quantity;
+      } else {
+        curve[cmc] = (curve[cmc] ?? 0) + deckCard.quantity;
+      }
     }
     return curve;
   }
@@ -153,14 +154,12 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     Map<String, int> types = {};
     for (final deckCard in widget.mainboard) {
       String type = 'Autres';
-      try {
-        if (deckCard.scryfallId.startsWith('LOCAL:')) {
-           type = _getPrimaryType(deckCard.name);
-        } else {
-          final scryfallCard = widget.cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-          type = _getPrimaryType(scryfallCard.typeLine);
-        }
-      } catch (e) { type = _getPrimaryType(deckCard.name); }
+      if (deckCard.scryfallId.startsWith('LOCAL:')) {
+         type = _getPrimaryType(deckCard.name);
+      } else {
+        final scryfallCard = widget.cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+        type = scryfallCard != null ? _getPrimaryType(scryfallCard.typeLine) : _getPrimaryType(deckCard.name);
+      }
       types[type] = (types[type] ?? 0) + deckCard.quantity;
     }
     return types;
@@ -170,19 +169,18 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     Map<String, int> pipCount = {'W': 0, 'U': 0, 'B': 0, 'R': 0, 'G': 0};
     final RegExp manaPipRegex = RegExp(r'\{([WUBRG])\}');
     for (final deckCard in widget.mainboard) {
-      try {
-        if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-        final scryfallCard = widget.cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-        if (scryfallCard.typeLine.toLowerCase().contains('land')) continue;
-        final manaCost = scryfallCard.manaCost ?? '';
-        final matches = manaPipRegex.allMatches(manaCost);
-        for (final match in matches) {
-          final pip = match.group(1);
-          if (pip != null) {
-            pipCount[pip] = (pipCount[pip] ?? 0) + (1 * deckCard.quantity);
-          }
+      if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
+      final scryfallCard = widget.cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+      if (scryfallCard == null) continue;
+      if (scryfallCard.typeLine.toLowerCase().contains('land')) continue;
+      final manaCost = scryfallCard.manaCost ?? '';
+      final matches = manaPipRegex.allMatches(manaCost);
+      for (final match in matches) {
+        final pip = match.group(1);
+        if (pip != null) {
+          pipCount[pip] = (pipCount[pip] ?? 0) + (1 * deckCard.quantity);
         }
-      } catch (e) { /* Card not found in data */ }
+      }
     }
     pipCount.removeWhere((key, value) => value == 0);
     return pipCount;
@@ -192,22 +190,21 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     Map<String, int> sources = {'W': 0, 'U': 0, 'B': 0, 'R': 0, 'G': 0, 'C': 0};
     for (final deckCard in widget.mainboard) {
       if (deckCard.scryfallId.startsWith('LOCAL:')) continue;
-      try {
-        final scryfallCard = widget.cardData.firstWhere((sc) => sc.id == deckCard.scryfallId);
-        if (scryfallCard.typeLine.toLowerCase().contains('land')) {
-           if (scryfallCard.colorIdentity.isEmpty) {
-             sources['C'] = (sources['C'] ?? 0) + deckCard.quantity;
-           } else {
-             for (var color in scryfallCard.colorIdentity) {
-               if (sources.containsKey(color)) {
-                 sources[color] = (sources[color] ?? 0) + deckCard.quantity;
-               }
+      final scryfallCard = widget.cardData.where((sc) => sc.id == deckCard.scryfallId).firstOrNull;
+      if (scryfallCard == null) continue;
+      if (scryfallCard.typeLine.toLowerCase().contains('land')) {
+         if (scryfallCard.colorIdentity.isEmpty) {
+           sources['C'] = (sources['C'] ?? 0) + deckCard.quantity;
+         } else {
+           for (var color in scryfallCard.colorIdentity) {
+             if (sources.containsKey(color)) {
+               sources[color] = (sources[color] ?? 0) + deckCard.quantity;
              }
            }
-        } else if (scryfallCard.typeLine.toLowerCase().contains('artifact') && (scryfallCard.name.contains('Signet') || scryfallCard.name.contains('Sol Ring') || scryfallCard.name.contains('Arcane Signet'))) {
-           if (scryfallCard.name.contains('Sol Ring')) sources['C'] = (sources['C'] ?? 0) + deckCard.quantity;
-        }
-      } catch (e) { /* Card not found in data */ }
+         }
+      } else if (scryfallCard.typeLine.toLowerCase().contains('artifact') && (scryfallCard.name.contains('Signet') || scryfallCard.name.contains('Sol Ring') || scryfallCard.name.contains('Arcane Signet'))) {
+         if (scryfallCard.name.contains('Sol Ring')) sources['C'] = (sources['C'] ?? 0) + deckCard.quantity;
+      }
     }
     sources.removeWhere((key, value) => value == 0);
     return sources;
