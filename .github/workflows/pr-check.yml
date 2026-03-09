@@ -60,7 +60,17 @@ jobs:
           fi
 
       - name: Run Flutter Tests with Coverage
-        run: flutter test --coverage
+        run: |
+          set +e
+          flutter test --coverage 2>&1 | tee /tmp/test_output.txt
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "## Flutter Test Failed (exit code: $EXIT_CODE)" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -100 /tmp/test_output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit $EXIT_CODE
+          fi
 
       - name: Check Coverage Threshold (>40%)
         run: |
