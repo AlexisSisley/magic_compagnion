@@ -26,11 +26,23 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Flutter version info
+        run: flutter --version
+
       - name: Install dependencies
         run: flutter pub get
 
       - name: Flutter Analyze
-        run: flutter analyze --no-fatal-infos
+        run: |
+          flutter analyze --no-fatal-infos 2>&1 | tee /tmp/analyze_output.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "## Flutter Analyze Failed" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat /tmp/analyze_output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit $EXIT_CODE
+          fi
 
       - name: Unzip Data Files (for tests)
         run: |
