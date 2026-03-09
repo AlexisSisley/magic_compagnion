@@ -209,22 +209,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 13. Preparer les release notes Firebase
-      - name: Prepare Firebase release notes
-        id: firebase_notes
+      # 13. Preparer le changelog en output (pour Firebase)
+      - name: Prepare changelog output
+        id: changelog_output
         run: |
-          CHANGELOG=$(cat /tmp/changelog.txt)
-          NOTES="${{ steps.version_step.outputs.tag_name }}
-
-          Commits inclus:
-          ${CHANGELOG}
-
-          Dernier commit:
-          ${{ github.event.head_commit.message }}"
-
-          # Ecrire dans un fichier pour eviter les problemes de multi-ligne
-          echo "$NOTES" > /tmp/firebase_notes.txt
-          echo "notes_file=/tmp/firebase_notes.txt" >> $GITHUB_OUTPUT
+          # Lire le changelog et le mettre en output (delimiter method pour multi-ligne)
+          echo "changelog<<CHANGELOG_EOF" >> $GITHUB_OUTPUT
+          cat /tmp/changelog.txt >> $GITHUB_OUTPUT
+          echo "CHANGELOG_EOF" >> $GITHUB_OUTPUT
 
       # 14. DEPLOIEMENT FIREBASE App Distribution
       - name: Upload to Firebase App Distribution
@@ -234,4 +226,11 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CREDENTIALS }}
           groups: testers
           file: ${{ steps.rename_apk.outputs.apk_path }}
-          releaseNotesFile: /tmp/firebase_notes.txt
+          releaseNotes: |
+            ${{ steps.version_step.outputs.tag_name }}
+
+            Commits inclus:
+            ${{ steps.changelog_output.outputs.changelog }}
+
+            Dernier commit:
+            ${{ github.event.head_commit.message }}
