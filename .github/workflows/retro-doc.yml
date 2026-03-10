@@ -31,15 +31,15 @@ jobs:
       - name: ⚙️ Install Tools
         run: |
           npm install -g repomix
-          pip install google-generativeai pyyaml
+          pip install anthropic pyyaml
 
       - name: 🏗️ Run Repomix (Pack Code)
         run: repomix --style xml
         # Utilise le repomix.config.json présent à la racine
 
-      - name: 🧠 Run AI Analysis
+      - name: 🧠 Run AI Analysis (Claude)
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python generate_doc.py
 
       - name: 📤 Upload Artifact

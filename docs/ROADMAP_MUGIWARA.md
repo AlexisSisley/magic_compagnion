@@ -412,8 +412,8 @@ lib/
 | Sprint 5 : Navigation + HTTP | 2 semaines | 7.75j | Moyenne | TERMINE |
 | Sprint 6 : Migration HTTP Pages | 2 semaines | 3j | Moyenne | TERMINE |
 | Sprint 7 : Refactoring God Files | 3 semaines | 13.25j | Elevee | TERMINE |
-| Sprint 8 : Widgets, Qualite & Polish | 3 semaines | 15j | Moyenne-Elevee | **EN PAUSE** |
-| **Sprint 9 : Quick Wins Features** | **2 semaines** | **5j** | **Faible** | **EN COURS** |
+| Sprint 8 : Widgets, Qualite & Polish | 3 semaines | 15j | Moyenne-Elevee | TERMINE |
+| **Sprint 9 : Quick Wins Features** | **2 semaines** | **5j** | **Faible** | TERMINE |
 | Sprint 10 : Import/Export & Legalite | 3 semaines | 9j | Moyenne | BACKLOG |
 | Sprint 11 : EDHREC Deep Integration | 3 semaines | 9j | Elevee | BACKLOG |
 | Sprint 12 : Features Avancees & Backlog | 5 semaines | 32j | Elevee | BACKLOG |

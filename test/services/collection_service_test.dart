@@ -396,7 +396,7 @@ void main() {
 
       for (int i = 7; i >= 0; i--) {
         final date = now.subtract(Duration(days: i));
-        final key = '${date.year}-${date.month}-${date.day}';
+        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
         history[key] = 100.0 + (7 - i) * 10.0; // 100, 110, 120, ... 170
       }
 

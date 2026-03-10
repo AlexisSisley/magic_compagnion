@@ -11,7 +11,7 @@ import '../../theme/app_text_styles.dart';
 
 /// Graphique LineChart montrant l'evolution du prix de la collection sur 30 jours.
 class CollectionValueChart extends StatelessWidget {
-  /// Liste de points (dateKey format "YYYY-M-D", value en EUR).
+  /// Liste de points (dateKey format "YYYY-MM-DD", value en EUR).
   final List<({String dateKey, double value})> dataPoints;
 
   /// Hauteur du graphique.

@@ -1,6 +1,8 @@
 from firebase_functions import https_fn
 from firebase_admin import initialize_app, firestore
 import requests  # Pour appeler Scryfall
+import anthropic
+import os
 
 app = initialize_app()
 db = None
@@ -40,8 +42,7 @@ def ask_oracle(req: https_fn.CallableRequest) -> any:
     
     import vertexai
     from vertexai.language_models import TextEmbeddingModel
-    from vertexai.generative_models import GenerativeModel
-    
+
     # Import robuste de DistanceMeasure
     try:
         from google.cloud.firestore import DistanceMeasure
@@ -62,7 +63,6 @@ def ask_oracle(req: https_fn.CallableRequest) -> any:
 
         vertexai.init(location="us-central1")
         embedding_model = TextEmbeddingModel.from_pretrained("text-embedding-004")
-        gen_model = GenerativeModel("gemini-1.5-flash")
 
         # --- ÉTAPE 1 : RECHERCHE DE CARTE (NOUVEAU) ---
         # On regarde si Scryfall connaît une carte qui porte le nom de la recherche
@@ -89,19 +89,29 @@ def ask_oracle(req: https_fn.CallableRequest) -> any:
         if card_context:
             final_context += f"\n\nCONTEXTE CARTE IDENTIFIÉE :\n{card_context}"
 
-        prompt = f"""
-        Tu es l'Oracle de Magic. Réponds à la question en utilisant le contexte ci-dessous.
-        Si une carte est identifiée dans le contexte, explique son interaction précise avec les règles citées.
-        
-        CONTEXTE :
-        {final_context}
+        # --- ÉTAPE 4 : GÉNÉRATION VIA CLAUDE ---
+        client = anthropic.Anthropic()
 
-        QUESTION JOUEUR :
-        {query_text}
-        """
+        system_prompt = (
+            "Tu es l'Oracle de Magic: The Gathering. "
+            "Réponds aux questions des joueurs en te basant sur le contexte fourni (règles officielles et cartes). "
+            "Si une carte est identifiée dans le contexte, explique son interaction précise avec les règles citées. "
+            "Sois précis et concis."
+        )
 
-        response = gen_model.generate_content(prompt)
-        return {"response": response.text}
+        user_prompt = f"""CONTEXTE :
+{final_context}
+
+QUESTION JOUEUR :
+{query_text}"""
+
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        return {"response": message.content[0].text}
 
     except Exception as e:
         print(f"Erreur: {e}")

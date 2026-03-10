@@ -166,7 +166,7 @@ class CollectionService with CardListUpsertMixin {
     // Gestion de l'historique financier
     Future<void> recordDailyValue(double totalValue) async {
       final now = DateTime.now();
-      final todayKey = '${now.year}-${now.month}-${now.day}';
+      final todayKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
       if (_db != null) {
         await _db.recordDailyValue(todayKey, totalValue);
