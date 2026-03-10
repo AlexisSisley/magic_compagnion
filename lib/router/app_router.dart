@@ -1,6 +1,6 @@
 // Fichier : lib/router/app_router.dart
 // Configuration centralisee go_router (Sprint 5)
-// Sprint 14, US-14.6 : Dashboard Home remplace LifeCounter en tab0.
+// Sprint 15, US-LC01 : Life Counter redevient tab0 (initialLocation).
 // Sprint 14, US-14.8 : Transitions FadeThrough (tabs) et SharedAxis (push).
 
 import 'package:flutter/foundation.dart';
@@ -26,7 +26,7 @@ export 'app_routes.dart';
 
 /// Cree et configure le GoRouter de l'application.
 /// US-14.4 : Ajoute la route onboarding et le redirect conditionnel.
-/// US-14.6 : Dashboard Home en tab0, LifeCounter dans le Drawer.
+/// US-LC01 : Life Counter en tab0, Dashboard dans le Drawer.
 GoRouter createAppRouter() {
   // --- Egg: Log Pose --- Message secret au demarrage du routeur (debug only)
   assert(() {
@@ -39,7 +39,7 @@ GoRouter createAppRouter() {
   }());
 
   return GoRouter(
-    initialLocation: AppRoutes.dashboard,
+    initialLocation: AppRoutes.lifeCounter,
     debugLogDiagnostics: kDebugMode,
     redirect: _onboardingRedirect,
     routes: [
@@ -58,8 +58,8 @@ GoRouter createAppRouter() {
           );
         },
         routes: [
-          // US-14.6 : Dashboard Home en tab0 (remplace lifeCounterShellRoute)
-          dashboardShellRoute(),
+          // US-LC01 : Life Counter en tab0 (remplace dashboardShellRoute)
+          lifeCounterShellRoute(),
           scannerShellRoute(),
           cardSearchShellRoute(),
           deckShellRoute(),
@@ -68,7 +68,8 @@ GoRouter createAppRouter() {
       ),
 
       // --- Routes par domaine (push par-dessus le shell) ---
-      // US-14.6 : LifeCounter est maintenant une route Drawer (dans lifeCounterRoutes)
+      // US-LC03 : Dashboard est maintenant une route Drawer
+      ...dashboardRoutes(),
       ...lifeCounterRoutes(),
       ...toolsRoutes(),
       ...settingsRoutes(),

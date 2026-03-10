@@ -33,7 +33,10 @@ import '../../widgets/life_counter/game_setup_modal.dart'; // <--- Import
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class LifeCounterPage extends ConsumerStatefulWidget {
-  const LifeCounterPage({super.key});
+  /// US-LC02 : Quand true, la page est dans le shell (tab0) et ne rend pas d'AppBar.
+  final bool isInShell;
+
+  const LifeCounterPage({super.key, this.isInShell = false});
 
   @override
   ConsumerState<LifeCounterPage> createState() => _LifeCounterPageState();

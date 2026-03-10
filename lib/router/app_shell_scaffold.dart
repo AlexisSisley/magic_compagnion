@@ -136,7 +136,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
                 content: Text('Restauration r\u00e9ussie !'),
                 backgroundColor: AppColors.success),
           );
-          context.go(AppRoutes.dashboard);
+          context.go(AppRoutes.lifeCounter);
         }
       }
     } catch (e) {
@@ -154,6 +154,8 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
   @override
   Widget build(BuildContext context) {
     final tabIndex = locationToTabIndex(widget.currentLocation);
+    // US-LC02 : Mode fullscreen sans AppBar pour le compteur (tab0)
+    final isLifeCounterTab = tabIndex == 0;
 
     return Stack(
       children: [
@@ -168,14 +170,16 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
         Scaffold(
           backgroundColor: AppColors.transparent,
           drawer: _buildDrawer(context),
-          body: SafeArea(child: widget.child),
+          // US-LC02 : Pas de SafeArea pour le Life Counter (fullscreen)
+          body: isLifeCounterTab ? widget.child : SafeArea(child: widget.child),
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: tabIndex,
             onTap: (index) => _onTabTapped(context, index),
             type: BottomNavigationBarType.fixed,
             items: const <BottomNavigationBarItem>[
+              // US-LC01 : tab0 = Life Counter avec icone coeur
               BottomNavigationBarItem(
-                  icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
+                  icon: Icon(Icons.favorite), label: 'Compteur'),
               BottomNavigationBarItem(
                   icon: Icon(Icons.camera_alt), label: 'Scanner'),
               BottomNavigationBarItem(
@@ -194,7 +198,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
   void _onTabTapped(BuildContext context, int index) {
     switch (index) {
       case 0:
-        context.go(AppRoutes.dashboard);
+        context.go(AppRoutes.lifeCounter);
       case 1:
         context.go(AppRoutes.scanner);
       case 2:
@@ -333,11 +337,11 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
           const Divider(color: AppColors.borderLight),
 
           // --- SECTION JEU ---
-          // US-14.6 : Compteur de vie deplace du tab0 vers le Drawer
+          // US-LC03 : Dashboard deplace des tabs vers le Drawer
           _drawerItem(
-            icon: Icons.favorite,
-            label: 'Compteur de Vie',
-            route: AppRoutes.lifeCounter,
+            icon: Icons.dashboard_outlined,
+            label: 'Dashboard',
+            route: AppRoutes.dashboard,
           ),
           _drawerItem(
             icon: Icons.history,

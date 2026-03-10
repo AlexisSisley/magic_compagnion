@@ -1,19 +1,19 @@
 // Fichier : lib/router/dashboard_routes.dart
-// Sprint 14, US-14.6 : Route shell pour le Dashboard Home (tab0).
-// Remplace le LifeCounter comme onglet principal.
+// Sprint 15, US-LC03 : Dashboard est maintenant une route Drawer (push).
+// N'est plus un shell tab.
 
 import 'package:go_router/go_router.dart';
 
 import '../pages/dashboard/dashboard_page.dart';
-import 'page_transitions.dart';
+import 'app_routes.dart';
 
-/// Route shell pour l'onglet Dashboard (tab0).
-GoRoute dashboardShellRoute() {
-  return GoRoute(
-    path: '/',
-    pageBuilder: (context, state) => FadeThroughPage(
-      key: state.pageKey,
-      child: const DashboardPage(),
+/// Route push pour le Dashboard (accessible depuis le Drawer).
+/// US-LC03 : Dashboard descend dans le Drawer.
+List<RouteBase> dashboardRoutes() {
+  return [
+    GoRoute(
+      path: AppRoutes.dashboard,
+      builder: (context, state) => const DashboardPage(),
     ),
-  );
+  ];
 }

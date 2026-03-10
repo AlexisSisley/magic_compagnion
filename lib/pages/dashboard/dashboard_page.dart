@@ -1,40 +1,75 @@
 // Fichier : lib/pages/dashboard/dashboard_page.dart
-// Sprint 14, US-14.6 : Dashboard Home.
-// Resume : nb cartes, valeur totale, derniers scans (5), decks recents (3),
-// graphique evolution valeur en preview.
-// Remplace le LifeCounter comme tab0 du BottomNav.
+// Dashboard Home avec widgets personnalisables (ordre, taille, visibilite).
+// Grille StaggeredGrid config-driven + mode edition avec ReorderableListView.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
+import '../../models/dashboard_config_model.dart';
+import '../../providers/dashboard_config_provider.dart';
 import '../../providers/dashboard_provider.dart';
-import '../../router/app_routes.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
-import '../../utils/price_helper.dart';
-import '../../widgets/cards/scryfall_image.dart';
 import '../../widgets/common/shimmer_loading.dart';
 import '../../widgets/common/staggered_fade_in.dart';
-import '../../widgets/dashboard/collection_value_chart.dart';
+import '../../widgets/dashboard/dashboard_collection_stats.dart';
+import '../../widgets/dashboard/dashboard_collection_summary.dart';
+import '../../widgets/dashboard/dashboard_favorite_deck.dart';
+import '../../widgets/dashboard/dashboard_quick_actions.dart';
+import '../../widgets/dashboard/dashboard_recent_decks.dart';
+import '../../widgets/dashboard/dashboard_recent_scans.dart';
+import '../../widgets/dashboard/dashboard_value_chart_preview.dart';
+import '../../widgets/dashboard/dashboard_widget_wrapper.dart';
 
-class DashboardPage extends ConsumerWidget {
+class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends ConsumerState<DashboardPage> {
+  bool _editMode = false;
+
+  @override
+  Widget build(BuildContext context) {
     final dashboardAsync = ref.watch(dashboardProvider);
+    final configAsync = ref.watch(dashboardConfigProvider);
 
     return Scaffold(
       backgroundColor: AppColors.transparent,
       appBar: AppBar(
         backgroundColor: AppColors.transparent,
-        title: Text('Dashboard', style: AppTextStyles.appBarTitle()),
+        title: Text('Dashboard', style: AppTextStyles.bold(fontSize: 16)),
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.menu, color: AppColors.textPrimary),
-          onPressed: () => Scaffold.of(context).openDrawer(),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          if (_editMode)
+            TextButton(
+              onPressed: () {
+                ref.read(dashboardConfigProvider.notifier).resetToDefault();
+                setState(() => _editMode = false);
+              },
+              child: Text(
+                'Reset',
+                style: AppTextStyles.label(
+                  color: AppColors.textMuted,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          IconButton(
+            icon: Icon(
+              _editMode ? Icons.check : Icons.edit_outlined,
+              color: _editMode ? AppColors.primaryGold : AppColors.textPrimary,
+            ),
+            onPressed: () => setState(() => _editMode = !_editMode),
+          ),
+        ],
       ),
       body: dashboardAsync.when(
         loading: () => const _DashboardShimmer(),
@@ -42,436 +77,239 @@ class DashboardPage extends ConsumerWidget {
           child: Text('Erreur: $e',
               style: AppTextStyles.body(color: AppColors.error)),
         ),
-        data: (state) => _DashboardContent(state: state),
+        data: (state) => configAsync.when(
+          loading: () => const _DashboardShimmer(),
+          error: (_, _) => _DashboardBody(
+            state: state,
+            config: DashboardConfig.defaultConfig(),
+            editMode: _editMode,
+          ),
+          data: (config) => _DashboardBody(
+            state: state,
+            config: config,
+            editMode: _editMode,
+          ),
+        ),
       ),
     );
   }
 }
 
-class _DashboardContent extends ConsumerWidget {
-  final DashboardState state;
+// ============================================================
+// BODY: normal mode (StaggeredGrid) or edit mode (ReorderableListView)
+// ============================================================
 
-  const _DashboardContent({required this.state});
+class _DashboardBody extends ConsumerWidget {
+  final DashboardState state;
+  final DashboardConfig config;
+  final bool editMode;
+
+  const _DashboardBody({
+    required this.state,
+    required this.config,
+    required this.editMode,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (editMode) {
+      return _EditModeList(state: state, config: config);
+    }
+    return _NormalModeGrid(state: state, config: config);
+  }
+}
+
+// ============================================================
+// NORMAL MODE: StaggeredGrid
+// ============================================================
+
+class _NormalModeGrid extends ConsumerWidget {
+  final DashboardState state;
+  final DashboardConfig config;
+
+  const _NormalModeGrid({required this.state, required this.config});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final visible = config.visibleWidgets;
+
     return RefreshIndicator(
       color: AppColors.primaryGold,
       backgroundColor: AppColors.cardBackground,
       onRefresh: () async {
         ref.invalidate(dashboardProvider);
       },
-      child: ListView(
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        children: [
-          // --- SECTION 1 : Resume Collection ---
-          StaggeredFadeIn(
-            index: 0,
-            child: _CollectionSummaryCard(
-              totalCards: state.totalCards,
-              totalValue: state.totalValue,
-              isLoadingValue: state.valueIsLoading,
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // --- SECTION 2 : Graphique evolution valeur (preview) ---
-          StaggeredFadeIn(
-            index: 1,
-            child: _ValueChartPreview(valueHistory: state.valueHistory),
-          ),
-
-          const SizedBox(height: 16),
-
-          // --- SECTION 3 : Derniers Scans ---
-          if (state.recentScans.isNotEmpty) ...[
-            StaggeredFadeIn(
-              index: 2,
-              child: _SectionHeader(
-                title: 'Derniers Scans',
-                icon: Icons.camera_alt,
-                onSeeAll: () => context.push(AppRoutes.scanHistory),
-              ),
-            ),
-            ...state.recentScans.asMap().entries.map((entry) {
-              final scan = entry.value;
-              return StaggeredFadeIn(
-                index: 3 + entry.key,
-                child: _RecentScanTile(
-                  cardName: scan.cardName,
-                  scryfallId: scan.scryfallId,
-                  timestamp: scan.timestamp,
-                  onTap: () => context.push(
-                    AppRoutes.cardDetail,
-                    extra: <String, dynamic>{'cardName': scan.cardName},
-                  ),
+        child: StaggeredGrid.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          children: visible.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final wc = entry.value;
+            return StaggeredGridTile.fit(
+              crossAxisCellCount: wc.size == DashboardWidgetSize.small ? 1 : 2,
+              child: StaggeredFadeIn(
+                index: idx,
+                child: DashboardWidgetWrapper(
+                  child: _buildWidget(wc.id),
                 ),
-              );
-            }),
-            const SizedBox(height: 16),
-          ],
-
-          // --- SECTION 4 : Decks Recents ---
-          if (state.recentDecks.isNotEmpty) ...[
-            StaggeredFadeIn(
-              index: 8,
-              child: _SectionHeader(
-                title: 'Decks Recents',
-                icon: Icons.style_outlined,
-                onSeeAll: () => context.go(AppRoutes.decks),
               ),
-            ),
-            ...state.recentDecks.asMap().entries.map((entry) {
-              final deck = entry.value;
-              return StaggeredFadeIn(
-                index: 9 + entry.key,
-                child: _RecentDeckTile(
-                  deckName: deck.name,
-                  cardCount: deck.mainboard.fold<int>(
-                      0, (sum, c) => sum + c.quantity),
-                  format: deck.format,
-                  onTap: () => context.push(
-                    AppRoutes.deckDetail,
-                    extra: deck,
-                  ),
-                ),
-              );
-            }),
-          ],
-
-          // Padding bottom
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================
-// SUB-WIDGETS
-// ============================================================
-
-class _CollectionSummaryCard extends StatelessWidget {
-  final int totalCards;
-  final double totalValue;
-  final bool isLoadingValue;
-
-  const _CollectionSummaryCard({
-    required this.totalCards,
-    required this.totalValue,
-    required this.isLoadingValue,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Row(
-        children: [
-          // Nombre de cartes
-          Expanded(
-            child: _StatColumn(
-              icon: Icons.inventory_2_outlined,
-              label: 'Cartes',
-              value: totalCards.toString(),
-              color: AppColors.accent,
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 50,
-            color: AppColors.borderLight,
-          ),
-          // Valeur totale
-          Expanded(
-            child: isLoadingValue
-                ? const Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.primaryGold,
-                      ),
-                    ),
-                  )
-                : _StatColumn(
-                    icon: Icons.euro,
-                    label: 'Valeur',
-                    value: PriceHelper.formatValue(totalValue),
-                    color: AppColors.primaryGold,
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatColumn extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatColumn({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: AppTextStyles.sectionTitle(color: color),
+            );
+          }).toList(),
         ),
-        const SizedBox(height: 2),
+      ),
+    );
+  }
+
+  Widget _buildWidget(DashboardWidgetId id) {
+    switch (id) {
+      case DashboardWidgetId.quickActions:
+        return const DashboardQuickActions();
+      case DashboardWidgetId.collectionSummary:
+        return DashboardCollectionSummary(
+          totalCards: state.totalCards,
+          totalValue: state.totalValue,
+          isLoadingValue: state.valueIsLoading,
+        );
+      case DashboardWidgetId.valueChart:
+        return DashboardValueChartPreview(
+          valueHistory: state.valueHistory,
+        );
+      case DashboardWidgetId.recentScans:
+        return DashboardRecentScans(recentScans: state.recentScans);
+      case DashboardWidgetId.recentDecks:
+        return DashboardRecentDecks(recentDecks: state.recentDecks);
+      case DashboardWidgetId.favoriteDeck:
+        return DashboardFavoriteDeck(favoriteDeck: state.favoriteDeck);
+      case DashboardWidgetId.collectionStats:
+        return DashboardCollectionStats(
+          topValueCards: state.topValueCards,
+          colorDistribution: state.colorDistribution,
+          editionCount: state.editionCount,
+        );
+    }
+  }
+}
+
+// ============================================================
+// EDIT MODE: ReorderableListView
+// ============================================================
+
+class _EditModeList extends ConsumerWidget {
+  final DashboardState state;
+  final DashboardConfig config;
+
+  const _EditModeList({required this.state, required this.config});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sorted = List<DashboardWidgetConfig>.from(config.widgets)
+      ..sort((a, b) => a.order.compareTo(b.order));
+
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: sorted.length,
+      onReorder: (oldIndex, newIndex) {
+        if (newIndex > oldIndex) newIndex--;
+        ref.read(dashboardConfigProvider.notifier).reorder(oldIndex, newIndex);
+      },
+      proxyDecorator: (child, index, animation) {
+        return AnimatedBuilder(
+          animation: animation,
+          builder: (context, child) => Material(
+            color: AppColors.transparent,
+            elevation: 4,
+            shadowColor: AppColors.primaryGold.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(12),
+            child: child,
+          ),
+          child: child,
+        );
+      },
+      itemBuilder: (context, index) {
+        final wc = sorted[index];
+        return Padding(
+          key: ValueKey(wc.id),
+          padding: const EdgeInsets.only(bottom: 12),
+          child: DashboardWidgetWrapper(
+            editMode: true,
+            visible: wc.visible,
+            size: wc.size,
+            onToggleVisibility: () {
+              ref
+                  .read(dashboardConfigProvider.notifier)
+                  .toggleVisibility(wc.id);
+            },
+            onResize: (newSize) {
+              ref
+                  .read(dashboardConfigProvider.notifier)
+                  .resize(wc.id, newSize);
+            },
+            child: _EditWidgetPreview(id: wc.id),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _EditWidgetPreview extends StatelessWidget {
+  final DashboardWidgetId id;
+
+  const _EditWidgetPreview({required this.id});
+
+  String get _label {
+    switch (id) {
+      case DashboardWidgetId.quickActions:
+        return 'Actions rapides';
+      case DashboardWidgetId.collectionSummary:
+        return 'Resume Collection';
+      case DashboardWidgetId.valueChart:
+        return 'Evolution Valeur';
+      case DashboardWidgetId.recentScans:
+        return 'Derniers Scans';
+      case DashboardWidgetId.recentDecks:
+        return 'Decks Recents';
+      case DashboardWidgetId.favoriteDeck:
+        return 'Deck Favori';
+      case DashboardWidgetId.collectionStats:
+        return 'Stats Collection';
+    }
+  }
+
+  IconData get _icon {
+    switch (id) {
+      case DashboardWidgetId.quickActions:
+        return Icons.flash_on;
+      case DashboardWidgetId.collectionSummary:
+        return Icons.inventory_2_outlined;
+      case DashboardWidgetId.valueChart:
+        return Icons.show_chart;
+      case DashboardWidgetId.recentScans:
+        return Icons.camera_alt;
+      case DashboardWidgetId.recentDecks:
+        return Icons.style_outlined;
+      case DashboardWidgetId.favoriteDeck:
+        return Icons.star_outline;
+      case DashboardWidgetId.collectionStats:
+        return Icons.bar_chart;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(_icon, color: AppColors.primaryGold, size: 20),
+        const SizedBox(width: 10),
         Text(
-          label,
-          style: AppTextStyles.label(color: AppColors.textMuted, fontSize: 11),
+          _label,
+          style: AppTextStyles.cardTitle(fontSize: 14),
         ),
       ],
-    );
-  }
-}
-
-class _ValueChartPreview extends StatelessWidget {
-  final List<({String dateKey, double value})> valueHistory;
-
-  const _ValueChartPreview({required this.valueHistory});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.show_chart, color: AppColors.primaryGold, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Evolution Valeur (30j)',
-                style: AppTextStyles.cardTitle(fontSize: 14),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          CollectionValueChart(
-            dataPoints: valueHistory,
-            height: 120,
-            compact: true,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final VoidCallback? onSeeAll;
-
-  const _SectionHeader({
-    required this.title,
-    required this.icon,
-    this.onSeeAll,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.textSecondary, size: 18),
-          const SizedBox(width: 8),
-          Text(title, style: AppTextStyles.sectionTitle(fontSize: 16)),
-          const Spacer(),
-          if (onSeeAll != null)
-            GestureDetector(
-              onTap: onSeeAll,
-              child: Text(
-                'Voir tout',
-                style: AppTextStyles.label(
-                  color: AppColors.accent,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecentScanTile extends StatelessWidget {
-  final String cardName;
-  final String scryfallId;
-  final DateTime timestamp;
-  final VoidCallback onTap;
-
-  const _RecentScanTile({
-    required this.cardName,
-    required this.scryfallId,
-    required this.timestamp,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final imageUrl =
-        'https://api.scryfall.com/cards/$scryfallId?format=image&version=small';
-    final timeAgo = _formatTimeAgo(timestamp);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: AppColors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceDark.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                ScryfallImage(
-                  imageUrl: imageUrl,
-                  width: 36,
-                  height: 50,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        cardName,
-                        style: AppTextStyles.cardTitle(fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        timeAgo,
-                        style: AppTextStyles.label(
-                          color: AppColors.textDisabled,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textDisabled,
-                  size: 18,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _formatTimeAgo(DateTime date) {
-    final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes}min';
-    if (diff.inHours < 24) return 'il y a ${diff.inHours}h';
-    if (diff.inDays < 7) return 'il y a ${diff.inDays}j';
-    return '${date.day}/${date.month}/${date.year}';
-  }
-}
-
-class _RecentDeckTile extends StatelessWidget {
-  final String deckName;
-  final int cardCount;
-  final String format;
-  final VoidCallback onTap;
-
-  const _RecentDeckTile({
-    required this.deckName,
-    required this.cardCount,
-    required this.format,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: AppColors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceDark.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.style_outlined,
-                    color: AppColors.primaryGold, size: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        deckName,
-                        style: AppTextStyles.cardTitle(fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$cardCount cartes - $format',
-                        style: AppTextStyles.label(
-                          color: AppColors.textMuted,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textDisabled,
-                  size: 18,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

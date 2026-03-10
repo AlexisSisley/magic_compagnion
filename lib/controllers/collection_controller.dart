@@ -139,6 +139,7 @@ class CollectionController extends StateNotifier<CollectionState> {
   // --- CHARGEMENT ---
 
   Future<void> loadData({bool forceLoading = true}) async {
+    if (!mounted) return;
     if (forceLoading) {
       state = state.copyWith(isLoading: true);
     }
@@ -153,10 +154,16 @@ class CollectionController extends StateNotifier<CollectionState> {
       _collectionService.getAllUniqueTags().then((data) => availableTags = data),
     ]);
 
+    if (!mounted) return;
+
     if (!_localCardService.isLoaded) await _localCardService.loadLocalData();
+    if (!mounted) return;
 
     final fullCardData = await _loadFullCardData(collection, wishlists);
+    if (!mounted) return;
+
     final financials = await _calculateFinancials(collection, wishlists, fullCardData);
+    if (!mounted) return;
 
     state = state.copyWith(
       collection: collection,
@@ -277,6 +284,7 @@ class CollectionController extends StateNotifier<CollectionState> {
       quantityToAdd: quantityToAdd,
       isFoil: card.isFoil,
     );
+    if (!mounted) return;
     await loadData(forceLoading: false);
   }
 
@@ -287,6 +295,7 @@ class CollectionController extends StateNotifier<CollectionState> {
       quantityToAdd: -1,
       isFoil: card.isFoil,
     );
+    if (!mounted) return;
     await _collectionService.upsertCardInCollection(
       scryfallId: card.scryfallId,
       cardName: card.name,
@@ -294,6 +303,7 @@ class CollectionController extends StateNotifier<CollectionState> {
       isFoil: !card.isFoil,
       newTags: card.tags,
     );
+    if (!mounted) return;
     await loadData(forceLoading: false);
   }
 
@@ -304,11 +314,13 @@ class CollectionController extends StateNotifier<CollectionState> {
       isFoil: card.isFoil,
       newTags: newTags,
     );
+    if (!mounted) return;
     await loadData(forceLoading: false);
   }
 
   Future<void> clearCollection() async {
     await _collectionService.clearCollection();
+    if (!mounted) return;
     await loadData();
   }
 
@@ -325,6 +337,7 @@ class CollectionController extends StateNotifier<CollectionState> {
   }
 
   Future<CollectionActionResult> addSelectedCardsToDeck(String deckId, String deckName) async {
+    if (!mounted) return const CollectionActionResult(success: false, message: 'Controller disposed');
     state = state.copyWith(isLoading: true);
     int count = 0;
     for (String id in state.selectedCardIds) {
@@ -339,8 +352,10 @@ class CollectionController extends StateNotifier<CollectionState> {
         );
         count++;
       } catch (e) { log('Erreur ajout carte $id : $e', name: 'CollectionController'); }
+      if (!mounted) return CollectionActionResult(message: '$count cartes ajoutees (interrompu)');
     }
 
+    if (!mounted) return CollectionActionResult(message: '$count cartes ajoutees a $deckName');
     state = state.copyWith(
       isLoading: false,
       isSelectionMode: false,
@@ -355,6 +370,7 @@ class CollectionController extends StateNotifier<CollectionState> {
   // --- TAB CHANGE ---
 
   void onTabChanged(int index) {
+    if (!mounted) return;
     if (index == 1 || index == 2) {
       loadData(forceLoading: false);
     }

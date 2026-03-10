@@ -53,8 +53,8 @@ void main() {
     });
 
     test('tab routes match expected paths', () {
-      // US-14.6 : Dashboard est tab0 (route '/'), LifeCounter est dans le Drawer
-      expect(AppRoutes.dashboard, '/');
+      // US-LC01 : LifeCounter est tab0 (route '/'), Dashboard est dans le Drawer
+      expect(AppRoutes.lifeCounter, '/');
       expect(AppRoutes.scanner, '/scanner');
       expect(AppRoutes.search, '/search');
       expect(AppRoutes.decks, '/decks');
@@ -62,7 +62,7 @@ void main() {
     });
 
     test('drawer routes have meaningful paths', () {
-      expect(AppRoutes.lifeCounter, '/life-counter');
+      expect(AppRoutes.dashboard, '/dashboard');
       expect(AppRoutes.gameHistory, '/game-history');
       expect(AppRoutes.tournament, '/tournament');
       expect(AppRoutes.oracle, '/oracle');
@@ -83,7 +83,7 @@ void main() {
       expect(router, isNotNull);
     });
 
-    test('initial location is dashboard', () {
+    test('initial location is life counter', () {
       final router = createAppRouter();
       expect(router.routeInformationProvider.value.uri.path, '/');
     });

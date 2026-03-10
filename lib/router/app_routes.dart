@@ -1,21 +1,21 @@
 // Fichier : lib/router/app_routes.dart
 // Constantes de chemins de routes et helper de navigation.
-// Sprint 14, US-14.6 : tab0 = Dashboard Home, LifeCounter -> Drawer.
+// Sprint 15, US-LC01 : tab0 = Life Counter (initialLocation), Dashboard -> Drawer.
 
 /// Noms de routes pour navigation type-safe.
 class AppRoutes {
   // Onboarding (Sprint 14, US-14.4)
   static const String onboarding = '/onboarding';
 
-  // Onglets principaux (shell) - US-14.6 : Dashboard remplace le Compteur
-  static const String dashboard = '/';
+  // Onglets principaux (shell) - US-LC01 : LifeCounter devient tab0
+  static const String lifeCounter = '/';
   static const String scanner = '/scanner';
   static const String search = '/search';
   static const String decks = '/decks';
   static const String collection = '/collection';
 
-  // Drawer routes - US-14.6 : LifeCounter descend dans le Drawer
-  static const String lifeCounter = '/life-counter';
+  // Drawer routes - US-LC03 : Dashboard descend dans le Drawer
+  static const String dashboard = '/dashboard';
   static const String gameHistory = '/game-history';
   static const String tournament = '/tournament';
   static const String oracle = '/oracle';
@@ -39,7 +39,7 @@ class AppRoutes {
 }
 
 /// Index des onglets dans le BottomNavigationBar.
-/// US-14.6 : tab0 = Dashboard, les autres restent identiques.
+/// US-LC01 : tab0 = Life Counter, les autres restent identiques.
 int locationToTabIndex(String location) {
   if (location.startsWith('/scanner')) return 1;
   if (location.startsWith('/search')) return 2;

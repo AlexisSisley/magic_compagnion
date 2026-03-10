@@ -1,7 +1,7 @@
 // Fichier : lib/router/life_counter_routes.dart
 // Routes liees au compteur de vie et a l'historique des parties.
-// Sprint 14, US-14.6 : LifeCounter n'est plus un shell tab,
-// c'est une route Drawer (push par-dessus le shell).
+// Sprint 15, US-LC01 : LifeCounter redevient un shell tab (tab0).
+// US-LC02 : Mode fullscreen sans AppBar dans le shell.
 
 import 'package:go_router/go_router.dart';
 
@@ -10,15 +10,23 @@ import '../pages/life_counter/game_history_detail_page.dart';
 import '../pages/life_counter/game_history_page.dart';
 import '../pages/life_counter/life_counter_page.dart';
 import 'app_routes.dart';
+import 'page_transitions.dart';
 
-/// Routes drawer et detail pour le compteur de vie.
-/// US-14.6 : Inclut desormais la route du LifeCounter lui-meme.
+/// Route shell pour l'onglet Life Counter (tab0).
+/// US-LC01 : Life Counter comme ecran d'accueil.
+GoRoute lifeCounterShellRoute() {
+  return GoRoute(
+    path: '/',
+    pageBuilder: (context, state) => FadeThroughPage(
+      key: state.pageKey,
+      child: const LifeCounterPage(isInShell: true),
+    ),
+  );
+}
+
+/// Routes detail pour le life counter (push par-dessus le shell).
 List<RouteBase> lifeCounterRoutes() {
   return [
-    GoRoute(
-      path: AppRoutes.lifeCounter,
-      builder: (context, state) => const LifeCounterPage(),
-    ),
     GoRoute(
       path: AppRoutes.gameHistory,
       builder: (context, state) => const GameHistoryPage(),
