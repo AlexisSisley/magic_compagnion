@@ -1,0 +1,156 @@
+<h2>Layout du Life Counter — Grille Adaptative</h2>
+<p class="subtitle">Comment organiser les zones joueurs pour 2 à 8 joueurs ? Choisis l'approche qui te convient.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>V1 Style — Split Horizontal Central</h3>
+      <p><strong>Recommandé</strong> — Le style éprouvé de ta V1. Barre de contrôle au centre, joueurs répartis haut/bas.</p>
+
+      <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap;">
+        <!-- 2 players -->
+        <div style="flex:1; min-width:120px;">
+          <div class="label" style="margin-bottom:4px;">2 joueurs</div>
+          <div style="background:#1a1a2e; border-radius:8px; overflow:hidden; height:180px; display:flex; flex-direction:column;">
+            <div style="flex:1; background:#8B0000; margin:2px; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:11px; transform:rotate(180deg);">J1 — 40</div>
+            <div style="height:28px; background:#333; display:flex; align-items:center; justify-content:center; gap:8px; font-size:10px; color:#aaa;">⟲ 🎲 ▶ 🏆 ⚙</div>
+            <div style="flex:1; background:#1565C0; margin:2px; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:11px;">J2 — 40</div>
+          </div>
+        </div>
+
+        <!-- 4 players -->
+        <div style="flex:1; min-width:120px;">
+          <div class="label" style="margin-bottom:4px;">4 joueurs</div>
+          <div style="background:#1a1a2e; border-radius:8px; overflow:hidden; height:180px; display:flex; flex-direction:column;">
+            <div style="flex:1; display:flex; gap:2px; margin:2px;">
+              <div style="flex:1; background:#8B0000; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px; transform:rotate(180deg);">J1</div>
+              <div style="flex:1; background:#1565C0; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px; transform:rotate(180deg);">J2</div>
+            </div>
+            <div style="height:28px; background:#333; display:flex; align-items:center; justify-content:center; gap:8px; font-size:10px; color:#aaa;">⟲ 🎲 ▶ 🏆 ⚙</div>
+            <div style="flex:1; display:flex; gap:2px; margin:2px;">
+              <div style="flex:1; background:#1B5E20; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px;">J3</div>
+              <div style="flex:1; background:#4A148C; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px;">J4</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6 players -->
+        <div style="flex:1; min-width:120px;">
+          <div class="label" style="margin-bottom:4px;">6 joueurs</div>
+          <div style="background:#1a1a2e; border-radius:8px; overflow:hidden; height:180px; display:flex; flex-direction:column;">
+            <div style="flex:1; display:flex; gap:2px; margin:2px;">
+              <div style="flex:1; background:#8B0000; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px; transform:rotate(180deg);">J1</div>
+              <div style="flex:1; background:#1565C0; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px; transform:rotate(180deg);">J2</div>
+              <div style="flex:1; background:#1B5E20; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px; transform:rotate(180deg);">J3</div>
+            </div>
+            <div style="height:28px; background:#333; display:flex; align-items:center; justify-content:center; gap:8px; font-size:10px; color:#aaa;">⟲ 🎲 ▶ 🏆 ⚙</div>
+            <div style="flex:1; display:flex; gap:2px; margin:2px;">
+              <div style="flex:1; background:#4A148C; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J4</div>
+              <div style="flex:1; background:#E65100; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J5</div>
+              <div style="flex:1; background:#006064; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J6</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pros-cons" style="margin-top:12px;">
+        <div class="pros"><h4>✅ Pros</h4><ul><li>Éprouvé en V1, stable</li><li>Barre centrale = accès équidistant pour tous</li><li>Fonctionne 2→8 joueurs sans cas spécial</li><li>Rotation 180° en haut = face-à-face naturel</li></ul></div>
+        <div class="cons"><h4>⚠️ Limites</h4><ul><li>Zones plus petites à 6-8 joueurs</li><li>Pas de mode "focus" pour le owner</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Hybrid — Split Central + Sidebar Compacte pour 5+</h3>
+      <p>Split central pour 2-4 joueurs, puis les joueurs 5+ passent en sidebar compacte à droite.</p>
+
+      <div style="display:flex; gap:16px; margin-top:12px;">
+        <!-- 4 players = same as A -->
+        <div style="flex:1; min-width:120px;">
+          <div class="label" style="margin-bottom:4px;">4 joueurs (identique A)</div>
+          <div style="background:#1a1a2e; border-radius:8px; overflow:hidden; height:180px; display:flex; flex-direction:column;">
+            <div style="flex:1; display:flex; gap:2px; margin:2px;">
+              <div style="flex:1; background:#8B0000; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px; transform:rotate(180deg);">J1</div>
+              <div style="flex:1; background:#1565C0; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px; transform:rotate(180deg);">J2</div>
+            </div>
+            <div style="height:28px; background:#333; display:flex; align-items:center; justify-content:center; gap:8px; font-size:10px; color:#aaa;">⟲ 🎲 ▶ 🏆 ⚙</div>
+            <div style="flex:1; display:flex; gap:2px; margin:2px;">
+              <div style="flex:1; background:#1B5E20; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px;">J3</div>
+              <div style="flex:1; background:#4A148C; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px;">J4</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6 players = sidebar -->
+        <div style="flex:1; min-width:160px;">
+          <div class="label" style="margin-bottom:4px;">6 joueurs (sidebar)</div>
+          <div style="background:#1a1a2e; border-radius:8px; overflow:hidden; height:180px; display:flex;">
+            <div style="flex:3; display:flex; flex-direction:column;">
+              <div style="flex:1; display:flex; gap:2px; margin:2px;">
+                <div style="flex:1; background:#8B0000; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px; transform:rotate(180deg);">J1</div>
+                <div style="flex:1; background:#1565C0; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px; transform:rotate(180deg);">J2</div>
+              </div>
+              <div style="height:28px; background:#333; display:flex; align-items:center; justify-content:center; gap:6px; font-size:9px; color:#aaa;">⟲ 🎲 ▶ 🏆 ⚙</div>
+              <div style="flex:1; display:flex; gap:2px; margin:2px;">
+                <div style="flex:1; background:#1B5E20; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J3</div>
+                <div style="flex:1; background:#4A148C; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J4</div>
+              </div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:2px; margin:2px 2px 2px 0;">
+              <div style="flex:1; background:#E65100; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:8px;">J5 — 40</div>
+              <div style="flex:1; background:#006064; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:8px;">J6 — 40</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pros-cons" style="margin-top:12px;">
+        <div class="pros"><h4>✅ Pros</h4><ul><li>Zones principales restent grandes</li><li>Sidebar = vue compacte lisible</li></ul></div>
+        <div class="cons"><h4>⚠️ Limites</h4><ul><li>Sidebar players = interaction réduite</li><li>Asymétrique (certains joueurs "moins importants")</li><li>Complexe pour le drag & drop</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Grid Pure — Grille dynamique N×M</h3>
+      <p>Calcul automatique rows × cols. Pas de barre centrale — contrôles en overlay flottant.</p>
+
+      <div style="display:flex; gap:16px; margin-top:12px;">
+        <div style="flex:1; min-width:120px;">
+          <div class="label" style="margin-bottom:4px;">6 joueurs (2×3)</div>
+          <div style="background:#1a1a2e; border-radius:8px; overflow:hidden; height:180px; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr 1fr; gap:2px; padding:2px;">
+            <div style="background:#8B0000; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J1</div>
+            <div style="background:#1565C0; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J2</div>
+            <div style="background:#1B5E20; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J3</div>
+            <div style="background:#4A148C; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J4</div>
+            <div style="background:#E65100; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J5</div>
+            <div style="background:#006064; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J6</div>
+          </div>
+        </div>
+        <div style="flex:1; min-width:120px;">
+          <div class="label" style="margin-bottom:4px;">8 joueurs (2×4)</div>
+          <div style="background:#1a1a2e; border-radius:8px; overflow:hidden; height:180px; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr 1fr 1fr; gap:2px; padding:2px;">
+            <div style="background:#8B0000; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:8px;">J1</div>
+            <div style="background:#1565C0; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:8px;">J2</div>
+            <div style="background:#1B5E20; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:8px;">J3</div>
+            <div style="background:#4A148C; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:8px;">J4</div>
+            <div style="background:#E65100; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:8px;">J5</div>
+            <div style="background:#006064; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:8px;">J6</div>
+            <div style="background:#4E342E; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:8px;">J7</div>
+            <div style="background:#880E4F; border-radius:4px; display:flex; align-items:center; justify-content:center; color:white; font-size:8px;">J8</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pros-cons" style="margin-top:12px;">
+        <div class="pros"><h4>✅ Pros</h4><ul><li>Tous les joueurs ont la même taille</li><li>Zones maximisées (pas de barre centrale)</li></ul></div>
+        <div class="cons"><h4>⚠️ Limites</h4><ul><li>Pas de barre centrale visible en permanence</li><li>Pas de rotation face-à-face</li><li>Contrôles en overlay = moins accessible</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

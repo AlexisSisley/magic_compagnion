@@ -81,7 +81,7 @@ class PlayerConfig {
   factory PlayerConfig.fromJson(Map<String, dynamic> json) => PlayerConfig(
         id: json['id'] as String,
         name: json['name'] as String,
-        type: PlayerType.values.firstWhere((t) => t.name == json['type']),
+        type: PlayerType.values.where((t) => t.name == json['type']).firstOrNull ?? PlayerType.guest,
         colorValue: json['colorValue'] as int? ?? 0xFF2196F3,
         avatarPath: json['avatarPath'] as String?,
         linkedDeckId: json['linkedDeckId'] as String?,

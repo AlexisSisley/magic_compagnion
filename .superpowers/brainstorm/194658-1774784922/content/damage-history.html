@@ -1,0 +1,116 @@
+<h2>Damage History — Historique des dégâts</h2>
+<p class="subtitle">Tracker chaque changement de PV avec source et timestamp. Comment y accéder ?</p>
+
+<h3>Accès au log</h3>
+<div class="options">
+  <div class="option" data-choice="pull-down" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Pull-down par joueur</h3>
+      <p>Swipe vers le bas sur une zone joueur pour révéler son historique personnel. Chaque joueur a son propre log.</p>
+      <div style="background:#1a1a2e; border-radius:8px; padding:12px; margin-top:8px; border:1px solid #333;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <div style="width:10px; height:10px; border-radius:50%; background:#8B0000;"></div>
+          <span style="color:#e0e0e0; font-size:13px; font-weight:600;">Player 1 — Historique</span>
+        </div>
+        <div style="font-size:11px; color:#aaa; border-left:2px solid #444; padding-left:8px;">
+          <div style="margin-bottom:6px;"><span style="color:#ff8a80;">-3</span> <span style="color:#666;">Générique</span> <span style="color:#555; float:right;">12:04</span></div>
+          <div style="margin-bottom:6px;"><span style="color:#ff8a80;">-5</span> <span style="color:#7c4dff;">Commander (J2)</span> <span style="color:#555; float:right;">11:58</span></div>
+          <div style="margin-bottom:6px;"><span style="color:#81c784;">+1</span> <span style="color:#666;">Générique</span> <span style="color:#555; float:right;">11:52</span></div>
+          <div style="margin-bottom:6px;"><span style="color:#ff8a80;">-2</span> <span style="color:#66bb6a;">Poison</span> <span style="color:#555; float:right;">11:45</span></div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>✅</h4><ul><li>Contextuel par joueur</li><li>Geste naturel</li></ul></div>
+        <div class="cons"><h4>⚠️</h4><ul><li>Conflit avec scroll si la zone a du contenu scrollable</li><li>Pas de vue globale</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="global-sheet" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Bottom Sheet global (via barre centrale)</h3>
+      <p><strong>Recommandé.</strong> Un bouton 📜 dans la barre centrale ouvre un bottom sheet avec le log complet de tous les joueurs, filtrable.</p>
+      <div style="background:#1a1a2e; border-radius:8px; padding:12px; margin-top:8px; border:1px solid #333;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <span style="color:#e0e0e0; font-size:14px; font-weight:600;">📜 Damage Log</span>
+          <div style="display:flex; gap:4px;">
+            <span style="padding:3px 8px; background:#333; border-radius:10px; font-size:10px; color:#aaa; border:1px solid #555;">Tous</span>
+            <span style="padding:3px 8px; background:#8B0000; border-radius:10px; font-size:10px; color:white;">J1</span>
+            <span style="padding:3px 8px; background:#333; border-radius:10px; font-size:10px; color:#aaa;">J2</span>
+            <span style="padding:3px 8px; background:#333; border-radius:10px; font-size:10px; color:#aaa;">J3</span>
+          </div>
+        </div>
+        <div style="font-size:11px; color:#aaa;">
+          <div style="display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px solid #222;">
+            <div style="width:8px; height:8px; border-radius:50%; background:#8B0000;"></div>
+            <span style="color:#e0e0e0; width:40px;">J1</span>
+            <span style="color:#ff8a80; font-weight:bold; width:30px;">-3</span>
+            <span style="flex:1; color:#666;">Générique</span>
+            <span style="color:#555;">12:04</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px solid #222;">
+            <div style="width:8px; height:8px; border-radius:50%; background:#1565C0;"></div>
+            <span style="color:#e0e0e0; width:40px;">J2</span>
+            <span style="color:#ff8a80; font-weight:bold; width:30px;">-5</span>
+            <span style="flex:1; color:#7c4dff;">Cmdr (J1)</span>
+            <span style="color:#555;">12:03</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px solid #222;">
+            <div style="width:8px; height:8px; border-radius:50%; background:#8B0000;"></div>
+            <span style="color:#e0e0e0; width:40px;">J1</span>
+            <span style="color:#81c784; font-weight:bold; width:30px;">+1</span>
+            <span style="flex:1; color:#666;">Générique</span>
+            <span style="color:#555;">11:58</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px solid #222;">
+            <div style="width:8px; height:8px; border-radius:50%; background:#1B5E20;"></div>
+            <span style="color:#e0e0e0; width:40px;">J3</span>
+            <span style="color:#ff8a80; font-weight:bold; width:30px;">-2</span>
+            <span style="flex:1; color:#66bb6a;">Poison</span>
+            <span style="color:#555;">11:52</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; padding:6px 0;">
+            <div style="width:8px; height:8px; border-radius:50%; background:#4A148C;"></div>
+            <span style="color:#e0e0e0; width:40px;">J4</span>
+            <span style="color:#ff8a80; font-weight:bold; width:30px;">-7</span>
+            <span style="flex:1; color:#7c4dff;">Cmdr (J1)</span>
+            <span style="color:#555;">11:45</span>
+          </div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>✅</h4><ul><li>Vue globale de la partie</li><li>Filtrable par joueur</li><li>Accessible via la barre centrale (identité app)</li><li>Pas de conflit de gestes</li></ul></div>
+        <div class="cons"><h4>⚠️</h4><ul><li>1 tap supplémentaire pour y accéder</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="both" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Les deux — Pull-down personnel + Global sheet</h3>
+      <p>Tap sur le compteur de PV d'un joueur = son historique personnel. Bouton barre centrale = log global.</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>✅</h4><ul><li>Maximum de flexibilité</li><li>2 niveaux de détail</li></ul></div>
+        <div class="cons"><h4>⚠️</h4><ul><li>Plus complexe à implémenter</li><li>Le tap sur PV est déjà utilisé pour +/- ?</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:20px; padding:16px; background:#1a1a2e; border-radius:8px; border:1px solid #444;">
+  <h3 style="margin-top:0;">Données trackées par événement</h3>
+  <table style="width:100%; border-collapse:collapse; font-size:13px;">
+    <tr style="border-bottom:1px solid #333;">
+      <th style="text-align:left; padding:6px; color:#aaa;">Champ</th>
+      <th style="text-align:left; padding:6px; color:#aaa;">Exemple</th>
+    </tr>
+    <tr style="border-bottom:1px solid #222;"><td style="padding:6px; color:#e0e0e0;">Delta</td><td style="padding:6px; color:#aaa;">-3, +1, -5</td></tr>
+    <tr style="border-bottom:1px solid #222;"><td style="padding:6px; color:#e0e0e0;">Source</td><td style="padding:6px; color:#aaa;">Générique, Commander (J2), Poison, Energy</td></tr>
+    <tr style="border-bottom:1px solid #222;"><td style="padding:6px; color:#e0e0e0;">Timestamp</td><td style="padding:6px; color:#aaa;">Duration depuis le début de la partie (12:04)</td></tr>
+    <tr><td style="padding:6px; color:#e0e0e0;">Joueur cible</td><td style="padding:6px; color:#aaa;">Player 1, Player 2...</td></tr>
+  </table>
+  <p style="margin-top:8px; font-size:11px; color:#666;">Note : le modèle <code>LifeEvent</code> existe déjà dans <code>game_session.dart</code> avec delta, source, timestamp. Il suffit de l'exploiter.</p>
+</div>

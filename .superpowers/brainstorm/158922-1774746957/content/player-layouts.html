@@ -1,0 +1,126 @@
+<h2>Placement des zones joueurs</h2>
+<p class="subtitle">Comment disposer les zones sur l'écran selon le nombre de joueurs ? Chaque layout doit être lisible, accessible, et optimisé pour un téléphone tenu en portrait ou paysage.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Grille fixe (actuel amélioré)</h3>
+      <p>2 joueurs = 2 lignes empilées (face à face, chacun lit dans son sens). 3-4 joueurs = grille 2×2. 5-6 = grille 3×2. Rotation automatique pour que chaque joueur lise sa zone à l'endroit.</p>
+      <div style="margin-top:12px; display:flex; gap:16px; flex-wrap:wrap;">
+        <!-- 2 players -->
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#888; margin-bottom:4px;">2 joueurs</div>
+          <div style="width:80px; height:120px; border:1px solid #444; border-radius:6px; display:flex; flex-direction:column; overflow:hidden;">
+            <div style="flex:1; background:#1a3a5c; display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px; transform:rotate(180deg);">J1 ↕</div>
+            <div style="height:1px; background:#666;"></div>
+            <div style="flex:1; background:#5c1a1a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px;">J2</div>
+          </div>
+        </div>
+        <!-- 4 players -->
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#888; margin-bottom:4px;">4 joueurs</div>
+          <div style="width:100px; height:120px; border:1px solid #444; border-radius:6px; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:1px; background:#666; overflow:hidden;">
+            <div style="background:#1a3a5c; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; transform:rotate(180deg);">J1</div>
+            <div style="background:#1a5c3a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; transform:rotate(180deg);">J2</div>
+            <div style="background:#5c1a1a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px;">J3</div>
+            <div style="background:#5c4a1a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px;">J4</div>
+          </div>
+        </div>
+        <!-- 6 players -->
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#888; margin-bottom:4px;">6 joueurs</div>
+          <div style="width:100px; height:120px; border:1px solid #444; border-radius:6px; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr 1fr; gap:1px; background:#666; overflow:hidden;">
+            <div style="background:#1a3a5c; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px; transform:rotate(180deg);">J1</div>
+            <div style="background:#1a5c3a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px; transform:rotate(180deg);">J2</div>
+            <div style="background:#5c1a1a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px;">J3</div>
+            <div style="background:#5c4a1a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px;">J4</div>
+            <div style="background:#3a1a5c; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px;">J5</div>
+            <div style="background:#1a5c5c; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px;">J6</div>
+          </div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:12px;">
+        <div class="pros"><h4>✅</h4><ul><li>Simple, prévisible</li><li>Chaque joueur a une zone égale</li></ul></div>
+        <div class="cons"><h4>⚠️</h4><ul><li>À 6+ joueurs les zones deviennent petites</li><li>Peu flexible</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Focus "Moi + Adversaires"</h3>
+      <p>Le joueur principal a une grande zone en bas (1/3 écran). Les adversaires sont affichés en bandeau compact en haut, scrollable horizontalement si >3. Tap sur un adversaire pour l'agrandir temporairement.</p>
+      <div style="margin-top:12px; display:flex; gap:16px;">
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#888; margin-bottom:4px;">4 joueurs (vue de J1)</div>
+          <div style="width:120px; height:140px; border:1px solid #444; border-radius:6px; display:flex; flex-direction:column; overflow:hidden;">
+            <div style="height:40%; display:flex; gap:1px; background:#666;">
+              <div style="flex:1; background:#1a5c3a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px;">J2<br/>38</div>
+              <div style="flex:1; background:#5c4a1a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px;">J3<br/>32</div>
+              <div style="flex:1; background:#3a1a5c; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px;">J4<br/>40</div>
+            </div>
+            <div style="height:1px; background:#666;"></div>
+            <div style="flex:1; background:#1a3a5c; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:bold;">MOI — 37</div>
+          </div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:12px;">
+        <div class="pros"><h4>✅</h4><ul><li>Ergonomique pour un seul joueur</li><li>Grands boutons +/- accessibles</li></ul></div>
+        <div class="cons"><h4>⚠️</h4><ul><li>Un seul téléphone = une seule perspective</li><li>Pas adapté au "pose le tel au centre"</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Layout adaptatif (⭐ recommandé)</h3>
+      <p>Combine les deux selon le contexte. <strong>2 joueurs</strong> = face à face classique. <strong>3-4 joueurs</strong> = grille 2×2 avec zones égales. <strong>5-8 joueurs</strong> = bascule en mode "Focus" (ma zone grande + adversaires compacts). Le joueur peut aussi <strong>switcher manuellement</strong> entre grille et focus.</p>
+      <div style="margin-top:12px; display:flex; gap:16px; flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#888; margin-bottom:4px;">2J → Face à face</div>
+          <div style="width:70px; height:100px; border:1px solid #4a9eff; border-radius:6px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 0 8px rgba(74,158,255,0.3);">
+            <div style="flex:1; background:#1a3a5c; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px; transform:rotate(180deg);">J1</div>
+            <div style="height:1px; background:#4a9eff;"></div>
+            <div style="flex:1; background:#5c1a1a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:9px;">J2</div>
+          </div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#888; margin-bottom:4px;">3-4J → Grille</div>
+          <div style="width:85px; height:100px; border:1px solid #4a9eff; border-radius:6px; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:1px; background:#4a9eff; overflow:hidden; box-shadow:0 0 8px rgba(74,158,255,0.3);">
+            <div style="background:#1a3a5c; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px;">J1</div>
+            <div style="background:#1a5c3a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px;">J2</div>
+            <div style="background:#5c1a1a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px;">J3</div>
+            <div style="background:#5c4a1a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:8px;">J4</div>
+          </div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#888; margin-bottom:4px;">5-8J → Focus</div>
+          <div style="width:85px; height:100px; border:1px solid #4a9eff; border-radius:6px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 0 8px rgba(74,158,255,0.3);">
+            <div style="height:45%; display:flex; gap:1px; background:#4a9eff;">
+              <div style="flex:1; background:#1a5c3a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:7px;">J2</div>
+              <div style="flex:1; background:#5c4a1a; display:flex; align-items:center; justify-content:center; color:#fff; font-size:7px;">J3</div>
+              <div style="flex:1; background:#3a1a5c; display:flex; align-items:center; justify-content:center; color:#fff; font-size:7px;">J4</div>
+            </div>
+            <div style="flex:1; background:#1a3a5c; display:flex; align-items:center; justify-content:center; color:#fff; font-size:11px; font-weight:bold;">MOI</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; color:#888; font-size:20px;">⇄</div>
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#4a9eff; margin-bottom:4px;">Switch manuel</div>
+          <div style="width:40px; height:40px; border:1px dashed #4a9eff; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#4a9eff; font-size:16px;">🔄</div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:12px;">
+        <div class="pros"><h4>✅</h4><ul><li>Optimal pour chaque situation</li><li>Grille classique pour "poser au centre"</li><li>Focus pour les grosses parties</li></ul></div>
+        <div class="cons"><h4>⚠️</h4><ul><li>Plus complexe à implémenter</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:24px; font-style:italic; color:#888;">Clique sur l'option qui te convient, puis confirme dans le terminal.</p>

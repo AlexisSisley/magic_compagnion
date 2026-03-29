@@ -1,0 +1,152 @@
+<h2>Layout Hybride A+C — Grille + Barre Centrale</h2>
+<p class="subtitle">Grille dynamique qui affiche tous les joueurs, coupée au milieu par la barre de contrôle. Les joueurs du haut sont tournés 180° (face-à-face autour de la table).</p>
+
+<div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:16px;">
+
+  <!-- 2 players -->
+  <div style="flex:1; min-width:140px;">
+    <div class="label" style="margin-bottom:6px; text-align:center;">2 joueurs</div>
+    <div style="background:#1a1a2e; border-radius:10px; overflow:hidden; height:260px; display:flex; flex-direction:column; border:1px solid #333;">
+      <div style="flex:1; display:flex; gap:2px; margin:3px;">
+        <div style="flex:1; background:#8B0000; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:18px; transform:rotate(180deg);">40</div>
+      </div>
+      <div style="height:36px; background:linear-gradient(90deg, #1a1a2e, #2a2a3e, #1a1a2e); display:flex; align-items:center; justify-content:space-evenly; flex-shrink:0; border-top:1px solid #444; border-bottom:1px solid #444;">
+        <span style="font-size:16px; cursor:pointer;" title="Reset">⟲</span>
+        <span style="font-size:16px; cursor:pointer;" title="Dé">🎲</span>
+        <div style="width:32px; height:32px; border-radius:50%; border:2px solid #7c4dff; display:flex; align-items:center; justify-content:center; font-size:11px; color:#ccc; font-family:monospace;">▶</div>
+        <span style="font-size:16px; cursor:pointer;" title="Trophy">🏆</span>
+        <span style="font-size:16px; cursor:pointer;" title="Config">⚙</span>
+      </div>
+      <div style="flex:1; display:flex; gap:2px; margin:3px;">
+        <div style="flex:1; background:#1565C0; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:18px;">40</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 players -->
+  <div style="flex:1; min-width:140px;">
+    <div class="label" style="margin-bottom:6px; text-align:center;">3 joueurs</div>
+    <div style="background:#1a1a2e; border-radius:10px; overflow:hidden; height:260px; display:flex; flex-direction:column; border:1px solid #333;">
+      <div style="flex:1; display:flex; gap:2px; margin:3px;">
+        <div style="flex:1; background:#8B0000; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px; transform:rotate(180deg);">J1 — 40</div>
+      </div>
+      <div style="height:36px; background:linear-gradient(90deg, #1a1a2e, #2a2a3e, #1a1a2e); display:flex; align-items:center; justify-content:space-evenly; flex-shrink:0; border-top:1px solid #444; border-bottom:1px solid #444;">
+        <span style="font-size:14px;">⟲</span><span style="font-size:14px;">🎲</span>
+        <div style="width:28px; height:28px; border-radius:50%; border:2px solid #7c4dff; display:flex; align-items:center; justify-content:center; font-size:10px; color:#ccc;">▶</div>
+        <span style="font-size:14px;">🏆</span><span style="font-size:14px;">⚙</span>
+      </div>
+      <div style="flex:1; display:flex; gap:2px; margin:3px;">
+        <div style="flex:1; background:#1565C0; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:11px;">J2 — 40</div>
+        <div style="flex:1; background:#1B5E20; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:11px;">J3 — 40</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 players -->
+  <div style="flex:1; min-width:140px;">
+    <div class="label" style="margin-bottom:6px; text-align:center;">4 joueurs ⭐ Commander</div>
+    <div style="background:#1a1a2e; border-radius:10px; overflow:hidden; height:260px; display:flex; flex-direction:column; border:1px solid #333;">
+      <div style="flex:1; display:flex; gap:2px; margin:3px;">
+        <div style="flex:1; background:#8B0000; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px; transform:rotate(180deg);">J1 — 40</div>
+        <div style="flex:1; background:#1565C0; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px; transform:rotate(180deg);">J2 — 40</div>
+      </div>
+      <div style="height:36px; background:linear-gradient(90deg, #1a1a2e, #2a2a3e, #1a1a2e); display:flex; align-items:center; justify-content:space-evenly; flex-shrink:0; border-top:1px solid #444; border-bottom:1px solid #444;">
+        <span style="font-size:14px;">⟲</span><span style="font-size:14px;">🎲</span>
+        <div style="width:28px; height:28px; border-radius:50%; border:2px solid #7c4dff; display:flex; align-items:center; justify-content:center; font-size:10px; color:#ccc;">▶</div>
+        <span style="font-size:14px;">🏆</span><span style="font-size:14px;">⚙</span>
+      </div>
+      <div style="flex:1; display:flex; gap:2px; margin:3px;">
+        <div style="flex:1; background:#1B5E20; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px;">J3 — 40</div>
+        <div style="flex:1; background:#4A148C; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:14px;">J4 — 40</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 players -->
+  <div style="flex:1; min-width:140px;">
+    <div class="label" style="margin-bottom:6px; text-align:center;">5 joueurs</div>
+    <div style="background:#1a1a2e; border-radius:10px; overflow:hidden; height:260px; display:flex; flex-direction:column; border:1px solid #333;">
+      <div style="flex:1; display:flex; gap:2px; margin:3px;">
+        <div style="flex:1; background:#8B0000; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px; transform:rotate(180deg);">J1</div>
+        <div style="flex:1; background:#1565C0; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px; transform:rotate(180deg);">J2</div>
+      </div>
+      <div style="height:36px; background:linear-gradient(90deg, #1a1a2e, #2a2a3e, #1a1a2e); display:flex; align-items:center; justify-content:space-evenly; flex-shrink:0; border-top:1px solid #444; border-bottom:1px solid #444;">
+        <span style="font-size:14px;">⟲</span><span style="font-size:14px;">🎲</span>
+        <div style="width:28px; height:28px; border-radius:50%; border:2px solid #7c4dff; display:flex; align-items:center; justify-content:center; font-size:10px; color:#ccc;">▶</div>
+        <span style="font-size:14px;">🏆</span><span style="font-size:14px;">⚙</span>
+      </div>
+      <div style="flex:1; display:flex; gap:2px; margin:3px;">
+        <div style="flex:1; background:#1B5E20; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px;">J3</div>
+        <div style="flex:1; background:#4A148C; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px;">J4</div>
+        <div style="flex:1; background:#E65100; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px;">J5</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 players -->
+  <div style="flex:1; min-width:140px;">
+    <div class="label" style="margin-bottom:6px; text-align:center;">6 joueurs</div>
+    <div style="background:#1a1a2e; border-radius:10px; overflow:hidden; height:260px; display:flex; flex-direction:column; border:1px solid #333;">
+      <div style="flex:1; display:flex; gap:2px; margin:3px;">
+        <div style="flex:1; background:#8B0000; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px; transform:rotate(180deg);">J1</div>
+        <div style="flex:1; background:#1565C0; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px; transform:rotate(180deg);">J2</div>
+        <div style="flex:1; background:#1B5E20; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px; transform:rotate(180deg);">J3</div>
+      </div>
+      <div style="height:36px; background:linear-gradient(90deg, #1a1a2e, #2a2a3e, #1a1a2e); display:flex; align-items:center; justify-content:space-evenly; flex-shrink:0; border-top:1px solid #444; border-bottom:1px solid #444;">
+        <span style="font-size:14px;">⟲</span><span style="font-size:14px;">🎲</span>
+        <div style="width:28px; height:28px; border-radius:50%; border:2px solid #7c4dff; display:flex; align-items:center; justify-content:center; font-size:10px; color:#ccc;">▶</div>
+        <span style="font-size:14px;">🏆</span><span style="font-size:14px;">⚙</span>
+      </div>
+      <div style="flex:1; display:flex; gap:2px; margin:3px;">
+        <div style="flex:1; background:#4A148C; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px;">J4</div>
+        <div style="flex:1; background:#E65100; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px;">J5</div>
+        <div style="flex:1; background:#006064; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:10px;">J6</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8 players -->
+  <div style="flex:1; min-width:140px;">
+    <div class="label" style="margin-bottom:6px; text-align:center;">8 joueurs</div>
+    <div style="background:#1a1a2e; border-radius:10px; overflow:hidden; height:260px; display:flex; flex-direction:column; border:1px solid #333;">
+      <div style="flex:2; display:grid; grid-template-columns:1fr 1fr; gap:2px; margin:3px;">
+        <div style="background:#8B0000; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px; transform:rotate(180deg);">J1</div>
+        <div style="background:#1565C0; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px; transform:rotate(180deg);">J2</div>
+        <div style="background:#1B5E20; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px; transform:rotate(180deg);">J3</div>
+        <div style="background:#4A148C; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px; transform:rotate(180deg);">J4</div>
+      </div>
+      <div style="height:36px; background:linear-gradient(90deg, #1a1a2e, #2a2a3e, #1a1a2e); display:flex; align-items:center; justify-content:space-evenly; flex-shrink:0; border-top:1px solid #444; border-bottom:1px solid #444;">
+        <span style="font-size:12px;">⟲</span><span style="font-size:12px;">🎲</span>
+        <div style="width:24px; height:24px; border-radius:50%; border:2px solid #7c4dff; display:flex; align-items:center; justify-content:center; font-size:9px; color:#ccc;">▶</div>
+        <span style="font-size:12px;">🏆</span><span style="font-size:12px;">⚙</span>
+      </div>
+      <div style="flex:2; display:grid; grid-template-columns:1fr 1fr; gap:2px; margin:3px;">
+        <div style="background:#E65100; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J5</div>
+        <div style="background:#006064; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J6</div>
+        <div style="background:#4E342E; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J7</div>
+        <div style="background:#880E4F; border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:9px;">J8</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:20px; padding:16px; background:#1a1a2e; border-radius:8px; border:1px solid #444;">
+  <h3 style="margin-top:0;">Règle de répartition</h3>
+  <table style="width:100%; border-collapse:collapse; font-size:13px;">
+    <tr style="border-bottom:1px solid #333;">
+      <th style="text-align:left; padding:6px; color:#aaa;">Joueurs</th>
+      <th style="text-align:left; padding:6px; color:#aaa;">Haut (180°)</th>
+      <th style="text-align:left; padding:6px; color:#aaa;">Bas</th>
+      <th style="text-align:left; padding:6px; color:#aaa;">Colonnes</th>
+    </tr>
+    <tr style="border-bottom:1px solid #222;"><td style="padding:6px;">2</td><td style="padding:6px;">1</td><td style="padding:6px;">1</td><td style="padding:6px;">1</td></tr>
+    <tr style="border-bottom:1px solid #222;"><td style="padding:6px;">3</td><td style="padding:6px;">1</td><td style="padding:6px;">2</td><td style="padding:6px;">1 / 2</td></tr>
+    <tr style="border-bottom:1px solid #222;"><td style="padding:6px;">4</td><td style="padding:6px;">2</td><td style="padding:6px;">2</td><td style="padding:6px;">2</td></tr>
+    <tr style="border-bottom:1px solid #222;"><td style="padding:6px;">5</td><td style="padding:6px;">2</td><td style="padding:6px;">3</td><td style="padding:6px;">2 / 3</td></tr>
+    <tr style="border-bottom:1px solid #222;"><td style="padding:6px;">6</td><td style="padding:6px;">3</td><td style="padding:6px;">3</td><td style="padding:6px;">3</td></tr>
+    <tr style="border-bottom:1px solid #222;"><td style="padding:6px;">7</td><td style="padding:6px;">3</td><td style="padding:6px;">4</td><td style="padding:6px;">3 / 4</td></tr>
+    <tr><td style="padding:6px;">8</td><td style="padding:6px;">4 (grille 2×2)</td><td style="padding:6px;">4 (grille 2×2)</td><td style="padding:6px;">2×2 / 2×2</td></tr>
+  </table>
+</div>
+
+<p style="margin-top:16px; color:#aaa; font-size:13px;">💡 <strong>Ce layout est-il validé ?</strong> Si oui, je passe à la question suivante (death handling à 0 PV). Sinon, dis-moi ce que tu changerais.</p>

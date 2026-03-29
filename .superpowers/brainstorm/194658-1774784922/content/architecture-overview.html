@@ -1,0 +1,129 @@
+<h2>Architecture — Life Counter V3</h2>
+<p class="subtitle">V1 comme base + GameSessionController + nouveaux widgets. Suppression de la V2.</p>
+
+<div style="display:flex; gap:20px; flex-wrap:wrap;">
+
+  <!-- What we KEEP -->
+  <div style="flex:1; min-width:280px; background:#1a2a1a; border:1px solid #388E3C; border-radius:10px; padding:16px;">
+    <h3 style="color:#81c784; margin-top:0;">✅ On garde</h3>
+    <div style="font-size:13px; color:#ccc;">
+      <div style="padding:6px 0; border-bottom:1px solid #2a3a2a;">
+        <strong style="color:#e0e0e0;">V1 — life_counter_page.dart</strong>
+        <div style="color:#aaa; font-size:11px;">Layout split haut/bas + barre centrale. Refactoré pour utiliser GameSessionController au lieu de SharedPreferences directes</div>
+      </div>
+      <div style="padding:6px 0; border-bottom:1px solid #2a3a2a;">
+        <strong style="color:#e0e0e0;">GameSessionController</strong>
+        <div style="color:#aaa; font-size:11px;">Logique métier (life, counters, commander damage, elimination, monarch)</div>
+      </div>
+      <div style="padding:6px 0; border-bottom:1px solid #2a3a2a;">
+        <strong style="color:#e0e0e0;">Modèles V2</strong>
+        <div style="color:#aaa; font-size:11px;">GameSession, PlayerState, LifeEvent, GameFormat, PlayerConfig</div>
+      </div>
+      <div style="padding:6px 0; border-bottom:1px solid #2a3a2a;">
+        <strong style="color:#e0e0e0;">GameSessionService</strong>
+        <div style="color:#aaa; font-size:11px;">Crash recovery via snapshot SharedPreferences</div>
+      </div>
+      <div style="padding:6px 0; border-bottom:1px solid #2a3a2a;">
+        <strong style="color:#e0e0e0;">Widgets V2 réutilisables</strong>
+        <div style="color:#aaa; font-size:11px;">CriticalOverlay, EliminationOverlay, DraggablePlayerZone, FormatChip, DiceRollAnimationDialog</div>
+      </div>
+      <div style="padding:6px 0;">
+        <strong style="color:#e0e0e0;">PlayerZone V1</strong>
+        <div style="color:#aaa; font-size:11px;">Sous-widgets existants (PlayerHeader, LifeDisplay, LifeLog, CounterStrip)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- What we ADD -->
+  <div style="flex:1; min-width:280px; background:#1a1a2e; border:1px solid #7c4dff; border-radius:10px; padding:16px;">
+    <h3 style="color:#b39ddb; margin-top:0;">🆕 On ajoute</h3>
+    <div style="font-size:13px; color:#ccc;">
+      <div style="padding:6px 0; border-bottom:1px solid #2a2a3e;">
+        <strong style="color:#e0e0e0;">Grille adaptative (AdaptiveGrid)</strong>
+        <div style="color:#aaa; font-size:11px;">Remplace le layout V1 hardcodé par un calcul dynamique topCount/bottomCount basé sur ceil(n/2)</div>
+      </div>
+      <div style="padding:6px 0; border-bottom:1px solid #2a2a3e;">
+        <strong style="color:#e0e0e0;">DeathConfirmationOverlay</strong>
+        <div style="color:#aaa; font-size:11px;">Timer 2s → overlay "Éliminé ?" avec Non/Oui. Dismissable. Ne bloque jamais les contrôles +/-</div>
+      </div>
+      <div style="padding:6px 0; border-bottom:1px solid #2a2a3e;">
+        <strong style="color:#e0e0e0;">DamageHistorySheet (global)</strong>
+        <div style="color:#aaa; font-size:11px;">Bottom sheet depuis la barre centrale. Log chronologique filtrable par joueur. Exploite LifeEvent existant</div>
+      </div>
+      <div style="padding:6px 0; border-bottom:1px solid #2a2a3e;">
+        <strong style="color:#e0e0e0;">PlayerHistorySheet (personnel)</strong>
+        <div style="color:#aaa; font-size:11px;">Tap sur nom du joueur → bottom sheet avec son historique personnel</div>
+      </div>
+      <div style="padding:6px 0;">
+        <strong style="color:#e0e0e0;">Mode édition (drag & drop)</strong>
+        <div style="color:#aaa; font-size:11px;">Toggle dans la barre centrale. Active DraggablePlayerZone autour de chaque zone. Indicateur visuel "mode édition"</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- What we DELETE -->
+  <div style="flex:1; min-width:280px; background:#2a1a1a; border:1px solid #C62828; border-radius:10px; padding:16px;">
+    <h3 style="color:#ef9a9a; margin-top:0;">🗑️ On supprime</h3>
+    <div style="font-size:13px; color:#ccc;">
+      <div style="padding:6px 0; border-bottom:1px solid #3a2a2a;">
+        <strong style="color:#e0e0e0;">life_counter_v2_page.dart</strong>
+        <div style="color:#aaa; font-size:11px;">Remplacé par la V1 refactorée</div>
+      </div>
+      <div style="padding:6px 0; border-bottom:1px solid #3a2a2a;">
+        <strong style="color:#e0e0e0;">LayoutResolver / LayoutType enum</strong>
+        <div style="color:#aaa; font-size:11px;">faceToFace/grid/focus → remplacé par AdaptiveGrid</div>
+      </div>
+      <div style="padding:6px 0; border-bottom:1px solid #3a2a2a;">
+        <strong style="color:#e0e0e0;">FaceToFaceLayout, GridLayout, FocusLayout</strong>
+        <div style="color:#aaa; font-size:11px;">3 widgets layout → remplacés par un seul AdaptiveGrid</div>
+      </div>
+      <div style="padding:6px 0; border-bottom:1px solid #3a2a2a;">
+        <strong style="color:#e0e0e0;">QuickStartPage / AdvancedSettingsPage</strong>
+        <div style="color:#aaa; font-size:11px;">Le setup se fait via GameSetupModal existant (V1)</div>
+      </div>
+      <div style="padding:6px 0; border-bottom:1px solid #3a2a2a;">
+        <strong style="color:#e0e0e0;">PlayerZoneCompact</strong>
+        <div style="color:#aaa; font-size:11px;">Plus besoin — tous les joueurs ont la même taille dans la grille</div>
+      </div>
+      <div style="padding:6px 0;">
+        <strong style="color:#e0e0e0;">RadialMenu / RadialMenuTrigger</strong>
+        <div style="color:#aaa; font-size:11px;">Remplacé par le long press → élimination manuelle + mode édition</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:24px; padding:16px; background:#1a1a2e; border-radius:8px; border:1px solid #444;">
+  <h3 style="margin-top:0;">Flux de données</h3>
+  <pre style="color:#aaa; font-size:12px; line-height:1.6; margin:0; overflow-x:auto;">
+┌─────────────────────────────────────────────────────────────┐
+│                   life_counter_page.dart                     │
+│                     (ConsumerStatefulWidget)                 │
+│                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │ AdaptiveGrid │  │ Central Bar  │  │ Death/Edit State │  │
+│  │ (top/bottom  │  │ (⟲🎲▶📜⚙🔧🏆)│  │ (local setState) │  │
+│  │  split + N   │  └──────┬───────┘  └──────────────────┘  │
+│  │  columns)    │         │                                  │
+│  └──────┬───────┘         │                                  │
+│         │                 │                                  │
+│  ┌──────▼───────┐  ┌─────▼──────────┐                      │
+│  │  PlayerZone  │  │ DamageHistory  │                      │
+│  │  + Critical  │  │ Sheet (global) │                      │
+│  │  + Elimin.   │  └────────────────┘                      │
+│  │  + Draggable │                                          │
+│  └──────┬───────┘                                          │
+│         │                                                   │
+└─────────┼───────────────────────────────────────────────────┘
+          │
+    ┌─────▼─────────────────┐     ┌──────────────────────┐
+    │ GameSessionController │────▶│ GameSessionService   │
+    │ (business logic)      │     │ (crash recovery)     │
+    │ - updateLife          │     └──────────────────────┘
+    │ - eliminatePlayer     │
+    │ - toggleMonarch       │     ┌──────────────────────┐
+    │ - addCommanderDamage  │────▶│ GameHistoryService   │
+    │ - reorderPlayers      │     │ (Drift DB, end game) │
+    └───────────────────────┘     └──────────────────────┘
+  </pre>
+</div>

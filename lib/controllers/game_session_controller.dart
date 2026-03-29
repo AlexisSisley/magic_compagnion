@@ -56,10 +56,11 @@ class GameSessionController {
     required Duration gameDuration,
   }) {
     if (_session == null) return;
-    final sourceName = _session!.players
-        .firstWhere((p) => p.playerId == sourcePlayerId)
-        .config
-        .name;
+    final sourcePlayer = _session!.players
+        .where((p) => p.playerId == sourcePlayerId)
+        .firstOrNull;
+    if (sourcePlayer == null) return;
+    final sourceName = sourcePlayer.config.name;
     final players = _session!.players.map((p) {
       if (p.playerId == targetPlayerId) {
         final cmdDamage = Map<int, int>.from(p.commanderDamageReceived);

@@ -1,0 +1,99 @@
+<h2>Comportement à 0 PV — Death Handling</h2>
+<p class="subtitle">Quand un joueur atteint 0 PV (ou moins), que se passe-t-il ? Le problème actuel : l'app se "bloque" et empêche toute interaction.</p>
+
+<div style="margin-bottom:24px;">
+  <h3>Le flow proposé</h3>
+  <div style="display:flex; gap:12px; align-items:stretch; flex-wrap:wrap;">
+
+    <!-- Step 1 -->
+    <div style="flex:1; min-width:200px; background:#1a1a2e; border-radius:10px; padding:16px; border:1px solid #333;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+        <div style="width:28px; height:28px; border-radius:50%; background:#7c4dff; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:13px;">1</div>
+        <span style="color:#e0e0e0; font-weight:600;">Le joueur passe à ≤ 0</span>
+      </div>
+      <div style="background:#2a1a1a; border:2px solid #ff5252; border-radius:8px; padding:12px; text-align:center;">
+        <div style="font-size:36px; font-weight:bold; color:#ff5252; font-family:monospace;">-3</div>
+        <div style="font-size:12px; color:#ff8a80; margin-top:4px;">Zone pulse en rouge</div>
+        <div style="font-size:11px; color:#aaa; margin-top:4px;">⚡ Les contrôles +/- restent ACTIFS</div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div style="flex:1; min-width:200px; background:#1a1a2e; border-radius:10px; padding:16px; border:1px solid #333;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+        <div style="width:28px; height:28px; border-radius:50%; background:#7c4dff; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:13px;">2</div>
+        <span style="color:#e0e0e0; font-weight:600;">Overlay de confirmation</span>
+      </div>
+      <div style="background:#1a1a2e; border:2px solid #444; border-radius:8px; padding:12px; text-align:center;">
+        <div style="font-size:13px; color:#e0e0e0; margin-bottom:8px;">💀 <strong>Player 1</strong> est à 0 PV</div>
+        <div style="font-size:12px; color:#aaa; margin-bottom:12px;">Ce joueur est-il éliminé ?</div>
+        <div style="display:flex; gap:8px; justify-content:center;">
+          <div style="padding:8px 20px; background:#388E3C; border-radius:6px; color:white; font-size:12px; font-weight:600;">Non — corriger</div>
+          <div style="padding:8px 20px; background:#C62828; border-radius:6px; color:white; font-size:12px; font-weight:600;">Oui — éliminé</div>
+        </div>
+      </div>
+      <div style="font-size:11px; color:#888; margin-top:8px; text-align:center;">Apparaît après 2 secondes à ≤ 0 (pas immédiatement)</div>
+    </div>
+
+    <!-- Step 3a -->
+    <div style="flex:1; min-width:200px; background:#1a1a2e; border-radius:10px; padding:16px; border:1px solid #333;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+        <div style="width:28px; height:28px; border-radius:50%; background:#388E3C; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:13px;">3a</div>
+        <span style="color:#e0e0e0; font-weight:600;">Si "Non" → Continue</span>
+      </div>
+      <div style="background:#1a2a1a; border:2px solid #388E3C; border-radius:8px; padding:12px; text-align:center;">
+        <div style="font-size:36px; font-weight:bold; color:#ff8a80; font-family:monospace;">-3</div>
+        <div style="font-size:12px; color:#a5d6a7; margin-top:4px;">Overlay disparaît</div>
+        <div style="font-size:11px; color:#aaa; margin-top:4px;">Le joueur peut ajuster ses PV normalement (+/-)</div>
+        <div style="font-size:11px; color:#666; margin-top:4px;">L'overlay ne réapparaîtra PAS</div>
+      </div>
+    </div>
+
+    <!-- Step 3b -->
+    <div style="flex:1; min-width:200px; background:#1a1a2e; border-radius:10px; padding:16px; border:1px solid #333;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+        <div style="width:28px; height:28px; border-radius:50%; background:#C62828; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:13px;">3b</div>
+        <span style="color:#e0e0e0; font-weight:600;">Si "Oui" → Éliminé</span>
+      </div>
+      <div style="background:#1a1a1a; border:2px solid #555; border-radius:8px; padding:12px; text-align:center; position:relative;">
+        <div style="position:absolute; inset:0; background:rgba(0,0,0,0.6); border-radius:6px; display:flex; align-items:center; justify-content:center;">
+          <span style="font-size:32px;">💀</span>
+        </div>
+        <div style="font-size:36px; font-weight:bold; color:#555; font-family:monospace;">-3</div>
+        <div style="font-size:12px; color:#777; margin-top:4px;">Zone grisée</div>
+      </div>
+      <div style="display:flex; gap:6px; margin-top:8px; justify-content:center;">
+        <div style="padding:4px 10px; background:#333; border-radius:4px; color:#aaa; font-size:10px;">⟲ Reset</div>
+        <div style="padding:4px 10px; background:#333; border-radius:4px; color:#aaa; font-size:10px;">↩ Undo Elim.</div>
+      </div>
+      <div style="font-size:11px; color:#888; margin-top:4px; text-align:center;">Reset et Undo Élim. toujours accessibles</div>
+    </div>
+  </div>
+</div>
+
+<h3>Question : le délai avant l'overlay</h3>
+<p class="subtitle">Quand le joueur passe à ≤ 0, quand afficher la confirmation ?</p>
+
+<div class="options">
+  <div class="option" data-choice="instant" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Immédiat</h3>
+      <p>L'overlay apparaît dès que le joueur passe à ≤ 0. Réactif mais peut gêner si on tapait vite pour corriger.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="delay2s" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Délai 2 secondes (recommandé)</h3>
+      <p>Laisse le temps de corriger une erreur de tap. Si les PV remontent au-dessus de 0 pendant le délai, pas d'overlay.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="manual" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Manuel uniquement</h3>
+      <p>Pas d'overlay automatique. L'élimination se fait uniquement via le menu contextuel (long press → "Éliminer"). La zone pulse en rouge comme indicateur visuel.</p>
+    </div>
+  </div>
+</div>
