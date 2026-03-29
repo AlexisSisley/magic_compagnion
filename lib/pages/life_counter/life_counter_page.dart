@@ -15,7 +15,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/controllers/game_session_controller.dart';
@@ -34,6 +33,12 @@ import '../../router/app_router.dart';
 import '../../widgets/life_counter/player_zone.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
+import '../../widgets/life_counter/layouts/adaptive_grid.dart';
+import '../../widgets/life_counter/critical_overlay.dart';
+import '../../widgets/life_counter/elimination_overlay.dart';
+import '../../widgets/life_counter/death_confirmation_overlay.dart';
+import '../../widgets/life_counter/draggable_player_zone.dart';
+import '../../widgets/life_counter/animations/animation_service.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class LifeCounterPage extends ConsumerStatefulWidget {
@@ -546,23 +551,72 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
-    final players = _legacyPlayers;
-    final bool useCentralMenu = _playerCount >= 2;
 
-    return Stack(
-      children: [
-        Column(children: [
-          Expanded(child: Row(children: players.sublist(0, (_playerCount/2).ceil()).map((p) => Expanded(child: Padding(padding: const EdgeInsets.all(2), child: _buildPlayerZone(p)))).toList())),
-          if (useCentralMenu) _buildCentralBar(),
-          if (!useCentralMenu) Container(height: 2, color: AppColors.textOnPrimary),
-          Expanded(child: Row(children: players.sublist((_playerCount/2).ceil()).map((p) => Expanded(child: Padding(padding: const EdgeInsets.all(2), child: _buildPlayerZone(p)))).toList())),
-        ]),
-        if (!useCentralMenu) ...[
-          Positioned(bottom: 16, right: 90, child: FloatingActionButton(heroTag: 'dice', onPressed: _showDiceSelector, backgroundColor: AppColors.overlayDark, foregroundColor: AppColors.textPrimary, child: const Icon(Icons.casino_outlined))),
-          Positioned(bottom: 16, right: 16, child: _buildSpeedDial()),
-        ]
-      ],
+    final players = _legacyPlayers;
+    final playerZones = players.asMap().entries.map((entry) {
+      final index = entry.key;
+      final player = entry.value;
+      final playerState = _session!.players[index];
+
+      Widget zone = _buildPlayerZoneWithOverlays(player, playerState, index);
+
+      if (_isEditMode) {
+        zone = DraggablePlayerZone(
+          index: index,
+          onReorder: _onReorderPlayers,
+          child: zone,
+        );
+      }
+
+      return zone;
+    }).toList();
+
+    return AdaptiveGrid(
+      playerZones: playerZones,
+      centralBar: _buildCentralBar(),
     );
+  }
+
+  Widget _buildPlayerZoneWithOverlays(Player player, PlayerState playerState, int index) {
+    final criticalLevel = AnimationService.getCriticalLevel(
+      currentLife: player.life,
+      startingLife: _currentFormat.startingLife,
+    );
+
+    Widget zone = _buildPlayerZone(player);
+    zone = CriticalOverlay(level: criticalLevel, child: zone);
+    zone = EliminationOverlay(
+      isEliminated: playerState.isEliminated,
+      child: zone,
+    );
+
+    if (_showDeathOverlay.contains(playerState.playerId)) {
+      zone = Stack(
+        children: [
+          zone,
+          Positioned.fill(
+            child: DeathConfirmationOverlay(
+              playerName: player.name,
+              currentLife: player.life,
+              onDismiss: () => _dismissDeath(playerState.playerId),
+              onConfirmElimination: () => _confirmElimination(playerState.playerId),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return zone;
+  }
+
+  void _onReorderPlayers(int oldIndex, int newIndex) {
+    if (_session == null) return;
+    final order = List<int>.from(_session!.playerOrder);
+    final item = order.removeAt(oldIndex);
+    order.insert(newIndex, item);
+    _controller.reorderPlayers(order);
+    setState(() => _session = _controller.session);
+    _saveSnapshot();
   }
 
   Widget _buildPlayerZone(Player p) {
@@ -599,17 +653,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           IconButton(icon: const Icon(Icons.people, color: AppColors.textSecondary), onPressed: _showGameSetupDialog),
         ],
       ),
-    );
-  }
-
-  Widget _buildSpeedDial() {
-    return SpeedDial(
-      icon: Icons.menu, activeIcon: Icons.close, backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.8), foregroundColor: AppColors.textPrimary, overlayColor: AppColors.textOnPrimary, overlayOpacity: 0.4, spacing: 12,
-      children: [
-        SpeedDialChild(child: const Icon(Icons.play_circle_fill), label: 'Qui commence ?', backgroundColor: Colors.amber.shade800, onTap: _pickStartingPlayer),
-        SpeedDialChild(child: const Icon(Icons.people_alt), label: 'Config. Partie', onTap: _showGameSetupDialog),
-        SpeedDialChild(child: const Icon(Icons.refresh), label: 'Reset', onTap: () => _resetGame()),
-      ],
     );
   }
 
