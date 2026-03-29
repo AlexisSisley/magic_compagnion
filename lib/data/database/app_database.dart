@@ -106,6 +106,8 @@ class Profiles extends Table {
   TextColumn get secondaryCommanderScryfallId => text().nullable()();
   TextColumn get secondaryCommanderName => text().nullable()();
   TextColumn get secondaryCommanderArtCropUrl => text().nullable()();
+  /// JSON array of CommanderEntry objects — gallery of saved commanders
+  TextColumn get commanderGalleryJson => text().withDefault(const Constant('[]'))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -240,7 +242,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration {
@@ -258,6 +260,9 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(gameHistoryItems, gameHistoryItems.playerCount);
           await m.addColumn(gameHistoryItems, gameHistoryItems.tag);
           await m.addColumn(gameHistoryItems, gameHistoryItems.winnerDeckName);
+        }
+        if (from < 3) {
+          await m.addColumn(profiles, profiles.commanderGalleryJson);
         }
       },
     );

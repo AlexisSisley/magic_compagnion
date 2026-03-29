@@ -244,28 +244,29 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     }
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(BuildContext dialogCtx) async {
     final ImagePicker picker = ImagePicker();
     try {
       final XFile? image = await picker.pickImage(source: ImageSource.gallery);
       if (image != null && widget.onSkinChanged != null) {
         widget.onSkinChanged!(image.path);
         if (!mounted) return;
-        Navigator.pop(context);
+        Navigator.of(dialogCtx).pop();
       }
     } catch (e) {
       debugPrint('Erreur image picker: $e');
     }
   }
 
-  void _openArtworkSearch() {
-    Navigator.pop(context);
+  void _openArtworkSearch(BuildContext dialogCtx) {
+    // Close the color picker dialog using the dialog's own context
+    Navigator.of(dialogCtx).pop();
 
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.scaffoldBackground,
       isScrollControlled: true,
-      builder: (context) => _ArtworkSearchModal(
+      builder: (sheetCtx) => _ArtworkSearchModal(
         localCardService: _localCardService,
         onCardSelected: (ScryfallCard card) {
           final String artUrl = card.artCropUrl ?? card.imageUrl;
@@ -280,21 +281,21 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
   void _showColorPicker() {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppColors.scaffoldBackground,
         title: Text('Personnalisation J${widget.player.id + 1}', style: AppTextStyles.cinzel()),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ElevatedButton.icon(
-              onPressed: _openArtworkSearch,
+              onPressed: () => _openArtworkSearch(dialogCtx),
               icon: const Icon(Icons.palette, color: AppColors.textOnPrimary),
               label: Text('Choisir un Artwork', style: AppTextStyles.bold()),
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800, foregroundColor: AppColors.textOnPrimary),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: _pickImage,
+              onPressed: () => _pickImage(dialogCtx),
               icon: const Icon(Icons.photo_library),
               label: const Text('Depuis la galerie'),
               style: OutlinedButton.styleFrom(foregroundColor: AppColors.textSecondary, side: const BorderSide(color: AppColors.borderMedium)),
@@ -303,7 +304,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                TextButton(
                  onPressed: () {
                    widget.onSkinChanged?.call(null);
-                   Navigator.pop(ctx);
+                   Navigator.of(dialogCtx).pop();
                  },
                  child: const Text("Supprimer l'image", style: TextStyle(color: AppColors.accentRed))
                ),
@@ -314,7 +315,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
               spacing: 12, runSpacing: 12,
               alignment: WrapAlignment.center,
               children: _colorOptions.map((c) => GestureDetector(
-                onTap: () { widget.onColorChanged(c); Navigator.pop(ctx); },
+                onTap: () { widget.onColorChanged(c); Navigator.of(dialogCtx).pop(); },
                 child: Container(
                   width: 45, height: 45,
                   decoration: BoxDecoration(
@@ -329,6 +330,95 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
           ],
         ),
       )
+    );
+  }
+
+  void _showCommanderGallery() {
+    final gallery = widget.player.commanderGallery;
+    if (gallery.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.scaffoldBackground,
+      builder: (sheetCtx) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Commanders', style: AppTextStyles.cinzel(fontSize: 18)),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 120,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: gallery.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (ctx, i) {
+                  final entry = gallery[i];
+                  final isActive = widget.player.backgroundImagePath == entry.imageUrl;
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.of(sheetCtx).pop();
+                      if (widget.onSkinChanged != null) {
+                        widget.onSkinChanged!(entry.imageUrl);
+                        HapticFeedback.selectionClick();
+                      }
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 80, height: 80,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isActive ? AppColors.primary : AppColors.borderMedium,
+                              width: isActive ? 3 : 1,
+                            ),
+                            boxShadow: isActive ? [
+                              BoxShadow(color: AppColors.primary.withAlpha(80), blurRadius: 8),
+                            ] : null,
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: entry.imageUrl != null
+                              ? CachedNetworkImage(
+                                  imageUrl: entry.imageUrl!,
+                                  httpHeaders: const {'User-Agent': 'MagicCompanion/1.0', 'Accept': '*/*'},
+                                  fit: BoxFit.cover,
+                                  placeholder: (_, __) => Container(
+                                    color: AppColors.surfaceDarkest,
+                                    child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                  ),
+                                  errorWidget: (_, __, ___) => Container(
+                                    color: AppColors.surfaceDarkest,
+                                    child: const Icon(Icons.broken_image, color: AppColors.textMuted),
+                                  ),
+                                )
+                              : Container(
+                                  color: AppColors.surfaceDarkest,
+                                  child: const Icon(Icons.image, color: AppColors.textMuted),
+                                ),
+                        ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          width: 80,
+                          child: Text(
+                            entry.name,
+                            style: AppTextStyles.label(fontSize: 10),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -455,6 +545,25 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
             onModeSelected: _setEditMode,
             onShowCommanderDamage: widget.onShowCommanderDamage,
           ),
+
+          // Commander gallery quick-switch (top-right)
+          if (widget.player.commanderGallery.isNotEmpty)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: _showCommanderGallery,
+                child: Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.surfaceDarkest.withAlpha(180),
+                    border: Border.all(color: AppColors.borderMedium, width: 1),
+                  ),
+                  child: const Icon(Icons.swap_horiz, color: AppColors.textPrimary, size: 18),
+                ),
+              ),
+            ),
 
           // Highlight overlay
           if (widget.isHighlighted)

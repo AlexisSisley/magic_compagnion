@@ -25,6 +25,7 @@ class ProfileService {
         secondaryCommanderScryfallId: p.secondaryCommanderScryfallId,
         secondaryCommanderName: p.secondaryCommanderName,
         secondaryCommanderArtCropUrl: p.secondaryCommanderArtCropUrl,
+        commanderGallery: Profile.galleryFromJson(p.commanderGalleryJson),
       )).toList();
     }
     // Fallback SharedPreferences
@@ -47,6 +48,7 @@ class ProfileService {
         secondaryCommanderScryfallId: Value(profile.secondaryCommanderScryfallId),
         secondaryCommanderName: Value(profile.secondaryCommanderName),
         secondaryCommanderArtCropUrl: Value(profile.secondaryCommanderArtCropUrl),
+        commanderGalleryJson: Value(profile.commanderGalleryJson),
       ));
       return;
     }

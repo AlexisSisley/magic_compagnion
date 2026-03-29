@@ -10,6 +10,15 @@ class GameFormat {
   final List<String> enabledCounterIds;
   final bool isBuiltIn;
 
+  /// Max poison counters before a player loses (0 = disabled). Default: 10.
+  final int maxPoison;
+
+  /// Max commander damage from a single source before a player loses (0 = disabled). Default: 21.
+  final int maxCommanderDamage;
+
+  /// Whether a player loses when their life reaches 0 or below.
+  final bool lethalAtZeroLife;
+
   const GameFormat({
     required this.id,
     required this.name,
@@ -19,6 +28,9 @@ class GameFormat {
     required this.maxCommanders,
     required this.enabledCounterIds,
     this.isBuiltIn = false,
+    this.maxPoison = 10,
+    this.maxCommanderDamage = 21,
+    this.lethalAtZeroLife = true,
   });
 
   GameFormat copyWith({
@@ -30,6 +42,9 @@ class GameFormat {
     int? maxCommanders,
     List<String>? enabledCounterIds,
     bool? isBuiltIn,
+    int? maxPoison,
+    int? maxCommanderDamage,
+    bool? lethalAtZeroLife,
   }) {
     return GameFormat(
       id: id ?? this.id,
@@ -40,6 +55,9 @@ class GameFormat {
       maxCommanders: maxCommanders ?? this.maxCommanders,
       enabledCounterIds: enabledCounterIds ?? this.enabledCounterIds,
       isBuiltIn: isBuiltIn ?? this.isBuiltIn,
+      maxPoison: maxPoison ?? this.maxPoison,
+      maxCommanderDamage: maxCommanderDamage ?? this.maxCommanderDamage,
+      lethalAtZeroLife: lethalAtZeroLife ?? this.lethalAtZeroLife,
     );
   }
 
@@ -52,6 +70,9 @@ class GameFormat {
         'maxCommanders': maxCommanders,
         'enabledCounterIds': enabledCounterIds,
         'isBuiltIn': isBuiltIn,
+        'maxPoison': maxPoison,
+        'maxCommanderDamage': maxCommanderDamage,
+        'lethalAtZeroLife': lethalAtZeroLife,
       };
 
   factory GameFormat.fromJson(Map<String, dynamic> json) => GameFormat(
@@ -63,6 +84,9 @@ class GameFormat {
         maxCommanders: json['maxCommanders'] as int,
         enabledCounterIds: (json['enabledCounterIds'] as List? ?? []).cast<String>(),
         isBuiltIn: json['isBuiltIn'] as bool? ?? false,
+        maxPoison: json['maxPoison'] as int? ?? 10,
+        maxCommanderDamage: json['maxCommanderDamage'] as int? ?? 21,
+        lethalAtZeroLife: json['lethalAtZeroLife'] as bool? ?? true,
       );
 
   /// All built-in format presets

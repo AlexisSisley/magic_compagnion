@@ -2360,6 +2360,18 @@ class $ProfilesTable extends Profiles
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _commanderGalleryJsonMeta =
+      const VerificationMeta('commanderGalleryJson');
+  @override
+  late final GeneratedColumn<String> commanderGalleryJson =
+      GeneratedColumn<String>(
+        'commander_gallery_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2371,6 +2383,7 @@ class $ProfilesTable extends Profiles
     secondaryCommanderScryfallId,
     secondaryCommanderName,
     secondaryCommanderArtCropUrl,
+    commanderGalleryJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2457,6 +2470,15 @@ class $ProfilesTable extends Profiles
         ),
       );
     }
+    if (data.containsKey('commander_gallery_json')) {
+      context.handle(
+        _commanderGalleryJsonMeta,
+        commanderGalleryJson.isAcceptableOrUnknown(
+          data['commander_gallery_json']!,
+          _commanderGalleryJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2502,6 +2524,10 @@ class $ProfilesTable extends Profiles
         DriftSqlType.string,
         data['${effectivePrefix}secondary_commander_art_crop_url'],
       ),
+      commanderGalleryJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}commander_gallery_json'],
+      )!,
     );
   }
 
@@ -2521,6 +2547,9 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
   final String? secondaryCommanderScryfallId;
   final String? secondaryCommanderName;
   final String? secondaryCommanderArtCropUrl;
+
+  /// JSON array of CommanderEntry objects — gallery of saved commanders
+  final String commanderGalleryJson;
   const DbProfile({
     required this.id,
     required this.name,
@@ -2531,6 +2560,7 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
     this.secondaryCommanderScryfallId,
     this.secondaryCommanderName,
     this.secondaryCommanderArtCropUrl,
+    required this.commanderGalleryJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2562,6 +2592,7 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
         secondaryCommanderArtCropUrl,
       );
     }
+    map['commander_gallery_json'] = Variable<String>(commanderGalleryJson);
     return map;
   }
 
@@ -2590,6 +2621,7 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
           secondaryCommanderArtCropUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(secondaryCommanderArtCropUrl),
+      commanderGalleryJson: Value(commanderGalleryJson),
     );
   }
 
@@ -2618,6 +2650,9 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
       secondaryCommanderArtCropUrl: serializer.fromJson<String?>(
         json['secondaryCommanderArtCropUrl'],
       ),
+      commanderGalleryJson: serializer.fromJson<String>(
+        json['commanderGalleryJson'],
+      ),
     );
   }
   @override
@@ -2639,6 +2674,7 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
       'secondaryCommanderArtCropUrl': serializer.toJson<String?>(
         secondaryCommanderArtCropUrl,
       ),
+      'commanderGalleryJson': serializer.toJson<String>(commanderGalleryJson),
     };
   }
 
@@ -2652,6 +2688,7 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
     Value<String?> secondaryCommanderScryfallId = const Value.absent(),
     Value<String?> secondaryCommanderName = const Value.absent(),
     Value<String?> secondaryCommanderArtCropUrl = const Value.absent(),
+    String? commanderGalleryJson,
   }) => DbProfile(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -2674,6 +2711,7 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
     secondaryCommanderArtCropUrl: secondaryCommanderArtCropUrl.present
         ? secondaryCommanderArtCropUrl.value
         : this.secondaryCommanderArtCropUrl,
+    commanderGalleryJson: commanderGalleryJson ?? this.commanderGalleryJson,
   );
   DbProfile copyWithCompanion(ProfilesCompanion data) {
     return DbProfile(
@@ -2700,6 +2738,9 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
       secondaryCommanderArtCropUrl: data.secondaryCommanderArtCropUrl.present
           ? data.secondaryCommanderArtCropUrl.value
           : this.secondaryCommanderArtCropUrl,
+      commanderGalleryJson: data.commanderGalleryJson.present
+          ? data.commanderGalleryJson.value
+          : this.commanderGalleryJson,
     );
   }
 
@@ -2716,7 +2757,10 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
             'secondaryCommanderScryfallId: $secondaryCommanderScryfallId, ',
           )
           ..write('secondaryCommanderName: $secondaryCommanderName, ')
-          ..write('secondaryCommanderArtCropUrl: $secondaryCommanderArtCropUrl')
+          ..write(
+            'secondaryCommanderArtCropUrl: $secondaryCommanderArtCropUrl, ',
+          )
+          ..write('commanderGalleryJson: $commanderGalleryJson')
           ..write(')'))
         .toString();
   }
@@ -2732,6 +2776,7 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
     secondaryCommanderScryfallId,
     secondaryCommanderName,
     secondaryCommanderArtCropUrl,
+    commanderGalleryJson,
   );
   @override
   bool operator ==(Object other) =>
@@ -2747,7 +2792,8 @@ class DbProfile extends DataClass implements Insertable<DbProfile> {
               this.secondaryCommanderScryfallId &&
           other.secondaryCommanderName == this.secondaryCommanderName &&
           other.secondaryCommanderArtCropUrl ==
-              this.secondaryCommanderArtCropUrl);
+              this.secondaryCommanderArtCropUrl &&
+          other.commanderGalleryJson == this.commanderGalleryJson);
 }
 
 class ProfilesCompanion extends UpdateCompanion<DbProfile> {
@@ -2760,6 +2806,7 @@ class ProfilesCompanion extends UpdateCompanion<DbProfile> {
   final Value<String?> secondaryCommanderScryfallId;
   final Value<String?> secondaryCommanderName;
   final Value<String?> secondaryCommanderArtCropUrl;
+  final Value<String> commanderGalleryJson;
   final Value<int> rowid;
   const ProfilesCompanion({
     this.id = const Value.absent(),
@@ -2771,6 +2818,7 @@ class ProfilesCompanion extends UpdateCompanion<DbProfile> {
     this.secondaryCommanderScryfallId = const Value.absent(),
     this.secondaryCommanderName = const Value.absent(),
     this.secondaryCommanderArtCropUrl = const Value.absent(),
+    this.commanderGalleryJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProfilesCompanion.insert({
@@ -2783,6 +2831,7 @@ class ProfilesCompanion extends UpdateCompanion<DbProfile> {
     this.secondaryCommanderScryfallId = const Value.absent(),
     this.secondaryCommanderName = const Value.absent(),
     this.secondaryCommanderArtCropUrl = const Value.absent(),
+    this.commanderGalleryJson = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
@@ -2796,6 +2845,7 @@ class ProfilesCompanion extends UpdateCompanion<DbProfile> {
     Expression<String>? secondaryCommanderScryfallId,
     Expression<String>? secondaryCommanderName,
     Expression<String>? secondaryCommanderArtCropUrl,
+    Expression<String>? commanderGalleryJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2813,6 +2863,8 @@ class ProfilesCompanion extends UpdateCompanion<DbProfile> {
         'secondary_commander_name': secondaryCommanderName,
       if (secondaryCommanderArtCropUrl != null)
         'secondary_commander_art_crop_url': secondaryCommanderArtCropUrl,
+      if (commanderGalleryJson != null)
+        'commander_gallery_json': commanderGalleryJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2827,6 +2879,7 @@ class ProfilesCompanion extends UpdateCompanion<DbProfile> {
     Value<String?>? secondaryCommanderScryfallId,
     Value<String?>? secondaryCommanderName,
     Value<String?>? secondaryCommanderArtCropUrl,
+    Value<String>? commanderGalleryJson,
     Value<int>? rowid,
   }) {
     return ProfilesCompanion(
@@ -2842,6 +2895,7 @@ class ProfilesCompanion extends UpdateCompanion<DbProfile> {
           secondaryCommanderName ?? this.secondaryCommanderName,
       secondaryCommanderArtCropUrl:
           secondaryCommanderArtCropUrl ?? this.secondaryCommanderArtCropUrl,
+      commanderGalleryJson: commanderGalleryJson ?? this.commanderGalleryJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2886,6 +2940,11 @@ class ProfilesCompanion extends UpdateCompanion<DbProfile> {
         secondaryCommanderArtCropUrl.value,
       );
     }
+    if (commanderGalleryJson.present) {
+      map['commander_gallery_json'] = Variable<String>(
+        commanderGalleryJson.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2908,6 +2967,7 @@ class ProfilesCompanion extends UpdateCompanion<DbProfile> {
           ..write(
             'secondaryCommanderArtCropUrl: $secondaryCommanderArtCropUrl, ',
           )
+          ..write('commanderGalleryJson: $commanderGalleryJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7851,6 +7911,7 @@ typedef $$ProfilesTableCreateCompanionBuilder =
       Value<String?> secondaryCommanderScryfallId,
       Value<String?> secondaryCommanderName,
       Value<String?> secondaryCommanderArtCropUrl,
+      Value<String> commanderGalleryJson,
       Value<int> rowid,
     });
 typedef $$ProfilesTableUpdateCompanionBuilder =
@@ -7864,6 +7925,7 @@ typedef $$ProfilesTableUpdateCompanionBuilder =
       Value<String?> secondaryCommanderScryfallId,
       Value<String?> secondaryCommanderName,
       Value<String?> secondaryCommanderArtCropUrl,
+      Value<String> commanderGalleryJson,
       Value<int> rowid,
     });
 
@@ -7918,6 +7980,11 @@ class $$ProfilesTableFilterComposer
 
   ColumnFilters<String> get secondaryCommanderArtCropUrl => $composableBuilder(
     column: $table.secondaryCommanderArtCropUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get commanderGalleryJson => $composableBuilder(
+    column: $table.commanderGalleryJson,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -7977,6 +8044,11 @@ class $$ProfilesTableOrderingComposer
         column: $table.secondaryCommanderArtCropUrl,
         builder: (column) => ColumnOrderings(column),
       );
+
+  ColumnOrderings<String> get commanderGalleryJson => $composableBuilder(
+    column: $table.commanderGalleryJson,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ProfilesTableAnnotationComposer
@@ -8030,6 +8102,11 @@ class $$ProfilesTableAnnotationComposer
         column: $table.secondaryCommanderArtCropUrl,
         builder: (column) => column,
       );
+
+  GeneratedColumn<String> get commanderGalleryJson => $composableBuilder(
+    column: $table.commanderGalleryJson,
+    builder: (column) => column,
+  );
 }
 
 class $$ProfilesTableTableManager
@@ -8071,6 +8148,7 @@ class $$ProfilesTableTableManager
                 Value<String?> secondaryCommanderName = const Value.absent(),
                 Value<String?> secondaryCommanderArtCropUrl =
                     const Value.absent(),
+                Value<String> commanderGalleryJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProfilesCompanion(
                 id: id,
@@ -8082,6 +8160,7 @@ class $$ProfilesTableTableManager
                 secondaryCommanderScryfallId: secondaryCommanderScryfallId,
                 secondaryCommanderName: secondaryCommanderName,
                 secondaryCommanderArtCropUrl: secondaryCommanderArtCropUrl,
+                commanderGalleryJson: commanderGalleryJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -8097,6 +8176,7 @@ class $$ProfilesTableTableManager
                 Value<String?> secondaryCommanderName = const Value.absent(),
                 Value<String?> secondaryCommanderArtCropUrl =
                     const Value.absent(),
+                Value<String> commanderGalleryJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProfilesCompanion.insert(
                 id: id,
@@ -8108,6 +8188,7 @@ class $$ProfilesTableTableManager
                 secondaryCommanderScryfallId: secondaryCommanderScryfallId,
                 secondaryCommanderName: secondaryCommanderName,
                 secondaryCommanderArtCropUrl: secondaryCommanderArtCropUrl,
+                commanderGalleryJson: commanderGalleryJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

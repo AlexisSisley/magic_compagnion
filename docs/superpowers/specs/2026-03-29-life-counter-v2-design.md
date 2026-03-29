@@ -278,7 +278,6 @@ Bouton "📋 Profils" sur chaque slot → charger un profil invité déjà sauve
 
 S'ouvre autour du point de contact :
 - **👑 Monarch** : toggle statut (active/désactive glow)
-- **⚔️ Cmd Damage** : sélecteur adversaire → tap +1, long press +5
 - **☠️ Éliminer** : confirmation → animation d'élimination
 - **🔄 Reset** : remet compteurs à zéro (confirmation requise)
 

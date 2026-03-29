@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 
 /// Single layout widget for 2-8 players with a central bar slot.
 ///
-/// Layout rule:
-///   topCount = ceil(playerCount / 2)
-///   bottomCount = playerCount - topCount
+/// Layout rule (face-to-face table play):
+///   topCount = floor(playerCount / 2) → opponents (rotated 180°)
+///   bottomCount = playerCount - topCount → user's side (upright)
 ///
-/// Top row is rotated 180° for face-to-face table play.
+/// For odd counts the extra player goes to the bottom (user's side):
+///   3 players → 1 top, 2 bottom
+///   5 players → 2 top, 3 bottom
+///   7 players → 3 top, 4 bottom
+///
 /// Special case: 8 players → each half becomes a 2×2 sub-grid.
 class AdaptiveGrid extends StatelessWidget {
   final List<Widget> playerZones;
@@ -21,7 +25,7 @@ class AdaptiveGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final int playerCount = playerZones.length;
-    final int topCount = (playerCount / 2).ceil();
+    final int topCount = playerCount ~/ 2;
 
     final topZones = playerZones.sublist(0, topCount);
     final bottomZones = playerZones.sublist(topCount);

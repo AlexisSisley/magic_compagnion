@@ -116,6 +116,12 @@ class GameSessionController {
     _session = _session!.copyWith(isActive: false);
   }
 
+  /// Restores the controller's internal session to match an externally modified session.
+  /// Used when the page mutates the session directly (e.g., undo elimination).
+  void restoreSession(GameSession session) {
+    _session = session;
+  }
+
   void clear() {
     _session = null;
   }
