@@ -3,8 +3,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:magic_companion/theme/app_colors.dart';
+import 'package:magic_companion/theme/app_text_styles.dart';
 
 /// Displays the top-right palette button and top-left rotation button.
+/// Also optionally shows the player name (center-top) with a tap callback.
 /// Pure display + gesture forwarding, no business logic.
 class PlayerHeader extends StatelessWidget {
   const PlayerHeader({
@@ -13,12 +15,21 @@ class PlayerHeader extends StatelessWidget {
     required this.onRotate,
     required this.onLongPressStart,
     required this.onLongPressMoveUpdate,
+    this.playerName,
+    this.onNameTap,
   });
 
   final VoidCallback onShowColorPicker;
   final VoidCallback onRotate;
   final void Function(LongPressStartDetails) onLongPressStart;
   final void Function(LongPressMoveUpdateDetails) onLongPressMoveUpdate;
+
+  /// The player's display name shown in the center of the header.
+  final String? playerName;
+
+  /// Optional callback triggered when the player name is tapped.
+  /// When non-null, the name is rendered with an underline to hint it is tappable.
+  final VoidCallback? onNameTap;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +59,31 @@ class PlayerHeader extends StatelessWidget {
             ),
           ),
         ),
+        // Player name (center-top)
+        if (playerName != null)
+          Positioned(
+            top: 4,
+            left: 48,
+            right: 48,
+            child: GestureDetector(
+              onTap: onNameTap,
+              child: Text(
+                playerName!,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.cinzel(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ).copyWith(
+                  decoration: onNameTap != null
+                      ? TextDecoration.underline
+                      : TextDecoration.none,
+                  decorationColor: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

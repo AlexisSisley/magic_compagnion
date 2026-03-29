@@ -34,6 +34,7 @@ class PlayerZone extends ConsumerStatefulWidget {
     this.onStatChanged,
     this.onRotationChanged,
     this.onSkinChanged,
+    this.onNameTap,
     this.quarterTurns = 0,
     this.isCommander = false,
     this.isHighlighted = false,
@@ -48,6 +49,10 @@ class PlayerZone extends ConsumerStatefulWidget {
   final Function(Color) onColorChanged;
   final Function(int)? onRotationChanged;
   final Function(String?)? onSkinChanged;
+
+  /// Optional callback triggered when the player name in the header is tapped.
+  /// Wire this to open PlayerHistorySheet (Task 10).
+  final VoidCallback? onNameTap;
   final VoidCallback onShowCommanderDamage;
 
   @override
@@ -421,7 +426,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
           // Floating numbers overlay
           LifeLog(floatingNumbers: _floatingNumbers),
 
-          // Header controls (palette + rotation)
+          // Header controls (palette + rotation + player name)
           PlayerHeader(
             onShowColorPicker: _showColorPicker,
             onRotate: _rotate90Degrees,
@@ -435,6 +440,8 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
               _lastLongPressPosition = details.localPosition;
               _handleRotationDrag(delta);
             },
+            playerName: widget.player.name,
+            onNameTap: widget.onNameTap,
           ),
 
           // Counter strip (bottom)
