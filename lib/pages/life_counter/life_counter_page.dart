@@ -589,6 +589,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       child: zone,
     );
 
+    // Long press for manual elimination (only when NOT in edit mode)
+    if (!_isEditMode) {
+      zone = GestureDetector(
+        onLongPress: () => _showEliminationMenu(playerState),
+        child: zone,
+      );
+    }
+
     if (_showDeathOverlay.contains(playerState.playerId)) {
       zone = Stack(
         children: [
@@ -606,6 +614,59 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     }
 
     return zone;
+  }
+
+  void _showEliminationMenu(PlayerState playerState) {
+    if (playerState.isEliminated) {
+      // Already eliminated — offer undo
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: AppColors.scaffoldBackground,
+        builder: (ctx) => SafeArea(
+          child: ListTile(
+            leading: const Icon(Icons.undo, color: AppColors.accentGreen),
+            title: const Text('Annuler élimination', style: TextStyle(color: AppColors.textPrimary)),
+            onTap: () {
+              Navigator.pop(ctx);
+              _undoElimination(playerState.playerId);
+            },
+          ),
+        ),
+      );
+    } else {
+      // Offer elimination
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: AppColors.scaffoldBackground,
+        builder: (ctx) => SafeArea(
+          child: ListTile(
+            leading: const Icon(Icons.person_off, color: AppColors.accentRed),
+            title: Text(
+              'Éliminer ${playerState.config.name}',
+              style: const TextStyle(color: AppColors.textPrimary),
+            ),
+            onTap: () {
+              Navigator.pop(ctx);
+              _confirmElimination(playerState.playerId);
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  void _undoElimination(int playerId) {
+    if (_session == null) return;
+    final players = _session!.players.map((p) {
+      if (p.playerId == playerId) {
+        return p.copyWith(isEliminated: false);
+      }
+      return p;
+    }).toList();
+    final newOrder = List<int>.from(_session!.eliminationOrder)..remove(playerId);
+    _session = _session!.copyWith(players: players, eliminationOrder: newOrder);
+    setState(() {});
+    _saveSnapshot();
   }
 
   void _onReorderPlayers(int oldIndex, int newIndex) {
