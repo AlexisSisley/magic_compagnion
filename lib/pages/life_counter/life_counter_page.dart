@@ -18,7 +18,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:magic_companion/controllers/game_session_controller.dart';
+import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_history_model.dart';
+import 'package:magic_companion/models/game_session.dart';
+import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/models/player_model.dart';
 import 'package:magic_companion/models/profile_model.dart';
 import 'package:magic_companion/services/game_history_service.dart';
@@ -28,8 +32,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../router/app_router.dart';
 
 import '../../widgets/life_counter/player_zone.dart';
-import '../../widgets/life_counter/dice_roll_dialog.dart'; // <--- Import
-import '../../widgets/life_counter/game_setup_modal.dart'; // <--- Import
+import '../../widgets/life_counter/dice_roll_dialog.dart';
+import '../../widgets/life_counter/game_setup_modal.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class LifeCounterPage extends ConsumerStatefulWidget {
@@ -44,12 +48,25 @@ class LifeCounterPage extends ConsumerStatefulWidget {
 
 class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   GameHistoryService get _gameHistoryService => ref.read(gameHistoryServiceProvider);
-  
-  List<Player> _players = [];
-  int _startingLife = 40; 
-  int _playerCount = 4;
+
+  // --- Controller-based state ---
+  GameSessionController _controller = GameSessionController();
+  GameSession? _session;
+  GameFormat _currentFormat = GameFormat.builtInFormats.first; // Commander
+
   bool _isLoading = true;
-  
+
+  // Death confirmation state
+  final Map<int, Timer> _deathTimers = {};
+  final Set<int> _showDeathOverlay = {};
+  final Set<int> _dismissedDeathOverlay = {};
+
+  // Edit mode state
+  bool _isEditMode = false;
+
+  // History sheet state
+  int? _historyFilterPlayerId;
+
   int? _highlightedPlayerId;
   bool _isSelectingStarter = false;
 
@@ -63,6 +80,35 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     Colors.brown.shade800, Colors.pink.shade900, Colors.indigo.shade900, AppColors.greyShade800
   ];
 
+  // --- Legacy Player bridge ---
+  Player _toLegacyPlayer(int index, PlayerState ps) {
+    return Player(
+      id: index,
+      name: ps.config.name,
+      life: ps.life,
+      colorValue: ps.config.colorValue,
+      backgroundImagePath: ps.config.avatarPath,
+      commanderDamageReceived: Map<int, int>.from(ps.commanderDamageReceived),
+      poison: ps.counters['poison'] ?? 0,
+      energy: ps.counters['energy'] ?? 0,
+      commanderCastCount: ps.counters['commander_tax'] ?? 0,
+      isMonarch: ps.isMonarch,
+      quarterTurns: ps.quarterTurns,
+    );
+  }
+
+  List<Player> get _legacyPlayers {
+    if (_session == null) return [];
+    return _session!.players
+        .asMap()
+        .entries
+        .map((e) => _toLegacyPlayer(e.key, e.value))
+        .toList();
+  }
+
+  int get _playerCount => _session?.players.length ?? 0;
+  int get _startingLife => _currentFormat.startingLife;
+
   @override
   void initState() {
     super.initState();
@@ -73,6 +119,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   @override
   void dispose() {
     _gameTimer?.cancel();
+    _deathTimers.forEach((_, t) => t.cancel());
     WakelockPlus.disable();
     super.dispose();
   }
@@ -84,7 +131,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       _isGameActive = true;
       _gameDuration = Duration.zero;
     });
-    
+
     _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) setState(() => _gameDuration += const Duration(seconds: 1));
     });
@@ -104,69 +151,70 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
   // --- SAUVEGARDE & CHARGEMENT ---
   Future<void> _loadGame() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _playerCount = prefs.getInt('playerCount') ?? 4;
-      _startingLife = prefs.getInt('startingLife') ?? 40;
+    final sessionService = ref.read(gameSessionServiceProvider);
 
-      _players = List.generate(_playerCount, (index) {
-          final life = prefs.getInt('player_${index}_life') ?? _startingLife;
-          final colorVal = prefs.getInt('player_${index}_color') ?? _defaultColors[index % _defaultColors.length].toARGB32();
-          final bgPath = prefs.getString('player_${index}_bg');
-          final name = prefs.getString('player_${index}_name') ?? 'Joueur ${index + 1}';
-          
-          Map<int, int> cmdDamage = {};
-          if (_startingLife == 40) {
-            for (int i = 0; i < _playerCount; i++) {
-              if (i == index) continue;
-              cmdDamage[i] = prefs.getInt('player_${index}_cmd_from_$i') ?? 0;
-            }
-          }
-
-          return Player(
-            id: index,
-            name: name,
-            life: life,
-            colorValue: colorVal,
-            backgroundImagePath: bgPath,
-            commanderDamageReceived: cmdDamage,
-            poison: prefs.getInt('player_${index}_poison') ?? 0,
-            energy: prefs.getInt('player_${index}_energy') ?? 0,
-            commanderCastCount: prefs.getInt('player_${index}_tax') ?? 0,
-            isMonarch: prefs.getBool('player_${index}_monarch') ?? false,
-            quarterTurns: prefs.getInt('player_${index}_rotation') ?? _calculateDefaultRotation(index, _playerCount), 
-          );
-      });
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _saveGame() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('playerCount', _playerCount);
-    await prefs.setInt('startingLife', _startingLife);
-
-    for (final player in _players) {
-      await prefs.setInt('player_${player.id}_life', player.life);
-      await prefs.setInt('player_${player.id}_color', player.colorValue);
-      await prefs.setString('player_${player.id}_name', player.name);
-      
-      if (player.backgroundImagePath != null) {
-        await prefs.setString('player_${player.id}_bg', player.backgroundImagePath!);
-      } else {
-        await prefs.remove('player_${player.id}_bg');
-      }
-
-      await prefs.setInt('player_${player.id}_poison', player.poison);
-      await prefs.setInt('player_${player.id}_energy', player.energy);
-      await prefs.setInt('player_${player.id}_tax', player.commanderCastCount);
-      await prefs.setBool('player_${player.id}_monarch', player.isMonarch);
-      await prefs.setInt('player_${player.id}_rotation', player.quarterTurns);
-
-      for (final opponentId in player.commanderDamageReceived.keys) {
-        await prefs.setInt('player_${player.id}_cmd_from_$opponentId', player.commanderDamageReceived[opponentId]!);
+    if (await sessionService.hasActiveGame()) {
+      final snapshot = await sessionService.loadSnapshot();
+      if (snapshot != null) {
+        _controller = GameSessionController();
+        setState(() {
+          _session = snapshot;
+          _currentFormat = snapshot.format;
+          _isLoading = false;
+        });
+        return;
       }
     }
+
+    // No saved game -- start fresh with defaults
+    final prefs = await SharedPreferences.getInstance();
+    final playerCount = prefs.getInt('playerCount') ?? 4;
+    final formatId = prefs.getString('formatId') ?? 'commander';
+    _currentFormat = GameFormat.builtInFormats.firstWhere(
+      (f) => f.id == formatId,
+      orElse: () => GameFormat.builtInFormats.first,
+    );
+
+    _startNewGame(playerCount: playerCount);
+    setState(() => _isLoading = false);
+  }
+
+  void _startNewGame({required int playerCount, List<Profile?>? assignedProfiles}) {
+    final configs = List.generate(playerCount, (index) {
+      final profile = (assignedProfiles != null && index < assignedProfiles.length)
+          ? assignedProfiles[index]
+          : null;
+      final name = profile?.name ?? 'Joueur ${index + 1}';
+      final color = profile?.colorValue ?? _defaultColors[index % _defaultColors.length].toARGB32();
+
+      return PlayerConfig(
+        id: 'player_$index',
+        name: name,
+        type: index == 0 ? PlayerType.owner : PlayerType.guest,
+        colorValue: color,
+        avatarPath: profile?.commanderImageUrl,
+      );
+    });
+
+    _controller = GameSessionController();
+    _controller.startNewGame(format: _currentFormat, playerConfigs: configs);
+
+    // Apply default rotations
+    final session = _controller.session;
+    if (session != null) {
+      for (int i = 0; i < playerCount; i++) {
+        _controller.updateRotation(i, _calculateDefaultRotation(i, playerCount));
+      }
+    }
+
+    setState(() => _session = _controller.session);
+    _saveSnapshot();
+  }
+
+  Future<void> _saveSnapshot() async {
+    if (_session == null) return;
+    final sessionService = ref.read(gameSessionServiceProvider);
+    await sessionService.saveSnapshot(_session!);
   }
 
   int _calculateDefaultRotation(int id, int totalPlayers) {
@@ -174,51 +222,107 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     return (id < (totalPlayers / 2).ceil()) ? 2 : 0;
   }
 
+  // --- DEATH CONFIRMATION ---
+  void _checkDeathCondition(int playerId) {
+    final player = _session?.players.where((p) => p.playerId == playerId).firstOrNull;
+    if (player == null) return;
+
+    if (player.life <= 0 && !player.isEliminated && !_dismissedDeathOverlay.contains(playerId)) {
+      if (!_deathTimers.containsKey(playerId)) {
+        _deathTimers[playerId] = Timer(const Duration(seconds: 2), () {
+          if (!mounted) return;
+          final currentPlayer = _session?.players.where((p) => p.playerId == playerId).firstOrNull;
+          if (currentPlayer != null && currentPlayer.life <= 0 && !currentPlayer.isEliminated) {
+            setState(() => _showDeathOverlay.add(playerId));
+          }
+          _deathTimers.remove(playerId);
+        });
+      }
+    } else {
+      _deathTimers[playerId]?.cancel();
+      _deathTimers.remove(playerId);
+      setState(() => _showDeathOverlay.remove(playerId));
+    }
+  }
+
+  void _dismissDeath(int playerId) {
+    setState(() {
+      _showDeathOverlay.remove(playerId);
+      _dismissedDeathOverlay.add(playerId);
+    });
+  }
+
+  void _confirmElimination(int playerId) {
+    _controller.eliminatePlayer(playerId, atDuration: _gameDuration);
+    setState(() {
+      _session = _controller.session;
+      _showDeathOverlay.remove(playerId);
+    });
+    _saveSnapshot();
+  }
+
   // --- ACTIONS JOUEURS ---
   void _resetGame({List<Profile?>? assignedProfiles}) {
-    _stopGame(); 
+    _stopGame();
     setState(() {
       _gameDuration = Duration.zero;
-      if (assignedProfiles != null) _playerCount = assignedProfiles.length;
-
-      _players = List.generate(_playerCount, (index) {
-          Map<int, int> cmdDamage = {};
-          if (_startingLife == 40) {
-            for (int i = 0; i < _playerCount; i++) {
-              if (i != index) cmdDamage[i] = 0;
-            }
-          }
-
-          Profile? profile = (assignedProfiles != null && index < assignedProfiles.length) ? assignedProfiles[index] : null;
-          String name = profile?.name ?? 'Joueur ${index + 1}';
-          int color = profile?.colorValue ?? _defaultColors[index % _defaultColors.length].toARGB32();
-
-          return Player(
-            id: index, 
-            name: name, 
-            life: _startingLife, 
-            colorValue: color, 
-            backgroundImagePath: profile?.commanderImageUrl,
-            // AJOUT : Support du partenaire
-            secondaryBackgroundImagePath: profile?.secondaryCommanderImageUrl, 
-            commanderDamageReceived: cmdDamage,
-            quarterTurns: _calculateDefaultRotation(index, _playerCount),
-          );
-      });
+      _deathTimers.forEach((_, t) => t.cancel());
+      _deathTimers.clear();
+      _showDeathOverlay.clear();
+      _dismissedDeathOverlay.clear();
     });
-    _saveGame();
+
+    final count = assignedProfiles?.length ?? _playerCount;
+    _startNewGame(playerCount: count > 0 ? count : 4, assignedProfiles: assignedProfiles);
   }
-  
+
   void _updateLife(int playerId, int change) {
     if (_isSelectingStarter) return;
-    final player = _players.where((p) => p.id == playerId).firstOrNull;
-    if (player == null) return;
-    setState(() => player.life += change);
-    _saveGame();
+    if (_session == null) return;
+    _controller.updateLife(playerId, change, gameDuration: _gameDuration);
+    setState(() => _session = _controller.session);
+    _saveSnapshot();
+    _checkDeathCondition(playerId);
+  }
+
+  void _updatePlayerColor(int playerId, Color color) {
+    if (_session == null) return;
+    final players = _session!.players.map((p) {
+      if (p.playerId == playerId) {
+        return p.copyWith(config: p.config.copyWith(colorValue: color.toARGB32()));
+      }
+      return p;
+    }).toList();
+    setState(() => _session = _session!.copyWith(players: players));
+    // Sync controller
+    _controller = GameSessionController();
+    _controller.startNewGame(format: _currentFormat, playerConfigs: _session!.players.map((p) => p.config).toList());
+    _saveSnapshot();
+  }
+
+  void _updatePlayerRotation(int playerId, int rotation) {
+    if (_session == null) return;
+    _controller.updateRotation(playerId, rotation);
+    setState(() => _session = _controller.session);
+    _saveSnapshot();
+  }
+
+  void _updatePlayerSkin(int playerId, String? path) {
+    if (_session == null) return;
+    final players = _session!.players.map((p) {
+      if (p.playerId == playerId) {
+        return p.copyWith(config: p.config.copyWith(avatarPath: path));
+      }
+      return p;
+    }).toList();
+    setState(() => _session = _session!.copyWith(players: players));
+    _saveSnapshot();
   }
 
   Future<void> _pickStartingPlayer() async {
     if (_isSelectingStarter) return;
+    final players = _legacyPlayers;
+    if (players.isEmpty) return;
     setState(() => _isSelectingStarter = true);
     int turns = 20; int currentIdx = Random().nextInt(_playerCount); int delay = 50;
     for (int i = 0; i < turns; i++) {
@@ -236,15 +340,15 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.person, size: 50, color: Color(_players[winnerId].colorValue)),
+              Icon(Icons.person, size: 50, color: Color(players[winnerId].colorValue)),
               const SizedBox(height: 16),
-              Text(_players[winnerId].name, style: AppTextStyles.pageTitle(fontSize: 32), textAlign: TextAlign.center),
+              Text(players[winnerId].name, style: AppTextStyles.pageTitle(fontSize: 32), textAlign: TextAlign.center),
             ],
           ),
           actions: [
             ElevatedButton(
-              onPressed: () { Navigator.pop(context); setState(() { _highlightedPlayerId = null; _isSelectingStarter = false; }); _startGame(); }, 
-              style: ElevatedButton.styleFrom(backgroundColor: Color(_players[winnerId].colorValue)), 
+              onPressed: () { Navigator.pop(context); setState(() { _highlightedPlayerId = null; _isSelectingStarter = false; }); _startGame(); },
+              style: ElevatedButton.styleFrom(backgroundColor: Color(players[winnerId].colorValue)),
               child: const Text("C'est parti !", style: TextStyle(color: AppColors.textPrimary))
             )
           ]
@@ -261,7 +365,15 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       builder: (ctx) => GameSetupModal(
         initialLife: _startingLife,
         onGameStart: (life, profiles) {
-          setState(() => _startingLife = life);
+          // Find matching format or use custom
+          final matchingFormat = GameFormat.builtInFormats.where(
+            (f) => f.startingLife == life,
+          ).firstOrNull;
+          if (matchingFormat != null) {
+            _currentFormat = matchingFormat;
+          } else {
+            _currentFormat = GameFormat.builtInFormats.last.copyWith(startingLife: life);
+          }
           _resetGame(assignedProfiles: profiles);
         },
       )
@@ -269,6 +381,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   void _showCommanderDamageSelector(Player attacker) {
+    final players = _legacyPlayers;
     showModalBottomSheet(
       context: context, backgroundColor: AppColors.transparent,
       builder: (context) => Container(
@@ -277,18 +390,41 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         child: Wrap(
           children: [
             ListTile(title: Text('Dégâts de Commandant', style: AppTextStyles.bold()), subtitle: Text('Attaquant : ${attacker.name}', style: AppTextStyles.cinzel(color: AppColors.textSecondary))),
-            ..._players.where((opp) => opp.id != attacker.id).map((opponent) {
+            ...players.where((opp) => opp.id != attacker.id).map((opponent) {
               final damage = opponent.commanderDamageReceived[attacker.id] ?? 0;
               return ListTile(
                 leading: Icon(Icons.shield, color: Color(opponent.colorValue)),
                 title: Text(opponent.name, style: const TextStyle(color: AppColors.textPrimary)),
                 trailing: SizedBox(width: 150, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  IconButton(icon: const Icon(Icons.remove, color: AppColors.textSecondary), onPressed: () { 
-                    setState(() => opponent.commanderDamageReceived[attacker.id] = (damage - 1).clamp(0, 99)); _saveGame(); Navigator.pop(context); _showCommanderDamageSelector(attacker); 
+                  IconButton(icon: const Icon(Icons.remove, color: AppColors.textSecondary), onPressed: () {
+                    if (damage > 0) {
+                      // Use addCommanderDamage with negative damage to decrement
+                      _controller.addCommanderDamage(
+                        targetPlayerId: opponent.id,
+                        sourcePlayerId: attacker.id,
+                        damage: -1,
+                        gameDuration: _gameDuration,
+                      );
+                      // Compensate the life loss from addCommanderDamage (it subtracts damage from life)
+                      _controller.updateLife(opponent.id, -1, gameDuration: _gameDuration);
+                      setState(() => _session = _controller.session);
+                      _saveSnapshot();
+                    }
+                    Navigator.pop(context);
+                    _showCommanderDamageSelector(attacker);
                   }),
                   Text('$damage', style: AppTextStyles.pageTitle()),
-                  IconButton(icon: const Icon(Icons.add, color: AppColors.textSecondary), onPressed: () { 
-                    setState(() => opponent.commanderDamageReceived[attacker.id] = (damage + 1).clamp(0, 99)); _saveGame(); Navigator.pop(context); _showCommanderDamageSelector(attacker); 
+                  IconButton(icon: const Icon(Icons.add, color: AppColors.textSecondary), onPressed: () {
+                    _controller.addCommanderDamage(
+                      targetPlayerId: opponent.id,
+                      sourcePlayerId: attacker.id,
+                      damage: 1,
+                      gameDuration: _gameDuration,
+                    );
+                    setState(() => _session = _controller.session);
+                    _saveSnapshot();
+                    Navigator.pop(context);
+                    _showCommanderDamageSelector(attacker);
                   }),
                 ])),
               );
@@ -300,6 +436,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   void _endGame() {
+    final players = _legacyPlayers;
     showDialog(
       context: context,
       builder: (context) {
@@ -308,7 +445,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           title: Text('Qui a gagné ?', style: AppTextStyles.cinzel()),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: _players.map((p) {
+            children: players.map((p) {
               return ListTile(
                 leading: Icon(Icons.emoji_events, color: Color(p.colorValue)),
                 title: Text(p.name, style: const TextStyle(color: AppColors.textPrimary)),
@@ -364,11 +501,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   Future<void> _finalizeGameSave(Player winner, String method) async {
     Navigator.pop(context); // Ferme la modale de méthode
 
+    final players = _legacyPlayers;
+
     // Création des snapshots des joueurs
-    List<PlayerHistorySnapshot> snapshots = _players.map((p) {
+    List<PlayerHistorySnapshot> snapshots = players.map((p) {
       // Calcul du total des dégâts de commandant reçus (tous adversaires confondus)
       int totalCmdDmgTaken = p.commanderDamageReceived.values.fold(0, (sum, val) => sum + val);
-      
+
       return PlayerHistorySnapshot(
         name: p.name,
         imageUrl: p.backgroundImagePath,
@@ -381,16 +520,21 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     final newItem = GameHistoryItem(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       date: DateTime.now(),
-      durationSeconds: _gameDuration.inSeconds, // <-- Le temps de la partie
+      durationSeconds: _gameDuration.inSeconds,
       winnerName: winner.name,
-      format: _startingLife == 40 ? 'Commander' : 'Standard',
+      format: _currentFormat.name,
       winMethod: method,
       playerStates: snapshots,
     );
 
     await _gameHistoryService.addGame(newItem);
+    _controller.endGame();
     _stopGame();
-    
+
+    // Clear saved snapshot since game is over
+    final sessionService = ref.read(gameSessionServiceProvider);
+    await sessionService.clearSnapshot();
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Partie enregistrée dans l'historique !"), backgroundColor: AppColors.success)
@@ -402,15 +546,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
+    final players = _legacyPlayers;
     final bool useCentralMenu = _playerCount >= 2;
 
     return Stack(
       children: [
         Column(children: [
-          Expanded(child: Row(children: _players.sublist(0, (_playerCount/2).ceil()).map((p) => Expanded(child: Padding(padding: const EdgeInsets.all(2), child: _buildPlayerZone(p)))).toList())),
+          Expanded(child: Row(children: players.sublist(0, (_playerCount/2).ceil()).map((p) => Expanded(child: Padding(padding: const EdgeInsets.all(2), child: _buildPlayerZone(p)))).toList())),
           if (useCentralMenu) _buildCentralBar(),
           if (!useCentralMenu) Container(height: 2, color: AppColors.textOnPrimary),
-          Expanded(child: Row(children: _players.sublist((_playerCount/2).ceil()).map((p) => Expanded(child: Padding(padding: const EdgeInsets.all(2), child: _buildPlayerZone(p)))).toList())),
+          Expanded(child: Row(children: players.sublist((_playerCount/2).ceil()).map((p) => Expanded(child: Padding(padding: const EdgeInsets.all(2), child: _buildPlayerZone(p)))).toList())),
         ]),
         if (!useCentralMenu) ...[
           Positioned(bottom: 16, right: 90, child: FloatingActionButton(heroTag: 'dice', onPressed: _showDiceSelector, backgroundColor: AppColors.overlayDark, foregroundColor: AppColors.textPrimary, child: const Icon(Icons.casino_outlined))),
@@ -422,12 +567,12 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
   Widget _buildPlayerZone(Player p) {
     return PlayerZone(
-      player: p, isCommander: _startingLife == 40, isHighlighted: _highlightedPlayerId == p.id,
+      player: p, isCommander: _currentFormat.maxCommanders > 0, isHighlighted: _highlightedPlayerId == p.id,
       onLifeChanged: (val) => _updateLife(p.id, val),
       onShowCommanderDamage: () => _showCommanderDamageSelector(p),
-      onColorChanged: (c) { setState(() => p.colorValue = c.toARGB32()); _saveGame(); },
-      onRotationChanged: (r) { setState(() => p.quarterTurns = r); _saveGame(); },
-      onSkinChanged: (path) { setState(() => p.backgroundImagePath = path); _saveGame(); },
+      onColorChanged: (c) => _updatePlayerColor(p.id, c),
+      onRotationChanged: (r) => _updatePlayerRotation(p.id, r),
+      onSkinChanged: (path) => _updatePlayerSkin(p.id, path),
     );
   }
 
@@ -445,13 +590,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
             child: Container(
               width: 50, height: 50, alignment: Alignment.center,
               decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.textOnPrimary, border: Border.all(color: _isGameActive ? AppColors.accentRed : AppColors.primaryShade800, width: 2)),
-              child: _isGameActive 
+              child: _isGameActive
                 ? FittedBox(fit: BoxFit.scaleDown, child: Text(_formatDuration(_gameDuration), style: GoogleFonts.robotoMono(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)))
                 : const Icon(Icons.play_arrow, color: AppColors.primary),
             ),
           ),
           IconButton(icon: const Icon(Icons.emoji_events, color: AppColors.textSecondary), onPressed: () { context.push(AppRoutes.tournament); }),
-          IconButton(icon: const Icon(Icons.people, color: AppColors.textSecondary), onPressed: _showGameSetupDialog), // <--- Utilise la nouvelle modale
+          IconButton(icon: const Icon(Icons.people, color: AppColors.textSecondary), onPressed: _showGameSetupDialog),
         ],
       ),
     );
