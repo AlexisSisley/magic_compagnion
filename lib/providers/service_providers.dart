@@ -26,6 +26,7 @@ import '../services/profile_service.dart';
 import '../services/scan_history_service.dart';
 import '../services/scryfall_api_service.dart';
 import '../services/set_service.dart';
+import '../services/game_session_service.dart';
 import '../services/wishlist_service.dart';
 
 // --- Database singleton ---
@@ -96,4 +97,8 @@ final bulkDataServiceProvider = Provider<BulkDataService>((ref) {
 final localCardsInitProvider = FutureProvider<void>((ref) async {
   final service = ref.watch(localCardServiceProvider);
   await service.loadLocalData();
+});
+
+final gameSessionServiceProvider = Provider<GameSessionService>((ref) {
+  return GameSessionService();
 });
