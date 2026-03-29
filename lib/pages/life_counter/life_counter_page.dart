@@ -15,7 +15,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/controllers/game_session_controller.dart';
 import 'package:magic_companion/models/game_format.dart';
@@ -27,8 +26,6 @@ import 'package:magic_companion/models/profile_model.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../../router/app_router.dart';
 
 import '../../widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/damage_history_sheet.dart';
@@ -635,25 +632,72 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
   Widget _buildCentralBar() {
     return Container(
-      height: 60, color: AppColors.textOnPrimary,
+      height: 60,
+      color: AppColors.textOnPrimary,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          IconButton(icon: const Icon(Icons.refresh, color: AppColors.textSecondary), onPressed: () => _resetGame()),
-          IconButton(icon: const Icon(Icons.casino, color: AppColors.textSecondary), onPressed: _showDiceSelector),
+          // Reset
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
+            onPressed: () => _resetGame(),
+          ),
+          // Dice
+          IconButton(
+            icon: const Icon(Icons.casino, color: AppColors.textSecondary),
+            onPressed: _showDiceSelector,
+          ),
+          // Timer / Pick starter / End game
           InkWell(
             onTap: _isGameActive ? _endGame : _pickStartingPlayer,
             borderRadius: BorderRadius.circular(50),
             child: Container(
-              width: 50, height: 50, alignment: Alignment.center,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.textOnPrimary, border: Border.all(color: _isGameActive ? AppColors.accentRed : AppColors.primaryShade800, width: 2)),
+              width: 50, height: 50,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.textOnPrimary,
+                border: Border.all(
+                  color: _isGameActive ? AppColors.accentRed : AppColors.primaryShade800,
+                  width: 2,
+                ),
+              ),
               child: _isGameActive
-                ? FittedBox(fit: BoxFit.scaleDown, child: Text(_formatDuration(_gameDuration), style: GoogleFonts.robotoMono(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)))
-                : const Icon(Icons.play_arrow, color: AppColors.primary),
+                  ? FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        _formatDuration(_gameDuration),
+                        style: GoogleFonts.robotoMono(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    )
+                  : const Icon(Icons.play_arrow, color: AppColors.primary),
             ),
           ),
-          IconButton(icon: const Icon(Icons.emoji_events, color: AppColors.textSecondary), onPressed: () { context.push(AppRoutes.tournament); }),
-          IconButton(icon: const Icon(Icons.people, color: AppColors.textSecondary), onPressed: _showGameSetupDialog),
+          // History (NEW)
+          IconButton(
+            icon: const Icon(Icons.history, color: AppColors.textSecondary),
+            onPressed: _showDamageHistory,
+          ),
+          // Edit mode toggle (NEW)
+          IconButton(
+            icon: Icon(
+              Icons.build,
+              color: _isEditMode ? AppColors.primary : AppColors.textSecondary,
+            ),
+            style: _isEditMode
+                ? IconButton.styleFrom(backgroundColor: AppColors.primary.withAlpha(40))
+                : null,
+            onPressed: () => setState(() => _isEditMode = !_isEditMode),
+          ),
+          // Game setup
+          IconButton(
+            icon: const Icon(Icons.people, color: AppColors.textSecondary),
+            onPressed: _showGameSetupDialog,
+          ),
         ],
       ),
     );
