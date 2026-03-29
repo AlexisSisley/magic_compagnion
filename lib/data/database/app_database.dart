@@ -121,6 +121,10 @@ class GameHistoryItems extends Table {
   TextColumn get format => text().withDefault(const Constant('Standard'))();
   TextColumn get winMethod => text().withDefault(const Constant('normal'))();
   TextColumn get playerStates => text().withDefault(const Constant('[]'))(); // JSON array
+  IntColumn get startingLife => integer().withDefault(const Constant(20))();
+  IntColumn get playerCount => integer().withDefault(const Constant(2))();
+  TextColumn get tag => text().nullable()();
+  TextColumn get winnerDeckName => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -154,6 +158,64 @@ class AppSettings extends Table {
   Set<Column> get primaryKey => {key};
 }
 
+/// Table des formats de jeu
+@DataClassName('DbGameFormat')
+class GameFormats extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  IntColumn get startingLife => integer().withDefault(const Constant(20))();
+  IntColumn get minPlayers => integer().withDefault(const Constant(2))();
+  IntColumn get maxPlayers => integer().withDefault(const Constant(8))();
+  IntColumn get maxCommanders => integer().withDefault(const Constant(0))();
+  TextColumn get enabledCounterIds => text().withDefault(const Constant('[]'))();
+  BoolColumn get isBuiltIn => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Table des types de compteurs
+@DataClassName('DbCounterType')
+class CounterTypes extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get emoji => text().withDefault(const Constant('🔢'))();
+  IntColumn get color => integer().withDefault(const Constant(0xFFFFFFFF))();
+  BoolColumn get isBuiltIn => boolean().withDefault(const Constant(false))();
+  IntColumn get maxValue => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Table des configs joueurs (owner/guest)
+@DataClassName('DbPlayerConfig')
+class PlayerConfigs extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get type => text().withDefault(const Constant('guest'))();
+  IntColumn get colorValue => integer().withDefault(const Constant(0xFF2196F3))();
+  TextColumn get avatarPath => text().nullable()();
+  TextColumn get linkedDeckId => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Table des commanders par config joueur
+@DataClassName('DbPlayerConfigCommander')
+class PlayerConfigCommanders extends Table {
+  TextColumn get id => text()();
+  TextColumn get playerConfigId => text().references(PlayerConfigs, #id)();
+  TextColumn get name => text()();
+  TextColumn get scryfallId => text().nullable()();
+  TextColumn get artCropUrl => text().nullable()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 // ============================================================
 // DATABASE
 // ============================================================
@@ -169,12 +231,16 @@ class AppSettings extends Table {
   ScanHistoryItems,
   CollectionValueHistory,
   AppSettings,
+  GameFormats,
+  CounterTypes,
+  PlayerConfigs,
+  PlayerConfigCommanders,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
@@ -183,7 +249,16 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // Futures migrations de schema ici
+        if (from < 2) {
+          await m.createTable(gameFormats);
+          await m.createTable(counterTypes);
+          await m.createTable(playerConfigs);
+          await m.createTable(playerConfigCommanders);
+          await m.addColumn(gameHistoryItems, gameHistoryItems.startingLife);
+          await m.addColumn(gameHistoryItems, gameHistoryItems.playerCount);
+          await m.addColumn(gameHistoryItems, gameHistoryItems.tag);
+          await m.addColumn(gameHistoryItems, gameHistoryItems.winnerDeckName);
+        }
       },
     );
   }
@@ -568,6 +643,63 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> setSettingInt(String key, int value) async {
     await setSetting(key, value.toString());
+  }
+
+  // ============================================================
+  // GAME FORMATS DAO
+  // ============================================================
+
+  Future<List<DbGameFormat>> getAllGameFormats() => select(gameFormats).get();
+
+  Future<void> upsertGameFormat(GameFormatsCompanion format) async {
+    await into(gameFormats).insertOnConflictUpdate(format);
+  }
+
+  Future<void> deleteGameFormat(String id) async {
+    await (delete(gameFormats)..where((f) => f.id.equals(id))).go();
+  }
+
+  // ============================================================
+  // COUNTER TYPES DAO
+  // ============================================================
+
+  Future<List<DbCounterType>> getAllCounterTypes() => select(counterTypes).get();
+
+  Future<void> upsertCounterType(CounterTypesCompanion counter) async {
+    await into(counterTypes).insertOnConflictUpdate(counter);
+  }
+
+  Future<void> deleteCounterType(String id) async {
+    await (delete(counterTypes)..where((c) => c.id.equals(id))).go();
+  }
+
+  // ============================================================
+  // PLAYER CONFIGS DAO
+  // ============================================================
+
+  Future<List<DbPlayerConfig>> getAllPlayerConfigs() => select(playerConfigs).get();
+
+  Future<void> upsertPlayerConfig(PlayerConfigsCompanion config) async {
+    await into(playerConfigs).insertOnConflictUpdate(config);
+  }
+
+  Future<void> deletePlayerConfig(String id) async {
+    await (delete(playerConfigCommanders)..where((c) => c.playerConfigId.equals(id))).go();
+    await (delete(playerConfigs)..where((p) => p.id.equals(id))).go();
+  }
+
+  Future<List<DbPlayerConfigCommander>> getCommandersForConfig(String configId) =>
+      (select(playerConfigCommanders)
+        ..where((c) => c.playerConfigId.equals(configId))
+        ..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
+      .get();
+
+  Future<void> insertPlayerConfigCommander(PlayerConfigCommandersCompanion commander) async {
+    await into(playerConfigCommanders).insertOnConflictUpdate(commander);
+  }
+
+  Future<void> clearCommandersForConfig(String configId) async {
+    await (delete(playerConfigCommanders)..where((c) => c.playerConfigId.equals(configId))).go();
   }
 
   // ============================================================
