@@ -61,7 +61,7 @@ class GameFormat {
         minPlayers: json['minPlayers'] as int,
         maxPlayers: json['maxPlayers'] as int,
         maxCommanders: json['maxCommanders'] as int,
-        enabledCounterIds: (json['enabledCounterIds'] as List).cast<String>(),
+        enabledCounterIds: (json['enabledCounterIds'] as List? ?? []).cast<String>(),
         isBuiltIn: json['isBuiltIn'] as bool? ?? false,
       );
 
