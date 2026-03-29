@@ -217,28 +217,6 @@ class _FilterChipRow extends StatelessWidget {
   }
 }
 
-class _ChipContainer extends StatelessWidget {
-  final bool selected;
-  final Widget child;
-
-  const _ChipContainer({required this.selected, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: selected ? AppColors.primary.withValues(alpha: 0.2) : AppColors.cardBackground,
-        border: Border.all(
-          color: selected ? AppColors.primary : AppColors.borderMedium,
-        ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: child,
-    );
-  }
-}
-
 class _EventRow extends StatelessWidget {
   final _DamageEntry entry;
 

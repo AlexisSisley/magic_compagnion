@@ -1,5 +1,4 @@
 // test/services/game_session_service_test.dart
-import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:magic_companion/services/game_session_service.dart';

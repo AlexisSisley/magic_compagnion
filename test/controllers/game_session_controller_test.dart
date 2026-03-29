@@ -2,7 +2,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/controllers/game_session_controller.dart';
 import 'package:magic_companion/models/game_format.dart';
-import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
 
 void main() {

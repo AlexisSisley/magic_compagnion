@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 
 /// Single layout widget for 2-8 players with a central bar slot.
@@ -23,7 +22,6 @@ class AdaptiveGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final int playerCount = playerZones.length;
     final int topCount = (playerCount / 2).ceil();
-    final int bottomCount = playerCount - topCount;
 
     final topZones = playerZones.sublist(0, topCount);
     final bottomZones = playerZones.sublist(topCount);

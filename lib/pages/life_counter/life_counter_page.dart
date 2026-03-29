@@ -213,6 +213,12 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
     setState(() => _session = _controller.session);
     _saveSnapshot();
+
+    // Persist defaults for next launch
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setInt('playerCount', playerCount);
+      prefs.setString('formatId', _currentFormat.id);
+    });
   }
 
   Future<void> _saveSnapshot() async {
@@ -402,15 +408,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                 trailing: SizedBox(width: 150, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                   IconButton(icon: const Icon(Icons.remove, color: AppColors.textSecondary), onPressed: () {
                     if (damage > 0) {
-                      // Use addCommanderDamage with negative damage to decrement
+                      // addCommanderDamage already adjusts life internally — no need for a separate updateLife call
                       _controller.addCommanderDamage(
                         targetPlayerId: opponent.id,
                         sourcePlayerId: attacker.id,
                         damage: -1,
                         gameDuration: _gameDuration,
                       );
-                      // Compensate the life loss from addCommanderDamage (it subtracts damage from life)
-                      _controller.updateLife(opponent.id, -1, gameDuration: _gameDuration);
                       setState(() => _session = _controller.session);
                       _saveSnapshot();
                     }
