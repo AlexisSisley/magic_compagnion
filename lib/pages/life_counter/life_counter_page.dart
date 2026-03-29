@@ -31,6 +31,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../router/app_router.dart';
 
 import '../../widgets/life_counter/player_zone.dart';
+import 'package:magic_companion/widgets/life_counter/damage_history_sheet.dart';
+import 'package:magic_companion/widgets/life_counter/player_history_sheet.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
 import '../../widgets/life_counter/layouts/adaptive_grid.dart';
@@ -627,6 +629,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       onColorChanged: (c) => _updatePlayerColor(p.id, c),
       onRotationChanged: (r) => _updatePlayerRotation(p.id, r),
       onSkinChanged: (path) => _updatePlayerSkin(p.id, path),
+      onNameTap: () => _showPlayerHistory(p.id),
     );
   }
 
@@ -669,6 +672,40 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
             ))
         ]));
     });
+  }
+
+  void _showDamageHistory() {
+    if (_session == null) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.scaffoldBackground,
+      isScrollControlled: true,
+      builder: (ctx) => DamageHistorySheet(
+        session: _session!,
+        filterPlayerId: _historyFilterPlayerId,
+        onFilterChanged: (id) {
+          setState(() => _historyFilterPlayerId = id);
+          Navigator.pop(ctx);
+          _showDamageHistory(); // Reopen with new filter
+        },
+      ),
+    );
+  }
+
+  void _showPlayerHistory(int playerId) {
+    if (_session == null) return;
+    final playerState = _session!.players.where((p) => p.playerId == playerId).firstOrNull;
+    if (playerState == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.scaffoldBackground,
+      isScrollControlled: true,
+      builder: (ctx) => PlayerHistorySheet(
+        playerState: playerState,
+        startingLife: _currentFormat.startingLife,
+      ),
+    );
   }
 
   void _rollDice(int sides) {
