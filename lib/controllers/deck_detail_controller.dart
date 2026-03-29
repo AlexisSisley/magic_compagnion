@@ -122,18 +122,22 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
   // --- CHARGEMENT ---
 
   Future<void> loadInitialData() async {
+    if (!mounted) return;
     state = state.copyWith(isLoading: true);
     await Future.wait([
       _loadFullCardData(),
       _loadCollection(),
     ]);
+    if (!mounted) return;
     _calculateDeckValue();
     await _computeTokens();
+    if (!mounted) return;
     state = state.copyWith(isLoading: false);
   }
 
   Future<void> _loadCollection() async {
     final col = await _collectionService.loadCollection();
+    if (!mounted) return;
     state = state.copyWith(myCollection: col);
   }
 
@@ -151,7 +155,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     if (deck.commanderSecondaryScryfallId != null) uniqueIds.add(deck.commanderSecondaryScryfallId!);
 
     if (uniqueIds.isEmpty) {
-      state = state.copyWith(fullCardData: []);
+      if (mounted) state = state.copyWith(fullCardData: []);
       return;
     }
 
@@ -193,6 +197,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
       _deckService.updateDeck(deck);
     }
 
+    if (!mounted) return;
     state = state.copyWith(fullCardData: loadedCards);
   }
 
@@ -227,7 +232,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     }
 
     if (tokenMap.isEmpty) {
-      state = state.copyWith(tokens: []);
+      if (mounted) state = state.copyWith(tokens: []);
       return;
     }
 

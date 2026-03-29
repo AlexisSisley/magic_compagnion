@@ -295,7 +295,6 @@ void main() {
     });
 
     tearDown(() async {
-      await Future.delayed(const Duration(milliseconds: 300));
       controller.dispose();
       await db.close();
     });
@@ -372,7 +371,6 @@ void main() {
     });
 
     tearDown(() async {
-      await Future.delayed(const Duration(milliseconds: 300));
       controller.dispose();
       await db.close();
     });
@@ -431,7 +429,6 @@ void main() {
     });
 
     tearDown(() async {
-      await Future.delayed(const Duration(milliseconds: 300));
       controller.dispose();
       await db.close();
     });
@@ -494,7 +491,6 @@ void main() {
     });
 
     tearDown(() async {
-      await Future.delayed(const Duration(milliseconds: 300));
       controller.dispose();
       await db.close();
     });
