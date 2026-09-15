@@ -11,6 +11,7 @@ import 'package:magic_companion/pages/life_counter/life_counter_page.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
+import 'package:magic_companion/widgets/life_counter/player_zone.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final commanderFormat =
@@ -123,5 +124,58 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('33'), findsOneWidget);
+  });
+
+  testWidgets(
+      'le badge de dégâts en attente suit le joueur après un reorder (régression bug B)',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // On réordonne par le chemin réel de la page (mode édition), et non par
+    // le notifier : `reorderPlayers` n'écrit que `playerOrder`, que rien dans
+    // lib/ ne lisait avant la tâche 4b, qui corrige ce point.
+    final reorderState = tester.state(find.byType(LifeCounterPage));
+    // ignore: avoid_dynamic_calls
+    (reorderState as dynamic).reorderForTest(0, 3);
+    await tester.pumpAndSettle();
+
+    // Dégâts en attente sur le joueur 0 (affiché en dernière position).
+    final state = tester.state(find.byType(LifeCounterPage));
+    // ignore: avoid_dynamic_calls
+    (state as dynamic).updateLifeForTest(0, -5);
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Un seul badge, et il doit être celui du joueur 0.
+    expect(find.text('-5'), findsOneWidget);
+
+    // L'assertion de proximité de centres proposée à l'origine est fragile :
+    // les zones du haut de la grille sont pivotées à 180° par AdaptiveGrid,
+    // ce qui peut rapprocher géométriquement deux centres de zones distinctes
+    // sans qu'elles soient la même zone. On vérifie donc une inclusion
+    // géométrique réelle : le centre du badge tombe dans le rectangle de la
+    // zone du joueur 0, affichée en dernière position après le swap 0<->3
+    // sur ces 4 joueurs.
+    final badge = tester.getCenter(find.text('-5'));
+    final zoneRect = tester.getRect(find.byType(PlayerZone).last);
+    expect(
+      zoneRect.contains(badge),
+      isTrue,
+      reason: 'le badge doit être dans la zone du joueur 0, pas dans une autre',
+    );
   });
 }

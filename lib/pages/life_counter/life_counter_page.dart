@@ -771,7 +771,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     }
 
     // Commander damage flash overlay (Bug 3)
-    if (_commanderDamageFlash.contains(index)) {
+    if (_commanderDamageFlash.contains(playerState.playerId)) {
       zone = Stack(
         children: [
           zone,
@@ -794,7 +794,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     }
 
     // Pending damage buffer indicator (Bug 4)
-    final pending = _pendingDamage[index] ?? 0;
+    final pending = _pendingDamage[playerState.playerId] ?? 0;
     if (pending != 0) {
       final pendingText = pending > 0 ? '+$pending' : '$pending';
       final pendingColor = pending > 0 ? AppColors.accentGreen : AppColors.accentRed;
@@ -917,6 +917,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     setState(() {});
     _saveSnapshot();
   }
+
+  /// Point d'entrée de test pour piloter un reorder sans simuler de drag
+  /// (les zones sont pivotées par AdaptiveGrid, ce qui rend le drag fragile
+  /// en test). Consommé aussi par la tâche 4b.
+  @visibleForTesting
+  void reorderForTest(int oldIndex, int newIndex) =>
+      _onReorderPlayers(oldIndex, newIndex);
 
   void _onReorderPlayers(int oldIndex, int newIndex) {
     if (_session == null) return;
