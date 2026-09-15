@@ -143,5 +143,63 @@ void main() {
       final reordered = session.reorderPlayers([2, 0, 3, 1]);
       expect(reordered.playerOrder, [2, 0, 3, 1]);
     });
+
+    test(
+        'fromJson migre un snapshot hérité (players permutés, playerOrder '
+        'resté à l\'identité) sans perdre la disposition (M-3)', () {
+      final configs = [
+        PlayerConfig(id: 'p1', name: 'Alex', type: PlayerType.owner),
+        PlayerConfig(id: 'p2', name: 'Max', type: PlayerType.guest),
+        PlayerConfig(id: 'p3', name: 'Sarah', type: PlayerType.guest),
+        PlayerConfig(id: 'p4', name: 'Leo', type: PlayerType.guest),
+      ];
+      final base = GameSession.newGame(format: commanderFormat, playerConfigs: configs);
+      expect(base.playerOrder, [0, 1, 2, 3]); // identité de départ
+
+      // Reproduit le comportement de l'ancienne version installée : la liste
+      // `players` est physiquement permutée pour représenter la disposition
+      // voulue par le joueur, `playerOrder` n'est jamais touché (identité).
+      final legacyJson = base
+          .copyWith(players: [
+            base.players[3],
+            base.players[1],
+            base.players[2],
+            base.players[0],
+          ])
+          .toJson();
+
+      final restored = GameSession.fromJson(legacyJson);
+
+      expect(
+        restored.players.map((p) => p.playerId).toList(),
+        [0, 1, 2, 3],
+        reason: 'players doit être retrié en ordre canonique après migration',
+      );
+      expect(
+        restored.playerOrder,
+        [3, 1, 2, 0],
+        reason: 'playerOrder doit hériter de la disposition physique '
+            'observée, pas rester à l\'identité',
+      );
+    });
+
+    test(
+        'fromJson ne migre pas un snapshot déjà écrit par le code actuel '
+        '(playerOrder porte un vrai reorder)', () {
+      final configs = [
+        PlayerConfig(id: 'p1', name: 'Alex', type: PlayerType.owner),
+        PlayerConfig(id: 'p2', name: 'Max', type: PlayerType.guest),
+        PlayerConfig(id: 'p3', name: 'Sarah', type: PlayerType.guest),
+        PlayerConfig(id: 'p4', name: 'Leo', type: PlayerType.guest),
+      ];
+      final base = GameSession.newGame(format: commanderFormat, playerConfigs: configs);
+      // players reste canonique, seul playerOrder change (comportement actuel).
+      final reordered = base.reorderPlayers([3, 1, 2, 0]);
+
+      final restored = GameSession.fromJson(reordered.toJson());
+
+      expect(restored.players.map((p) => p.playerId).toList(), [0, 1, 2, 3]);
+      expect(restored.playerOrder, [3, 1, 2, 0]);
+    });
   });
 }
