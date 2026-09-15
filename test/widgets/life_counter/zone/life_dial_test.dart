@@ -137,4 +137,68 @@ void main() {
     await pumpDial(tester, life: 40, pendingDelta: 0);
     expect(find.text('0'), findsNothing);
   });
+
+  group('mode ajustement', () {
+    testWidgets('les paliers sont cachés au repos', (tester) async {
+      await pumpDial(tester);
+      expect(find.text('-10'), findsNothing);
+      expect(find.text('+10'), findsNothing);
+    });
+
+    testWidgets('l\'appui long fait apparaître les paliers', (tester) async {
+      await pumpDial(tester);
+      await tester.longPress(find.byType(LifeDial));
+      await tester.pumpAndSettle();
+      expect(find.text('-10'), findsOneWidget);
+      expect(find.text('-5'), findsOneWidget);
+      expect(find.text('+5'), findsOneWidget);
+      expect(find.text('+10'), findsOneWidget);
+    });
+
+    testWidgets('un palier émet son delta', (tester) async {
+      final deltas = await pumpDial(tester);
+      await tester.longPress(find.byType(LifeDial));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('-10'));
+      await tester.pumpAndSettle();
+      expect(deltas, contains(-10));
+    });
+
+    testWidgets('le glissement vertical en mode ajustement émet des deltas',
+        (tester) async {
+      final deltas = await pumpDial(tester);
+      await tester.longPress(find.byType(LifeDial));
+      await tester.pumpAndSettle();
+
+      // 8 px par point : 40 px vers le bas = −5.
+      await tester.drag(find.byType(LifeDial), const Offset(0, 40));
+      await tester.pumpAndSettle();
+
+      expect(deltas, isNotEmpty);
+      expect(deltas.reduce((a, b) => a + b), lessThan(0),
+          reason: 'glisser vers le bas doit retirer des PV');
+    });
+
+    testWidgets('le glissement ne fait rien hors mode ajustement',
+        (tester) async {
+      final deltas = await pumpDial(tester);
+      await tester.drag(find.byType(LifeDial), const Offset(0, 40));
+      await tester.pumpAndSettle();
+      expect(deltas, isEmpty,
+          reason: 'hors mode ajustement, un glissement vertical appartient au '
+              'tiroir et à la rotation, pas à la molette');
+    });
+
+    testWidgets('un tap hors des paliers sort du mode', (tester) async {
+      await pumpDial(tester);
+      await tester.longPress(find.byType(LifeDial));
+      await tester.pumpAndSettle();
+      expect(find.text('+10'), findsOneWidget);
+
+      final dial = tester.getRect(find.byType(LifeDial));
+      await tester.tapAt(Offset(dial.center.dx, dial.top + 12));
+      await tester.pumpAndSettle();
+      expect(find.text('+10'), findsNothing);
+    });
+  });
 }

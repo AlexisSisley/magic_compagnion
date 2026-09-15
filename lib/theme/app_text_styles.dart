@@ -166,4 +166,12 @@ abstract final class AppTextStyles {
     fontSize: fontSize ?? 20,
     fontWeight: FontWeight.w600,
   );
+
+  /// Libellé des paliers du mode ajustement, ex. "+5"/"-10" (15px, w700).
+  static TextStyle lifeStepLabel({Color? color, double? fontSize}) =>
+      TextStyle(
+    color: color ?? AppColors.textPrimary,
+    fontSize: fontSize ?? 15,
+    fontWeight: FontWeight.w700,
+  );
 }
