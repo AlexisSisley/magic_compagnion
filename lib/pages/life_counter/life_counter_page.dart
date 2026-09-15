@@ -114,6 +114,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   Timer? _snapshotDebounce;
   GameSession? _pendingSnapshotSession;
 
+  // Écriture de snapshot en vol (voir `_flushSnapshot`). `_snapshotDebounce
+  // ?.cancel()` n'a aucun effet sur un `Timer` déjà déclenché : si le flush
+  // est déjà parti quand `_finalizeGameSave` s'exécute, ce champ est le seul
+  // moyen de faire attendre `clearSnapshot()` la fin de cette écriture, pour
+  // que le clear ait toujours le dernier mot (sinon l'écriture en vol
+  // pourrait se terminer après le clear et ressusciter la partie terminée).
+  Future<void>? _inFlightSnapshotWrite;
+
   final List<Color> _defaultColors = [
     Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
     Colors.purple.shade900, Colors.orange.shade900, Colors.teal.shade900,
@@ -357,7 +365,21 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     final session = _pendingSnapshotSession;
     _pendingSnapshotSession = null;
     if (session == null) return;
-    await _sessionService.saveSnapshot(session);
+    // Suivi de l'écriture en vol : `_finalizeGameSave` peut avoir besoin
+    // d'attendre qu'elle se termine avant d'appeler `clearSnapshot()` (voir
+    // le champ `_inFlightSnapshotWrite`).
+    final write = _sessionService.saveSnapshot(session);
+    _inFlightSnapshotWrite = write;
+    try {
+      await write;
+    } finally {
+      // Ne nettoie que si personne d'autre n'a déjà remplacé la référence
+      // (pas de cas concret aujourd'hui, un seul flush à la fois, mais évite
+      // d'effacer par erreur l'écriture d'un flush plus récent).
+      if (_inFlightSnapshotWrite == write) {
+        _inFlightSnapshotWrite = null;
+      }
+    }
   }
 
   int _calculateDefaultRotation(int id, int totalPlayers) {
@@ -800,14 +822,22 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // La partie est terminée : toute écriture différée en attente doit être
     // annulée avant `clearSnapshot()`, sans quoi un flush retardataire (le
     // Timer de `_saveSnapshot`) réécrirait le snapshot d'une partie déjà
-    // terminée juste après sa suppression.
+    // terminée juste après sa suppression. `cancel()` n'a cependant aucun
+    // effet sur un flush déjà déclenché (Timer déjà consommé) : on capture
+    // aussi son écriture en vol, pour l'attendre avant `clearSnapshot()` —
+    // sans quoi cette écriture pourrait se terminer après le clear et
+    // ressusciter la partie qu'on vient de terminer.
     _snapshotDebounce?.cancel();
     _snapshotDebounce = null;
     _pendingSnapshotSession = null;
+    final pendingWrite = _inFlightSnapshotWrite;
 
     // Bug 6 fix: Fire DB writes asynchronously without blocking UI
     Future.microtask(() async {
       await _gameHistoryService.addGame(newItem);
+      if (pendingWrite != null) {
+        await pendingWrite;
+      }
       await _sessionService.clearSnapshot();
     });
 

@@ -1,4 +1,5 @@
 // test/pages/life_counter/life_counter_page_test.dart
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -11,8 +12,29 @@ import 'package:magic_companion/pages/life_counter/life_counter_page.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
+import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// Double de test : bloque `saveSnapshot()` jusqu'à `releaseGate()`, pour
+/// rendre déterministe la fenêtre de course entre un flush de débounce déjà
+/// en vol et `clearSnapshot()` — le mock SharedPreferences ne fournit aucun
+/// vrai délai d'E/S sur lequel s'appuyer pour reproduire cette course.
+class _GatedGameSessionService extends GameSessionService {
+  final Completer<void> _gate = Completer<void>();
+  bool saveStarted = false;
+
+  void releaseGate() {
+    if (!_gate.isCompleted) _gate.complete();
+  }
+
+  @override
+  Future<void> saveSnapshot(GameSession session) async {
+    saveStarted = true;
+    await _gate.future;
+    await super.saveSnapshot(session);
+  }
+}
 
 final commanderFormat =
     GameFormat.builtInFormats.firstWhere((f) => f.id == 'commander');
@@ -382,5 +404,115 @@ void main() {
     expect(prefs.getString('active_game_snapshot'), isNull,
         reason: 'un flush retardataire ne doit pas ressusciter une partie '
             'terminée');
+  });
+
+  testWidgets(
+      'dispose() avec un débounce en attente écrit le dernier état avant de '
+      'partir',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Une mutation programme une écriture différée (500 ms)...
+    final notifier = container.read(gameSessionNotifierProvider.notifier);
+    notifier.updateLife(0, -1, gameDuration: Duration.zero);
+    final state = tester.state(find.byType(LifeCounterPage));
+    // ignore: avoid_dynamic_calls
+    (state as dynamic).saveSnapshotForTest();
+
+    // ...mais la page est démontée avant l'expiration du débounce : on
+    // remplace l'arbre par un widget qui ne contient plus LifeCounterPage,
+    // ce qui déclenche dispose() pendant que le débounce est encore actif.
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: SizedBox.shrink())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('active_game_snapshot');
+    expect(raw, isNotNull,
+        reason: 'dispose() doit flusher la dernière session en attente '
+            'avant de partir, sans quoi cette mutation serait perdue');
+    expect(
+      GameSession.fromJson(json.decode(raw!)).players[0].life,
+      39,
+      reason: "l'écriture de dispose() doit porter l'état le plus récent "
+          '(40 - 1), pas un état périmé',
+    );
+  });
+
+  testWidgets(
+      'une écriture de débounce déjà en vol ne doit pas ressusciter la '
+      'partie après clearSnapshot() (race résiduelle)',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    final gatedService = _GatedGameSessionService();
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+        gameSessionServiceProvider.overrideWithValue(gatedService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final notifier = container.read(gameSessionNotifierProvider.notifier);
+    notifier.updateLife(0, -1, gameDuration: Duration.zero);
+    final state = tester.state(find.byType(LifeCounterPage));
+    // ignore: avoid_dynamic_calls
+    (state as dynamic).saveSnapshotForTest();
+
+    // Le débounce expire : `_flushSnapshot()` démarre et se bloque dans
+    // `saveSnapshot()`, en plein vol — la porte n'est pas encore ouverte.
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(gatedService.saveStarted, isTrue,
+        reason: "le flush doit avoir démarré son écriture avant qu'on "
+            'termine la partie, pour reproduire la course');
+
+    // La partie se termine PENDANT que cette écriture est en vol :
+    // `_finalizeGameSave` doit désormais attendre cette écriture avant
+    // d'appeler `clearSnapshot()`.
+    // ignore: avoid_dynamic_calls
+    final finalizeFuture =
+        (state as dynamic).finalizeGameSaveForTest(0, 'normal') as Future<void>;
+    await finalizeFuture;
+
+    // Laisse tourner ce qui peut tourner sans dépendre de la porte
+    // (ex. l'écriture de l'historique de partie).
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // On libère enfin l'écriture en vol.
+    gatedService.releaseGate();
+    await tester.pumpAndSettle();
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('active_game_snapshot'), isNull,
+        reason: "l'écriture en vol ne doit pas pouvoir ressusciter la "
+            "partie terminée en s'exécutant après clearSnapshot()");
   });
 }
