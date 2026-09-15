@@ -55,19 +55,16 @@ void main() {
     expect(deltas, [1]);
   });
 
-  // Round 2 de revue (Critical #1) : ces deux tests testaient la répétition
-  // accélérée d'un maintien immobile prolongé (jusqu'à 1.5 s / 600 ms). Ce
-  // scénario est désormais celui de l'appui long — un maintien immobile
-  // assez long bascule en mode ajustement (voir le groupe « mode ajustement »
-  // ci-dessous) au lieu de continuer à répéter des ±1, précisément pour
-  // qu'aucun delta parasite ne fuite pendant ce geste. La répétition
-  // accélérée reste dans le code (utile si l'appui long est annulé par un
-  // léger mouvement — voir « un appui long avec un petit mouvement… ») mais
-  // ne peut plus, par construction, produire son premier tick avant que
-  // l'appui long n'ait déjà tranché (voir `LifeDial.holdRepeatInitialDelay`,
-  // strictement postérieur à `kLongPressTimeout`) : les deux tests suivants
-  // remplacent les anciens en couvrant le comportement réellement atteignable
-  // aujourd'hui.
+  // Round 3 de revue : la tâche 2 proposait « maintenir une moitié =
+  // répétition accélérée » (spec §2.1). La tâche 3 ajoute « appui long =
+  // mode ajustement » (§2.5) sur le même geste, sur la même zone : les
+  // conserver toutes les deux exigerait de réserver l'appui long à une
+  // sous-région de la zone, la séparation spatiale que l'ergonomie du widget
+  // écarte explicitement au profit d'un mode unique et global. La répétition
+  // au maintien est donc abandonnée (la molette couvre la même plage utile,
+  // 8px par point) ; les deux tests suivants vérifient le comportement réel
+  // d'un maintien immobile : il bascule en mode ajustement, il ne répète
+  // jamais.
   testWidgets(
       'un maintien immobile bascule en mode ajustement au lieu de répéter '
       '(round 2 : l\'appui long prime, zéro delta parasite)', (tester) async {
@@ -104,6 +101,42 @@ void main() {
 
     await tester.pump(const Duration(seconds: 1));
     expect(deltas, [-1], reason: 'plus aucun delta après le relâchement');
+  });
+
+  testWidgets(
+      'un second doigt sur la zone ne fait pas ressusciter le delta '
+      'parasite de Critical #1 (multi-touch)', (tester) async {
+    final deltas = await pumpDial(tester);
+    final dial = tester.getRect(find.byType(LifeDial));
+
+    // Premier doigt : posé sur la moitié gauche, quasi immobile (jitter de
+    // 4px, sous kTouchSlop). Second doigt : posé ailleurs sur la zone, comme
+    // la paume ou la main d'un adversaire — l'appareil est à plat, à quatre
+    // joueurs, un second contact est ordinaire.
+    final firstFinger = await tester.startGesture(
+      Offset(dial.left + dial.width * 0.25, dial.center.dy),
+    );
+    final secondFinger = await tester.startGesture(
+      Offset(dial.left + dial.width * 0.75, dial.center.dy),
+    );
+
+    // Sans suivi par pointeur, ce jitter du premier doigt serait mesuré
+    // depuis la position du second (à ~150px), et annulerait à tort la
+    // veille d'appui long du premier sans jamais rejeter son tap : au
+    // relâchement, `_confirmTap` émettrait alors le -1 en attente.
+    await firstFinger.moveBy(const Offset(0, 4));
+    await tester.pump(const Duration(milliseconds: 1500));
+
+    await firstFinger.up();
+    await secondFinger.up();
+    await tester.pumpAndSettle();
+
+    expect(deltas, isEmpty,
+        reason: 'un second doigt ne doit jamais faire échouer la détection '
+            'd\'appui long du premier');
+    expect(find.text('+10'), findsOneWidget,
+        reason: 'le mode ajustement doit tout de même se déclencher pour le '
+            'premier doigt');
   });
 
   testWidgets('le badge de dégâts en attente s\'affiche quand il est non nul',

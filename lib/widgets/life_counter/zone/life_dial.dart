@@ -1,9 +1,10 @@
 // lib/widgets/life_counter/zone/life_dial.dart
-// Surface de geste des points de vie (spec §2.1).
+// Surface de geste des points de vie (spec §2.1, §2.5).
 //
-// Le chiffre occupe toute la zone. Tap à gauche = −1, à droite = +1, maintien
-// = répétition accélérée. Le widget n'applique rien : il émet des deltas, que
-// life_counter_page accumule dans son buffer de 2 s.
+// Le chiffre occupe toute la zone. Tap à gauche = −1, à droite = +1. Appui
+// long = mode ajustement (paliers ±5/±10, molette). Le widget n'applique
+// rien : il émet des deltas, que life_counter_page accumule dans son buffer
+// de 2 s.
 
 import 'dart:async';
 
@@ -31,26 +32,27 @@ class LifeDial extends ConsumerStatefulWidget {
   final int pendingDelta;
   final Color? textColor;
 
-  /// Délai avant que le maintien ne commence à répéter.
-  ///
-  /// Round 2 de revue (Critical #1) : strictement supérieur à
-  /// [kLongPressTimeout] (500 ms), pour que l'appui long ait toujours gagné
-  /// — et annulé la répétition en attente via `_cancelPress` — avant que le
-  /// premier tick ne puisse émettre le moindre delta.
-  static const Duration holdRepeatInitialDelay = Duration(milliseconds: 520);
-
-  /// Cadence la plus rapide que la répétition puisse atteindre.
-  static const Duration holdRepeatMinInterval = Duration(milliseconds: 60);
-
   @override
   ConsumerState<LifeDial> createState() => _LifeDialState();
 }
 
 class _LifeDialState extends ConsumerState<LifeDial> {
-  Timer? _repeatTimer;
-  int _repeatCount = 0;
   Timer? _longPressTimer;
   Offset? _downPosition;
+
+  /// Le pointeur actuellement surveillé pour l'appui long (le premier à
+  /// s'être posé sur la zone). Round 3 de revue (Critical #1 ressuscité en
+  /// multi-touch) : `_downPosition` et `_longPressTimer` sont uniques, alors
+  /// que Flutter peut suivre plusieurs pointeurs en même temps sur ce widget
+  /// (l'appareil est posé à plat, un second doigt sur la zone est ordinaire,
+  /// pas un cas limite). Sans cette référence, le `down` d'un second doigt
+  /// écrase `_downPosition` du premier et relance sa veille d'appui long ; un
+  /// micro-mouvement du premier doigt est alors mesuré depuis la position du
+  /// second, à des dizaines de pixels de distance, ce qui annule à tort la
+  /// veille d'appui long du premier doigt sans jamais rejeter son tap.
+  /// On n'arme donc la veille que pour le premier pointeur actif, et on
+  /// ignore tous les autres jusqu'à ce qu'il se relâche.
+  int? _trackedPointer;
 
   /// Le delta qu'un tap en cours émettra à son relâchement (`onTapUp`), s'il
   /// n'est pas entre-temps annulé par un glissement (`onTapCancel`) ou par
@@ -59,7 +61,6 @@ class _LifeDialState extends ConsumerState<LifeDial> {
 
   @override
   void dispose() {
-    _repeatTimer?.cancel();
     _longPressTimer?.cancel();
     super.dispose();
   }
@@ -71,52 +72,22 @@ class _LifeDialState extends ConsumerState<LifeDial> {
 
   void _startHold(int delta) {
     _pendingTapDelta = delta;
-    _repeatCount = 0;
-    _repeatTimer?.cancel();
-    _repeatTimer = Timer(LifeDial.holdRepeatInitialDelay, () => _repeat(delta));
   }
 
-  /// Répétition accélérée : l'intervalle se resserre à chaque coup, jusqu'à
-  /// [LifeDial.holdRepeatMinInterval]. Sans accélération, retirer 8 points au
-  /// maintien serait plus lent que huit taps.
-  ///
-  /// Le pas de 40 ms (plutôt que 20) est calibré pour qu'une fenêtre de 500 ms
-  /// prise après le premier tick produise strictement plus de répétitions que
-  /// la fenêtre des 500 ms précédente (voir le test de répétition accélérée) :
-  /// avec un pas de 20 ms, les deux fenêtres produisent le même nombre de
-  /// deltas et le test échoue.
-  void _repeat(int delta) {
-    if (!mounted) return;
-    _emit(delta);
-    // Ce tick a déjà émis : un relâchement après coup ne doit pas ré-émettre.
-    _pendingTapDelta = null;
-    _repeatCount++;
-    final ms = (260 - _repeatCount * 40)
-        .clamp(LifeDial.holdRepeatMinInterval.inMilliseconds, 260);
-    _repeatTimer = Timer(Duration(milliseconds: ms), () => _repeat(delta));
-  }
-
-  /// `onTapUp` : le tap est confirmé — s'il n'a pas déjà été consommé par un
-  /// tick de répétition, on émet son delta maintenant (et seulement
-  /// maintenant : spec §2.5, un tap simple doit tout de même produire son
-  /// ±1, le report au relâchement est imperceptible pour l'utilisateur).
+  /// `onTapUp` : le tap est confirmé — on émet son delta maintenant (et
+  /// seulement maintenant : spec §2.5, un tap simple doit tout de même
+  /// produire son ±1, le report au relâchement est imperceptible pour
+  /// l'utilisateur), sauf si l'appui long l'a déjà annulé entre-temps.
   void _confirmTap() {
     final delta = _pendingTapDelta;
-    _stopHold();
+    _cancelPress();
     if (delta != null) _emit(delta);
-  }
-
-  void _stopHold() {
-    _repeatTimer?.cancel();
-    _repeatTimer = null;
-    _repeatCount = 0;
-    _pendingTapDelta = null;
   }
 
   /// `onTapCancel` (glissement détecté par le `TapGestureRecognizer`) ou
   /// appui long gagnant : annule tout net, aucun delta ne doit sortir.
   void _cancelPress() {
-    _stopHold();
+    _pendingTapDelta = null;
   }
 
   @override
@@ -136,10 +107,15 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     return Listener(
       behavior: HitTestBehavior.opaque,
       onPointerDown: (event) {
+        // Round 3 (Critical #1 ressuscité) : un seul pointeur à la fois
+        // arme la veille d'appui long — voir la note sur `_trackedPointer`.
+        if (_trackedPointer != null) return;
+        _trackedPointer = event.pointer;
         _downPosition = event.position;
         _startLongPressWatch(notifier);
       },
       onPointerMove: (event) {
+        if (event.pointer != _trackedPointer) return;
         if (isAdjusting) {
           // Round 2 (Important #1) : un glissement de molette maintenu plus
           // de 500 ms ré-arme sinon un appui long qui remettrait
@@ -168,17 +144,24 @@ class _LifeDialState extends ConsumerState<LifeDial> {
       // appelé qu'au balayage de l'arène qui suit) — y annuler aussi le tap
       // en attente le viderait avant que `_confirmTap` ne puisse l'émettre.
       // La moitié restant montée en permanence (voir plus bas), c'est elle
-      // qui arrête fiablement la répétition via son propre `onTapUp`/
-      // `onTapCancel`.
-      onPointerUp: (_) => _cancelLongPressWatch(),
-      onPointerCancel: (_) => _cancelLongPressWatch(),
+      // qui gère fiablement son propre tap via `onTapUp`/`onTapCancel`.
+      onPointerUp: (event) {
+        if (event.pointer != _trackedPointer) return;
+        _trackedPointer = null;
+        _cancelLongPressWatch();
+      },
+      onPointerCancel: (event) {
+        if (event.pointer != _trackedPointer) return;
+        _trackedPointer = null;
+        _cancelLongPressWatch();
+      },
       child: Stack(
         alignment: Alignment.center,
         children: [
           // Les moitiés restent montées en permanence (jamais retirées de
           // l'arbre) : les enlever couperait net le pointeur en cours (Flutter
           // annule un geste quand le widget qu'il touche disparaît), ce qui
-          // arrêterait la répétition en plein maintien dès l'entrée en mode
+          // interromprait son tap en plein geste dès l'entrée en mode
           // ajustement. `IgnorePointer` les neutralise sans les démonter.
           IgnorePointer(
             ignoring: isAdjusting,
@@ -280,9 +263,9 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     _longPressTimer?.cancel();
     _longPressTimer = Timer(kLongPressTimeout, () {
       if (!mounted) return;
-      // Round 2 (Critical #1) : l'appui long gagne — tout tap ou répétition
-      // en attente sur la moitié touchée est annulé avant de basculer, pour
-      // qu'aucun ±1 ne fuite au moment de l'entrée en mode ajustement.
+      // Round 2 (Critical #1) : l'appui long gagne — le tap en attente sur
+      // la moitié touchée est annulé avant de basculer, pour qu'aucun ±1 ne
+      // fuite au moment de l'entrée en mode ajustement.
       _cancelPress();
       HapticFeedback.mediumImpact();
       notifier.enterAdjustMode();
