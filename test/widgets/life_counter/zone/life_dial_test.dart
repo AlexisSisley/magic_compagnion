@@ -67,7 +67,7 @@ void main() {
   // jamais.
   testWidgets(
       'un maintien immobile bascule en mode ajustement au lieu de répéter '
-      '(round 2 : l\'appui long prime, zéro delta parasite)', (tester) async {
+      '(l\'appui long prime, zéro delta parasite)', (tester) async {
     final deltas = await pumpDial(tester);
     final dial = tester.getRect(find.byType(LifeDial));
 
@@ -137,6 +137,56 @@ void main() {
     expect(find.text('+10'), findsOneWidget,
         reason: 'le mode ajustement doit tout de même se déclencher pour le '
             'premier doigt');
+  });
+
+  testWidgets(
+      'le doigt de gauche relâché après celui de droite émet bien son '
+      'propre -1, pas perdu (chevauchement multi-touch)', (tester) async {
+    final deltas = await pumpDial(tester);
+    final dial = tester.getRect(find.byType(LifeDial));
+
+    // Les deux doigts se posent pendant que l'un et l'autre sont encore en
+    // cours : sans indexation par moitié, le second (droite, +1) écraserait
+    // l'état partagé du premier (gauche, -1), qui se perdrait à son
+    // relâchement, plus tardif.
+    final left = await tester.startGesture(
+      Offset(dial.left + dial.width * 0.25, dial.center.dy),
+    );
+    final right = await tester.startGesture(
+      Offset(dial.left + dial.width * 0.75, dial.center.dy),
+    );
+
+    await right.up();
+    await tester.pump();
+    await left.up();
+    await tester.pump();
+
+    expect(deltas, [1, -1]);
+  });
+
+  testWidgets(
+      'le doigt de gauche relâché avant celui de droite émet -1, pas le +1 '
+      'laissé par le doigt de droite (chevauchement multi-touch)',
+      (tester) async {
+    final deltas = await pumpDial(tester);
+    final dial = tester.getRect(find.byType(LifeDial));
+
+    // Le cas le plus grave : sans indexation par moitié, le relâchement du
+    // premier doigt (gauche) lirait la valeur laissée par le second (droite,
+    // +1) au lieu de son propre -1 — un tap sur « −1 » appliquerait « +1 ».
+    final left = await tester.startGesture(
+      Offset(dial.left + dial.width * 0.25, dial.center.dy),
+    );
+    final right = await tester.startGesture(
+      Offset(dial.left + dial.width * 0.75, dial.center.dy),
+    );
+
+    await left.up();
+    await tester.pump();
+    await right.up();
+    await tester.pump();
+
+    expect(deltas, [-1, 1]);
   });
 
   testWidgets('le badge de dégâts en attente s\'affiche quand il est non nul',

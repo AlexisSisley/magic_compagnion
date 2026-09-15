@@ -54,14 +54,27 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// ignore tous les autres jusqu'à ce qu'il se relâche.
   int? _trackedPointer;
 
-  /// Le delta qu'un tap en cours émettra à son relâchement (`onTapUp`), s'il
-  /// n'est pas entre-temps annulé par un glissement (`onTapCancel`) ou par
-  /// l'appui long qui gagne (voir `_startLongPressWatch`).
-  int? _pendingTapDelta;
+  /// Les deltas dont le tap est en cours (posés, pas encore relâchés), en
+  /// attente d'émission à `onTapUp`.
+  ///
+  /// Round 3 de revue (Important, chevauchement multi-touch) : un seul
+  /// nullable partagé entre les deux moitiés se faisait écraser quand un
+  /// second doigt se posait sur l'autre moitié pendant que le premier était
+  /// encore en cours — au mieux le premier delta ne sortait jamais, au pire
+  /// le relâchement du premier doigt émettait le delta laissé par le second
+  /// (un tap sur « −1 » appliquant en fait « +1 »). Indexé par moitié (le
+  /// delta lui-même, -1 ou +1, sert de clé stable) plutôt que par pointeur :
+  /// restreindre au pointeur suivi par l'appui long (`_trackedPointer`)
+  /// aurait bloqué le tap légitime d'un second doigt tant que le premier
+  /// reste posé, ce qui n'est pas souhaitable sur un appareil à plat à
+  /// quatre joueurs.
+  final Set<int> _pendingTaps = {};
 
   @override
   void dispose() {
     _longPressTimer?.cancel();
+    _trackedPointer = null;
+    _downPosition = null;
     super.dispose();
   }
 
@@ -71,23 +84,30 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   }
 
   void _startHold(int delta) {
-    _pendingTapDelta = delta;
+    _pendingTaps.add(delta);
   }
 
-  /// `onTapUp` : le tap est confirmé — on émet son delta maintenant (et
-  /// seulement maintenant : spec §2.5, un tap simple doit tout de même
-  /// produire son ±1, le report au relâchement est imperceptible pour
-  /// l'utilisateur), sauf si l'appui long l'a déjà annulé entre-temps.
-  void _confirmTap() {
-    final delta = _pendingTapDelta;
-    _cancelPress();
-    if (delta != null) _emit(delta);
+  /// `onTapUp` de la moitié `delta` : le tap est confirmé — on émet ce delta
+  /// précis maintenant (et seulement maintenant : spec §2.5, un tap simple
+  /// doit tout de même produire son ±1, le report au relâchement est
+  /// imperceptible pour l'utilisateur), sauf si l'appui long l'a déjà annulé
+  /// entre-temps.
+  void _confirmTap(int delta) {
+    if (_pendingTaps.remove(delta)) _emit(delta);
   }
 
-  /// `onTapCancel` (glissement détecté par le `TapGestureRecognizer`) ou
-  /// appui long gagnant : annule tout net, aucun delta ne doit sortir.
-  void _cancelPress() {
-    _pendingTapDelta = null;
+  /// `onTapCancel` de la moitié `delta` (glissement détecté par le
+  /// `TapGestureRecognizer`) : annule ce tap précis, sans toucher à l'autre
+  /// moitié si elle a elle aussi un tap en cours.
+  void _cancelPress(int delta) {
+    _pendingTaps.remove(delta);
+  }
+
+  /// L'appui long gagne : les deux moitiés doivent être annulées, pas
+  /// seulement celle sous le pointeur suivi — voir le doc-comment de
+  /// `_pendingTaps`.
+  void _cancelAllPendingTaps() {
+    _pendingTaps.clear();
   }
 
   @override
@@ -263,10 +283,10 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     _longPressTimer?.cancel();
     _longPressTimer = Timer(kLongPressTimeout, () {
       if (!mounted) return;
-      // Round 2 (Critical #1) : l'appui long gagne — le tap en attente sur
-      // la moitié touchée est annulé avant de basculer, pour qu'aucun ±1 ne
-      // fuite au moment de l'entrée en mode ajustement.
-      _cancelPress();
+      // Round 2 (Critical #1) : l'appui long gagne — tout tap en attente,
+      // sur l'une ou l'autre moitié, est annulé avant de basculer, pour
+      // qu'aucun ±1 ne fuite au moment de l'entrée en mode ajustement.
+      _cancelAllPendingTaps();
       HapticFeedback.mediumImpact();
       notifier.enterAdjustMode();
     });
@@ -281,8 +301,8 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => _startHold(delta),
-      onTapUp: (_) => _confirmTap(),
-      onTapCancel: _cancelPress,
+      onTapUp: (_) => _confirmTap(delta),
+      onTapCancel: () => _cancelPress(delta),
       child: const SizedBox.expand(),
     );
   }
