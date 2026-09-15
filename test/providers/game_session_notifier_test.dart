@@ -160,4 +160,77 @@ void main() {
         reason: 'un tick reçu après stopTimer ne doit pas incrémenter la '
             "durée d'une partie déjà arrêtée");
   });
+
+  // --- Cas de couverture migrés depuis GameSessionController ---
+
+  group('updateCounter', () {
+    test('sets counter value', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().updateCounter(0, 'poison', 3);
+
+      final player = container.read(gameSessionNotifierProvider)!.players[0];
+      expect(player.counters['poison'], 3);
+    });
+
+    test('increments existing counter', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().updateCounter(0, 'poison', 2);
+      getNotifier().updateCounter(0, 'poison', 3);
+
+      final player = container.read(gameSessionNotifierProvider)!.players[0];
+      expect(player.counters['poison'], 3);
+    });
+  });
+
+  group('eliminatePlayer', () {
+    test('marks player as eliminated', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().eliminatePlayer(2, atDuration: const Duration(minutes: 15));
+
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect(session.players[2].isEliminated, isTrue);
+      expect(session.eliminationOrder, [2]);
+    });
+  });
+
+  group('updateLife - couverture complète', () {
+    test('decreases life', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().updateLife(0, -3, gameDuration: const Duration(minutes: 2));
+
+      final player = container.read(gameSessionNotifierProvider)!.players[0];
+      expect(player.life, 37);
+    });
+
+    test('does not affect other players', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().updateLife(0, -10, gameDuration: Duration.zero);
+
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect(session.players[1].life, 40);
+      expect(session.players[2].life, 40);
+      expect(session.players[3].life, 40);
+    });
+  });
+
+  group('toggleMonarch - couverture complète', () {
+    test('toggles off if same player', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().toggleMonarch(1);
+      expect(
+          container
+              .read(gameSessionNotifierProvider)!
+              .players[1]
+              .isMonarch,
+          isTrue);
+
+      getNotifier().toggleMonarch(1);
+      expect(
+          container
+              .read(gameSessionNotifierProvider)!
+              .players[1]
+              .isMonarch,
+          isFalse);
+    });
+  });
 }
