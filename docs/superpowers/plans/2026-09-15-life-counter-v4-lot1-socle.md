@@ -1401,6 +1401,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - [ ] `flutter analyze` sans avertissement sur les fichiers touchés.
 - [ ] `grep -rn "GameSessionController" lib/ test/` ne retourne rien.
 - [ ] `grep -n "_session = " lib/pages/life_counter/life_counter_page.dart` ne retourne rien.
+- [ ] `playerOrder` est lu par le rendu : `_orderedPlayers` existe et `_legacyPlayers` passe par lui.
 - [ ] Vérification manuelle du bug A : lancer une partie, modifier des PV, tuer l'application, la rouvrir, modifier des PV — la partie et sa durée sont conservées.
 - [ ] Vérification manuelle du bug B : lancer une partie à 4, réordonner les zones en mode édition, taper des dégâts — le badge apparaît sur la bonne zone.
 
