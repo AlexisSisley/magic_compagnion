@@ -61,21 +61,53 @@ void main() {
     final gesture = await tester.startGesture(
       Offset(dial.left + dial.width * 0.25, dial.center.dy),
     );
-    // Premier delta immédiat, puis répétition après le délai initial.
-    await tester.pump(const Duration(milliseconds: 500));
-    final apresDelaiInitial = deltas.length;
 
-    await tester.pump(const Duration(milliseconds: 500));
-    final apresUneSeconde = deltas.length;
+    // Relève l'instant (temps écoulé depuis le tap down) de chaque delta,
+    // par petits pas, pour reconstituer la suite des intervalles entre
+    // répétitions. Un test qui se contente de compter les deltas dans deux
+    // fenêtres de 500 ms ne prouve pas l'accélération : une cadence
+    // constante suffisamment rapide produit aussi plus d'événements dans la
+    // seconde fenêtre (la première n'a que ~100 ms de répétition utile,
+    // le reste étant mangé par le délai initial de 400 ms).
+    const step = Duration(milliseconds: 10);
+    const totalDuration = Duration(milliseconds: 1500);
+    var elapsed = Duration.zero;
+    var lastCount = deltas.length; // le tap down a déjà émis un premier delta
+    final timestamps = <Duration>[elapsed];
+
+    while (elapsed < totalDuration) {
+      await tester.pump(step);
+      elapsed += step;
+      while (deltas.length > lastCount) {
+        timestamps.add(elapsed);
+        lastCount++;
+      }
+    }
 
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(apresDelaiInitial, greaterThanOrEqualTo(2),
-        reason: 'le maintien doit répéter après le délai initial');
-    expect(apresUneSeconde - apresDelaiInitial,
-        greaterThan(apresDelaiInitial),
-        reason: 'la répétition doit accélérer, pas rester à cadence constante');
+    expect(timestamps.length, greaterThanOrEqualTo(4),
+        reason: 'pas assez de répétitions capturées pour juger de l\'accélération');
+
+    // intervals[0] est le délai initial (à part) ; le reste est la suite des
+    // écarts entre répétitions successives.
+    final intervals = <int>[
+      for (var i = 1; i < timestamps.length; i++)
+        (timestamps[i] - timestamps[i - 1]).inMilliseconds,
+    ];
+    final repeatIntervals = intervals.sublist(1);
+    expect(repeatIntervals.length, greaterThanOrEqualTo(2),
+        reason: 'pas assez d\'intervalles de répétition pour comparer');
+
+    expect(
+      repeatIntervals.last,
+      lessThan(repeatIntervals.first),
+      reason: 'la répétition doit accélérer : l\'écart entre les deux '
+          'derniers deltas doit être strictement inférieur à celui entre '
+          'les deux premiers deltas de répétition (une cadence constante, '
+          'quelle qu\'elle soit, ne doit pas satisfaire ce test)',
+    );
     expect(deltas.every((d) => d == -1), isTrue);
   });
 

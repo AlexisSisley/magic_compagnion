@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/theme/app_colors.dart';
+import 'package:magic_companion/theme/app_text_styles.dart';
 
 class LifeDial extends ConsumerStatefulWidget {
   const LifeDial({
@@ -108,12 +109,7 @@ class _LifeDialState extends ConsumerState<LifeDial> {
                 fit: BoxFit.scaleDown,
                 child: Text(
                   '${widget.life}',
-                  style: TextStyle(
-                    fontSize: 88,
-                    fontWeight: FontWeight.w200,
-                    letterSpacing: -3,
-                    color: color,
-                  ),
+                  style: AppTextStyles.lifeNumeral(color: color),
                 ),
               ),
               if (widget.pendingDelta != 0)
@@ -121,9 +117,7 @@ class _LifeDialState extends ConsumerState<LifeDial> {
                   widget.pendingDelta > 0
                       ? '+${widget.pendingDelta}'
                       : '${widget.pendingDelta}',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
+                  style: AppTextStyles.lifeBadge(
                     color: widget.pendingDelta > 0
                         ? AppColors.accentGreen
                         : AppColors.accentRed,
