@@ -151,6 +151,21 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         .toList();
   }
 
+  /// Vue "legacy" des joueurs en ordre canonique (`playerId` croissant), pour
+  /// les lectures métier qui ont besoin des champs du modèle `Player` (ex.
+  /// sauvegarde de l'historique) mais ne doivent pas dépendre de l'ordre
+  /// d'affichage — contrairement à `_legacyPlayers`, qui suit `_orderedPlayers`
+  /// et est réservé au rendu des zones.
+  List<Player> get _legacyPlayersCanonical {
+    final session = _session;
+    if (session == null) return [];
+    return session.players
+        .asMap()
+        .entries
+        .map((e) => _toLegacyPlayer(e.key, e.value))
+        .toList();
+  }
+
   int get _playerCount => _session?.players.length ?? 0;
   int get _startingLife => _currentFormat.startingLife;
 
@@ -687,7 +702,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // Bug 5 fix: Dialog is already closed by caller using dialog's own context
     if (!mounted) return;
 
-    final players = _legacyPlayers;
+    // Lecture métier (sauvegarde de l'historique de fin de partie) : ordre
+    // canonique, pas l'ordre d'affichage — `game_history_page.dart` et
+    // `game_history_detail_page.dart` restituent `playerStates` dans l'ordre
+    // où il a été sauvegardé.
+    final players = _legacyPlayersCanonical;
 
     // Création des snapshots des joueurs
     List<PlayerHistorySnapshot> snapshots = players.map((p) {
@@ -728,6 +747,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         const SnackBar(content: Text("Partie enregistrée dans l'historique !"), backgroundColor: AppColors.success),
       );
     }
+  }
+
+  /// Point d'entrée de test pour déclencher la sauvegarde de fin de partie
+  /// sans naviguer la chaîne de dialogues (`_endGame` → `_showWinMethodDialog`).
+  /// Résout le gagnant par `playerId` (identité métier), pas par position
+  /// d'affichage.
+  @visibleForTesting
+  Future<void> finalizeGameSaveForTest(int winnerId, String method) {
+    final winner = _legacyPlayersCanonical.firstWhere((p) => p.id == winnerId);
+    return _finalizeGameSave(winner, method);
   }
 
   // --- UI ---

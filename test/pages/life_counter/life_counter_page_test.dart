@@ -215,4 +215,48 @@ void main() {
     // Seul playerOrder porte l'ordre d'affichage.
     expect(session.playerOrder, [3, 1, 2, 0]);
   });
+
+  testWidgets(
+      "l'historique de fin de partie garde l'ordre canonique des joueurs, "
+      'pas l\'ordre d\'affichage',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // On réordonne l'affichage : le joueur 0 passe en dernière position.
+    // Si `_finalizeGameSave` lisait encore l'ordre d'affichage (régression
+    // de catégorisation métier/rendu), l'historique sauvegarderait les noms
+    // dans l'ordre [3, 1, 2, 0] plutôt que l'ordre canonique [0, 1, 2, 3].
+    final state = tester.state(find.byType(LifeCounterPage));
+    // ignore: avoid_dynamic_calls
+    (state as dynamic).reorderForTest(0, 3);
+    await tester.pumpAndSettle();
+
+    // ignore: avoid_dynamic_calls
+    await (state as dynamic).finalizeGameSaveForTest(0, 'normal');
+    await tester.pumpAndSettle();
+
+    final history = await GameHistoryService().loadHistory();
+    expect(history, isNotEmpty);
+    expect(
+      history.first.playerStates.map((p) => p.name).toList(),
+      ['Joueur 1', 'Joueur 2', 'Joueur 3', 'Joueur 4'],
+      reason: "la sauvegarde doit suivre l'ordre canonique des playerId, "
+          "pas l'ordre d'affichage issu du reorder",
+    );
+  });
 }
