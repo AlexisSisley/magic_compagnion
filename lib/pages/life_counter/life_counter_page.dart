@@ -182,6 +182,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       final snapshot = await sessionService.loadSnapshot();
       if (snapshot != null) {
         _controller = GameSessionController();
+        // Sans ceci le contrôleur démarre avec une session nulle : la première
+        // mutation est un no-op et écrase la partie restaurée (bug A).
+        _controller.restoreSession(snapshot);
         setState(() {
           _session = snapshot;
           _currentFormat = snapshot.format;
@@ -417,6 +420,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     final count = assignedProfiles?.length ?? _playerCount;
     _startNewGame(playerCount: count > 0 ? count : 4, assignedProfiles: assignedProfiles);
   }
+
+  /// Point d'entrée de test pour piloter le buffer de dégâts sans simuler de tap
+  /// (les zones sont pivotées par AdaptiveGrid, ce qui rend le tap fragile en test).
+  @visibleForTesting
+  void updateLifeForTest(int playerId, int change) => _updateLife(playerId, change);
 
   void _updateLife(int playerId, int change) {
     if (_isSelectingStarter) return;
