@@ -17,7 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:magic_companion/controllers/game_session_controller.dart';
+import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_history_model.dart';
 import 'package:magic_companion/models/game_session.dart';
@@ -55,9 +55,16 @@ class LifeCounterPage extends ConsumerStatefulWidget {
 class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   GameHistoryService get _gameHistoryService => ref.read(gameHistoryServiceProvider);
 
-  // --- Controller-based state ---
-  GameSessionController _controller = GameSessionController();
-  GameSession? _session;
+  // --- Notifier-based state ---
+  // `_controller` reste un getter : il ne fait qu'exposer le notifier, il ne
+  // le détient pas. `ref.read` est utilisé ici (et non `ref.watch`, interdit
+  // hors de `build()`) car ce getter est appelé depuis des callbacks
+  // (`_updateLife`, `_saveSnapshot`, `_onReorderPlayers`, etc.).
+  // L'abonnement qui déclenche les rebuilds est établi explicitement en
+  // première ligne de `build()`.
+  GameSessionNotifier get _controller =>
+      ref.read(gameSessionNotifierProvider.notifier);
+  GameSession? get _session => ref.read(gameSessionNotifierProvider);
   GameFormat _currentFormat = GameFormat.builtInFormats.first; // Commander
 
   bool _isLoading = true;
@@ -181,12 +188,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     if (await sessionService.hasActiveGame()) {
       final snapshot = await sessionService.loadSnapshot();
       if (snapshot != null) {
-        _controller = GameSessionController();
-        // Sans ceci le contrôleur démarre avec une session nulle : la première
-        // mutation est un no-op et écrase la partie restaurée (bug A).
         _controller.restoreSession(snapshot);
         setState(() {
-          _session = snapshot;
           _currentFormat = snapshot.format;
           _isLoading = false;
         });
@@ -230,18 +233,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       );
     });
 
-    _controller = GameSessionController();
     _controller.startNewGame(format: _currentFormat, playerConfigs: configs);
 
     // Apply default rotations
-    final session = _controller.session;
-    if (session != null) {
+    if (_session != null) {
       for (int i = 0; i < playerCount; i++) {
         _controller.updateRotation(i, _calculateDefaultRotation(i, playerCount));
       }
     }
 
-    setState(() => _session = _controller.session);
+    setState(() {});
     _saveSnapshot();
 
     // Persist defaults for next launch
@@ -328,7 +329,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   void _confirmElimination(int playerId) {
     _controller.eliminatePlayer(playerId, atDuration: _gameDuration);
     setState(() {
-      _session = _controller.session;
       _showDeathOverlay.remove(playerId);
     });
     _saveSnapshot();
@@ -450,7 +450,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _controller.updateLife(playerId, pending, gameDuration: _gameDuration);
     _pendingDamage.remove(playerId);
     _pendingTimers.remove(playerId);
-    setState(() => _session = _controller.session);
+    setState(() {});
     _saveSnapshot();
     _checkDeathCondition(playerId);
   }
@@ -463,8 +463,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       }
       return p;
     }).toList();
-    _session = _session!.copyWith(players: players);
-    _controller.restoreSession(_session!);
+    _controller.restoreSession(_session!.copyWith(players: players));
     setState(() {});
     _saveSnapshot();
   }
@@ -472,7 +471,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   void _updatePlayerRotation(int playerId, int rotation) {
     if (_session == null) return;
     _controller.updateRotation(playerId, rotation);
-    setState(() => _session = _controller.session);
+    setState(() {});
     _saveSnapshot();
   }
 
@@ -484,8 +483,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       }
       return p;
     }).toList();
-    _session = _session!.copyWith(players: players);
-    _controller.restoreSession(_session!);
+    _controller.restoreSession(_session!.copyWith(players: players));
     setState(() {});
     _saveSnapshot();
   }
@@ -568,7 +566,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                         damage: -1,
                         gameDuration: _gameDuration,
                       );
-                      setState(() => _session = _controller.session);
+                      setState(() {});
                       _saveSnapshot();
                     }
                     Navigator.pop(context);
@@ -582,7 +580,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                       damage: 1,
                       gameDuration: _gameDuration,
                     );
-                    setState(() => _session = _controller.session);
+                    setState(() {});
                     _saveSnapshot();
                     _triggerCommanderDamageFlash(opponent.id);
                     _checkDeathCondition(opponent.id);
@@ -711,6 +709,10 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   // --- UI ---
   @override
   Widget build(BuildContext context) {
+    // Établit l'abonnement Riverpod : sans ce watch explicite, le getter
+    // `_session` (qui utilise `ref.read`) ne déclencherait aucun rebuild
+    // quand le notifier change d'état.
+    ref.watch(gameSessionNotifierProvider);
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
 
     final players = _legacyPlayers;
@@ -843,7 +845,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       color: AppColors.amber,
       onTap: () {
         _controller.toggleMonarch(playerState.playerId);
-        setState(() => _session = _controller.session);
+        setState(() {});
         _saveSnapshot();
       },
     ));
@@ -881,7 +883,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         _controller.updateCounter(playerState.playerId, 'poison', 0);
         _controller.updateCounter(playerState.playerId, 'energy', 0);
         _controller.updateCounter(playerState.playerId, 'commander_tax', 0);
-        setState(() => _session = _controller.session);
+        setState(() {});
         _saveSnapshot();
       },
     ));
@@ -903,9 +905,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       return p;
     }).toList();
     final newOrder = List<int>.from(_session!.eliminationOrder)..remove(playerId);
-    _session = _session!.copyWith(players: players, eliminationOrder: newOrder);
-    // Sync controller's internal session to match
-    _controller.restoreSession(_session!);
+    _controller.restoreSession(
+      _session!.copyWith(players: players, eliminationOrder: newOrder),
+    );
     setState(() {});
     _saveSnapshot();
   }
@@ -918,9 +920,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     final temp = players[oldIndex];
     players[oldIndex] = players[newIndex];
     players[newIndex] = temp;
-    _session = _session!.copyWith(players: players);
-    // Also sync the controller
-    _controller.restoreSession(_session!);
+    _controller.restoreSession(_session!.copyWith(players: players));
     setState(() {});
     _saveSnapshot();
   }
@@ -946,7 +946,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
     final currentVal = player.counters[counterKey] ?? 0;
     _controller.updateCounter(playerId, counterKey, currentVal + val);
-    setState(() => _session = _controller.session);
+    setState(() {});
     _saveSnapshot();
     // Check death for poison threshold
     if (counterKey == 'poison') {
@@ -1152,7 +1152,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       }
       _controller.updateRotation(players[i].playerId, effectiveRotation);
     }
-    setState(() => _session = _controller.session);
+    setState(() {});
     _saveSnapshot();
     HapticFeedback.mediumImpact();
   }

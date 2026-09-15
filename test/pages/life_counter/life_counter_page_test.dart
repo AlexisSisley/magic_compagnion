@@ -8,6 +8,7 @@ import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/pages/life_counter/life_counter_page.dart';
+import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -83,5 +84,44 @@ void main() {
     // Avant correctif : la session est écrasée par le null du contrôleur.
     expect(find.text('33'), findsOneWidget,
         reason: 'la partie restaurée ne doit pas être effacée');
+  });
+
+  testWidgets('la session vit dans le provider, pas dans la page',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    // En production, LifeCounterPage est toujours montée à l'intérieur du
+    // Scaffold de AppShellScaffold, qui lui fournit son ancêtre Material.
+    // Voir la note dans pumpLifeCounter ci-dessus : sans ce Scaffold minimal,
+    // les InkWell de la barre centrale lèvent "No Material widget found".
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // La page a démarré une partie par défaut : elle est lisible depuis
+    // l'extérieur, ce qui n'est possible que si l'état vit dans le provider.
+    final session = container.read(gameSessionNotifierProvider);
+    expect(session, isNotNull);
+    expect(session!.players, hasLength(4));
+    expect(session.players[0].life, 40);
+
+    // Une mutation faite via le provider se reflète dans l'UI.
+    container
+        .read(gameSessionNotifierProvider.notifier)
+        .updateLife(0, -7, gameDuration: Duration.zero);
+    await tester.pumpAndSettle();
+
+    expect(find.text('33'), findsOneWidget);
   });
 }
