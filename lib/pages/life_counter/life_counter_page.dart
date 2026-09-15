@@ -94,8 +94,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   bool _isSelectingStarter = false;
 
   Timer? _gameTimer;
-  Duration _gameDuration = Duration.zero;
-  bool _isGameActive = false;
+  Duration get _gameDuration => _session?.duration ?? Duration.zero;
+  bool get _isGameActive => _session?.isActive ?? false;
 
   final List<Color> _defaultColors = [
     Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
@@ -192,19 +192,18 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   // --- LOGIQUE TIMER ---
   void _startGame() {
     _gameTimer?.cancel();
-    setState(() {
-      _isGameActive = true;
-      _gameDuration = Duration.zero;
-    });
-
+    _controller.startTimer();
     _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) setState(() => _gameDuration += const Duration(seconds: 1));
+      if (!mounted) return;
+      _controller.tick();
     });
+    setState(() {});
   }
 
   void _stopGame() {
     _gameTimer?.cancel();
-    setState(() => _isGameActive = false);
+    _controller.stopTimer();
+    setState(() {});
   }
 
   String _formatDuration(Duration d) {
@@ -231,6 +230,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           _currentFormat = snapshot.format;
           _isLoading = false;
         });
+        if (snapshot.isActive) {
+          _gameTimer?.cancel();
+          _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+            if (!mounted) return;
+            _controller.tick();
+          });
+        }
         return;
       }
     }
@@ -446,7 +452,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   void _resetGame({List<Profile?>? assignedProfiles}) {
     _stopGame();
     setState(() {
-      _gameDuration = Duration.zero;
       _deathTimers.forEach((_, t) => t.cancel());
       _deathTimers.clear();
       _pendingTimers.forEach((_, t) => t.cancel());

@@ -123,6 +123,34 @@ class GameSessionNotifier extends Notifier<GameSession?> {
     state = session.copyWith(players: players);
   }
 
+  /// Démarre le chronomètre de la partie. La durée est portée par la session
+  /// pour survivre à un redémarrage de l'application (elle vivait auparavant
+  /// dans le State de la page et était perdue).
+  void startTimer() {
+    final session = state;
+    if (session == null) return;
+    state = session.copyWith(
+      startedAt: DateTime.now(),
+      duration: Duration.zero,
+      isActive: true,
+    );
+  }
+
+  /// Avance le chronomètre d'une seconde.
+  void tick() {
+    final session = state;
+    if (session == null || !session.isActive) return;
+    state = session.copyWith(
+      duration: session.duration + const Duration(seconds: 1),
+    );
+  }
+
+  void stopTimer() {
+    final session = state;
+    if (session == null) return;
+    state = session.copyWith(isActive: false);
+  }
+
   void endGame() {
     final session = state;
     if (session == null) return;

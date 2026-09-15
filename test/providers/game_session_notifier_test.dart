@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/game_format.dart';
+import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 
@@ -94,5 +95,50 @@ void main() {
     final session = container.read(gameSessionNotifierProvider)!;
     expect(session.playerOrder, [3, 1, 2, 0]);
     expect(session.players.map((p) => p.playerId).toList(), [0, 1, 2, 3]);
+  });
+
+  test('startTimer initialise la durée et marque la partie active', () {
+    getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+    getNotifier().startTimer();
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.isActive, isTrue);
+    expect(session.duration, Duration.zero);
+    expect(session.startedAt, isNotNull);
+  });
+
+  test('tick incrémente la durée portée par la session', () {
+    getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+    getNotifier().startTimer();
+    getNotifier().tick();
+    getNotifier().tick();
+    getNotifier().tick();
+
+    expect(container.read(gameSessionNotifierProvider)!.duration,
+        const Duration(seconds: 3));
+  });
+
+  test('la durée survit à un aller-retour JSON', () {
+    getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+    getNotifier().startTimer();
+    getNotifier().tick();
+    getNotifier().tick();
+
+    final json = container.read(gameSessionNotifierProvider)!.toJson();
+    final restored = GameSession.fromJson(json);
+
+    expect(restored.duration, const Duration(seconds: 2));
+    expect(restored.isActive, isTrue);
+  });
+
+  test('stopTimer conserve la durée accumulée', () {
+    getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+    getNotifier().startTimer();
+    getNotifier().tick();
+    getNotifier().stopTimer();
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.isActive, isFalse);
+    expect(session.duration, const Duration(seconds: 1));
   });
 }
