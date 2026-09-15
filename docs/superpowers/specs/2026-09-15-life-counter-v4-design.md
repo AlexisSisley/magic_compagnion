@@ -134,7 +134,7 @@ La page perd :
 |---|---|
 | Badge `_pendingDamage` et flash commander sur la mauvaise zone après reorder | État clé par `playerId` (§3.1) |
 | `GameSession.duration` / `startedAt` jamais renseignés ; durée perdue au redémarrage malgré la restauration du snapshot | La durée vit dans la session, plus dans le `State` |
-| Toggle « Timer de partie » du setup jamais transmis à la page — réglage sans effet | Transmis via la session |
+| Toggle « Timer de partie » du setup jamais transmis à la page — réglage sans effet | **Non corrigé par le lot 1.** Reporté au lot 4 (§4) : le réglage n'est câblé que là où `GameSetupModal` sera remplacé par le setup inline (§2.8) — le câbler à travers le modal actuel, voué à la suppression, serait du travail jeté. |
 | `_calculateDefaultRotation(int id, int totalPlayers)` ignore ses deux paramètres et retourne toujours `0` | Réécrit avec une vraie logique par nombre de joueurs, ou supprimé au profit des presets d'orientation existants |
 | `reorderPlayers` du modèle contourné par une permutation physique de la liste | Le reorder passe par le modèle ; `playerOrder` devient la source de vérité |
 | `_saveSnapshot()` appelé en I/O synchrone après chaque tap | Écriture débattue (debounce) sur le cycle du buffer de dégâts |
@@ -179,7 +179,7 @@ Quatre lots, plus un cinquième. Chacun est mergeable seul, et l'application res
 
 **Lot 3 — Commander damage et tiroir.** Attribution à la volée, grille du tiroir, vue table.
 
-**Lot 4 — Setup.** Reprise en un tap, setup inline, suppression de `GameSetupModal`, branchement de `GameSetupController`, route vers `StatsTab`.
+**Lot 4 — Setup.** Reprise en un tap, setup inline, suppression de `GameSetupModal`, branchement de `GameSetupController`, route vers `StatsTab`. **Inclut le câblage du toggle « Timer de partie »**, délibérément reporté depuis le lot 1 (§3.2) : câbler ce réglage à travers le modal actuel, voué à la suppression par ce même lot, aurait été du travail jeté.
 
 **Lot 5 — Compteurs personnalisés.** Branchement de `CounterType`, création depuis le tiroir.
 
