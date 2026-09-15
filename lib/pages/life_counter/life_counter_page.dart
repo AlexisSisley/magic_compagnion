@@ -322,13 +322,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
     _controller.startNewGame(format: _currentFormat, playerConfigs: configs);
 
-    // Apply default rotations
-    if (_session != null) {
-      for (int i = 0; i < playerCount; i++) {
-        _controller.updateRotation(i, _calculateDefaultRotation(i, playerCount));
-      }
-    }
-
     setState(() {});
     _saveSnapshot();
 
@@ -380,14 +373,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         _inFlightSnapshotWrite = null;
       }
     }
-  }
-
-  int _calculateDefaultRotation(int id, int totalPlayers) {
-    // AdaptiveGrid already applies RotatedBox(quarterTurns: 2) to the top half,
-    // so top-row zones need quarterTurns: 0 to appear upright (grid 180° + zone 0° = 180° visual).
-    // Bottom-row zones have no grid rotation, so quarterTurns: 0 = normal upright.
-    // Default: all zones at 0° (top row appears face-down thanks to grid, bottom row normal).
-    return 0;
   }
 
   // --- DEATH CONFIRMATION ---
