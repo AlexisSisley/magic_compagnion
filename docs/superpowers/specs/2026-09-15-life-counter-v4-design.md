@@ -37,8 +37,14 @@ La V4 procède donc **par strangulation in-place** : la page existante perd ses 
 Le chiffre de PV occupe toute la zone. Il n'y a ni rangée de compteurs permanente, ni pastilles fixes.
 
 - **Tap moitié gauche** : −1. **Tap moitié droite** : +1.
-- **Maintien sur une moitié** : répétition accélérée. Couvre la tranche 3 à 8 points sans rien ouvrir.
 - Le buffer de 2 secondes existant est conservé : les taps s'accumulent, un badge `+N` / `−N` s'affiche, l'application est différée.
+
+> **Amendement (lot 2, tâche 3).** La répétition accélérée au maintien, décrite ici à l'origine,
+> est abandonnée : l'appui long est devenu la porte du mode ajustement (§2.5), sur la même zone et
+> le même geste. Conserver les deux aurait exigé de réserver l'appui long à une sous-région de la
+> zone — la séparation spatiale que ce document écarte explicitement (§2.1 minimal gestuel, un
+> mode unique et global). La tranche qu'elle couvrait (3 à 8 points) reste accessible via la
+> molette du mode ajustement (8 px par point).
 
 ### 2.2 Poignée conditionnelle
 
@@ -83,7 +89,6 @@ Carte des gestes après V4 :
 | Geste | Action |
 |---|---|
 | Tap gauche / droite | −1 / +1 |
-| Maintien sur − / + | Répétition accélérée |
 | Appui long | Entrée en mode ajustement (molette + paliers) |
 | Glissement depuis la poignée | Ouverture du tiroir |
 | Glissement sur l'en-tête | Rotation de la zone |
