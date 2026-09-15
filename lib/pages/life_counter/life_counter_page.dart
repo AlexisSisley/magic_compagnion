@@ -25,6 +25,7 @@ import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/models/player_model.dart';
 import 'package:magic_companion/models/profile_model.dart'; // CommanderEntry, Profile
 import 'package:magic_companion/services/game_history_service.dart';
+import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -54,6 +55,14 @@ class LifeCounterPage extends ConsumerStatefulWidget {
 
 class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   GameHistoryService get _gameHistoryService => ref.read(gameHistoryServiceProvider);
+
+  // Résolu une seule fois, dans `initState()` (voir plus bas) : `dispose()`
+  // ne doit jamais toucher à `ref` (une revue précédente a relevé comme
+  // point sain que dispose() en était indemne). `late final` sans
+  // initialiseur inline évite qu'un premier accès tardif ne tombe justement
+  // dans `dispose()` — l'affectation explicite en tête d'`initState()`
+  // garantit que la résolution a lieu bien avant tout chemin de démontage.
+  late final GameSessionService _sessionService;
 
   // --- Notifier-based state ---
   // `_controller` reste un getter : il ne fait qu'exposer le notifier, il ne
@@ -96,6 +105,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   Timer? _gameTimer;
   Duration get _gameDuration => _session?.duration ?? Duration.zero;
   bool get _isGameActive => _session?.isActive ?? false;
+
+  // Débounce de l'écriture du snapshot (voir `_saveSnapshot` plus bas).
+  // `_pendingSnapshotSession` capture la session à écrire au moment de
+  // l'appel (où `ref` est valide) : `dispose()` n'a ainsi besoin de relire
+  // ni `_session` (getter basé sur `ref.read`) ni le provider pour effectuer
+  // le flush final.
+  Timer? _snapshotDebounce;
+  GameSession? _pendingSnapshotSession;
 
   final List<Color> _defaultColors = [
     Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
@@ -172,6 +189,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   @override
   void initState() {
     super.initState();
+    // Résolution précoce et unique : garantit que `dispose()` n'a jamais à
+    // évaluer ce champ lui-même (voir sa déclaration plus haut).
+    _sessionService = ref.read(gameSessionServiceProvider);
     _loadGame();
     WakelockPlus.enable();
     // Immersive fullscreen — hide status bar + navigation bar
@@ -183,6 +203,20 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _gameTimer?.cancel();
     _deathTimers.forEach((_, t) => t.cancel());
     _pendingTimers.forEach((_, t) => t.cancel());
+
+    // Flush du débounce de snapshot : on annule le Timer en attente et on
+    // écrit une dernière fois si une session avait été capturée. Ni `ref` ni
+    // le getter `_session` (qui l'utilise) ne sont touchés ici — seuls
+    // `_sessionService` et `_pendingSnapshotSession`, déjà résolus avant ce
+    // chemin de démontage, sont lus.
+    _snapshotDebounce?.cancel();
+    final pendingSession = _pendingSnapshotSession;
+    _pendingSnapshotSession = null;
+    if (pendingSession != null) {
+      // Pas d'await : dispose est synchrone. L'écriture part quand même.
+      _sessionService.saveSnapshot(pendingSession);
+    }
+
     // Restore system UI when leaving the page
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     WakelockPlus.disable();
@@ -297,10 +331,33 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     });
   }
 
+  /// Point d'entrée de test pour déclencher `_saveSnapshot()` directement,
+  /// sans passer par un des 12 sites d'appel (taps, reorder, etc.).
+  @visibleForTesting
+  void saveSnapshotForTest() => _saveSnapshot();
+
+  /// Écriture différée : les mutations arrivent par rafales (un tap = une
+  /// mutation), et sérialiser toute la session à chaque fois coûte une I/O
+  /// par tap. On ne garde que la dernière écriture d'une rafale. La session
+  /// à écrire est capturée ici (où `ref` est valide), pas au moment du
+  /// flush, afin que le flush lui-même n'ait besoin de rien lire via `ref`.
+  static const _snapshotDebounceDelay = Duration(milliseconds: 500);
+
   Future<void> _saveSnapshot() async {
-    if (_session == null) return;
-    final sessionService = ref.read(gameSessionServiceProvider);
-    await sessionService.saveSnapshot(_session!);
+    final session = _session;
+    if (session == null) return;
+    _pendingSnapshotSession = session;
+    _snapshotDebounce?.cancel();
+    _snapshotDebounce = Timer(_snapshotDebounceDelay, _flushSnapshot);
+  }
+
+  Future<void> _flushSnapshot() async {
+    _snapshotDebounce?.cancel();
+    _snapshotDebounce = null;
+    final session = _pendingSnapshotSession;
+    _pendingSnapshotSession = null;
+    if (session == null) return;
+    await _sessionService.saveSnapshot(session);
   }
 
   int _calculateDefaultRotation(int id, int totalPlayers) {
@@ -740,11 +797,18 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _stopGame();
     setState(() {});
 
+    // La partie est terminée : toute écriture différée en attente doit être
+    // annulée avant `clearSnapshot()`, sans quoi un flush retardataire (le
+    // Timer de `_saveSnapshot`) réécrirait le snapshot d'une partie déjà
+    // terminée juste après sa suppression.
+    _snapshotDebounce?.cancel();
+    _snapshotDebounce = null;
+    _pendingSnapshotSession = null;
+
     // Bug 6 fix: Fire DB writes asynchronously without blocking UI
-    final sessionService = ref.read(gameSessionServiceProvider);
     Future.microtask(() async {
       await _gameHistoryService.addGame(newItem);
-      await sessionService.clearSnapshot();
+      await _sessionService.clearSnapshot();
     });
 
     if (mounted) {

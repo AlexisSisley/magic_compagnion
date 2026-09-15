@@ -290,4 +290,97 @@ void main() {
           "pas l'ordre d'affichage issu du reorder",
     );
   });
+
+  testWidgets('les mutations rapprochées ne produisent qu\'une écriture',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final notifier = container.read(gameSessionNotifierProvider.notifier);
+    final state = tester.state(find.byType(LifeCounterPage));
+
+    // Dix mutations coup sur coup.
+    for (var i = 0; i < 10; i++) {
+      notifier.updateLife(0, -1, gameDuration: Duration.zero);
+      // ignore: avoid_dynamic_calls
+      (state as dynamic).saveSnapshotForTest();
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    // Rien n'est encore écrit : le débounce n'a pas expiré.
+    var prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('active_game_snapshot'), isNull);
+
+    // Après la fenêtre de débounce, une seule écriture, avec l'état final.
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+
+    prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('active_game_snapshot');
+    expect(raw, isNotNull);
+    expect(GameSession.fromJson(json.decode(raw!)).players[0].life, 30);
+  });
+
+  testWidgets(
+      "clearSnapshot() en fin de partie n'est pas ressuscité par un flush "
+      'de débounce retardataire',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Une mutation programme une écriture différée (500 ms)...
+    final notifier = container.read(gameSessionNotifierProvider.notifier);
+    notifier.updateLife(0, -1, gameDuration: Duration.zero);
+    final state = tester.state(find.byType(LifeCounterPage));
+    // ignore: avoid_dynamic_calls
+    (state as dynamic).saveSnapshotForTest();
+
+    // ...mais la partie se termine avant l'expiration du débounce : le
+    // débounce en attente doit être annulé avant `clearSnapshot()`.
+    // ignore: avoid_dynamic_calls
+    await (state as dynamic).finalizeGameSaveForTest(0, 'normal');
+    await tester.pumpAndSettle();
+
+    var prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('active_game_snapshot'), isNull,
+        reason: 'clearSnapshot doit avoir supprimé le snapshot');
+
+    // Même après l'expiration de la fenêtre de débounce, rien ne doit
+    // ressusciter la partie terminée.
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+
+    prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('active_game_snapshot'), isNull,
+        reason: 'un flush retardataire ne doit pas ressusciter une partie '
+            'terminée');
+  });
 }
