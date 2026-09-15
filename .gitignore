@@ -81,3 +81,5 @@ debug_invalid.txt
 
 # NOTE : On NE met PAS 'architecture_doc.yaml' ni 'ARCHITECTURE.md' ici
 # car on veut qu'ils soient sauvegardés dans Git !
+# Sessions de brainstorming Superpowers (maquettes locales, serveur)
+.superpowers/
