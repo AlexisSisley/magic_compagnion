@@ -1416,18 +1416,38 @@ void main() {
     expect(captured.counterDeltas, [const MapEntry('poison', -1)]);
   });
 
-  testWidgets('les trois actions de l\'ancien menu radial sont présentes',
-      (tester) async {
+  testWidgets('l\'action monarque appelle son callback', (tester) async {
     final captured = await openDrawer(tester);
-
     await tester.tap(find.byKey(const ValueKey('action-monarch')));
     await tester.pumpAndSettle();
     expect(captured.monarchToggled, isTrue);
+    expect(captured.eliminated, isFalse);
+    expect(captured.reset, isFalse);
+  });
 
-    await openDrawer(tester);
+  testWidgets('l\'action éliminer appelle son callback', (tester) async {
+    final captured = await openDrawer(tester);
+    await tester.tap(find.byKey(const ValueKey('action-eliminate')));
+    await tester.pumpAndSettle();
+    expect(captured.eliminated, isTrue);
+    expect(captured.monarchToggled, isFalse);
+  });
+
+  testWidgets('l\'action réinitialiser appelle son callback', (tester) async {
+    final captured = await openDrawer(tester);
     await tester.tap(find.byKey(const ValueKey('action-reset')));
     await tester.pumpAndSettle();
-    expect(true, isTrue); // reset capturé sur la seconde instance
+    expect(captured.reset, isTrue);
+    expect(captured.eliminated, isFalse);
+  });
+
+  testWidgets('une action ferme le tiroir', (tester) async {
+    await openDrawer(tester);
+    expect(find.text('Alexis'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('action-monarch')));
+    await tester.pumpAndSettle();
+    expect(find.text('Alexis'), findsNothing,
+        reason: 'le tiroir se referme avant de déclencher l\'action');
   });
 
   testWidgets('l\'action monarque change de libellé selon l\'état',
