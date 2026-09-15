@@ -59,17 +59,13 @@ class PlayerZoneState {
 }
 
 class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
-  /// L'identifiant du joueur, fourni par `NotifierProvider.family`.
-  ///
   /// `NotifierProvider.family` (riverpod 3, API publique non-codegen) attend
   /// un `create` de forme `NotifierT Function(ArgT arg)` : le tear-off
   /// `PlayerZoneNotifier.new` n'est un `Function(int)` valide que si le
-  /// constructeur du notifier prend bien cet argument. L'état lui-même reste
-  /// indépendant par instance grâce au `.family` ; `playerId` n'est conservé
-  /// que parce que la forme du constructeur l'exige.
-  PlayerZoneNotifier(this.playerId);
-
-  final int playerId;
+  /// constructeur accepte cet argument. La ségrégation entre joueurs vient
+  /// déjà de `.family` (un état par clé `playerId`) — ce paramètre ne sert
+  /// qu'à satisfaire la signature et n'est donc pas conservé.
+  PlayerZoneNotifier(int playerId);
 
   /// Glissement horizontal cumulé, en pixels, avant de tourner d'un quart.
   static const double rotationThreshold = 40.0;
