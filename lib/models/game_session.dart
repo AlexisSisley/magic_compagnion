@@ -220,19 +220,71 @@ class GameSession {
     'tag': tag,
   };
 
-  factory GameSession.fromJson(Map<String, dynamic> json) => GameSession(
-    id: json['id'] as String,
-    format: GameFormat.fromJson(json['format'] as Map<String, dynamic>),
-    players: (json['players'] as List)
+  factory GameSession.fromJson(Map<String, dynamic> json) {
+    final rawPlayers = (json['players'] as List)
         .map((p) => PlayerState.fromJson(p as Map<String, dynamic>))
-        .toList(),
-    activeCounterIds: (json['activeCounterIds'] as List?)?.cast<String>() ?? [],
-    customCounterIds: (json['customCounterIds'] as List?)?.cast<String>() ?? [],
-    startedAt: json['startedAt'] != null ? DateTime.parse(json['startedAt'] as String) : null,
-    duration: Duration(milliseconds: json['durationMs'] as int? ?? 0),
-    isActive: json['isActive'] as bool? ?? false,
-    eliminationOrder: (json['eliminationOrder'] as List?)?.cast<int>() ?? [],
-    playerOrder: (json['playerOrder'] as List?)?.cast<int>() ?? [],
-    tag: json['tag'] as String?,
-  );
+        .toList();
+    final rawPlayerOrder = (json['playerOrder'] as List?)?.cast<int>() ?? [];
+    final (players, playerOrder) = rawPlayerOrder.length == rawPlayers.length
+        ? _migrateLegacyOrder(rawPlayers, rawPlayerOrder)
+        : (rawPlayers, rawPlayerOrder);
+
+    return GameSession(
+      id: json['id'] as String,
+      format: GameFormat.fromJson(json['format'] as Map<String, dynamic>),
+      players: players,
+      activeCounterIds: (json['activeCounterIds'] as List?)?.cast<String>() ?? [],
+      customCounterIds: (json['customCounterIds'] as List?)?.cast<String>() ?? [],
+      startedAt: json['startedAt'] != null ? DateTime.parse(json['startedAt'] as String) : null,
+      duration: Duration(milliseconds: json['durationMs'] as int? ?? 0),
+      isActive: json['isActive'] as bool? ?? false,
+      eliminationOrder: (json['eliminationOrder'] as List?)?.cast<int>() ?? [],
+      playerOrder: playerOrder,
+      tag: json['tag'] as String?,
+    );
+  }
+
+  /// Migration silencieuse d'un ancien snapshot (M-3).
+  ///
+  /// Avant que `playerOrder` ne devienne la seule source de vérité de la
+  /// disposition d'affichage (§3.1 du design), les versions installées
+  /// permutaient physiquement la liste `players` pour représenter l'ordre
+  /// choisi par le joueur, et laissaient `playerOrder` à l'identité (le
+  /// champ n'existait pas encore, ou n'était pas encore consommé). Le code
+  /// actuel suppose l'inverse : `players` toujours trié par `playerId`,
+  /// `playerOrder` seul porteur de la disposition. Sans cette migration, un
+  /// tel snapshot chargerait `_orderedPlayers` sur un `playerOrder` identité
+  /// — la disposition choisie par le joueur serait perdue au premier
+  /// lancement après mise à jour.
+  ///
+  /// Heuristique : si `playerOrder` est l'identité alors que `players` ne
+  /// l'est pas (par `playerId`), c'est un ancien snapshot — on dérive
+  /// `playerOrder` de l'ordre physique observé, et on retrie `players` en
+  /// ordre canonique. Un snapshot déjà écrit par le code actuel ne déclenche
+  /// jamais cette branche : soit `players` est déjà canonique (rien à
+  /// migrer), soit `playerOrder` porte un vrai reorder (donc pas l'identité).
+  static (List<PlayerState>, List<int>) _migrateLegacyOrder(
+    List<PlayerState> players,
+    List<int> playerOrder,
+  ) {
+    final identity = List<int>.generate(players.length, (i) => i);
+    final physicalOrder = players.map((p) => p.playerId).toList();
+    final playerOrderIsIdentity = _intListEquals(playerOrder, identity);
+    final playersArePhysicallyPermuted = !_intListEquals(physicalOrder, identity);
+
+    if (playerOrderIsIdentity && playersArePhysicallyPermuted) {
+      final canonicalPlayers = [...players]
+        ..sort((a, b) => a.playerId.compareTo(b.playerId));
+      return (canonicalPlayers, physicalOrder);
+    }
+    return (players, playerOrder);
+  }
+
+  static bool _intListEquals(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }

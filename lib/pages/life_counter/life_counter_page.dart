@@ -17,7 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:magic_companion/controllers/game_session_controller.dart';
+import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_history_model.dart';
 import 'package:magic_companion/models/game_session.dart';
@@ -25,6 +25,7 @@ import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/models/player_model.dart';
 import 'package:magic_companion/models/profile_model.dart'; // CommanderEntry, Profile
 import 'package:magic_companion/services/game_history_service.dart';
+import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -55,9 +56,24 @@ class LifeCounterPage extends ConsumerStatefulWidget {
 class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   GameHistoryService get _gameHistoryService => ref.read(gameHistoryServiceProvider);
 
-  // --- Controller-based state ---
-  GameSessionController _controller = GameSessionController();
-  GameSession? _session;
+  // Résolu une seule fois, dans `initState()` (voir plus bas) : `dispose()`
+  // ne doit jamais toucher à `ref` (une revue précédente a relevé comme
+  // point sain que dispose() en était indemne). `late final` sans
+  // initialiseur inline évite qu'un premier accès tardif ne tombe justement
+  // dans `dispose()` — l'affectation explicite en tête d'`initState()`
+  // garantit que la résolution a lieu bien avant tout chemin de démontage.
+  late final GameSessionService _sessionService;
+
+  // --- Notifier-based state ---
+  // `_controller` reste un getter : il ne fait qu'exposer le notifier, il ne
+  // le détient pas. `ref.read` est utilisé ici (et non `ref.watch`, interdit
+  // hors de `build()`) car ce getter est appelé depuis des callbacks
+  // (`_updateLife`, `_saveSnapshot`, `_onReorderPlayers`, etc.).
+  // L'abonnement qui déclenche les rebuilds est établi explicitement en
+  // première ligne de `build()`.
+  GameSessionNotifier get _controller =>
+      ref.read(gameSessionNotifierProvider.notifier);
+  GameSession? get _session => ref.read(gameSessionNotifierProvider);
   GameFormat _currentFormat = GameFormat.builtInFormats.first; // Commander
 
   bool _isLoading = true;
@@ -87,8 +103,24 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   bool _isSelectingStarter = false;
 
   Timer? _gameTimer;
-  Duration _gameDuration = Duration.zero;
-  bool _isGameActive = false;
+  Duration get _gameDuration => _session?.duration ?? Duration.zero;
+  bool get _isGameActive => _session?.isActive ?? false;
+
+  // Débounce de l'écriture du snapshot (voir `_saveSnapshot` plus bas).
+  // `_pendingSnapshotSession` capture la session à écrire au moment de
+  // l'appel (où `ref` est valide) : `dispose()` n'a ainsi besoin de relire
+  // ni `_session` (getter basé sur `ref.read`) ni le provider pour effectuer
+  // le flush final.
+  Timer? _snapshotDebounce;
+  GameSession? _pendingSnapshotSession;
+
+  // Écriture de snapshot en vol (voir `_flushSnapshot`). `_snapshotDebounce
+  // ?.cancel()` n'a aucun effet sur un `Timer` déjà déclenché : si le flush
+  // est déjà parti quand `_finalizeGameSave` s'exécute, ce champ est le seul
+  // moyen de faire attendre `clearSnapshot()` la fin de cette écriture, pour
+  // que le clear ait toujours le dernier mot (sinon l'écriture en vol
+  // pourrait se terminer après le clear et ressusciter la partie terminée).
+  Future<void>? _inFlightSnapshotWrite;
 
   final List<Color> _defaultColors = [
     Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
@@ -117,9 +149,42 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     );
   }
 
+  /// Ordre d'affichage des zones. `_session.players` garde l'ordre canonique
+  /// (players[i].playerId == i) ; `playerOrder` porte seul la disposition
+  /// choisie par le joueur en mode édition.
+  List<PlayerState> get _orderedPlayers {
+    final session = _session;
+    if (session == null) return const [];
+    final order = session.playerOrder;
+    if (order.length != session.players.length) return session.players;
+    final byId = {for (final p in session.players) p.playerId: p};
+    final ordered = <PlayerState>[];
+    for (final id in order) {
+      final p = byId[id];
+      if (p == null) return session.players; // ordre corrompu : repli sûr
+      ordered.add(p);
+    }
+    return ordered;
+  }
+
   List<Player> get _legacyPlayers {
     if (_session == null) return [];
-    return _session!.players
+    return _orderedPlayers
+        .asMap()
+        .entries
+        .map((e) => _toLegacyPlayer(e.key, e.value))
+        .toList();
+  }
+
+  /// Vue "legacy" des joueurs en ordre canonique (`playerId` croissant), pour
+  /// les lectures métier qui ont besoin des champs du modèle `Player` (ex.
+  /// sauvegarde de l'historique) mais ne doivent pas dépendre de l'ordre
+  /// d'affichage — contrairement à `_legacyPlayers`, qui suit `_orderedPlayers`
+  /// et est réservé au rendu des zones.
+  List<Player> get _legacyPlayersCanonical {
+    final session = _session;
+    if (session == null) return [];
+    return session.players
         .asMap()
         .entries
         .map((e) => _toLegacyPlayer(e.key, e.value))
@@ -132,6 +197,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   @override
   void initState() {
     super.initState();
+    // Résolution précoce et unique : garantit que `dispose()` n'a jamais à
+    // évaluer ce champ lui-même (voir sa déclaration plus haut).
+    _sessionService = ref.read(gameSessionServiceProvider);
     _loadGame();
     WakelockPlus.enable();
     // Immersive fullscreen — hide status bar + navigation bar
@@ -143,6 +211,20 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _gameTimer?.cancel();
     _deathTimers.forEach((_, t) => t.cancel());
     _pendingTimers.forEach((_, t) => t.cancel());
+
+    // Flush du débounce de snapshot : on annule le Timer en attente et on
+    // écrit une dernière fois si une session avait été capturée. Ni `ref` ni
+    // le getter `_session` (qui l'utilise) ne sont touchés ici — seuls
+    // `_sessionService` et `_pendingSnapshotSession`, déjà résolus avant ce
+    // chemin de démontage, sont lus.
+    _snapshotDebounce?.cancel();
+    final pendingSession = _pendingSnapshotSession;
+    _pendingSnapshotSession = null;
+    if (pendingSession != null) {
+      // Pas d'await : dispose est synchrone. L'écriture part quand même.
+      _sessionService.saveSnapshot(pendingSession);
+    }
+
     // Restore system UI when leaving the page
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     WakelockPlus.disable();
@@ -150,21 +232,55 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   // --- LOGIQUE TIMER ---
-  void _startGame() {
-    _gameTimer?.cancel();
-    setState(() {
-      _isGameActive = true;
-      _gameDuration = Duration.zero;
-    });
 
+  // I-4 (cas b) : nombre de tick() (secondes) écoulés depuis la dernière
+  // persistance périodique du chrono actif — voir `_startTickTimer`.
+  int _ticksSincePeriodicSnapshot = 0;
+
+  // I-4 (cas b) : une partie mise en pause (chrono actif, aucun PV modifié)
+  // puis tuée perd tout ce qui s'est écoulé depuis le dernier `_saveSnapshot()`
+  // explicite. On borne cette perte en persistant toutes les 30 s de chrono
+  // actif, plutôt qu'à chaque `tick()` (1/s) — ce qui rétablirait l'I/O par
+  // seconde que le débounce de `_saveSnapshot` (voir plus bas) vient de
+  // supprimer. 30 s reste un compromis : la fenêtre de perte résiduelle
+  // maximale (cas b) passe de « toute la pause » à « 30 s », sans écriture
+  // fréquente.
+  static const _periodicSnapshotEveryTicks = 30;
+
+  /// Démarre (ou relance, à la reprise) le `Timer.periodic` local qui pousse
+  /// des `tick()` vers le notifier, et programme la persistance périodique
+  /// du cas (b) ci-dessus. Utilisé par `_startGame()` et par la reprise d'une
+  /// session active dans `_loadGame()`.
+  void _startTickTimer() {
+    _gameTimer?.cancel();
+    _ticksSincePeriodicSnapshot = 0;
     _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) setState(() => _gameDuration += const Duration(seconds: 1));
+      if (!mounted) return;
+      _controller.tick();
+      _ticksSincePeriodicSnapshot++;
+      if (_ticksSincePeriodicSnapshot >= _periodicSnapshotEveryTicks) {
+        _ticksSincePeriodicSnapshot = 0;
+        _saveSnapshot();
+      }
     });
+  }
+
+  void _startGame() {
+    _controller.startTimer();
+    _startTickTimer();
+    setState(() {});
+    // I-4 (cas a) : sans cette écriture, un crash survenant juste après le
+    // lancement du chrono (avant toute modification de PV) restaure une
+    // session `isActive: false` — le chrono ne reprend pas au chargement.
+    _saveSnapshot();
   }
 
   void _stopGame() {
     _gameTimer?.cancel();
-    setState(() => _isGameActive = false);
+    _controller.stopTimer();
+    setState(() {});
+    // I-4 : symétrique du fix de `_startGame()` — persiste l'arrêt du chrono.
+    _saveSnapshot();
   }
 
   String _formatDuration(Duration d) {
@@ -178,21 +294,29 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   Future<void> _loadGame() async {
     final sessionService = ref.read(gameSessionServiceProvider);
 
-    if (await sessionService.hasActiveGame()) {
+    final hasActiveGame = await sessionService.hasActiveGame();
+    // Garde après chaque `await` : si la page a été démontée pendant l'attente,
+    // tout accès à `ref` (via _controller/_session) ou tout setState planterait.
+    if (!mounted) return;
+    if (hasActiveGame) {
       final snapshot = await sessionService.loadSnapshot();
+      if (!mounted) return;
       if (snapshot != null) {
-        _controller = GameSessionController();
+        _controller.restoreSession(snapshot);
         setState(() {
-          _session = snapshot;
           _currentFormat = snapshot.format;
           _isLoading = false;
         });
+        if (snapshot.isActive) {
+          _startTickTimer();
+        }
         return;
       }
     }
 
     // No saved game -- start fresh with defaults
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     final playerCount = prefs.getInt('playerCount') ?? 4;
     final formatId = prefs.getString('formatId') ?? 'commander';
     _currentFormat = GameFormat.builtInFormats.firstWhere(
@@ -227,18 +351,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       );
     });
 
-    _controller = GameSessionController();
     _controller.startNewGame(format: _currentFormat, playerConfigs: configs);
 
-    // Apply default rotations
-    final session = _controller.session;
-    if (session != null) {
-      for (int i = 0; i < playerCount; i++) {
-        _controller.updateRotation(i, _calculateDefaultRotation(i, playerCount));
-      }
-    }
-
-    setState(() => _session = _controller.session);
+    setState(() {});
     _saveSnapshot();
 
     // Persist defaults for next launch
@@ -248,18 +363,53 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     });
   }
 
+  /// Point d'entrée de test pour déclencher `_saveSnapshot()` directement,
+  /// sans passer par un des 12 sites d'appel (taps, reorder, etc.).
+  @visibleForTesting
+  void saveSnapshotForTest() => _saveSnapshot();
+
+  /// Point d'entrée de test pour lancer le chrono (I-4) sans passer par le
+  /// dialogue de tirage du premier joueur (`_pickStartingPlayer`), dont
+  /// l'animation aléatoire rendrait le test fragile.
+  @visibleForTesting
+  void startGameForTest() => _startGame();
+
+  /// Écriture différée : les mutations arrivent par rafales (un tap = une
+  /// mutation), et sérialiser toute la session à chaque fois coûte une I/O
+  /// par tap. On ne garde que la dernière écriture d'une rafale. La session
+  /// à écrire est capturée ici (où `ref` est valide), pas au moment du
+  /// flush, afin que le flush lui-même n'ait besoin de rien lire via `ref`.
+  static const _snapshotDebounceDelay = Duration(milliseconds: 500);
+
   Future<void> _saveSnapshot() async {
-    if (_session == null) return;
-    final sessionService = ref.read(gameSessionServiceProvider);
-    await sessionService.saveSnapshot(_session!);
+    final session = _session;
+    if (session == null) return;
+    _pendingSnapshotSession = session;
+    _snapshotDebounce?.cancel();
+    _snapshotDebounce = Timer(_snapshotDebounceDelay, _flushSnapshot);
   }
 
-  int _calculateDefaultRotation(int id, int totalPlayers) {
-    // AdaptiveGrid already applies RotatedBox(quarterTurns: 2) to the top half,
-    // so top-row zones need quarterTurns: 0 to appear upright (grid 180° + zone 0° = 180° visual).
-    // Bottom-row zones have no grid rotation, so quarterTurns: 0 = normal upright.
-    // Default: all zones at 0° (top row appears face-down thanks to grid, bottom row normal).
-    return 0;
+  Future<void> _flushSnapshot() async {
+    _snapshotDebounce?.cancel();
+    _snapshotDebounce = null;
+    final session = _pendingSnapshotSession;
+    _pendingSnapshotSession = null;
+    if (session == null) return;
+    // Suivi de l'écriture en vol : `_finalizeGameSave` peut avoir besoin
+    // d'attendre qu'elle se termine avant d'appeler `clearSnapshot()` (voir
+    // le champ `_inFlightSnapshotWrite`).
+    final write = _sessionService.saveSnapshot(session);
+    _inFlightSnapshotWrite = write;
+    try {
+      await write;
+    } finally {
+      // Ne nettoie que si personne d'autre n'a déjà remplacé la référence
+      // (pas de cas concret aujourd'hui, un seul flush à la fois, mais évite
+      // d'effacer par erreur l'écriture d'un flush plus récent).
+      if (_inFlightSnapshotWrite == write) {
+        _inFlightSnapshotWrite = null;
+      }
+    }
   }
 
   // --- DEATH CONFIRMATION ---
@@ -325,7 +475,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   void _confirmElimination(int playerId) {
     _controller.eliminatePlayer(playerId, atDuration: _gameDuration);
     setState(() {
-      _session = _controller.session;
       _showDeathOverlay.remove(playerId);
     });
     _saveSnapshot();
@@ -404,7 +553,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   void _resetGame({List<Profile?>? assignedProfiles}) {
     _stopGame();
     setState(() {
-      _gameDuration = Duration.zero;
       _deathTimers.forEach((_, t) => t.cancel());
       _deathTimers.clear();
       _pendingTimers.forEach((_, t) => t.cancel());
@@ -417,6 +565,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     final count = assignedProfiles?.length ?? _playerCount;
     _startNewGame(playerCount: count > 0 ? count : 4, assignedProfiles: assignedProfiles);
   }
+
+  /// Point d'entrée de test pour piloter le buffer de dégâts sans simuler de tap
+  /// (les zones sont pivotées par AdaptiveGrid, ce qui rend le tap fragile en test).
+  @visibleForTesting
+  void updateLifeForTest(int playerId, int change) => _updateLife(playerId, change);
 
   void _updateLife(int playerId, int change) {
     if (_isSelectingStarter) return;
@@ -442,7 +595,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _controller.updateLife(playerId, pending, gameDuration: _gameDuration);
     _pendingDamage.remove(playerId);
     _pendingTimers.remove(playerId);
-    setState(() => _session = _controller.session);
+    setState(() {});
     _saveSnapshot();
     _checkDeathCondition(playerId);
   }
@@ -455,8 +608,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       }
       return p;
     }).toList();
-    _session = _session!.copyWith(players: players);
-    _controller.restoreSession(_session!);
+    _controller.restoreSession(_session!.copyWith(players: players));
     setState(() {});
     _saveSnapshot();
   }
@@ -464,7 +616,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   void _updatePlayerRotation(int playerId, int rotation) {
     if (_session == null) return;
     _controller.updateRotation(playerId, rotation);
-    setState(() => _session = _controller.session);
+    setState(() {});
     _saveSnapshot();
   }
 
@@ -476,8 +628,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       }
       return p;
     }).toList();
-    _session = _session!.copyWith(players: players);
-    _controller.restoreSession(_session!);
+    _controller.restoreSession(_session!.copyWith(players: players));
     setState(() {});
     _saveSnapshot();
   }
@@ -486,14 +637,22 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     if (_isSelectingStarter) return;
     final players = _legacyPlayers;
     if (players.isEmpty) return;
+    // I-2 : `orderedPlayers[idx].playerId` — jamais `idx` lui-même — pour
+    // que `_highlightedPlayerId` (comparé à `p.id` dans `_buildPlayerZone`)
+    // et le gagnant annoncé dans le dialogue désignent toujours le même
+    // joueur, y compris après un reorder (où index d'affichage != playerId).
+    final orderedPlayers = _orderedPlayers;
     setState(() => _isSelectingStarter = true);
     int turns = 20; int currentIdx = Random().nextInt(_playerCount); int delay = 50;
     for (int i = 0; i < turns; i++) {
-      setState(() => _highlightedPlayerId = currentIdx % _playerCount);
+      setState(() => _highlightedPlayerId =
+          orderedPlayers[currentIdx % _playerCount].playerId);
       await Future.delayed(Duration(milliseconds: delay));
       delay += (i * 2); currentIdx++;
     }
-    int winnerId = (currentIdx - 1) % _playerCount;
+    final winnerPlayerId =
+        orderedPlayers[(currentIdx - 1) % _playerCount].playerId;
+    final winner = players.firstWhere((p) => p.id == winnerPlayerId);
     if (mounted) {
       showDialog(
         context: context, barrierDismissible: false,
@@ -503,15 +662,15 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.person, size: 50, color: Color(players[winnerId].colorValue)),
+              Icon(Icons.person, size: 50, color: Color(winner.colorValue)),
               const SizedBox(height: 16),
-              Text(players[winnerId].name, style: AppTextStyles.pageTitle(fontSize: 32), textAlign: TextAlign.center),
+              Text(winner.name, style: AppTextStyles.pageTitle(fontSize: 32), textAlign: TextAlign.center),
             ],
           ),
           actions: [
             ElevatedButton(
               onPressed: () { Navigator.pop(context); setState(() { _highlightedPlayerId = null; _isSelectingStarter = false; }); _startGame(); },
-              style: ElevatedButton.styleFrom(backgroundColor: Color(players[winnerId].colorValue)),
+              style: ElevatedButton.styleFrom(backgroundColor: Color(winner.colorValue)),
               child: const Text("C'est parti !", style: TextStyle(color: AppColors.textPrimary))
             )
           ]
@@ -519,6 +678,17 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       );
     }
   }
+
+  /// Point d'entrée de test pour `_pickStartingPlayer()` (I-2) — le tirage
+  /// réel est piloté par une boucle de délais aléatoires croissants, dont
+  /// le fake clock du test peut traverser d'un coup via `tester.pump`.
+  @visibleForTesting
+  Future<void> pickStartingPlayerForTest() => _pickStartingPlayer();
+
+  /// Point d'entrée de test : expose `_highlightedPlayerId` (I-2), inutile
+  /// hors des tests puisqu'il ne sert qu'au rendu de `PlayerZone`.
+  @visibleForTesting
+  int? get highlightedPlayerIdForTest => _highlightedPlayerId;
 
   void _showGameSetupDialog() {
     showModalBottomSheet(
@@ -560,7 +730,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                         damage: -1,
                         gameDuration: _gameDuration,
                       );
-                      setState(() => _session = _controller.session);
+                      setState(() {});
                       _saveSnapshot();
                     }
                     Navigator.pop(context);
@@ -574,7 +744,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                       damage: 1,
                       gameDuration: _gameDuration,
                     );
-                    setState(() => _session = _controller.session);
+                    setState(() {});
                     _saveSnapshot();
                     _triggerCommanderDamageFlash(opponent.id);
                     _checkDeathCondition(opponent.id);
@@ -657,7 +827,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // Bug 5 fix: Dialog is already closed by caller using dialog's own context
     if (!mounted) return;
 
-    final players = _legacyPlayers;
+    // Lecture métier (sauvegarde de l'historique de fin de partie) : ordre
+    // canonique, pas l'ordre d'affichage — `game_history_page.dart` et
+    // `game_history_detail_page.dart` restituent `playerStates` dans l'ordre
+    // où il a été sauvegardé.
+    final players = _legacyPlayersCanonical;
 
     // Création des snapshots des joueurs
     List<PlayerHistorySnapshot> snapshots = players.map((p) {
@@ -686,11 +860,26 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _stopGame();
     setState(() {});
 
+    // La partie est terminée : toute écriture différée en attente doit être
+    // annulée avant `clearSnapshot()`, sans quoi un flush retardataire (le
+    // Timer de `_saveSnapshot`) réécrirait le snapshot d'une partie déjà
+    // terminée juste après sa suppression. `cancel()` n'a cependant aucun
+    // effet sur un flush déjà déclenché (Timer déjà consommé) : on capture
+    // aussi son écriture en vol, pour l'attendre avant `clearSnapshot()` —
+    // sans quoi cette écriture pourrait se terminer après le clear et
+    // ressusciter la partie qu'on vient de terminer.
+    _snapshotDebounce?.cancel();
+    _snapshotDebounce = null;
+    _pendingSnapshotSession = null;
+    final pendingWrite = _inFlightSnapshotWrite;
+
     // Bug 6 fix: Fire DB writes asynchronously without blocking UI
-    final sessionService = ref.read(gameSessionServiceProvider);
     Future.microtask(() async {
       await _gameHistoryService.addGame(newItem);
-      await sessionService.clearSnapshot();
+      if (pendingWrite != null) {
+        await pendingWrite;
+      }
+      await _sessionService.clearSnapshot();
     });
 
     if (mounted) {
@@ -700,16 +889,42 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     }
   }
 
+  /// Point d'entrée de test pour déclencher la sauvegarde de fin de partie
+  /// sans naviguer la chaîne de dialogues (`_endGame` → `_showWinMethodDialog`).
+  /// Résout le gagnant par `playerId` (identité métier), pas par position
+  /// d'affichage.
+  @visibleForTesting
+  Future<void> finalizeGameSaveForTest(int winnerId, String method) {
+    final winner = _legacyPlayersCanonical.firstWhere((p) => p.id == winnerId);
+    return _finalizeGameSave(winner, method);
+  }
+
   // --- UI ---
   @override
   Widget build(BuildContext context) {
+    // Établit l'abonnement Riverpod : sans ce watch explicite, le getter
+    // `_session` (qui utilise `ref.read`) ne déclencherait aucun rebuild
+    // quand le notifier change d'état.
+    //
+    // ⚠️ AVERTISSEMENT AU PROCHAIN ÉDITEUR : toute la réactivité de cette
+    // page tient à cette ligne étant la TOUTE PREMIÈRE instruction de
+    // `build()`. N'ajoute jamais de `return` (garde, early-exit, etc.)
+    // au-dessus d'elle : ça casserait silencieusement la réactivité de
+    // toute la page — aucune erreur, juste un écran qui ne se met plus à
+    // jour.
+    ref.watch(gameSessionNotifierProvider);
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
 
     final players = _legacyPlayers;
+    final orderedPlayers = _orderedPlayers;
     final playerZones = players.asMap().entries.map((entry) {
       final index = entry.key;
       final player = entry.value;
-      final playerState = _session!.players[index];
+      // `orderedPlayers` porte le même ordre que `players` (les deux dérivent
+      // de `_orderedPlayers`) : indexer par `index` reste correct après un
+      // reorder, contrairement à `_session!.players[index]` qui suit l'ordre
+      // canonique.
+      final playerState = orderedPlayers[index];
 
       Widget zone = _buildPlayerZoneWithOverlays(player, playerState, index);
 
@@ -755,7 +970,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     }
 
     // Commander damage flash overlay (Bug 3)
-    if (_commanderDamageFlash.contains(index)) {
+    if (_commanderDamageFlash.contains(playerState.playerId)) {
       zone = Stack(
         children: [
           zone,
@@ -778,7 +993,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     }
 
     // Pending damage buffer indicator (Bug 4)
-    final pending = _pendingDamage[index] ?? 0;
+    final pending = _pendingDamage[playerState.playerId] ?? 0;
     if (pending != 0) {
       final pendingText = pending > 0 ? '+$pending' : '$pending';
       final pendingColor = pending > 0 ? AppColors.accentGreen : AppColors.accentRed;
@@ -835,7 +1050,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       color: AppColors.amber,
       onTap: () {
         _controller.toggleMonarch(playerState.playerId);
-        setState(() => _session = _controller.session);
+        setState(() {});
         _saveSnapshot();
       },
     ));
@@ -873,7 +1088,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         _controller.updateCounter(playerState.playerId, 'poison', 0);
         _controller.updateCounter(playerState.playerId, 'energy', 0);
         _controller.updateCounter(playerState.playerId, 'commander_tax', 0);
-        setState(() => _session = _controller.session);
+        setState(() {});
         _saveSnapshot();
       },
     ));
@@ -895,24 +1110,33 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       return p;
     }).toList();
     final newOrder = List<int>.from(_session!.eliminationOrder)..remove(playerId);
-    _session = _session!.copyWith(players: players, eliminationOrder: newOrder);
-    // Sync controller's internal session to match
-    _controller.restoreSession(_session!);
+    _controller.restoreSession(
+      _session!.copyWith(players: players, eliminationOrder: newOrder),
+    );
     setState(() {});
     _saveSnapshot();
   }
 
+  /// Point d'entrée de test pour piloter un reorder sans simuler de drag
+  /// (les zones sont pivotées par AdaptiveGrid, ce qui rend le drag fragile
+  /// en test). Consommé aussi par la tâche 4b.
+  @visibleForTesting
+  void reorderForTest(int oldIndex, int newIndex) =>
+      _onReorderPlayers(oldIndex, newIndex);
+
   void _onReorderPlayers(int oldIndex, int newIndex) {
-    if (_session == null) return;
-    // Physically swap the two players in the players list so the build method
-    // renders them in the correct order (it iterates _session.players by index).
-    final players = List<PlayerState>.from(_session!.players);
-    final temp = players[oldIndex];
-    players[oldIndex] = players[newIndex];
-    players[newIndex] = temp;
-    _session = _session!.copyWith(players: players);
-    // Also sync the controller
-    _controller.restoreSession(_session!);
+    final session = _session;
+    if (session == null) return;
+    // On ne permute plus la liste canonique : seul l'ordre d'affichage change,
+    // ce qui préserve l'invariant players[i].playerId == i.
+    final order = session.playerOrder.isEmpty
+        ? List<int>.generate(session.players.length, (i) => i)
+        : List<int>.from(session.playerOrder);
+    if (oldIndex >= order.length || newIndex >= order.length) return;
+    final temp = order[oldIndex];
+    order[oldIndex] = order[newIndex];
+    order[newIndex] = temp;
+    _controller.reorderPlayers(order);
     setState(() {});
     _saveSnapshot();
   }
@@ -938,7 +1162,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
     final currentVal = player.counters[counterKey] ?? 0;
     _controller.updateCounter(playerId, counterKey, currentVal + val);
-    setState(() => _session = _controller.session);
+    setState(() {});
     _saveSnapshot();
     // Check death for poison threshold
     if (counterKey == 'poison') {
@@ -1131,7 +1355,10 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
   void _applyOrientationPreset(List<int> rotations) {
     if (_session == null) return;
-    final players = _session!.players;
+    // Les presets décrivent une position visuelle (haut/bas de la grille) :
+    // il faut donc les appliquer dans l'ordre d'affichage, pas dans l'ordre
+    // canonique, sous peine de tourner le mauvais joueur après un reorder.
+    final players = _orderedPlayers;
     final topCount = players.length ~/ 2;
     for (int i = 0; i < players.length && i < rotations.length; i++) {
       // AdaptiveGrid wraps the top half in RotatedBox(quarterTurns: 2),
@@ -1144,7 +1371,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       }
       _controller.updateRotation(players[i].playerId, effectiveRotation);
     }
-    setState(() => _session = _controller.session);
+    setState(() {});
     _saveSnapshot();
     HapticFeedback.mediumImpact();
   }
