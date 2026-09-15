@@ -185,8 +185,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   Future<void> _loadGame() async {
     final sessionService = ref.read(gameSessionServiceProvider);
 
-    if (await sessionService.hasActiveGame()) {
+    final hasActiveGame = await sessionService.hasActiveGame();
+    // Garde après chaque `await` : si la page a été démontée pendant l'attente,
+    // tout accès à `ref` (via _controller/_session) ou tout setState planterait.
+    if (!mounted) return;
+    if (hasActiveGame) {
       final snapshot = await sessionService.loadSnapshot();
+      if (!mounted) return;
       if (snapshot != null) {
         _controller.restoreSession(snapshot);
         setState(() {
@@ -199,6 +204,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
     // No saved game -- start fresh with defaults
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     final playerCount = prefs.getInt('playerCount') ?? 4;
     final formatId = prefs.getString('formatId') ?? 'commander';
     _currentFormat = GameFormat.builtInFormats.firstWhere(
