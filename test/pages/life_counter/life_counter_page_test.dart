@@ -87,6 +87,37 @@ void main() {
         reason: 'la partie restaurée ne doit pas être effacée');
   });
 
+  testWidgets(
+      'une session restaurée active relance le chronomètre (contrat de reprise)',
+      (tester) async {
+    // Une partie en cours, chrono déjà à 5s au moment du snapshot.
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    final restored = baseSession.copyWith(
+      isActive: true,
+      duration: const Duration(seconds: 5),
+      startedAt: DateTime.now(),
+    );
+
+    await pumpLifeCounter(tester, snapshot: restored);
+
+    // La durée restaurée est affichée dès le chargement : elle vient de la
+    // session, pas d'un champ de page réinitialisé à zéro.
+    expect(find.text('00:05'), findsOneWidget);
+
+    // `_loadGame` doit avoir relancé le `Timer.periodic` local qui pousse des
+    // `tick()` vers le notifier. Si la reprise du chrono avait été oubliée
+    // (pas de Timer relancé), la durée resterait figée à 5s après ce pump.
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(find.text('00:07'), findsOneWidget,
+        reason: 'le chronomètre relancé au chargement doit avoir avancé de '
+            '2s depuis la valeur restaurée');
+    expect(find.text('00:05'), findsNothing);
+  });
+
   testWidgets('la session vit dans le provider, pas dans la page',
       (tester) async {
     SharedPreferences.setMockInitialValues({});

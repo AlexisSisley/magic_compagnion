@@ -141,4 +141,23 @@ void main() {
     expect(session.isActive, isFalse);
     expect(session.duration, const Duration(seconds: 1));
   });
+
+  test('tick sur session nulle ne lève pas et ne crée pas de session', () {
+    getNotifier().tick();
+    expect(container.read(gameSessionNotifierProvider), isNull);
+  });
+
+  test('tick après stopTimer ne fait plus avancer la durée', () {
+    getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+    getNotifier().startTimer();
+    getNotifier().tick();
+    getNotifier().stopTimer();
+    getNotifier().tick(); // tick tardif : la partie n'est plus active
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.isActive, isFalse);
+    expect(session.duration, const Duration(seconds: 1),
+        reason: 'un tick reçu après stopTimer ne doit pas incrémenter la '
+            "durée d'une partie déjà arrêtée");
+  });
 }
