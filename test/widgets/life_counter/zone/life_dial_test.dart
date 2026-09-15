@@ -1,4 +1,5 @@
 // test/widgets/life_counter/zone/life_dial_test.dart
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,77 +55,55 @@ void main() {
     expect(deltas, [1]);
   });
 
-  testWidgets('le maintien répète, et de plus en plus vite', (tester) async {
+  // Round 2 de revue (Critical #1) : ces deux tests testaient la répétition
+  // accélérée d'un maintien immobile prolongé (jusqu'à 1.5 s / 600 ms). Ce
+  // scénario est désormais celui de l'appui long — un maintien immobile
+  // assez long bascule en mode ajustement (voir le groupe « mode ajustement »
+  // ci-dessous) au lieu de continuer à répéter des ±1, précisément pour
+  // qu'aucun delta parasite ne fuite pendant ce geste. La répétition
+  // accélérée reste dans le code (utile si l'appui long est annulé par un
+  // léger mouvement — voir « un appui long avec un petit mouvement… ») mais
+  // ne peut plus, par construction, produire son premier tick avant que
+  // l'appui long n'ait déjà tranché (voir `LifeDial.holdRepeatInitialDelay`,
+  // strictement postérieur à `kLongPressTimeout`) : les deux tests suivants
+  // remplacent les anciens en couvrant le comportement réellement atteignable
+  // aujourd'hui.
+  testWidgets(
+      'un maintien immobile bascule en mode ajustement au lieu de répéter '
+      '(round 2 : l\'appui long prime, zéro delta parasite)', (tester) async {
     final deltas = await pumpDial(tester);
     final dial = tester.getRect(find.byType(LifeDial));
 
     final gesture = await tester.startGesture(
       Offset(dial.left + dial.width * 0.25, dial.center.dy),
     );
-
-    // Relève l'instant (temps écoulé depuis le tap down) de chaque delta,
-    // par petits pas, pour reconstituer la suite des intervalles entre
-    // répétitions. Un test qui se contente de compter les deltas dans deux
-    // fenêtres de 500 ms ne prouve pas l'accélération : une cadence
-    // constante suffisamment rapide produit aussi plus d'événements dans la
-    // seconde fenêtre (la première n'a que ~100 ms de répétition utile,
-    // le reste étant mangé par le délai initial de 400 ms).
-    const step = Duration(milliseconds: 10);
-    const totalDuration = Duration(milliseconds: 1500);
-    var elapsed = Duration.zero;
-    var lastCount = deltas.length; // le tap down a déjà émis un premier delta
-    final timestamps = <Duration>[elapsed];
-
-    while (elapsed < totalDuration) {
-      await tester.pump(step);
-      elapsed += step;
-      while (deltas.length > lastCount) {
-        timestamps.add(elapsed);
-        lastCount++;
-      }
-    }
-
+    await tester.pump(const Duration(milliseconds: 1500));
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(timestamps.length, greaterThanOrEqualTo(4),
-        reason: 'pas assez de répétitions capturées pour juger de l\'accélération');
-
-    // intervals[0] est le délai initial (à part) ; le reste est la suite des
-    // écarts entre répétitions successives.
-    final intervals = <int>[
-      for (var i = 1; i < timestamps.length; i++)
-        (timestamps[i] - timestamps[i - 1]).inMilliseconds,
-    ];
-    final repeatIntervals = intervals.sublist(1);
-    expect(repeatIntervals.length, greaterThanOrEqualTo(2),
-        reason: 'pas assez d\'intervalles de répétition pour comparer');
-
-    expect(
-      repeatIntervals.last,
-      lessThan(repeatIntervals.first),
-      reason: 'la répétition doit accélérer : l\'écart entre les deux '
-          'derniers deltas doit être strictement inférieur à celui entre '
-          'les deux premiers deltas de répétition (une cadence constante, '
-          'quelle qu\'elle soit, ne doit pas satisfaire ce test)',
-    );
-    expect(deltas.every((d) => d == -1), isTrue);
+    expect(deltas, isEmpty,
+        reason: 'un maintien immobile assez long pour déclencher le mode '
+            'ajustement ne doit jamais émettre de ±1 de répétition');
+    expect(find.text('+10'), findsOneWidget,
+        reason: 'le mode ajustement doit bien avoir été déclenché');
   });
 
-  testWidgets('relâcher arrête la répétition', (tester) async {
+  testWidgets(
+      'un maintien bref, relâché avant le seuil d\'appui long, émet un seul '
+      'delta et rien de plus ensuite', (tester) async {
     final deltas = await pumpDial(tester);
     final dial = tester.getRect(find.byType(LifeDial));
 
     final gesture = await tester.startGesture(
       Offset(dial.left + dial.width * 0.25, dial.center.dy),
     );
-    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 200));
     await gesture.up();
     await tester.pumpAndSettle();
-    final frozen = deltas.length;
+    expect(deltas, [-1]);
 
     await tester.pump(const Duration(seconds: 1));
-    expect(deltas.length, frozen, reason: 'plus aucun delta après le relâchement');
+    expect(deltas, [-1], reason: 'plus aucun delta après le relâchement');
   });
 
   testWidgets('le badge de dégâts en attente s\'affiche quand il est non nul',
@@ -155,6 +134,52 @@ void main() {
       expect(find.text('+10'), findsOneWidget);
     });
 
+    testWidgets('un appui long n\'émet aucun delta, et le mode est bien entré',
+        (tester) async {
+      final deltas = await pumpDial(tester);
+      await tester.longPress(find.byType(LifeDial));
+      await tester.pumpAndSettle();
+      expect(deltas, isEmpty,
+          reason:
+              'un appui long ne doit produire aucun ±1 parasite (Critical #1)');
+      expect(find.text('+10'), findsOneWidget);
+    });
+
+    testWidgets('maintenir le doigt en mode ajustement ne produit aucun ±1',
+        (tester) async {
+      final deltas = await pumpDial(tester);
+      await tester.longPress(find.byType(LifeDial));
+      await tester.pumpAndSettle();
+      expect(deltas, isEmpty);
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(LifeDial)),
+      );
+      await tester.pump(const Duration(milliseconds: 800));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(deltas, isEmpty,
+          reason: 'un doigt immobile en mode ajustement ne doit jamais '
+              'émettre de ±1');
+    });
+
+    testWidgets(
+        'un appui long avec un petit mouvement (4px) entre quand même en '
+        'mode ajustement', (tester) async {
+      await pumpDial(tester);
+      final center = tester.getCenter(find.byType(LifeDial));
+      final gesture = await tester.startGesture(center);
+      await gesture.moveBy(const Offset(0, 4));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(find.text('+10'), findsOneWidget,
+          reason: 'un micro-mouvement de 4px (sous kTouchSlop = 18px) ne '
+              'doit pas annuler l\'appui long');
+    });
+
     testWidgets('un palier émet son delta', (tester) async {
       final deltas = await pumpDial(tester);
       await tester.longPress(find.byType(LifeDial));
@@ -170,13 +195,53 @@ void main() {
       await tester.longPress(find.byType(LifeDial));
       await tester.pumpAndSettle();
 
-      // 8 px par point : 40 px vers le bas = −5.
-      await tester.drag(find.byType(LifeDial), const Offset(0, 40));
+      // 8 px par point : 40 px vers le bas = −5. `touchSlop` à zéro pour que
+      // `tester.drag` envoie tout le déplacement en un seul événement — sans
+      // quoi il le scinde par défaut en deux (le seuil de `kDragSlopDefault`
+      // puis le reste), et la molette émettrait deux deltas partiels ([-2,
+      // -3]) au lieu d'un seul, ce qui est un artefact du test, pas du
+      // comportement réel (un glissement continu sur un appareil produit un
+      // flot d'événements bien plus fin que 2 pas).
+      await tester.drag(
+        find.byType(LifeDial),
+        const Offset(0, 40),
+        touchSlopX: 0,
+        touchSlopY: 0,
+      );
       await tester.pumpAndSettle();
 
-      expect(deltas, isNotEmpty);
-      expect(deltas.reduce((a, b) => a + b), lessThan(0),
-          reason: 'glisser vers le bas doit retirer des PV');
+      // Durci (round 2, le test était vert par accident) : avec l'appui long
+      // qui n'émet plus de delta parasite, `deltas` ne doit contenir que le
+      // -5 de la molette, pas [+1, +1, -5] dont la somme passait le test par
+      // hasard.
+      expect(deltas, [-5]);
+    });
+
+    testWidgets(
+        'un glissement lent de plus de 500 ms ne perd pas son reste '
+        'accumulé (Important #1)', (tester) async {
+      final deltas = await pumpDial(tester);
+      await tester.longPress(find.byType(LifeDial));
+      await tester.pumpAndSettle();
+
+      // 7px, puis on attend > 500 ms (au-delà du seuil de l'appui long) avant
+      // 7px de plus : 7 < 8px ne bouge rien seul, mais 7+7 = 14px doit passer
+      // le seuil de 8px et émettre -1. Si l'appui long se ré-arme et remet
+      // `wheelAccumulator` à zéro pendant l'attente (le bug d'Important #1),
+      // le premier 7px est perdu et le second 7px, seul, ne suffit plus à
+      // franchir le seuil : le test distingue les deux cas sans ambiguïté.
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await gesture.moveBy(const Offset(0, 7));
+      await tester.pump(const Duration(milliseconds: 550));
+      await gesture.moveBy(const Offset(0, 7));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(deltas, [-1],
+          reason: '7px + 7px doivent cumuler à 14px et produire -1, sans '
+              'perte due à un ré-armement de l\'appui long en cours de '
+              'geste');
     });
 
     testWidgets('le glissement ne fait rien hors mode ajustement',
