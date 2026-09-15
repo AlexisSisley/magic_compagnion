@@ -178,4 +178,41 @@ void main() {
       reason: 'le badge doit être dans la zone du joueur 0, pas dans une autre',
     );
   });
+
+  testWidgets('un reorder ne permute pas la liste canonique des joueurs',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(LifeCounterPage));
+    // ignore: avoid_dynamic_calls
+    (state as dynamic).reorderForTest(0, 3);
+    await tester.pumpAndSettle();
+
+    final session = container.read(gameSessionNotifierProvider)!;
+
+    // players garde son ordre canonique : players[i].playerId == i.
+    expect(
+      session.players.map((p) => p.playerId).toList(),
+      [0, 1, 2, 3],
+      reason: 'la liste canonique ne doit jamais être permutée',
+    );
+
+    // Seul playerOrder porte l'ordre d'affichage.
+    expect(session.playerOrder, [3, 1, 2, 0]);
+  });
 }

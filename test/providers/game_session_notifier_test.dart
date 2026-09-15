@@ -85,4 +85,14 @@ void main() {
     getNotifier().updateLife(0, -5, gameDuration: Duration.zero);
     expect(container.read(gameSessionNotifierProvider), isNull);
   });
+
+  test('reorderPlayers ne modifie que playerOrder, jamais la liste canonique',
+      () {
+    getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+    getNotifier().reorderPlayers([3, 1, 2, 0]);
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.playerOrder, [3, 1, 2, 0]);
+    expect(session.players.map((p) => p.playerId).toList(), [0, 1, 2, 3]);
+  });
 }

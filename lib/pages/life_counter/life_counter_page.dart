@@ -124,9 +124,27 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     );
   }
 
+  /// Ordre d'affichage des zones. `_session.players` garde l'ordre canonique
+  /// (players[i].playerId == i) ; `playerOrder` porte seul la disposition
+  /// choisie par le joueur en mode édition.
+  List<PlayerState> get _orderedPlayers {
+    final session = _session;
+    if (session == null) return const [];
+    final order = session.playerOrder;
+    if (order.length != session.players.length) return session.players;
+    final byId = {for (final p in session.players) p.playerId: p};
+    final ordered = <PlayerState>[];
+    for (final id in order) {
+      final p = byId[id];
+      if (p == null) return session.players; // ordre corrompu : repli sûr
+      ordered.add(p);
+    }
+    return ordered;
+  }
+
   List<Player> get _legacyPlayers {
     if (_session == null) return [];
-    return _session!.players
+    return _orderedPlayers
         .asMap()
         .entries
         .map((e) => _toLegacyPlayer(e.key, e.value))
@@ -722,10 +740,15 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
 
     final players = _legacyPlayers;
+    final orderedPlayers = _orderedPlayers;
     final playerZones = players.asMap().entries.map((entry) {
       final index = entry.key;
       final player = entry.value;
-      final playerState = _session!.players[index];
+      // `orderedPlayers` porte le même ordre que `players` (les deux dérivent
+      // de `_orderedPlayers`) : indexer par `index` reste correct après un
+      // reorder, contrairement à `_session!.players[index]` qui suit l'ordre
+      // canonique.
+      final playerState = orderedPlayers[index];
 
       Widget zone = _buildPlayerZoneWithOverlays(player, playerState, index);
 
@@ -926,14 +949,18 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       _onReorderPlayers(oldIndex, newIndex);
 
   void _onReorderPlayers(int oldIndex, int newIndex) {
-    if (_session == null) return;
-    // Physically swap the two players in the players list so the build method
-    // renders them in the correct order (it iterates _session.players by index).
-    final players = List<PlayerState>.from(_session!.players);
-    final temp = players[oldIndex];
-    players[oldIndex] = players[newIndex];
-    players[newIndex] = temp;
-    _controller.restoreSession(_session!.copyWith(players: players));
+    final session = _session;
+    if (session == null) return;
+    // On ne permute plus la liste canonique : seul l'ordre d'affichage change,
+    // ce qui préserve l'invariant players[i].playerId == i.
+    final order = session.playerOrder.isEmpty
+        ? List<int>.generate(session.players.length, (i) => i)
+        : List<int>.from(session.playerOrder);
+    if (oldIndex >= order.length || newIndex >= order.length) return;
+    final temp = order[oldIndex];
+    order[oldIndex] = order[newIndex];
+    order[newIndex] = temp;
+    _controller.reorderPlayers(order);
     setState(() {});
     _saveSnapshot();
   }
@@ -1152,7 +1179,10 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
   void _applyOrientationPreset(List<int> rotations) {
     if (_session == null) return;
-    final players = _session!.players;
+    // Les presets décrivent une position visuelle (haut/bas de la grille) :
+    // il faut donc les appliquer dans l'ordre d'affichage, pas dans l'ordre
+    // canonique, sous peine de tourner le mauvais joueur après un reorder.
+    final players = _orderedPlayers;
     final topCount = players.length ~/ 2;
     for (int i = 0; i < players.length && i < rotations.length; i++) {
       // AdaptiveGrid wraps the top half in RotatedBox(quarterTurns: 2),
