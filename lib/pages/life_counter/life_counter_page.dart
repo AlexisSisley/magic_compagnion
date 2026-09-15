@@ -232,20 +232,55 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   // --- LOGIQUE TIMER ---
-  void _startGame() {
+
+  // I-4 (cas b) : nombre de tick() (secondes) écoulés depuis la dernière
+  // persistance périodique du chrono actif — voir `_startTickTimer`.
+  int _ticksSincePeriodicSnapshot = 0;
+
+  // I-4 (cas b) : une partie mise en pause (chrono actif, aucun PV modifié)
+  // puis tuée perd tout ce qui s'est écoulé depuis le dernier `_saveSnapshot()`
+  // explicite. On borne cette perte en persistant toutes les 30 s de chrono
+  // actif, plutôt qu'à chaque `tick()` (1/s) — ce qui rétablirait l'I/O par
+  // seconde que le débounce de `_saveSnapshot` (voir plus bas) vient de
+  // supprimer. 30 s reste un compromis : la fenêtre de perte résiduelle
+  // maximale (cas b) passe de « toute la pause » à « 30 s », sans écriture
+  // fréquente.
+  static const _periodicSnapshotEveryTicks = 30;
+
+  /// Démarre (ou relance, à la reprise) le `Timer.periodic` local qui pousse
+  /// des `tick()` vers le notifier, et programme la persistance périodique
+  /// du cas (b) ci-dessus. Utilisé par `_startGame()` et par la reprise d'une
+  /// session active dans `_loadGame()`.
+  void _startTickTimer() {
     _gameTimer?.cancel();
-    _controller.startTimer();
+    _ticksSincePeriodicSnapshot = 0;
     _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
       _controller.tick();
+      _ticksSincePeriodicSnapshot++;
+      if (_ticksSincePeriodicSnapshot >= _periodicSnapshotEveryTicks) {
+        _ticksSincePeriodicSnapshot = 0;
+        _saveSnapshot();
+      }
     });
+  }
+
+  void _startGame() {
+    _controller.startTimer();
+    _startTickTimer();
     setState(() {});
+    // I-4 (cas a) : sans cette écriture, un crash survenant juste après le
+    // lancement du chrono (avant toute modification de PV) restaure une
+    // session `isActive: false` — le chrono ne reprend pas au chargement.
+    _saveSnapshot();
   }
 
   void _stopGame() {
     _gameTimer?.cancel();
     _controller.stopTimer();
     setState(() {});
+    // I-4 : symétrique du fix de `_startGame()` — persiste l'arrêt du chrono.
+    _saveSnapshot();
   }
 
   String _formatDuration(Duration d) {
@@ -273,11 +308,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           _isLoading = false;
         });
         if (snapshot.isActive) {
-          _gameTimer?.cancel();
-          _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-            if (!mounted) return;
-            _controller.tick();
-          });
+          _startTickTimer();
         }
         return;
       }
@@ -336,6 +367,12 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   /// sans passer par un des 12 sites d'appel (taps, reorder, etc.).
   @visibleForTesting
   void saveSnapshotForTest() => _saveSnapshot();
+
+  /// Point d'entrée de test pour lancer le chrono (I-4) sans passer par le
+  /// dialogue de tirage du premier joueur (`_pickStartingPlayer`), dont
+  /// l'animation aléatoire rendrait le test fragile.
+  @visibleForTesting
+  void startGameForTest() => _startGame();
 
   /// Écriture différée : les mutations arrivent par rafales (un tap = une
   /// mutation), et sérialiser toute la session à chaque fois coûte une I/O
@@ -600,14 +637,22 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     if (_isSelectingStarter) return;
     final players = _legacyPlayers;
     if (players.isEmpty) return;
+    // I-2 : `orderedPlayers[idx].playerId` — jamais `idx` lui-même — pour
+    // que `_highlightedPlayerId` (comparé à `p.id` dans `_buildPlayerZone`)
+    // et le gagnant annoncé dans le dialogue désignent toujours le même
+    // joueur, y compris après un reorder (où index d'affichage != playerId).
+    final orderedPlayers = _orderedPlayers;
     setState(() => _isSelectingStarter = true);
     int turns = 20; int currentIdx = Random().nextInt(_playerCount); int delay = 50;
     for (int i = 0; i < turns; i++) {
-      setState(() => _highlightedPlayerId = currentIdx % _playerCount);
+      setState(() => _highlightedPlayerId =
+          orderedPlayers[currentIdx % _playerCount].playerId);
       await Future.delayed(Duration(milliseconds: delay));
       delay += (i * 2); currentIdx++;
     }
-    int winnerId = (currentIdx - 1) % _playerCount;
+    final winnerPlayerId =
+        orderedPlayers[(currentIdx - 1) % _playerCount].playerId;
+    final winner = players.firstWhere((p) => p.id == winnerPlayerId);
     if (mounted) {
       showDialog(
         context: context, barrierDismissible: false,
@@ -617,15 +662,15 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.person, size: 50, color: Color(players[winnerId].colorValue)),
+              Icon(Icons.person, size: 50, color: Color(winner.colorValue)),
               const SizedBox(height: 16),
-              Text(players[winnerId].name, style: AppTextStyles.pageTitle(fontSize: 32), textAlign: TextAlign.center),
+              Text(winner.name, style: AppTextStyles.pageTitle(fontSize: 32), textAlign: TextAlign.center),
             ],
           ),
           actions: [
             ElevatedButton(
               onPressed: () { Navigator.pop(context); setState(() { _highlightedPlayerId = null; _isSelectingStarter = false; }); _startGame(); },
-              style: ElevatedButton.styleFrom(backgroundColor: Color(players[winnerId].colorValue)),
+              style: ElevatedButton.styleFrom(backgroundColor: Color(winner.colorValue)),
               child: const Text("C'est parti !", style: TextStyle(color: AppColors.textPrimary))
             )
           ]
@@ -633,6 +678,17 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       );
     }
   }
+
+  /// Point d'entrée de test pour `_pickStartingPlayer()` (I-2) — le tirage
+  /// réel est piloté par une boucle de délais aléatoires croissants, dont
+  /// le fake clock du test peut traverser d'un coup via `tester.pump`.
+  @visibleForTesting
+  Future<void> pickStartingPlayerForTest() => _pickStartingPlayer();
+
+  /// Point d'entrée de test : expose `_highlightedPlayerId` (I-2), inutile
+  /// hors des tests puisqu'il ne sert qu'au rendu de `PlayerZone`.
+  @visibleForTesting
+  int? get highlightedPlayerIdForTest => _highlightedPlayerId;
 
   void _showGameSetupDialog() {
     showModalBottomSheet(
@@ -849,6 +905,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // Établit l'abonnement Riverpod : sans ce watch explicite, le getter
     // `_session` (qui utilise `ref.read`) ne déclencherait aucun rebuild
     // quand le notifier change d'état.
+    //
+    // ⚠️ AVERTISSEMENT AU PROCHAIN ÉDITEUR : toute la réactivité de cette
+    // page tient à cette ligne étant la TOUTE PREMIÈRE instruction de
+    // `build()`. N'ajoute jamais de `return` (garde, early-exit, etc.)
+    // au-dessus d'elle : ça casserait silencieusement la réactivité de
+    // toute la page — aucune erreur, juste un écran qui ne se met plus à
+    // jour.
     ref.watch(gameSessionNotifierProvider);
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
 

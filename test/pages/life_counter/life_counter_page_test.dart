@@ -515,4 +515,158 @@ void main() {
         reason: "l'écriture en vol ne doit pas pouvoir ressusciter la "
             "partie terminée en s'exécutant après clearSnapshot()");
   });
+
+  testWidgets(
+      '_startGame() persiste isActive avant toute autre mutation (I-4, cas a)',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(LifeCounterPage));
+    // ignore: avoid_dynamic_calls
+    (state as dynamic).startGameForTest();
+
+    // Un crash juste après le lancement du chrono, avant toute autre
+    // mutation et avant l'expiration du débounce de 500 ms : on démonte la
+    // page pour déclencher dispose() dans cette fenêtre.
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: SizedBox.shrink())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('active_game_snapshot');
+    expect(raw, isNotNull);
+    expect(
+      GameSession.fromJson(json.decode(raw!)).isActive,
+      isTrue,
+      reason: 'le chrono démarré doit être persisté même sans aucune autre '
+          'mutation, pour reprendre correctement après un crash',
+    );
+  });
+
+  testWidgets(
+      'un chrono actif persiste périodiquement même sans mutation de PV '
+      '(I-4, cas b — compromis)',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final state = tester.state(find.byType(LifeCounterPage));
+    // ignore: avoid_dynamic_calls
+    (state as dynamic).startGameForTest();
+
+    // 30 s de chrono actif sans aucune mutation de PV (partie en pause),
+    // puis la fenêtre de débounce pour laisser la persistance périodique
+    // s'écrire.
+    await tester.pump(const Duration(seconds: 30));
+    await tester.pump(const Duration(milliseconds: 600));
+
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('active_game_snapshot');
+    expect(raw, isNotNull);
+    final persisted = GameSession.fromJson(json.decode(raw!));
+    expect(persisted.isActive, isTrue);
+    expect(
+      persisted.duration.inSeconds,
+      greaterThanOrEqualTo(30),
+      reason: 'une partie en pause 30 s doit avoir persisté sa durée, pas '
+          'seulement son démarrage, pour borner la perte en cas de crash',
+    );
+  });
+
+  testWidgets(
+      'le tirage du premier joueur met en surbrillance le même joueur que '
+      'celui annoncé, même après un reorder (I-2)',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Reorder d'affichage : le joueur 0 passe en dernière position.
+    final state = tester.state(find.byType(LifeCounterPage));
+    // ignore: avoid_dynamic_calls
+    (state as dynamic).reorderForTest(0, 3);
+    await tester.pumpAndSettle();
+
+    // Lance le tirage (spin) : la boucle interne utilise des délais
+    // aléatoires croissants (~3.3 s au total pour 20 tours), que le fake
+    // clock du test traverse en un seul `pump`.
+    // ignore: avoid_dynamic_calls
+    unawaited((state as dynamic).pickStartingPlayerForTest() as Future<void>);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+
+    // Le dialogue de résultat est affiché : on identifie le joueur annoncé
+    // par le nom rendu dans l'AlertDialog (recherche scopée : les noms des
+    // joueurs restent aussi affichés dans les zones, en arrière-plan).
+    final session = container.read(gameSessionNotifierProvider)!;
+    int? announcedPlayerId;
+    for (final player in session.players) {
+      final matches = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text(player.config.name),
+      );
+      if (matches.evaluate().isNotEmpty) {
+        announcedPlayerId = player.playerId;
+        break;
+      }
+    }
+
+    expect(announcedPlayerId, isNotNull,
+        reason: 'le dialogue doit annoncer un joueur par son nom');
+    // ignore: avoid_dynamic_calls
+    final highlighted = (state as dynamic).highlightedPlayerIdForTest as int?;
+    expect(
+      highlighted,
+      announcedPlayerId,
+      reason: 'la zone mise en surbrillance en fin de tirage doit désigner '
+          'le même joueur que celui annoncé dans le dialogue, même après '
+          'un reorder',
+    );
+  });
 }
