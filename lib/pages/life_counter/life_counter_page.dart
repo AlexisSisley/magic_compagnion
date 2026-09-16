@@ -39,7 +39,6 @@ import '../../widgets/life_counter/critical_overlay.dart';
 import '../../widgets/life_counter/elimination_overlay.dart';
 import '../../widgets/life_counter/death_confirmation_overlay.dart';
 import '../../widgets/life_counter/draggable_player_zone.dart';
-import '../../widgets/life_counter/radial_menu.dart';
 import '../../widgets/life_counter/animations/animation_service.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -958,17 +957,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       child: zone,
     );
 
-    // Long press for radial menu (6.2) — only when NOT in edit mode
-    if (!_isEditMode) {
-      zone = GestureDetector(
-        onLongPressStart: (details) => _showRadialMenuForPlayer(
-          details.globalPosition,
-          playerState,
-        ),
-        child: zone,
-      );
-    }
-
     // Commander damage flash overlay (Bug 3)
     if (_commanderDamageFlash.contains(playerState.playerId)) {
       zone = Stack(
@@ -1037,84 +1025,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     }
 
     return zone;
-  }
-
-  /// Radial menu (spec 6.2) — Monarch / Éliminer (or Undo) / Reset compteurs
-  void _showRadialMenuForPlayer(Offset globalPosition, PlayerState playerState) {
-    final items = <RadialMenuItem>[];
-
-    // Monarch toggle
-    items.add(RadialMenuItem(
-      icon: Icons.star,
-      label: playerState.isMonarch ? 'Retirer' : 'Monarch',
-      color: AppColors.amber,
-      onTap: () {
-        _controller.toggleMonarch(playerState.playerId);
-        setState(() {});
-        _saveSnapshot();
-      },
-    ));
-
-    if (playerState.isEliminated) {
-      // Undo elimination
-      items.add(RadialMenuItem(
-        icon: Icons.undo,
-        label: 'Annuler',
-        color: AppColors.accentGreen,
-        onTap: () => _undoElimination(playerState.playerId),
-      ));
-    } else {
-      // Eliminate
-      items.add(RadialMenuItem(
-        icon: Icons.person_off,
-        label: 'Éliminer',
-        color: AppColors.accentRed,
-        onTap: () => _confirmElimination(playerState.playerId),
-      ));
-    }
-
-    // Reset this player's counters
-    items.add(RadialMenuItem(
-      icon: Icons.refresh,
-      label: 'Reset',
-      color: AppColors.textSecondary,
-      onTap: () {
-        // Reset life to starting, clear counters
-        if (_session == null) return;
-        final delta = _currentFormat.startingLife - playerState.life;
-        if (delta != 0) {
-          _controller.updateLife(playerState.playerId, delta, gameDuration: _gameDuration);
-        }
-        _controller.updateCounter(playerState.playerId, 'poison', 0);
-        _controller.updateCounter(playerState.playerId, 'energy', 0);
-        _controller.updateCounter(playerState.playerId, 'commander_tax', 0);
-        setState(() {});
-        _saveSnapshot();
-      },
-    ));
-
-    showRadialMenu(
-      context: context,
-      anchor: globalPosition,
-      items: items,
-    );
-  }
-
-  void _undoElimination(int playerId) {
-    if (_session == null) return;
-    // Update both the session AND the controller to keep them in sync (Bug 2 fix)
-    final players = _session!.players.map((p) {
-      if (p.playerId == playerId) {
-        return p.copyWith(isEliminated: false);
-      }
-      return p;
-    }).toList();
-    final newOrder = List<int>.from(_session!.eliminationOrder)..remove(playerId);
-    _controller.restoreSession(
-      _session!.copyWith(players: players, eliminationOrder: newOrder),
-    );
-    setState(() {});
-    _saveSnapshot();
   }
 
   /// Point d'entrée de test pour piloter un reorder sans simuler de drag
