@@ -880,6 +880,14 @@ Expected: PASS, **y compris les tests existants de `conditional_handle_test.dart
 
 - [ ] **Step 5: Brancher `PlayerZone` sur son cran**
 
+> **Exigence ajoutée au scan pré-vol — ruling 2 du ledger.** `player_zone.dart:389` lit
+> `ConditionalHandle.reservedHeight` comme padding bas. Cette lecture **doit** devenir
+> `handleHeightFor(tier)` dans cette tâche. Sans ça, au cran confort la zone padderait 30 px sous
+> une poignée de 48 px : 18 px de recouvrement, visible à 2-3 joueurs. La constante
+> `reservedHeight` est conservée comme **plancher** pour ses autres lecteurs éventuels, pas comme
+> valeur unique — vérifier par `grep -rn "reservedHeight" lib/` qu'aucun autre site ne la lit comme
+> une hauteur effective.
+
 Dans `player_zone.dart`, envelopper le corps de la zone dans un `LayoutBuilder`, calculer la taille dans le repère du joueur (transposer largeur et hauteur quand `widget.quarterTurns.isOdd`), appeler `tierFor`, et passer le cran à `ConditionalHandle`. Le cran est calculé dans `build` à partir des contraintes reçues : il ne bouge donc qu'à un changement de taille ou de rotation, jamais quand un compteur change — ce que le test de l'étape 1 verrouille déjà côté poignée.
 
 En cran minimal, réduire le nom à la pastille de couleur (spec §3.2) en n'affichant pas le libellé du `PlayerHeader`.
