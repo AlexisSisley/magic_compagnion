@@ -32,6 +32,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/damage_history_sheet.dart';
 import 'package:magic_companion/widgets/life_counter/player_history_sheet.dart';
+import '../../widgets/life_counter/zone/player_drawer.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
 import '../../widgets/life_counter/layouts/adaptive_grid.dart';
@@ -950,7 +951,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       startingLife: _currentFormat.startingLife,
     );
 
-    Widget zone = _buildPlayerZone(player);
+    Widget zone = _buildPlayerZone(player, playerState);
     zone = CriticalOverlay(level: criticalLevel, child: zone);
     zone = EliminationOverlay(
       isEliminated: playerState.isEliminated,
@@ -1051,7 +1052,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _saveSnapshot();
   }
 
-  Widget _buildPlayerZone(Player p) {
+  Widget _buildPlayerZone(Player p, PlayerState ps) {
     return PlayerZone(
       player: p, isCommander: _currentFormat.maxCommanders > 0, isHighlighted: _highlightedPlayerId == p.id,
       onLifeChanged: (val) => _updateLife(p.id, val),
@@ -1060,24 +1061,95 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       onRotationChanged: (r) => _updatePlayerRotation(p.id, r),
       onSkinChanged: (path) => _updatePlayerSkin(p.id, path),
       onNameTap: () => _showPlayerHistory(p.id),
-      onStatChanged: (type, val) => _onStatChanged(p.id, type, val),
+      onOpenDrawer: () => _openPlayerDrawer(ps),
     );
   }
 
-  void _onStatChanged(int playerId, String type, int val) {
-    // Sync counter changes from PlayerZone back to the controller
-    final counterKey = type.replaceAll('CounterMode.', '');
+  /// Ouvre le tiroir du joueur (spec §2.7) — remplace l'ancien menu radial
+  /// (retiré en tâche 5) comme seul point d'accès à ces quatre actions :
+  /// compteurs, monarque, élimination volontaire / son annulation, reset des
+  /// compteurs.
+  void _openPlayerDrawer(PlayerState ps) {
+    showPlayerDrawer(
+      context: context,
+      playerName: ps.config.name,
+      counters: {
+        'poison': ps.counters['poison'] ?? 0,
+        'energy': ps.counters['energy'] ?? 0,
+        'commander_tax': ps.counters['commander_tax'] ?? 0,
+      },
+      isMonarch: ps.isMonarch,
+      isEliminated: ps.isEliminated,
+      onCounterDelta: (counterId, delta) =>
+          _onDrawerCounterDelta(ps.playerId, counterId, delta),
+      onToggleMonarch: () => _toggleMonarch(ps.playerId),
+      onEliminate: () => _onDrawerEliminate(ps.playerId),
+      onResetCounters: () => _resetPlayerCounters(ps.playerId),
+    );
+  }
+
+  void _onDrawerCounterDelta(int playerId, String counterId, int delta) {
     final player = _session?.players.where((p) => p.playerId == playerId).firstOrNull;
     if (player == null) return;
 
-    final currentVal = player.counters[counterKey] ?? 0;
-    _controller.updateCounter(playerId, counterKey, currentVal + val);
+    final currentVal = player.counters[counterId] ?? 0;
+    _controller.updateCounter(playerId, counterId, currentVal + delta);
     setState(() {});
     _saveSnapshot();
     // Check death for poison threshold
-    if (counterKey == 'poison') {
+    if (counterId == 'poison') {
       _checkDeathCondition(playerId);
     }
+  }
+
+  /// DETTE (1/4) — `toggleMonarch` n'avait plus aucun appelant depuis le
+  /// retrait du menu radial (tâche 5) : le monarque était injoignable.
+  void _toggleMonarch(int playerId) {
+    _controller.toggleMonarch(playerId);
+    setState(() {});
+    _saveSnapshot();
+  }
+
+  /// DETTE (2/4 et 3/4) — bascule entre l'élimination volontaire
+  /// (`_confirmElimination`, dont le seul appelant restant était la détection
+  /// automatique de mort via `DeathConfirmationOverlay`) et son annulation
+  /// (`_undoElimination`, supprimée avec le menu radial et recréée ici).
+  void _onDrawerEliminate(int playerId) {
+    final player = _session?.players.where((p) => p.playerId == playerId).firstOrNull;
+    if (player == null) return;
+    if (player.isEliminated) {
+      _undoElimination(playerId);
+    } else {
+      _confirmElimination(playerId);
+    }
+  }
+
+  void _undoElimination(int playerId) {
+    final session = _session;
+    if (session == null) return;
+    final players = session.players.map((p) {
+      if (p.playerId == playerId) return p.copyWith(isEliminated: false);
+      return p;
+    }).toList();
+    final eliminationOrder = List<int>.from(session.eliminationOrder)
+      ..remove(playerId);
+    _controller.restoreSession(
+      session.copyWith(players: players, eliminationOrder: eliminationOrder),
+    );
+    setState(() {});
+    _saveSnapshot();
+  }
+
+  /// DETTE (4/4) — l'ancien item du menu radial remettait à la fois la vie
+  /// et les trois compteurs à zéro dans une closure inline. Décision prise
+  /// pour la V4 (voir le rapport de tâche) : `onResetCounters` ne touche
+  /// plus qu'aux compteurs — la vie reste hors de portée de cette action.
+  void _resetPlayerCounters(int playerId) {
+    for (final counterId in const ['poison', 'energy', 'commander_tax']) {
+      _controller.updateCounter(playerId, counterId, 0);
+    }
+    setState(() {});
+    _saveSnapshot();
   }
 
   Widget _buildCentralBar() {

@@ -18,11 +18,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 // Sub-widgets
 import 'player_header.dart';
-import 'life_display.dart';
 import 'life_log.dart';
-import 'counter_strip.dart';
-
-enum CounterMode { life, poison, energy, commanderTax }
+import 'zone/life_dial.dart';
+import 'zone/conditional_handle.dart';
 
 class PlayerZone extends ConsumerStatefulWidget {
   const PlayerZone({
@@ -31,7 +29,8 @@ class PlayerZone extends ConsumerStatefulWidget {
     required this.onLifeChanged,
     required this.onShowCommanderDamage,
     required this.onColorChanged,
-    this.onStatChanged,
+    this.onCounterDelta,
+    this.onOpenDrawer,
     this.onRotationChanged,
     this.onSkinChanged,
     this.onNameTap,
@@ -45,7 +44,13 @@ class PlayerZone extends ConsumerStatefulWidget {
   final bool isCommander;
   final bool isHighlighted;
   final Function(int) onLifeChanged;
-  final Function(String type, int val)? onStatChanged;
+
+  /// Émis quand un compteur change depuis le tiroir.
+  final void Function(String counterId, int delta)? onCounterDelta;
+
+  /// Ouverture du tiroir (tap ou glissement depuis la poignée).
+  final VoidCallback? onOpenDrawer;
+
   final Function(Color) onColorChanged;
   final Function(int)? onRotationChanged;
   final Function(String?)? onSkinChanged;
@@ -66,11 +71,13 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
   final List<FloatingNumberData> _floatingNumbers = [];
 
   int _nextNumberId = 0;
-  CounterMode _editMode = CounterMode.life;
-  Timer? _resetModeTimer;
   double _dragAccumulator = 0.0;
   Offset _lastLongPressPosition = Offset.zero;
   final double _rotationThreshold = 40.0;
+
+  /// Hauteur réservée à l'en-tête (palette, rotation, nom) au-dessus du
+  /// cadran de vie (spec §2.1 : le chiffre occupe le reste de la zone).
+  static const double _headerHeight = 40.0;
 
   // --- US-14.3 : Animation controllers ---
   late final AnimationController _pulseController;
@@ -135,7 +142,6 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
 
   @override
   void dispose() {
-    _resetModeTimer?.cancel();
     _pulseController.dispose();
     _shakeController.dispose();
     _glowController.dispose();
@@ -155,35 +161,22 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
 
   // --- Logic (kept in orchestrator since it coordinates animations + callbacks) ---
 
+  /// Remonte un delta de vie : la zone ne mute plus le `Player` en place
+  /// (V4 — voir le tiroir pour les compteurs), elle se contente d'émettre et
+  /// de jouer le retour visuel (pulse/shake + nombre flottant).
   void _triggerChange(int change) {
-    _resetAutoReturnTimer();
-    if (_editMode == CounterMode.life) {
-      widget.onLifeChanged(change);
-      _showFloatingNumber(change, isLife: true);
-      if (change > 0) {
-        _pulseController.forward(from: 0);
-      } else if (change < 0) {
-        _shakeController.forward(from: 0);
-      }
-    } else {
-      setState(() {
-        if (_editMode == CounterMode.poison) widget.player.poison = (widget.player.poison + change).clamp(0, 99);
-        if (_editMode == CounterMode.energy) widget.player.energy = (widget.player.energy + change).clamp(0, 99);
-        if (_editMode == CounterMode.commanderTax) widget.player.commanderCastCount = (widget.player.commanderCastCount + change).clamp(0, 99);
-      });
-      _showFloatingNumber(change, isLife: false);
-      widget.onStatChanged?.call(_editMode.toString(), change);
+    widget.onLifeChanged(change);
+    _showFloatingNumber(change);
+    if (change > 0) {
+      _pulseController.forward(from: 0);
+    } else if (change < 0) {
+      _shakeController.forward(from: 0);
     }
   }
 
-  void _showFloatingNumber(int change, {bool isLife = true}) {
+  void _showFloatingNumber(int change) {
     final String text = (change > 0) ? '+$change' : '$change';
-    Color color;
-    if (isLife) {
-      color = (change > 0) ? AppColors.accentGreen : AppColors.accentRed;
-    } else {
-      color = _getModeColor(_editMode);
-    }
+    final Color color = (change > 0) ? AppColors.accentGreen : AppColors.accentRed;
 
     final int id = _nextNumberId++;
     final number = FloatingNumberData(id: id, text: text, color: color);
@@ -197,51 +190,6 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     Timer(const Duration(milliseconds: 600), () {
       if(mounted) setState(() => _floatingNumbers.removeWhere((n) => n.id == id));
     });
-  }
-
-  void _setEditMode(CounterMode mode) {
-    setState(() => _editMode = mode);
-    if (mode != CounterMode.life) {
-      _resetAutoReturnTimer();
-    } else {
-      _resetModeTimer?.cancel();
-    }
-  }
-
-  void _resetAutoReturnTimer() {
-    _resetModeTimer?.cancel();
-    if (_editMode != CounterMode.life) {
-      _resetModeTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted) setState(() => _editMode = CounterMode.life);
-      });
-    }
-  }
-
-  Color _getModeColor(CounterMode mode) {
-    switch (mode) {
-      case CounterMode.poison: return AppColors.accentGreen;
-      case CounterMode.energy: return AppColors.accent;
-      case CounterMode.commanderTax: return AppColors.amber;
-      default: return AppColors.textPrimary;
-    }
-  }
-
-  IconData _getModeIcon(CounterMode mode) {
-    switch (mode) {
-      case CounterMode.poison: return Icons.science;
-      case CounterMode.energy: return Icons.flash_on;
-      case CounterMode.commanderTax: return Icons.local_police;
-      default: return Icons.favorite;
-    }
-  }
-
-  String _getDisplayValue() {
-    switch (_editMode) {
-      case CounterMode.poison: return '${widget.player.poison}';
-      case CounterMode.energy: return '${widget.player.energy}';
-      case CounterMode.commanderTax: return '${widget.player.commanderCastCount}';
-      default: return '${widget.player.life}';
-    }
   }
 
   Future<void> _pickImage(BuildContext dialogCtx) async {
@@ -465,6 +413,16 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
       backgroundWidget = Container(color: bgColor);
     }
 
+    // Résumé des compteurs pour la poignée conditionnelle (spec §2.2) : le
+    // "pire" dégât de commandant, pas le total, est ce qui menace vraiment.
+    final counterSummary = CounterSummary(
+      poison: widget.player.poison,
+      energy: widget.player.energy,
+      commanderTax: widget.player.commanderCastCount,
+      worstCommanderDamage: widget.player.commanderDamageReceived.values
+          .fold<int>(0, (max, v) => v > max ? v : max),
+    );
+
     // US-14.3 : Glow monarch via AnimatedBuilder
     Widget content = AnimatedBuilder(
       animation: _glowController,
@@ -496,55 +454,63 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
           Positioned.fill(child: backgroundWidget),
           Positioned.fill(child: Container(color: AppColors.textOnPrimary.withValues(alpha: 0.3))),
 
-          // Life display (center: -/value/+ row)
-          LifeDisplay(
-            displayValue: _getDisplayValue(),
-            editMode: _editMode,
-            modeColor: _getModeColor(_editMode),
-            modeIcon: _getModeIcon(_editMode),
-            onDecrement: () => _triggerChange(-1),
-            onDecrementLarge: () => _triggerChange(_editMode == CounterMode.commanderTax ? -10 : -5),
-            onIncrement: () => _triggerChange(1),
-            onIncrementLarge: () => _triggerChange(_editMode == CounterMode.commanderTax ? 10 : 5),
-            onTapCenter: () { if (_editMode != CounterMode.life) _setEditMode(CounterMode.life); },
-            pulseController: _pulseController,
-            pulseAnimation: _pulseAnimation,
-            shakeController: _shakeController,
-            shakeAnimation: _shakeAnimation,
+          // Corps central : en-tête (palette/rotation/nom), le chiffre de vie
+          // occupe tout le reste (spec §2.1), la poignée conditionnelle ferme
+          // la zone en bas (spec §2.2).
+          Positioned.fill(
+            child: Column(
+              children: [
+                SizedBox(
+                  height: _headerHeight,
+                  child: PlayerHeader(
+                    onShowColorPicker: _showColorPicker,
+                    onRotate: _rotate90Degrees,
+                    onLongPressStart: (details) {
+                      _dragAccumulator = 0.0;
+                      _lastLongPressPosition = details.localPosition;
+                      HapticFeedback.selectionClick();
+                    },
+                    onLongPressMoveUpdate: (details) {
+                      final double delta = details.localPosition.dx - _lastLongPressPosition.dx;
+                      _lastLongPressPosition = details.localPosition;
+                      _handleRotationDrag(delta);
+                    },
+                    playerName: widget.player.name,
+                    onNameTap: widget.onNameTap,
+                  ),
+                ),
+                Expanded(
+                  // US-14.3 : pulse (gain de vie) et shake (dégâts) — le
+                  // chiffre occupe tout le cadran désormais, l'animation
+                  // s'applique donc au cadran entier plutôt qu'à un Text isolé
+                  // comme au temps de LifeDisplay.
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([_pulseController, _shakeController]),
+                    builder: (context, child) {
+                      final double scale = _pulseController.isAnimating ? _pulseAnimation.value : 1.0;
+                      final double shakeX = _shakeController.isAnimating ? _shakeAnimation.value : 0.0;
+                      return Transform.translate(
+                        offset: Offset(shakeX, 0),
+                        child: Transform.scale(scale: scale, child: child),
+                      );
+                    },
+                    child: LifeDial(
+                      playerId: widget.player.id,
+                      life: widget.player.life,
+                      onDelta: _triggerChange,
+                    ),
+                  ),
+                ),
+                ConditionalHandle(
+                  summary: counterSummary,
+                  onTap: widget.onOpenDrawer,
+                ),
+              ],
+            ),
           ),
 
           // Floating numbers overlay
           LifeLog(floatingNumbers: _floatingNumbers),
-
-          // Header controls (palette + rotation + player name)
-          PlayerHeader(
-            onShowColorPicker: _showColorPicker,
-            onRotate: _rotate90Degrees,
-            onLongPressStart: (details) {
-              _dragAccumulator = 0.0;
-              _lastLongPressPosition = details.localPosition;
-              HapticFeedback.selectionClick();
-            },
-            onLongPressMoveUpdate: (details) {
-              final double delta = details.localPosition.dx - _lastLongPressPosition.dx;
-              _lastLongPressPosition = details.localPosition;
-              _handleRotationDrag(delta);
-            },
-            playerName: widget.player.name,
-            onNameTap: widget.onNameTap,
-          ),
-
-          // Counter strip (bottom)
-          CounterStrip(
-            editMode: _editMode,
-            poisonValue: widget.player.poison,
-            energyValue: widget.player.energy,
-            commanderTaxValue: widget.player.commanderCastCount,
-            totalCommanderDamage: widget.player.totalCommanderDamage,
-            isCommander: widget.isCommander,
-            onModeSelected: _setEditMode,
-            onShowCommanderDamage: widget.onShowCommanderDamage,
-          ),
 
           // Commander gallery quick-switch (top-right)
           if (widget.player.commanderGallery.isNotEmpty)
