@@ -2226,7 +2226,9 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - [ ] `grep -rn "counter_strip" lib/ test/` ne retourne rien.
 - [ ] `grep -n "_currentFormat = \|_snapshotDebounce\|_pendingSnapshotSession\|_inFlightSnapshotWrite" lib/pages/life_counter/life_counter_page.dart` ne retourne rien.
 - [ ] `wc -l lib/widgets/life_counter/player_zone.dart` est nettement sous 500.
-- [ ] Aucun nouveau hook `@visibleForTesting` : `grep -c "@visibleForTesting" lib/pages/life_counter/life_counter_page.dart` est ≤ 4.
+- [ ] Aucun nouveau hook `@visibleForTesting` : `grep -c "@visibleForTesting" lib/pages/life_counter/life_counter_page.dart` est ≤ **7**.
+
+> **Correction (revue finale).** Ce critère disait ≤ 4, sur un comptage erroné au moment de la rédaction : la base du lot en comptait déjà **7**, tous issus du lot 1 (dont 5 de commits de correction de bugs). Le lot 2 a respecté « aucun nouveau hook » à la lettre — zéro ajouté, zéro retiré. À reprendre au lot 3 : `updateLifeForTest` et `reorderForTest` se justifiaient par « les zones pivotées rendent le tap fragile en test », justification que la tâche 6 a démentie dans les faits en tapant réellement à travers la grille pivotée — et c'est ce durcissement qui a révélé le défaut de hit-testing d'`EliminationOverlay`.
 - [ ] **Vérification manuelle — saisie.** Partie à 4 : taper ±1 de chaque côté, maintenir pour vérifier l'accélération, appui long pour le mode ajustement, molette sur un gros montant, paliers, relâcher.
 - [ ] **Vérification manuelle — poignée.** Le chiffre de PV ne se recale pas quand un compteur passe de 0 à 1, y compris à 8 joueurs.
 - [ ] **Vérification manuelle — tiroir.** Ouverture depuis la poignée ; monarque, élimination et réinitialisation se comportent comme l'ancien menu radial.
