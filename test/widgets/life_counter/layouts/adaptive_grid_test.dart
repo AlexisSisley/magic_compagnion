@@ -130,6 +130,27 @@ void main() {
       expect(_centerOf(tester, 0).dy, lessThan(_centerOf(tester, 2).dy));
     });
 
+    // Revue finale du lot 6, constat mineur 4 : 5 joueurs etait le seul
+    // nombre non couvert ici, et le seul cas a deux sieges hauts pour trois
+    // cotes differents en dessous (droite, bas, gauche).
+    testWidgets('5 joueurs : deux en haut, un a droite, un en bas, un a gauche',
+        (tester) async {
+      await tester.pumpWidget(_grid(5));
+      // seatsFor(5) = [top, top, right, bottom, left].
+      expect(_centerOf(tester, 0).dy, equals(_centerOf(tester, 1).dy),
+          reason: 'les joueurs 0 et 1 partagent la rangee du haut');
+      expect(_centerOf(tester, 0).dx, lessThan(_centerOf(tester, 1).dx),
+          reason: 'le joueur 0 est a gauche du joueur 1 sur cette rangee');
+      expect(_centerOf(tester, 3).dy, greaterThan(_centerOf(tester, 0).dy),
+          reason: 'le joueur du bas (3) doit etre sous la rangee du haut');
+      expect(_centerOf(tester, 4).dx, lessThan(_centerOf(tester, 0).dx),
+          reason: 'le joueur de gauche (4) doit etre a gauche de la rangee '
+              'du haut');
+      expect(_centerOf(tester, 2).dx, greaterThan(_centerOf(tester, 1).dx),
+          reason: 'le joueur de droite (2) doit etre a droite de la rangee '
+              'du haut');
+    });
+
     testWidgets('6 joueurs : deux en haut, deux en bas, un de chaque cote',
         (tester) async {
       await tester.pumpWidget(_grid(6));
@@ -147,7 +168,7 @@ void main() {
     testWidgets('8 joueurs : aucune colonne laterale, largeurs uniformes',
         (tester) async {
       await tester.pumpWidget(_grid(8));
-      // Une colonne laterale ferait `sideColumnFraction` (22%) de la largeur
+      // Une colonne laterale ferait `sideColumnFraction` (30%) de la largeur
       // totale : si un seul joueur en heritait, sa largeur detonnerait de
       // celle des sept autres, tous dans les deux sous-grilles 2x2.
       final reference = _sizeOf(tester, 0).width;

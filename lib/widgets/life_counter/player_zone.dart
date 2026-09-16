@@ -102,9 +102,6 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
 
   Offset _lastLongPressPosition = Offset.zero;
 
-  /// Hauteur réservée à l'en-tête (palette, rotation, nom) au-dessus du
-  /// cadran de vie (spec §2.1 : le chiffre occupe le reste de la zone).
-  static const double _headerHeight = 40.0;
 
   // --- US-14.3 : Animation controllers ---
   late final AnimationController _pulseController;
@@ -312,7 +309,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
             child: Column(
               children: [
                 SizedBox(
-                  height: _headerHeight,
+                  height: kZoneHeaderHeight,
                   child: PlayerHeader(
                     onShowColorPicker: () => showPlayerSkinPicker(
                       context: context,

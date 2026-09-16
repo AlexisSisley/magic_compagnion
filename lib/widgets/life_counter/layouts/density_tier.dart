@@ -9,9 +9,13 @@ import 'dart:ui';
 
 enum DensityTier { comfort, compact, minimal }
 
-/// Hauteur utile sous laquelle la Column de `player_zone.dart` deborde :
-/// `_headerHeight` (40) + la poignee (30).
-const double kZoneHeightFloor = 70.0;
+/// Hauteur reservee a l'en-tete d'une zone joueur (palette, rotation, nom),
+/// au-dessus du cadran de vie (spec §2.1).
+///
+/// Elle vit ICI et non dans `player_zone.dart` -- qui la lit -- pour que
+/// `kZoneHeightFloor` ci-dessous puisse en deriver sans cycle d'import :
+/// `player_zone.dart` importe deja ce fichier, l'inverse serait circulaire.
+const double kZoneHeaderHeight = 40.0;
 
 /// Cran de densite pour une zone, d'apres sa taille DANS LE REPERE DU JOUEUR.
 ///
@@ -25,6 +29,15 @@ DensityTier tierFor(Size sizeInPlayerFrame) {
   if (h < 260) return DensityTier.compact;
   return DensityTier.comfort;
 }
+
+/// Hauteur utile sous laquelle la Column de `player_zone.dart` deborde.
+///
+/// Revue finale du lot 6 : c'etait un litteral `70.0` recopie a la main, une
+/// SOMME figee (en-tete 40 + poignee 30) qu'aucun lien ne rattachait a ses
+/// deux sources. Elle en derive desormais -- toucher a l'en-tete ou au
+/// plancher de la poignee deplace le plancher avec elles.
+final double kZoneHeightFloor =
+    kZoneHeaderHeight + handleHeightFor(DensityTier.minimal);
 
 /// Hauteur de la poignee pour un cran.
 ///

@@ -28,6 +28,25 @@ void main() {
     });
   });
 
+  // Revue finale du lot 6, constat mineur 3 : `kZoneHeightFloor` etait un
+  // litteral `70.0`, somme recopiee a la main de deux constantes que rien ne
+  // reliait a lui. Elle en derive desormais -- ces deux tests verrouillent a
+  // la fois la derivation et la valeur effective, pour qu'un futur
+  // changement d'en-tete ou de poignee se voie ici.
+  group('kZoneHeightFloor', () {
+    test('derive de la hauteur d en-tete et du plancher de poignee', () {
+      expect(kZoneHeightFloor,
+          kZoneHeaderHeight + handleHeightFor(DensityTier.minimal));
+    });
+
+    test('vaut toujours les 70 px du plancher historique (lot 2)', () {
+      expect(kZoneHeightFloor, 70.0,
+          reason: 'si la derivation deplace ce plancher, on veut le voir : '
+              'c est la largeur minimale absolue des colonnes laterales '
+              'd AdaptiveGrid');
+    });
+  });
+
   group('handleHeightFor', () {
     test('compact et minimal gardent la hauteur livree au lot 2', () {
       expect(handleHeightFor(DensityTier.compact), 30.0);
