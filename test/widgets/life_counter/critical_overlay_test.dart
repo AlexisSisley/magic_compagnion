@@ -137,4 +137,47 @@ void main() {
       expect(find.byType(CriticalOverlay), findsOneWidget);
     });
   });
+
+  group('CriticalOverlay — non absorbant', () {
+    testWidgets(
+      'un vrai tap traverse la couche decorative et atteint l\'enfant',
+      (tester) async {
+        const childKey = Key('tappable_child');
+        int tapCount = 0;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: CriticalOverlay(
+                level: CriticalLevel.danger,
+                child: GestureDetector(
+                  key: childKey,
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => tapCount++,
+                  child: const SizedBox(width: 100, height: 100),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        // Un vrai tap joué par le testeur, jamais un appel direct au
+        // callback : c'est la traversée du hit-test qu'on vérifie.
+        await tester.tap(find.byKey(childKey));
+        await tester.pump();
+
+        expect(
+          tapCount,
+          1,
+          reason:
+              'CriticalOverlay ne doit jamais absorber les gestes de son '
+              "enfant — c'est exactement le defaut qu'EliminationOverlay "
+              'avait au lot 2 : une couche de decoration empilee par-dessus '
+              "une zone avalait tous ses taps, sans qu'aucun test ne le "
+              'voie pendant tout un cycle de developpement.',
+        );
+      },
+    );
+  });
 }

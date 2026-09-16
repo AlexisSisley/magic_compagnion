@@ -951,9 +951,21 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   Widget _buildPlayerZoneWithOverlays(Player player, PlayerState playerState, int index) {
+    // Spec V4 §3.3 : la couche d'alerte percant tous les crans regarde aussi
+    // le poison et le pire degat de commandant d'une seule source, pas
+    // seulement le ratio de vie — `worstCommanderDamage` isole la source la
+    // plus proche du seuil de mort (21), une somme de toutes les sources
+    // masquerait un joueur a 18 d'une seule source mais 0 des autres.
+    final commanderDamageValues = player.commanderDamageReceived.values;
+    final worstCommanderDamage = commanderDamageValues.isEmpty
+        ? 0
+        : commanderDamageValues.reduce((a, b) => a > b ? a : b);
     final criticalLevel = AnimationService.getCriticalLevel(
       currentLife: player.life,
       startingLife: _currentFormat.startingLife,
+      poison: player.poison,
+      maxPoison: _currentFormat.maxPoison > 0 ? _currentFormat.maxPoison : null,
+      worstCommanderDamage: worstCommanderDamage,
     );
 
     Widget zone = _buildPlayerZone(player, playerState);

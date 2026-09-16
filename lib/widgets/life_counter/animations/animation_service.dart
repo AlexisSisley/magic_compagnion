@@ -52,16 +52,54 @@ class AnimationService {
     }
   }
 
+  /// Niveau d'alerte affiché par `CriticalOverlay`, quel que soit le cran de
+  /// densité de la zone (spec V4 §3.3 — c'est la seule chose autorisée à
+  /// percer en cran minimal, où plus aucun compteur ne s'affiche).
+  ///
+  /// Le ratio de vie restante reste la base du calcul (comportement
+  /// inchangé pour tout appelant qui ne passe pas les nouveaux paramètres :
+  /// `poison` et `worstCommanderDamage` valent 0, `maxPoison` est absent, donc
+  /// aucune des trois conditions ajoutées ne peut se déclencher). Trois
+  /// seuils absolus s'y ajoutent, chacun ne pouvant qu'AGGRAVER le niveau
+  /// déjà calculé par le ratio, jamais le faire régresser :
+  /// - `currentLife <= 5` (ex. un format Custom à faible vie de départ, où
+  ///   le ratio seul ne classerait pas encore la zone en alerte) ;
+  /// - `poison >= maxPoison - 2` (à deux marqueurs de l'élimination) ;
+  /// - `worstCommanderDamage >= 18` (à trois dégâts de la mort par une seule
+  ///   source, le seuil officiel du jeu étant 21).
   static CriticalLevel getCriticalLevel({
     required int currentLife,
     required int startingLife,
+    int poison = 0,
+    int? maxPoison,
+    int worstCommanderDamage = 0,
   }) {
-    if (startingLife <= 0) return CriticalLevel.safe;
-    final ratio = currentLife / startingLife;
-    if (ratio <= 0.10) return CriticalLevel.lethal;
-    if (ratio <= 0.25) return CriticalLevel.danger;
-    if (ratio <= 0.50) return CriticalLevel.warning;
-    return CriticalLevel.safe;
+    CriticalLevel level = CriticalLevel.safe;
+    if (startingLife > 0) {
+      final ratio = currentLife / startingLife;
+      if (ratio <= 0.10) {
+        level = CriticalLevel.lethal;
+      } else if (ratio <= 0.25) {
+        level = CriticalLevel.danger;
+      } else if (ratio <= 0.50) {
+        level = CriticalLevel.warning;
+      }
+    }
+
+    if (currentLife <= 5 && level.index < CriticalLevel.danger.index) {
+      level = CriticalLevel.danger;
+    }
+    if (maxPoison != null &&
+        maxPoison > 0 &&
+        poison >= maxPoison - 2 &&
+        level.index < CriticalLevel.danger.index) {
+      level = CriticalLevel.danger;
+    }
+    if (worstCommanderDamage >= 18 && level.index < CriticalLevel.lethal.index) {
+      level = CriticalLevel.lethal;
+    }
+
+    return level;
   }
 
   static AnimationConfig getCounterAnimation({
