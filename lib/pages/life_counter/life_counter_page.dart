@@ -628,9 +628,18 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   /// par des taps -1), alors que `addCommanderDamage` attend un `damage`
   /// positif et retire les PV lui-même — `.abs()` est donc indispensable
   /// ici, pas optionnel.
+  ///
+  /// Ronde de correction 1 (Critical) : `pending >= 0` sort tot, en plus du
+  /// garde d'affichage de `_buildPlayerZoneWithOverlays` — ceinture et
+  /// bretelles, puisque `onAttribute` est capturee dans une closure qui peut
+  /// survivre une frame au changement de signe (ex. un +1 arrive entre le
+  /// build qui a affiche la rangee et le tap qui l'attribue). Sans ce garde,
+  /// un buffer positif (lifelink) deviendrait un degat de commandant en plus
+  /// d'une perte de vie generique — l'inverse total de l'intention du
+  /// joueur.
   void _attributeCommanderDamage(int targetPlayerId, int sourcePlayerId) {
     final pending = _pendingDamage[targetPlayerId];
-    if (pending == null) return;
+    if (pending == null || pending >= 0) return;
     _pendingTimers[targetPlayerId]?.cancel();
     _pendingTimers.remove(targetPlayerId);
     _pendingDamage.remove(targetPlayerId);
@@ -642,6 +651,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     );
     setState(() {});
     _saveSnapshot();
+    // Important #3 (ronde de correction 1) : meme signal visuel que
+    // `_onDrawerCommanderDamage` pour le meme evenement — l'attribution a la
+    // volee est precisement le geste ou l'utilisateur a besoin de la
+    // confirmation que son tap a ete compris comme du commander damage.
+    _triggerCommanderDamageFlash(targetPlayerId);
     _checkDeathCondition(targetPlayerId);
   }
 
@@ -994,12 +1008,18 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     }
 
     // Rangee d'attribution a la volee (spec S2.6) : uniquement pendant que
-    // le buffer tourne sur CE joueur, et seulement en format Commander (ou
-    // equivalent). `_pendingDamage.containsKey` — pas la variable `pending`
-    // ci-dessus, qui defaut a 0 — pour suivre la presence de l'entree, pas
-    // sa valeur : le brief conditionne explicitement sur cette presence.
-    if (_pendingDamage.containsKey(playerState.playerId) &&
-        _currentFormat.maxCommanderDamage > 0) {
+    // le buffer tourne sur CE joueur avec un montant NEGATIF (un degat), et
+    // seulement en format Commander (ou equivalent).
+    //
+    // Ronde de correction 1 : `containsKey` seul (sans regarder le signe)
+    // laissait la rangee apparaitre sur un buffer positif (lifelink, etc.)
+    // — un tap y aurait alors transforme un GAIN de vie en degat de
+    // commandant. `pending < 0` corrige aussi le point symetrique (Important
+    // #2) : un −1 puis +1 qui ramene le buffer a 0 fait disparaitre la
+    // rangee en meme temps que le badge, au lieu de rester affichee jusqu'a
+    // l'expiration du minuteur — `_applyPendingDamage` traite deja ce retour
+    // a zero, ce chemin doit s'y aligner.
+    if (pending < 0 && _currentFormat.maxCommanderDamage > 0) {
       zone = Stack(
         children: [
           zone,

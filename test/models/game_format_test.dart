@@ -85,6 +85,25 @@ void main() {
       expect(standard.maxPlayers, 2);
     });
 
+    test(
+        'maxCommanderDamage : 0 pour Standard (aucun commandant), 21 par '
+        'defaut pour les cinq autres presets (ronde de correction 1 de la '
+        'tache 3 du lot 3 — la valeur heritee de Standard, 21, etait une '
+        'violation muette de la spec avant ce correctif)', () {
+      final byId = {for (final f in GameFormat.builtInFormats) f.id: f};
+      expect(byId['commander']!.maxCommanderDamage, 21);
+      expect(byId['duel_commander']!.maxCommanderDamage, 21);
+      expect(byId['standard']!.maxCommanderDamage, 0,
+          reason: 'Standard ne joue avec aucun commandant '
+              '(maxCommanders == 0) : aucun degat de commandant ne doit '
+              'jamais y etre suivi ni permettre une mort par commandant');
+      expect(byId['oathbreaker']!.maxCommanderDamage, 21,
+          reason: 'Oathbreaker joue avec un commandant (maxCommanders == 1) '
+              ': il herite a juste titre du seuil letal par defaut');
+      expect(byId['brawl']!.maxCommanderDamage, 21);
+      expect(byId['custom']!.maxCommanderDamage, 21);
+    });
+
     test('Custom preset has unlimited commanders', () {
       final custom = GameFormat.builtInFormats.firstWhere((f) => f.id == 'custom');
       expect(custom.maxCommanders, -1);

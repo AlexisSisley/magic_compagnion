@@ -1111,6 +1111,13 @@ void main() {
             'tapé (38 -> 33) -- pas 38 -> 33 puis -5 supplémentaires, et '
             'surtout pas remontée par une erreur de signe');
 
+    // Ronde de correction 1 (Important #3) : même signal visuel que
+    // l'attribution depuis le tiroir (`_onDrawerCommanderDamage`), pour le
+    // même événement.
+    expect(find.byIcon(Icons.shield), findsOneWidget,
+        reason: 'le flash de dégâts de commandant doit se déclencher sur ce '
+            'chemin aussi, pas seulement depuis la grille du tiroir');
+
     // Le minuteur en attente devait être annulé et l'entrée retirée du
     // buffer : laisser largement passer sa fenêtre de 2s ne doit produire
     // aucune seconde application.
@@ -1149,16 +1156,21 @@ void main() {
   });
 
   testWidgets(
-      'en format sans dégâts de commandant (maxCommanderDamage == 0, comme '
-      'Standard), la rangée d\'attribution n\'apparaît jamais',
+      'en format Standard (le vrai preset, maxCommanderDamage == 0), la '
+      'rangée d\'attribution n\'apparaît jamais',
       (tester) async {
-    final noCommanderDamageFormat = commanderFormat.copyWith(
-      id: 'standard',
-      name: 'Standard',
-      maxCommanderDamage: 0,
-    );
+    // Ronde de correction 1 (Important #4) : le preset `standard` réel, pas
+    // un format bricolé par `copyWith` — ce dernier ne prouvait que le
+    // garde fonctionne quand ON LUI DONNE 0, jamais que le preset livré
+    // vaut bien 0 (voir aussi le correctif de `lib/models/game_format.dart`,
+    // qui héritait de 21 avant ce lot).
+    final standardFormat =
+        GameFormat.builtInFormats.firstWhere((f) => f.id == 'standard');
+    expect(standardFormat.maxCommanderDamage, 0,
+        reason: 'précondition : le preset Standard doit bien être à 0 '
+            '(régression du correctif de game_format.dart)');
     final baseSession = GameSession.newGame(
-      format: noCommanderDamageFormat,
+      format: standardFormat,
       playerConfigs: testConfigs,
     );
     await pumpWithContainer(tester, snapshot: baseSession);
@@ -1173,6 +1185,70 @@ void main() {
 
     // Purge les minuteurs de nombres flottants encore en vol (600ms) avant
     // la fin du test, sous peine de l'assertion `!timersPending` du binding.
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+      'ronde de correction 1 (Critical #1) — un buffer POSITIF (lifelink) '
+      'ne fait jamais apparaître la rangée d\'attribution',
+      (tester) async {
+    await pumpWithContainer(tester);
+
+    // Deux taps +1 (moitié droite du cadran de Sarah, non pivoté) : un gain
+    // de vie en attente, jamais un dégât.
+    final dial = tester.getRect(find.byType(LifeDial).at(2));
+    for (var i = 0; i < 2; i++) {
+      await tester.tapAt(Offset(dial.left + dial.width * 0.75, dial.center.dy));
+      await tester.pump();
+    }
+
+    expect(find.text('+2'), findsOneWidget,
+        reason: 'précondition : le buffer tourne bien, positif, sur Sarah');
+    expect(find.byKey(const ValueKey('damage-attribution-0')), findsNothing,
+        reason: 'un gain de vie en attente ne doit jamais proposer '
+            'd\'attribution : ce serait transformer +2 PV en −2 PV plus 2 '
+            'dégâts de commandant fantômes');
+    expect(find.byKey(const ValueKey('damage-attribution-1')), findsNothing);
+    expect(find.byKey(const ValueKey('damage-attribution-3')), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+      'ronde de correction 1 (Important #2) — un buffer ramené à zéro '
+      '(−1 puis +1) fait disparaître la rangée en même temps que le badge',
+      (tester) async {
+    await pumpWithContainer(tester);
+
+    // Deux taps −1 (pas un seul) : un unique tap laisserait le nombre
+    // flottant du geste ("-1") coexister avec le badge cumulé, tout aussi
+    // "-1" après un seul tap — même ambiguïté que dans le test de
+    // visibilité initial, voir son commentaire.
+    await tapMinusHalf(tester, 2, 2);
+    expect(find.text('-2'), findsOneWidget,
+        reason: 'précondition : le buffer est bien à -2');
+    expect(find.byKey(const ValueKey('damage-attribution-0')), findsOneWidget,
+        reason: 'précondition : la rangée est bien visible sur un buffer '
+            'négatif, sans quoi ce test ne prouverait rien de sa '
+            'disparition');
+
+    // Les deux +1 qui suivent ramènent le buffer net à 0, avant expiration
+    // des 2s.
+    final dial = tester.getRect(find.byType(LifeDial).at(2));
+    for (var i = 0; i < 2; i++) {
+      await tester.tapAt(Offset(dial.left + dial.width * 0.75, dial.center.dy));
+      await tester.pump();
+    }
+
+    expect(find.text('-2'), findsNothing,
+        reason: 'le badge de buffer doit disparaître à 0, comme avant ce '
+            'lot');
+    expect(find.byKey(const ValueKey('damage-attribution-0')), findsNothing,
+        reason: 'la rangée doit disparaître EN MÊME TEMPS que le badge : '
+            'rien à attribuer sur un buffer revenu à 0');
+
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
   });

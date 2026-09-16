@@ -168,12 +168,21 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
               Text(widget.playerName, style: AppTextStyles.cardTitle()),
               const SizedBox(height: 14),
               for (final id in _counterLabels.keys) _counterRow(id),
-              const Divider(height: 26),
-              CommanderDamageGrid(
-                opponents: _commanderDamage,
-                lethalThreshold: widget.lethalCommanderDamage,
-                onDelta: _bumpCommanderDamage,
-              ),
+              // Ronde de correction 1 (Important, "seconde porte") : la
+              // grille n'etait conditionnee par rien -- ni le seuil letal,
+              // ni les compteurs actives par le format -- et s'affichait
+              // donc meme en Standard. `lethalCommanderDamage <= 0` (0 =
+              // desactive, voir GameFormat.maxCommanderDamage) est le meme
+              // garde que celui qui protege deja la rangee d'attribution du
+              // cadran cote page.
+              if (widget.lethalCommanderDamage > 0) ...[
+                const Divider(height: 26),
+                CommanderDamageGrid(
+                  opponents: _commanderDamage,
+                  lethalThreshold: widget.lethalCommanderDamage,
+                  onDelta: _bumpCommanderDamage,
+                ),
+              ],
               const Divider(height: 26),
               _action(
                 key: const ValueKey('action-monarch'),

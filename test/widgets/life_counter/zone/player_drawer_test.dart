@@ -142,6 +142,20 @@ void main() {
             'total immédiatement, comme les compteurs');
   });
 
+  testWidgets(
+      'ronde de correction 1 (Important, "seconde porte") — un seuil '
+      'letal de 0 (format sans commandant, ex. Standard) masque la grille '
+      'de dégâts de commandant', (tester) async {
+    await _openDrawer(tester, lethalCommanderDamage: 0);
+
+    expect(find.byType(CommanderDamageGrid), findsNothing);
+    expect(find.text('Sam'), findsNothing);
+    expect(find.text('Mia'), findsNothing);
+    // Le reste du tiroir reste intact.
+    expect(find.text('Alexis'), findsOneWidget);
+    expect(find.text('Poison'), findsOneWidget);
+  });
+
   testWidgets('une action ferme le tiroir', (tester) async {
     await _openDrawer(tester);
     expect(find.text('Alexis'), findsOneWidget);
