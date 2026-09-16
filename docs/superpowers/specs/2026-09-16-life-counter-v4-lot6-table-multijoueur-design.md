@@ -131,7 +131,7 @@ joueur — serait systématiquement mal classé.
 |---|---|---|
 | **Confort** | 2-3 joueurs | PV géant, nom, **tous les compteurs actifs du format, même à zéro** — emplacement stable et prévisible |
 | **Compact** | 4-6 joueurs | PV dominant, nom réduit, et **uniquement la poignée conditionnelle du lot 2** : elle ne s'épaissit qu'en présence d'un compteur non nul |
-| **Minimal** | 7-8 joueurs, ou siège latéral sur petit écran | **PV seul.** Le nom se réduit à la pastille de couleur. Aucun compteur ne perce |
+| **Minimal** | 7-8 joueurs, ou siège latéral sur petit écran | **PV seul.** Le nom se réduit à la pastille de couleur. Aucun compteur ne perce — mais la poignée reste présente et muette, comme cible d'ouverture du tiroir (§3.5) |
 
 ### 3.3 La couche d'alerte est hors crans
 
@@ -155,14 +155,49 @@ la hauteur de la poignée (spec V4 §2.2).
 Le contrat de densité étend ce principe : **c'est le cran qui décide de la hauteur
 réservée**, et une fois décidée, elle ne bouge plus.
 
-### 3.5 Le seul point de contact avec le lot 2
+### 3.5 La poignée : décision corrigée après livraison du lot 2
 
-Le lot 2 écrit `ConditionalHandle` avec une `reservedHeight` constante. Ce lot la dérive du
-cran — **dont zéro en cran minimal**, où la poignée disparaît entièrement : le tiroir s'y
-ouvre par glissement depuis le bas de la zone, sans affordance visible.
+> **Cette section disait le contraire.** Elle prévoyait de dériver
+> `ConditionalHandle.reservedHeight` du cran, **jusqu'à zéro en cran minimal**, la poignée
+> disparaissant et le tiroir s'ouvrant par un glissement sans affordance. C'était faux sur
+> deux points, établis par la livraison du lot 2 et signalés par la session qui l'a menée.
 
-C'est un paramètre ajouté, pas un comportement changé, et c'est le seul fichier du lot 2
-que ce lot touche. Il se fait après le merge du lot 2, jamais pendant.
+**Premier point : la poignée est le seul point d'entrée du tiroir.** Le tiroir n'a aucun
+autre déclencheur — l'appui long est pris par le mode ajustement, le tap sur le nom par
+l'historique du joueur. La réduire à zéro ne dégraderait pas une affordance : elle
+supprimerait l'accès aux compteurs, aux actions et à la grille de commander damage. Et le
+tiroir s'ouvre par un **tap**, pas par un glissement — la spec V4 le disait à l'envers, son
+tableau des gestes a été corrigé au lot 3.
+
+**Second point : 30 px est déjà un plancher, pas un confort.** `reservedHeight = 30.0` est
+sous les 48 dp recommandés par Material, et la revue du lot 2 l'a relevé comme dette. Il n'y
+a rien à reprendre en dessous.
+
+**La règle est donc inversée. La densité ne rétrécit jamais la poignée ; au mieux elle
+l'agrandit.**
+
+| Cran | Hauteur de la poignée | Contenu |
+|---|---|---|
+| Confort | **élargie vers 48 dp** — c'est le cran qui a la place de solder la dette d'accessibilité | résumé condensé des compteurs non nuls |
+| Compact | 30 px (l'existant, inchangé) | résumé condensé des compteurs non nuls |
+| Minimal | 30 px (l'existant, **inchangé — jamais zéro**) | **aucun texte** : la poignée n'est plus qu'une cible tactile |
+
+C'est le contenu qui se tait en cran minimal, pas la cible. Le §3.2 reste donc tenu — aucun
+compteur ne perce — sans que l'accès au tiroir soit perdu.
+
+**Le plancher de hauteur devient une contrainte de `tierFor`.** La revue du lot 2 relève que
+sous ~70 px de hauteur utile, la `Column` de `player_zone.dart` déborde
+(`_headerHeight = 40` + `reservedHeight = 30`). Ce n'est pas atteint aux densités actuelles
+(8 joueurs sur 640 dp donnent ~320 dp par zone), mais c'est exactement le plancher vers
+lequel ce lot pousse. `tierFor` ne doit jamais retourner une configuration dont la somme
+`en-tête + poignée + chiffre minimal` dépasse la hauteur utile. **Quand la place manque,
+c'est l'en-tête qui cède, pas la poignée** — ce que le cran minimal fait déjà en réduisant
+le nom à la pastille de couleur, libérant les 40 px de `_headerHeight`.
+
+**Ce que ce lot touche encore dans le lot 2 :** `conditional_handle.dart`, pour rendre
+`reservedHeight` variable **vers le haut**. Le test qui verrouille l'égalité des hauteurs
+calme et alerte (`conditional_handle_test.dart`) reste intact : la hauteur varie avec le
+cran, jamais avec l'état des compteurs.
 
 ---
 
@@ -224,6 +259,12 @@ Chaque tâche est mergeable seule et laisse l'application jouable.
 4. **`tierFor` et le contrat de densité** dans `PlayerZone`, avec la `reservedHeight` de
    `ConditionalHandle` dérivée du cran.
 5. **La couche d'alerte hors crans**, branchée sur `CriticalOverlay`.
+6. **Le badge de dégâts en attente rendu dans le repère de la zone.** Il est aujourd'hui
+   rendu *hors* du `RotatedBox` : il ne pivote pas avec sa zone. Défaut préexistant, relevé
+   comme constat reporté au lot 3, aujourd'hui peu visible parce que les rotations non
+   nulles sont rares. **Ce lot les rend systématiques à 4-6 joueurs** — deux sièges sur
+   quatre — et transforme donc un défaut cosmétique en défaut fonctionnel. Il est corrigé
+   ici parce que c'est ce lot qui le révèle, pas par élargissement de périmètre.
 
 ---
 
@@ -318,3 +359,11 @@ Ces réglages ne se décident pas sur maquette, et sont délibérément laissés
 - Les tables nommées et enregistrées — déjà écartées par la spec V4 §2.8.
 - Un siège « spectateur », et un mode 2v2 en équipes. La géométrie des sièges les rendrait
   faciles à ajouter plus tard ; ce ne sont pas des besoins actuels.
+- **Tout nouveau geste global.** La surface de gestes de `life_dial.dart` a coûté trois
+  rondes de correction et quatre constats Critical, et son équilibre tient à une décision
+  unique : l'appui long vit dans un `Listener` brut, hors de l'arène de gestes, les taps
+  restent dans l'arène. L'utilisateur a déjà abandonné le geste à deux doigts de la spec V4
+  §2.3 au profit d'un bouton pour ne pas y ajouter de concurrent multi-pointeurs. Ce lot
+  n'ajoute aucun geste : il déplace et pivote des zones existantes. **Si un besoin de geste
+  global apparaît en cours d'implémentation, il se pose en question, il ne s'implémente
+  pas.**
