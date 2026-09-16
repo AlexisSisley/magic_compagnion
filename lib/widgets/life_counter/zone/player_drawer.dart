@@ -5,28 +5,26 @@
 // radial, qui perd son appui long au profit du mode ajustement, spec §2.5).
 // Lot 3 — la grille de dégâts de commandant reçus (§2.7 point 2), qui
 // remplace la ligne provisoire ouvrant le sélecteur plein écran.
+// Lot 5, tâche 2 — les lignes de compteurs ne sont plus les trois constantes
+// `_counterLabels` / `_counterIcons` (icônes Material figées, disparues) :
+// elles suivent `activeCounters`, la liste ordonnée des `CounterType` actifs
+// de la session, résolue par l'appelant (`life_counter_page._openPlayerDrawer`)
+// à partir de `GameSession.activeCounterIds` et du catalogue (tâche 1). Rendu
+// par emoji (`CounterType.emoji`), pas par `IconData` : un `IconData` ne se
+// sérialise pas proprement et obligerait à un sélecteur d'icônes pour les
+// compteurs personnalisés, alors que l'émoji est déjà une donnée du modèle.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:magic_companion/models/counter_type.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'commander_damage_grid.dart';
 
-const _counterLabels = <String, String>{
-  'poison': 'Poison',
-  'energy': 'Énergie',
-  'commander_tax': 'Taxe de commandant',
-};
-
-const _counterIcons = <String, IconData>{
-  'poison': Icons.science,
-  'energy': Icons.flash_on,
-  'commander_tax': Icons.local_police,
-};
-
 Future<void> showPlayerDrawer({
   required BuildContext context,
   required String playerName,
+  required List<CounterType> activeCounters,
   required Map<String, int> counters,
   required bool isMonarch,
   required bool isEliminated,
@@ -48,6 +46,7 @@ Future<void> showPlayerDrawer({
     ),
     builder: (sheetCtx) => _PlayerDrawerBody(
       playerName: playerName,
+      activeCounters: activeCounters,
       counters: counters,
       isMonarch: isMonarch,
       isEliminated: isEliminated,
@@ -77,6 +76,7 @@ Future<void> showPlayerDrawer({
 class _PlayerDrawerBody extends StatefulWidget {
   const _PlayerDrawerBody({
     required this.playerName,
+    required this.activeCounters,
     required this.counters,
     required this.isMonarch,
     required this.isEliminated,
@@ -90,6 +90,11 @@ class _PlayerDrawerBody extends StatefulWidget {
   });
 
   final String playerName;
+
+  /// Compteurs actifs de la session, dans l'ordre d'affichage voulu
+  /// (`GameSession.activeCounterIds`, résolus en `CounterType` par
+  /// l'appelant) — pas l'ordre du catalogue.
+  final List<CounterType> activeCounters;
   final Map<String, int> counters;
   final bool isMonarch;
   final bool isEliminated;
@@ -167,7 +172,7 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
               ),
               Text(widget.playerName, style: AppTextStyles.cardTitle()),
               const SizedBox(height: 14),
-              for (final id in _counterLabels.keys) _counterRow(id),
+              for (final type in widget.activeCounters) _counterRow(type),
               // Ronde de correction 1 (Important, "seconde porte") : la
               // grille n'etait conditionnee par rien -- ni le seuil letal,
               // ni les compteurs actives par le format -- et s'affichait
@@ -214,18 +219,25 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
     );
   }
 
-  Widget _counterRow(String id) {
+  Widget _counterRow(CounterType type) {
+    final id = type.id;
+    // Clé posée sur la ligne entière (pas seulement les boutons) : c'est
+    // elle que les tests ciblent pour vérifier QUEL compteur a bougé,
+    // conformément au brief (ValueKey('counter_row_<id>')) — le même motif
+    // que le bug du lot 4 sur le bouton "−" (bon nombre de lignes, mauvais
+    // joueur) mais appliqué aux compteurs plutôt qu'aux joueurs.
     return Padding(
+      key: ValueKey('counter_row_$id'),
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(_counterIcons[id], size: 20, color: AppColors.textSecondary),
+          Text(type.emoji, style: const TextStyle(fontSize: 20)),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(_counterLabels[id]!, style: AppTextStyles.body()),
+            child: Text(type.name, style: AppTextStyles.body()),
           ),
           IconButton(
-            key: ValueKey('counter-$id-minus'),
+            key: ValueKey('counter_row_${id}_minus'),
             icon: const Icon(Icons.remove),
             color: AppColors.textSecondary,
             onPressed: () => _bump(id, -1),
@@ -239,7 +251,7 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
             ),
           ),
           IconButton(
-            key: ValueKey('counter-$id-plus'),
+            key: ValueKey('counter_row_${id}_plus'),
             icon: const Icon(Icons.add),
             color: AppColors.textSecondary,
             onPressed: () => _bump(id, 1),

@@ -18,8 +18,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:magic_companion/providers/counter_catalog_provider.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/player_zone_notifier.dart';
+import 'package:magic_companion/models/counter_type.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_history_model.dart';
 import 'package:magic_companion/models/game_session.dart';
@@ -205,6 +207,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _sessionService = ref.read(gameSessionServiceProvider);
     _snapshotWriter = SnapshotWriter(_sessionService);
     _loadGame();
+    // Lot 5, tâche 2 : `counterCatalogProvider` ne rend que les compteurs
+    // intégrés tant que `load()` n'a pas résolu les personnalisés (voir sa
+    // doc, lib/providers/counter_catalog_provider.dart) — chargé une seule
+    // fois ici, au montage de la page, pour que le tiroir joueur
+    // (`_openPlayerDrawer`, lu de façon synchrone à l'ouverture) trouve déjà
+    // le catalogue complet sans avoir à dérouler un `AsyncValue` à chaque
+    // tap. Non attendu (fire-and-forget), comme `WakelockPlus.enable()`
+    // ci-dessous : le Notifier notifie ses observateurs lui-même dès que la
+    // liste change.
+    ref.read(counterCatalogProvider.notifier).load();
     WakelockPlus.enable();
     // Immersive fullscreen — hide status bar + navigation bar
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -1097,13 +1109,31 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                 ))
             .toList();
 
+    // Défaut corrigé ici (rapport de tâche 2) : le tiroir affichait trois
+    // compteurs figés ('poison'/'energy'/'commander_tax') sans jamais lire
+    // `GameSession.activeCounterIds` — un preset Standard
+    // (enabledCounterIds: ['poison', 'energy'], game_format.dart) voyait donc
+    // quand même la taxe de commandant. `activeCounterIds` pilote maintenant
+    // l'affichage, dans son propre ordre (pas celui du catalogue).
+    //
+    // 'commander_damage' est exclu : ce n'est pas une ligne ± comme les
+    // autres compteurs, c'est l'id qui active la grille de dégâts de
+    // commandant reçus juste en dessous (CommanderDamageGrid, gardée par
+    // `lethalCommanderDamage`) — l'inclure ici doublonnerait cette grille
+    // avec une ligne de compteur redondante.
+    final activeCounters = <CounterType>[];
+    for (final id in session?.activeCounterIds ?? const <String>[]) {
+      if (id == 'commander_damage') continue;
+      final type = ref.read(counterTypeByIdProvider(id));
+      if (type != null) activeCounters.add(type);
+    }
+
     showPlayerDrawer(
       context: context,
       playerName: ps.config.name,
+      activeCounters: activeCounters,
       counters: {
-        'poison': ps.counters['poison'] ?? 0,
-        'energy': ps.counters['energy'] ?? 0,
-        'commander_tax': ps.counters['commander_tax'] ?? 0,
+        for (final type in activeCounters) type.id: ps.counters[type.id] ?? 0,
       },
       isMonarch: ps.isMonarch,
       isEliminated: ps.isEliminated,

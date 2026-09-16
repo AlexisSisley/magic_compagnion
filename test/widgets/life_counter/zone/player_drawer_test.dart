@@ -1,6 +1,7 @@
 // test/widgets/life_counter/zone/player_drawer_test.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:magic_companion/models/counter_type.dart';
 import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/player_drawer.dart';
 
@@ -10,6 +11,28 @@ const _defaultCommanderDamage = [
   CommanderDamageOpponent(
       playerId: 2, name: 'Mia', colorValue: 0xFF00FF00, damage: 6),
 ];
+
+// Les deux compteurs intégrés du catalogue (tâche 1,
+// lib/models/counter_type.dart) que le format Standard active
+// (enabledCounterIds: ['poison', 'energy'], game_format.dart). 'Taxe de
+// commandant' n'y figure pas : c'est exactement ce qui distingue le défaut
+// Standard corrigé par cette tâche.
+const _poison = CounterType(
+  id: 'poison',
+  name: 'Poison',
+  emoji: '☠️',
+  color: 0xFF4CAF50,
+  isBuiltIn: true,
+  maxValue: 10,
+);
+const _energy = CounterType(
+  id: 'energy',
+  name: 'Energy',
+  emoji: '⚡',
+  color: 0xFFFF9800,
+  isBuiltIn: true,
+);
+const _defaultActiveCounters = [_poison, _energy];
 
 class _Captured {
   // Un record `(String, int)` plutôt qu'un `MapEntry` : `MapEntry` n'a pas
@@ -26,7 +49,8 @@ class _Captured {
 
 Future<_Captured> _openDrawer(
   WidgetTester tester, {
-  Map<String, int> counters = const {'poison': 0, 'energy': 0, 'commander_tax': 0},
+  List<CounterType> activeCounters = _defaultActiveCounters,
+  Map<String, int> counters = const {'poison': 0, 'energy': 0},
   bool isMonarch = false,
   bool isEliminated = false,
   List<CommanderDamageOpponent> commanderDamage = _defaultCommanderDamage,
@@ -41,6 +65,7 @@ Future<_Captured> _openDrawer(
             onPressed: () => showPlayerDrawer(
               context: context,
               playerName: 'Alexis',
+              activeCounters: activeCounters,
               counters: counters,
               isMonarch: isMonarch,
               isEliminated: isEliminated,
@@ -66,27 +91,116 @@ Future<_Captured> _openDrawer(
 }
 
 void main() {
-  testWidgets('affiche le nom du joueur et les trois compteurs',
-      (tester) async {
-    await _openDrawer(tester);
+  testWidgets(
+      'régression Standard — un tiroir monté avec les seuls compteurs actifs '
+      'poison et énergie affiche exactement ces deux lignes, jamais la taxe '
+      'de commandant', (tester) async {
+    await _openDrawer(tester, activeCounters: _defaultActiveCounters);
+
     expect(find.text('Alexis'), findsOneWidget);
+    expect(find.byKey(const ValueKey('counter_row_poison')), findsOneWidget);
+    expect(find.byKey(const ValueKey('counter_row_energy')), findsOneWidget);
     expect(find.text('Poison'), findsOneWidget);
-    expect(find.text('Énergie'), findsOneWidget);
-    expect(find.text('Taxe de commandant'), findsOneWidget);
+    expect(find.text('Energy'), findsOneWidget);
+    // Le défaut exact que cette tâche corrige : le tiroir affichait la taxe
+    // de commandant même quand le format ne l'active pas (Standard).
+    expect(find.text('Commander Tax'), findsNothing);
+    expect(
+        find.byKey(const ValueKey('counter_row_commander_tax')), findsNothing);
   });
 
-  testWidgets('incrémenter un compteur émet son delta', (tester) async {
-    final captured = await _openDrawer(tester);
-    await tester.tap(find.byKey(const ValueKey('counter-poison-plus')));
-    await tester.pumpAndSettle();
-    expect(captured.counterDeltas, [('poison', 1)]);
+  testWidgets(
+      'un compteur personnalisé dans les actifs affiche son nom et son emoji',
+      (tester) async {
+    const custom = CounterType(
+      id: 'custom_heat',
+      name: 'Chaleur',
+      emoji: '🔥',
+      color: 0xFFFF5722,
+      isBuiltIn: false,
+    );
+    await _openDrawer(
+      tester,
+      activeCounters: const [_poison, custom],
+      counters: const {'poison': 0, 'custom_heat': 3},
+    );
+
+    expect(find.byKey(const ValueKey('counter_row_custom_heat')),
+        findsOneWidget);
+    expect(find.text('Chaleur'), findsOneWidget);
+    expect(find.text('🔥'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
   });
 
-  testWidgets('décrémenter un compteur émet son delta', (tester) async {
-    final captured = await _openDrawer(tester, counters: {'poison': 2});
-    await tester.tap(find.byKey(const ValueKey('counter-poison-minus')));
-    await tester.pumpAndSettle();
-    expect(captured.counterDeltas, [('poison', -1)]);
+  testWidgets(
+      'taper + sur la ligne du DEUXIÈME compteur émet son id, pas celui du '
+      'premier — un tiroir qui émettrait toujours l\'id de la première ligne '
+      'resterait vert sur un test qui ne vérifie que "un delta a été émis"',
+      (tester) async {
+    const alpha = CounterType(
+      id: 'alpha', name: 'Alpha', emoji: '🅰️', color: 0xFF000001);
+    const beta = CounterType(
+      id: 'beta', name: 'Beta', emoji: '🅱️', color: 0xFF000002);
+    final captured = await _openDrawer(
+      tester,
+      activeCounters: const [alpha, beta],
+      counters: const {'alpha': 0, 'beta': 0},
+    );
+
+    final betaRow = find.byKey(const ValueKey('counter_row_beta'));
+    final betaPlus = find.descendant(
+      of: betaRow,
+      matching: find.byKey(const ValueKey('counter_row_beta_plus')),
+    );
+    await tester.tap(betaPlus);
+    await tester.pump();
+
+    expect(captured.counterDeltas, [('beta', 1)],
+        reason: 'seul beta (deuxième ligne) doit avoir bougé, pas alpha');
+  });
+
+  testWidgets(
+      'taper − sur la ligne du DEUXIÈME compteur émet aussi son id, pas '
+      'celui du premier', (tester) async {
+    const alpha = CounterType(
+      id: 'alpha', name: 'Alpha', emoji: '🅰️', color: 0xFF000001);
+    const beta = CounterType(
+      id: 'beta', name: 'Beta', emoji: '🅱️', color: 0xFF000002);
+    final captured = await _openDrawer(
+      tester,
+      activeCounters: const [alpha, beta],
+      counters: const {'alpha': 5, 'beta': 5},
+    );
+
+    final betaRow = find.byKey(const ValueKey('counter_row_beta'));
+    final betaMinus = find.descendant(
+      of: betaRow,
+      matching: find.byKey(const ValueKey('counter_row_beta_minus')),
+    );
+    await tester.tap(betaMinus);
+    await tester.pump();
+
+    expect(captured.counterDeltas, [('beta', -1)]);
+  });
+
+  testWidgets(
+      'l\'ordre d\'affichage suit activeCounters, pas l\'ordre du catalogue',
+      (tester) async {
+    // energy avant poison ici, alors que le catalogue (task 1) liste poison
+    // en premier — l'affichage doit respecter CET ordre-là, pas celui du
+    // catalogue.
+    await _openDrawer(
+      tester,
+      activeCounters: const [_energy, _poison],
+    );
+
+    final energyTop = tester.getTopLeft(
+        find.byKey(const ValueKey('counter_row_energy')));
+    final poisonTop = tester.getTopLeft(
+        find.byKey(const ValueKey('counter_row_poison')));
+    expect(energyTop.dy, lessThan(poisonTop.dy),
+        reason: 'energy est passé en premier dans activeCounters, il doit '
+            's\'afficher au-dessus de poison');
   });
 
   testWidgets('l\'action monarque appelle son callback', (tester) async {
