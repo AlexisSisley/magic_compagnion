@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
+import '../layouts/density_tier.dart';
 
 /// Ce qui menace un joueur, condensé.
 class CounterSummary {
@@ -33,15 +34,31 @@ class CounterSummary {
 }
 
 class ConditionalHandle extends StatelessWidget {
-  const ConditionalHandle({super.key, required this.summary, this.onTap});
+  const ConditionalHandle({
+    super.key,
+    required this.summary,
+    this.onTap,
+    this.height = reservedHeight,
+    this.showSummary = true,
+  });
 
   final CounterSummary summary;
   final VoidCallback? onTap;
 
-  /// Hauteur réservée en permanence, calme ou non. Sans réservation, la zone
-  /// changerait de hauteur utile en cours de partie et le chiffre de PV
-  /// sauterait — visible surtout à 8 joueurs sur petit écran.
-  static const double reservedHeight = 30.0;
+  /// Hauteur effective de la poignée (tâche 2 : dépend du `DensityTier` de la
+  /// zone parente, via `handleHeightFor`). Reste au-dessus de [reservedHeight]
+  /// par construction de `handleHeightFor` — voir `density_tier.dart`.
+  final double height;
+
+  /// Sous le cran `comfort` (voir `DensityTier`), la zone n'a plus la place
+  /// d'afficher le résumé des compteurs secondaires : la poignée reste un
+  /// simple trait, tout en restant un point d'entrée tactile vers le tiroir.
+  final bool showSummary;
+
+  /// Hauteur minimale, calme ou non, en dessous de laquelle la poignée
+  /// devient impossible à attraper. DÉRIVÉE de `density_tier.dart`, jamais
+  /// recopiée : c'est le même 30 px que `kZoneHandleHeight`.
+  static const double reservedHeight = kZoneHandleHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -49,8 +66,8 @@ class ConditionalHandle extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: SizedBox(
-        height: reservedHeight,
-        child: summary.isCalm ? _grip() : _band(),
+        height: height,
+        child: (showSummary && !summary.isCalm) ? _band() : _grip(),
       ),
     );
   }
