@@ -567,11 +567,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     );
   }
 
-  /// Point d'entrée de test pour piloter le buffer de dégâts sans simuler de tap
-  /// (les zones sont pivotées par AdaptiveGrid, ce qui rend le tap fragile en test).
-  @visibleForTesting
-  void updateLifeForTest(int playerId, int change) => _updateLife(playerId, change);
-
   void _updateLife(int playerId, int change) {
     if (_isSelectingStarter) return;
     if (_session == null) return;
@@ -1062,13 +1057,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
     return zone;
   }
-
-  /// Point d'entrée de test pour piloter un reorder sans simuler de drag
-  /// (les zones sont pivotées par AdaptiveGrid, ce qui rend le drag fragile
-  /// en test). Consommé aussi par la tâche 4b.
-  @visibleForTesting
-  void reorderForTest(int oldIndex, int newIndex) =>
-      _onReorderPlayers(oldIndex, newIndex);
 
   void _onReorderPlayers(int oldIndex, int newIndex) {
     final session = _session;

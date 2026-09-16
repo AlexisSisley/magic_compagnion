@@ -81,6 +81,75 @@ Future<void> pumpLifeCounter(
   await tester.pumpAndSettle();
 }
 
+/// Tape `count` fois la moitié gauche VISUELLE (−1) du cadran (`LifeDial`)
+/// du joueur affiché à `zoneIndex`, avec un `pump()` entre chaque tap pour
+/// laisser chaque geste se résoudre avant le suivant.
+///
+/// `AdaptiveGrid` pivote à 180° les zones du haut (index < topCount, où
+/// topCount = playerCount ~/ 2 — voir adaptive_grid.dart) : la moitié
+/// GÉOMÉTRIQUE gauche (écran) d'une zone pivotée est alors sa moitié locale
+/// DROITE (+1), et inversement. `totalZones` (le nombre de `LifeDial`
+/// réellement montés) sert à retrouver `topCount` sans le supposer fixe, si
+/// bien que ce calcul reste correct quel que soit le nombre de joueurs de la
+/// session testée.
+Future<void> tapMinusHalf(
+  WidgetTester tester,
+  int zoneIndex,
+  int count,
+) async {
+  final totalZones = find.byType(LifeDial).evaluate().length;
+  final isRotated = zoneIndex < totalZones ~/ 2;
+  final dial = tester.getRect(find.byType(LifeDial).at(zoneIndex));
+  final dx = isRotated ? dial.width * 0.75 : dial.width * 0.25;
+  for (var i = 0; i < count; i++) {
+    await tester.tapAt(Offset(dial.left + dx, dial.center.dy));
+    await tester.pump();
+  }
+}
+
+/// Réordonne par une mutation directe du provider — PAS par un vrai geste de
+/// glisser-déposer.
+///
+/// Un vrai drag a été tenté d'abord (appui long 1s sur la vraie
+/// `DraggablePlayerZone`, puis déplacement, puis relâchement, mode édition
+/// activé au préalable via le bouton "build" de la barre centrale — la
+/// même séquence qu'un joueur suivrait réellement). Il a révélé un défaut
+/// réel de production, sans rapport avec ce que ces tests vérifient
+/// (l'ordre d'affichage) : dès que le long-press déclenche l'aperçu de
+/// drag, `Column:life_dial.dart:213` (`LifeDial._readout`) déborde de 68px
+/// — reproductible à chaque tentative, y compris sur une session neuve sans
+/// aucun overlay ni dégât en attente. La cause : `feedback` dans
+/// draggable_player_zone.dart fige la zone entière (avec tout son contenu,
+/// dont le cadran de vie) dans une `SizedBox` de hauteur FIXE (130px),
+/// bien plus petite que la hauteur réelle d'une zone dans la grille — voir
+/// le rapport de tâche pour le signalement complet. Ce défaut n'est PAS
+/// corrigé ici : il est hors périmètre de cette tâche (retirer deux hooks
+/// de test), qui n'a pas mandat pour modifier `DraggablePlayerZone`.
+///
+/// Ce helper reproduit fidèlement le calcul de swap fait par
+/// `_onReorderPlayers` (life_counter_page.dart) à partir de l'ordre
+/// d'affichage courant de la session, puis appelle directement
+/// `GameSessionNotifier.reorderPlayers` — mais il NE PASSE PAS par
+/// `LongPressDraggable`/`DragTarget`/`DraggablePlayerZone`, et ne prouve
+/// donc rien de leur câblage réel ni de l'accessibilité du geste de
+/// réordonnancement lui-même.
+Future<void> reorderPlayersViaContainer(
+  ProviderContainer container,
+  WidgetTester tester,
+  int oldIndex,
+  int newIndex,
+) async {
+  final session = container.read(gameSessionNotifierProvider)!;
+  final order = session.playerOrder.isEmpty
+      ? List<int>.generate(session.players.length, (i) => i)
+      : List<int>.from(session.playerOrder);
+  final temp = order[oldIndex];
+  order[oldIndex] = order[newIndex];
+  order[newIndex] = temp;
+  container.read(gameSessionNotifierProvider.notifier).reorderPlayers(order);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets(
       'la partie restaurée survit à une modification de PV (régression bug A)',
@@ -102,12 +171,10 @@ void main() {
     // La partie restaurée est bien affichée.
     expect(find.text('34'), findsOneWidget);
 
-    // On retire 1 PV au joueur 0 et on laisse le buffer de 2 s s'appliquer.
-    // `_LifeCounterPageState` est privé : impossible de nommer son type depuis
-    // ce fichier de test, d'où le cast dynamique ciblé ci-dessous.
-    final state = tester.state(find.byType(LifeCounterPage));
-    // ignore: avoid_dynamic_calls
-    (state as dynamic).updateLifeForTest(0, -1);
+    // On retire 1 PV au joueur 0 par un vrai tap sur son cadran (zone
+    // d'index 0, pivotée à 180° par AdaptiveGrid : `tapMinusHalf` compense),
+    // et on laisse le buffer de 2 s s'appliquer.
+    await tapMinusHalf(tester, 0, 1);
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
 
@@ -206,18 +273,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // On réordonne par le chemin réel de la page (mode édition), et non par
-    // le notifier : `reorderPlayers` n'écrit que `playerOrder`, que rien dans
-    // lib/ ne lisait avant la tâche 4b, qui corrige ce point.
-    final reorderState = tester.state(find.byType(LifeCounterPage));
-    // ignore: avoid_dynamic_calls
-    (reorderState as dynamic).reorderForTest(0, 3);
-    await tester.pumpAndSettle();
+    // On réordonne via une mutation directe du provider (voir le doc-comment
+    // de `reorderPlayersViaContainer` : le vrai drag s'est avéré
+    // impraticable ici) : `reorderPlayers` n'écrit que `playerOrder`, que
+    // rien dans lib/ ne lisait avant la tâche 4b, qui corrige ce point.
+    await reorderPlayersViaContainer(container, tester, 0, 3);
 
-    // Dégâts en attente sur le joueur 0 (affiché en dernière position).
-    final state = tester.state(find.byType(LifeCounterPage));
-    // ignore: avoid_dynamic_calls
-    (state as dynamic).updateLifeForTest(0, -5);
+    // Dégâts en attente sur le joueur 0, affiché en dernière position (index
+    // 3) après le swap 0<->3 : 5 vrais taps sur la moitié −1 de son cadran.
+    await tapMinusHalf(tester, 3, 5);
     await tester.pump(const Duration(milliseconds: 100));
 
     // Un seul badge, et il doit être celui du joueur 0.
@@ -237,6 +301,12 @@ void main() {
       isTrue,
       reason: 'le badge doit être dans la zone du joueur 0, pas dans une autre',
     );
+
+    // Purge les minuteurs de nombres flottants encore en vol (600ms, un par
+    // tap réel -- voir `_PlayerZoneState._showFloatingNumber`) avant la fin
+    // du test, sous peine de l'assertion `!timersPending` du binding.
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('un reorder ne permute pas la liste canonique des joueurs',
@@ -258,10 +328,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final state = tester.state(find.byType(LifeCounterPage));
-    // ignore: avoid_dynamic_calls
-    (state as dynamic).reorderForTest(0, 3);
-    await tester.pumpAndSettle();
+    await reorderPlayersViaContainer(container, tester, 0, 3);
 
     final session = container.read(gameSessionNotifierProvider)!;
 
@@ -301,11 +368,9 @@ void main() {
     // Si `_finalizeGameSave` lisait encore l'ordre d'affichage (régression
     // de catégorisation métier/rendu), l'historique sauvegarderait les noms
     // dans l'ordre [3, 1, 2, 0] plutôt que l'ordre canonique [0, 1, 2, 3].
-    final state = tester.state(find.byType(LifeCounterPage));
-    // ignore: avoid_dynamic_calls
-    (state as dynamic).reorderForTest(0, 3);
-    await tester.pumpAndSettle();
+    await reorderPlayersViaContainer(container, tester, 0, 3);
 
+    final state = tester.state(find.byType(LifeCounterPage));
     // ignore: avoid_dynamic_calls
     await (state as dynamic).finalizeGameSaveForTest(0, 'normal');
     await tester.pumpAndSettle();
@@ -635,14 +700,12 @@ void main() {
     await tester.pumpAndSettle();
 
     // Reorder d'affichage : le joueur 0 passe en dernière position.
-    final state = tester.state(find.byType(LifeCounterPage));
-    // ignore: avoid_dynamic_calls
-    (state as dynamic).reorderForTest(0, 3);
-    await tester.pumpAndSettle();
+    await reorderPlayersViaContainer(container, tester, 0, 3);
 
     // Lance le tirage (spin) : la boucle interne utilise des délais
     // aléatoires croissants (~3.3 s au total pour 20 tours), que le fake
     // clock du test traverse en un seul `pump`.
+    final state = tester.state(find.byType(LifeCounterPage));
     // ignore: avoid_dynamic_calls
     unawaited((state as dynamic).pickStartingPlayerForTest() as Future<void>);
     await tester.pump(const Duration(seconds: 4));
@@ -1022,24 +1085,9 @@ void main() {
   //
   // Joueur d'indice 2 (Sarah) choisi comme émetteur du buffer : avec 4
   // joueurs, `AdaptiveGrid` pivote à 180° les zones du haut (indices 0-1) et
-  // laisse celles du bas (indices 2-3) droites -- taper la moitié gauche
-  // géométrique du cadran de Sarah correspond donc bien à sa moitié gauche
-  // visuelle (-1), sans avoir à compenser une rotation.
-
-  /// Tape `count` fois la moitié gauche (−1) du cadran du joueur d'indice
-  /// `zoneIndex` dans l'ordre d'affichage courant, avec un `pump()` entre
-  /// chaque tap pour laisser chaque geste se résoudre avant le suivant.
-  Future<void> tapMinusHalf(
-    WidgetTester tester,
-    int zoneIndex,
-    int count,
-  ) async {
-    final dial = tester.getRect(find.byType(LifeDial).at(zoneIndex));
-    for (var i = 0; i < count; i++) {
-      await tester.tapAt(Offset(dial.left + dial.width * 0.25, dial.center.dy));
-      await tester.pump();
-    }
-  }
+  // laisse celles du bas (indices 2-3) droites -- Sarah (index 2) n'a donc
+  // pas besoin de compensation de rotation pour ces tests (`tapMinusHalf`,
+  // désormais définie au niveau du fichier, la calcule de toute façon).
 
   testWidgets(
       'en format Commander, la rangée d\'attribution apparaît pendant que '
