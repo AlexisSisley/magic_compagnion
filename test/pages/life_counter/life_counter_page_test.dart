@@ -17,6 +17,8 @@ import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
+import 'package:magic_companion/widgets/life_counter/animations/animation_service.dart';
+import 'package:magic_companion/widgets/life_counter/critical_overlay.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
@@ -1507,5 +1509,83 @@ void main() {
     expect(session.players[2].commanderDamageReceived, isEmpty,
         reason: 'aucune attribution ne doit avoir eu lieu : le second tap '
             'devait rester un palier, jamais un avatar recouvrant');
+  });
+
+  testWidgets(
+      'le PIRE dégât de commandant d\'une seule source, pas leur somme, '
+      'décide du niveau d\'alerte', (tester) async {
+    // Ronde de correction 1 (Task 5) : `_buildPlayerZoneWithOverlays` réduit
+    // `commanderDamageReceived.values` par un MAX avant de le passer à
+    // `AnimationService.getCriticalLevel`. Aucun des tests précédents ne
+    // montait la vraie page avec une vraie map à plusieurs sources -- ils
+    // passaient tous `worstCommanderDamage` déjà calculé, ou ne testaient
+    // que la non-absorption de l'overlay. Ce test monte la page avec deux
+    // joueurs à somme IDENTIQUE (18) mais répartition différente : seul un
+    // MAX les distingue, une SOMME confondrait les deux (elle donnerait 18
+    // dans les deux cas, et classerait le joueur 0 "lethal" à tort).
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    final players = baseSession.players.map((p) {
+      if (p.playerId == 0) {
+        // Trois sources à 6 : somme 18, mais aucune ne menace seule (max 6).
+        return p.copyWith(commanderDamageReceived: {1: 6, 2: 6, 3: 6});
+      }
+      if (p.playerId == 1) {
+        // Une seule source à 18 : somme identique (18), mais son max de 18
+        // franchit à lui seul le seuil de mort imminente (spec V4 §3.3).
+        return p.copyWith(commanderDamageReceived: {2: 18});
+      }
+      return p;
+    }).toList();
+    final session = baseSession.copyWith(players: players);
+
+    // Pas de `pumpLifeCounter` / `pumpAndSettle` ici : le joueur 1 est en
+    // alerte létale dès le premier rendu (`CriticalOverlay._controller.
+    // repeat()` boucle indéfiniment), ce qui ferait timeout `pumpAndSettle` --
+    // même défaut que documenté pour le glow monarque plus haut dans ce
+    // fichier. Quelques frames bornées suffisent à laisser `_loadGame` (deux
+    // `await` SharedPreferences avant son premier `setState`) restaurer la
+    // session et déclencher le rendu réel des zones.
+    SharedPreferences.setMockInitialValues({
+      'active_game_snapshot': json.encode(session.toJson()),
+    });
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+        ],
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    CriticalLevel levelOf(int playerId) {
+      return tester
+          .widget<CriticalOverlay>(
+            find.descendant(
+              of: find.byKey(ValueKey('player_zone_$playerId')),
+              matching: find.byType(CriticalOverlay),
+            ),
+          )
+          .level;
+    }
+
+    expect(
+      levelOf(0),
+      CriticalLevel.safe,
+      reason: 'trois sources à 6 chacune (somme 18) ne menacent personne de '
+          'mort par dégâts de commandant : à pleine vie et sans poison, '
+          'seule une régression du MAX vers une SOMME ferait échouer ce cas',
+    );
+    expect(
+      levelOf(1),
+      CriticalLevel.lethal,
+      reason: 'une seule source à 18 dégâts de commandant doit déclencher '
+          "l'alerte létale, même à pleine vie et sans poison",
+    );
   });
 }
