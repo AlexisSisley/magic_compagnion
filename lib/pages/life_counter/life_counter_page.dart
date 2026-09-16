@@ -47,6 +47,7 @@ import '../../widgets/life_counter/draggable_player_zone.dart';
 import '../../widgets/life_counter/animations/animation_service.dart';
 import '../../widgets/life_counter/snapshot_writer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'table_view_page.dart';
 
 class LifeCounterPage extends ConsumerStatefulWidget {
   /// US-LC02 : Quand true, la page est dans le shell (tab0) et ne rend pas d'AppBar.
@@ -1294,6 +1295,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
             icon: const Icon(Icons.history, color: AppColors.textSecondary),
             onPressed: _showDamageHistory,
           ),
+          // Vue table (tache 4) : bouton dedie, pas de geste a deux doigts
+          // sur les zones -- voir table_view_page.dart pour la justification.
+          IconButton(
+            key: const ValueKey('action-table-view'),
+            icon: const Icon(Icons.table_chart_outlined, color: AppColors.textSecondary),
+            onPressed: _showTableView,
+          ),
           // Edit mode toggle (NEW)
           IconButton(
             icon: Icon(
@@ -1545,6 +1553,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           Expanded(child: Text(value, style: AppTextStyles.label(fontSize: 14))),
         ],
       ),
+    );
+  }
+
+  /// Ouvre la vue table (tache 4) : une route poussee, pas un tiroir ni une
+  /// feuille modale -- voir table_view_page.dart pour la justification de ce
+  /// choix. Elle lit `gameSessionNotifierProvider` elle-meme (ConsumerWidget),
+  /// donc aucun etat n'a besoin d'etre passe en parametre.
+  void _showTableView() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const TableViewPage()),
     );
   }
 

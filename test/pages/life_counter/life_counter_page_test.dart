@@ -9,6 +9,7 @@ import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/pages/life_counter/life_counter_page.dart';
+import 'package:magic_companion/pages/life_counter/table_view_page.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
@@ -1251,5 +1252,27 @@ void main() {
 
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+      'un vrai tap sur le bouton de la barre centrale ouvre la vue table '
+      '(tâche 4) — pas de geste à deux doigts sur les zones',
+      (tester) async {
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    await pumpLifeCounter(tester, snapshot: baseSession);
+
+    expect(find.byType(TableViewPage), findsNothing,
+        reason: 'précondition : la vue table n\'est pas encore ouverte');
+
+    // Un VRAI tap (tester.tap), pas un appel de méthode direct — voir « la
+    // leçon des lots 1 et 2 » du plan : un callback appelé à la main ne
+    // prouve rien du geste que l'appareil produit réellement.
+    await tester.tap(find.byKey(const ValueKey('action-table-view')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TableViewPage), findsOneWidget);
   });
 }
