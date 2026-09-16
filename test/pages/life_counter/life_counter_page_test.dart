@@ -10,6 +10,7 @@ import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/pages/life_counter/life_counter_page.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
+import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
@@ -843,5 +844,37 @@ void main() {
           '(_showCommanderDamageSelector), seul point de saisie restant',
     );
     expect(find.textContaining('Attaquant :'), findsOneWidget);
+  });
+
+  testWidgets(
+      "PlayerZoneNotifier.reset() est câblé sur le démarrage d'une nouvelle "
+      'partie (ronde de correction 1 de la tâche 1) : le mode ajustement '
+      'ne doit pas survivre',
+      (tester) async {
+    final container = await pumpWithContainer(tester);
+
+    // État transitoire simulé directement sur le notifier — ce test vérifie
+    // uniquement que `_startNewGame` le purge, pas comment on y entre (déjà
+    // couvert par player_zone_test.dart / life_dial_test.dart).
+    container.read(playerZoneNotifierProvider(0).notifier).enterAdjustMode();
+    expect(
+      container.read(playerZoneNotifierProvider(0)).isAdjusting,
+      isTrue,
+      reason: 'précondition : la zone du joueur 0 est en mode ajustement',
+    );
+
+    // Bouton « refresh » de la barre centrale : un vrai tap, qui appelle
+    // _resetGame() -> _startNewGame(), pas un appel direct à une méthode.
+    await tester.tap(find.byIcon(Icons.refresh));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(playerZoneNotifierProvider(0)).isAdjusting,
+      isFalse,
+      reason: 'PlayerZoneNotifier.reset() doit être appelé pour chaque '
+          "joueur au démarrage d'une nouvelle partie : le provider n'étant "
+          'pas autoDispose, une zone pouvait sinon revenir en mode '
+          "ajustement au retour, sans que l'utilisateur ait rien fait",
+    );
   });
 }

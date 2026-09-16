@@ -180,8 +180,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
   /// — mais il écrirait dans l'état d'une zone qui n'existe plus. D'où les
   /// gardes `if (!mounted) return;` avant tout accès à `ref`.
   void _showFloatingNumber(int change) {
-    final int id = ref.read(playerZoneNotifierProvider(widget.player.id)).nextNumberId;
-    _notifier.showFloatingNumber(change);
+    final int id = _notifier.showFloatingNumber(change);
 
     Timer(const Duration(milliseconds: 50), () {
       if (!mounted) return;

@@ -18,6 +18,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
+import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_history_model.dart';
 import 'package:magic_companion/models/game_session.dart';
@@ -359,6 +360,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     });
 
     _controller.startNewGame(format: effectiveFormat, playerConfigs: configs);
+
+    // Dette du lot 3 (revue) : `PlayerZoneNotifier` n'est pas `autoDispose`,
+    // son état (mode ajustement, accumulateurs, nombres flottants en cours)
+    // traverse donc le cycle de vie des parties. Sans ce reset, une zone
+    // pouvait rouvrir une nouvelle partie déjà en mode ajustement, sans que
+    // l'utilisateur ait rien fait. Les identifiants de joueur d'une partie
+    // sont toujours 0..playerCount-1 (voir GameSession.newGame).
+    for (var i = 0; i < playerCount; i++) {
+      ref.read(playerZoneNotifierProvider(i).notifier).reset();
+    }
 
     setState(() {});
     _saveSnapshot();

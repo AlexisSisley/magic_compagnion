@@ -216,4 +216,83 @@ void main() {
       reason: 'la rotation consomme l\'accumulateur du notifier',
     );
   });
+
+  testWidgets(
+      'resetRotationDrag empêche le résidu d\'un geste interrompu de se '
+      'combiner avec un second geste sans rapport (ronde de correction 1)',
+      (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final player = buildPlayer();
+    int? rotatedTo;
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 340,
+              height: 340,
+              child: PlayerZone(
+                player: player,
+                onLifeChanged: (_) {},
+                onColorChanged: (_) {},
+                onRotationChanged: (v) => rotatedTo = v,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final icon = find.descendant(
+      of: find.byType(PlayerHeader),
+      matching: find.byIcon(Icons.rotate_right),
+    );
+
+    // Premier geste : 30px (3 pas de 10px, comme un vrai doigt), sous le
+    // seuil de 40px, relâché sans avoir tourné.
+    final first = await tester.startGesture(tester.getCenter(icon));
+    await tester.pump(const Duration(milliseconds: 500));
+    for (var i = 0; i < 3; i++) {
+      await first.moveBy(const Offset(10, 0));
+      await tester.pump();
+    }
+    await first.up();
+    await tester.pump();
+
+    expect(rotatedTo, isNull, reason: '30px reste sous le seuil de 40px');
+    expect(
+      container.read(playerZoneNotifierProvider(player.id)).rotationAccumulator,
+      30.0,
+      reason: 'le résidu du premier geste doit être visible avant le second',
+    );
+
+    // Second geste, sans aucun rapport avec le premier (le doigt se repose,
+    // potentiellement pour tourner dans l'autre sens) : un seul pas de 15px.
+    // Sans `resetRotationDrag()` à l'entrée de ce nouveau geste, le résidu du
+    // premier (30px) s'additionnerait (45px, > seuil) et déclencherait une
+    // rotation qui ne devrait pas avoir lieu ici.
+    final second = await tester.startGesture(tester.getCenter(icon));
+    await tester.pump(const Duration(milliseconds: 500));
+    await second.moveBy(const Offset(15, 0));
+    await tester.pump();
+
+    expect(
+      rotatedTo,
+      isNull,
+      reason: 'resetRotationDrag() doit empêcher le résidu du premier geste '
+          'de se combiner avec ce second geste sans rapport',
+    );
+    expect(
+      container.read(playerZoneNotifierProvider(player.id)).rotationAccumulator,
+      15.0,
+      reason: "l'accumulateur doit repartir de zéro pour ce nouveau geste, "
+          'pas continuer depuis le résidu du précédent',
+    );
+
+    await second.up();
+  });
 }

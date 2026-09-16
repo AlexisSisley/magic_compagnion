@@ -158,7 +158,13 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
 
   // --- Nombres flottants ---
 
-  void showFloatingNumber(int delta) {
+  /// Ajoute un nombre flottant et renvoie l'id qui lui a été assigné, pour
+  /// que l'appelant puisse l'animer puis le retirer plus tard (voir
+  /// `animateFloatingNumber`/`removeFloatingNumber`) sans avoir à connaître
+  /// par ailleurs la façon dont cet id est choisi — un `ref.read` séparé sur
+  /// `nextNumberId` juste avant l'appel serait un couplage implicite à cette
+  /// implémentation interne.
+  int showFloatingNumber(int delta) {
     final text = delta > 0 ? '+$delta' : '$delta';
     final color = delta > 0 ? AppColors.accentGreen : AppColors.accentRed;
     final id = state.nextNumberId;
@@ -169,6 +175,7 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
       ],
       nextNumberId: id + 1,
     );
+    return id;
   }
 
   void animateFloatingNumber(int id) {
