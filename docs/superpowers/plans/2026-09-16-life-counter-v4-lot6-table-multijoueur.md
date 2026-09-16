@@ -880,6 +880,18 @@ Expected: PASS, **y compris les tests existants de `conditional_handle_test.dart
 
 - [ ] **Step 5: Brancher `PlayerZone` sur son cran**
 
+> **Exigence ajoutée en cours d'exécution — ruling 13 du ledger.** La tâche 3 a dû porter
+> `AdaptiveGrid.sideColumnFraction` de `0.22` à `0.30` pour corriger un `RenderFlex` overflow réel :
+> câbler la vraie rotation a exercé pour la première fois le chemin 90°/270°, et sur un téléphone de
+> 320 de large la colonne latérale pivotée tombait sous le plancher `_headerHeight` (40) + poignée
+> (30). **Cette valeur est explicitement provisoire et c'est cette tâche qui doit la reprendre.**
+> Une largeur de colonne latérale qui garantit le plancher n'est pas une constante magique : c'est
+> le contrat de densité appliqué à la largeur. Soit `tierFor` garantit le plancher et la constante
+> redevient un simple réglage esthétique, soit la fraction se dérive du cran — à trancher à
+> l'implémentation, mais **pas à laisser en l'état sans décision**. Le commentaire actuel de la
+> constante renvoie nommément à cette tâche ; il doit être mis à jour ou supprimé selon ce qui est
+> décidé.
+
 > **Exigence ajoutée au scan pré-vol — ruling 2 du ledger.** `player_zone.dart:389` lit
 > `ConditionalHandle.reservedHeight` comme padding bas. Cette lecture **doit** devenir
 > `handleHeightFor(tier)` dans cette tâche. Sans ça, au cran confort la zone padderait 30 px sous
