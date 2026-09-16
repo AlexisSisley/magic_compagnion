@@ -490,6 +490,78 @@ void main() {
     }
   });
 
+  // Revue finale du lot 6, IMPORTANT #2 : les quatre tests ci-dessus ne
+  // prouvent RIEN de ce lot. `find.byKey(ValueKey('life_dial_half_minus'))`
+  // cible le widget qui appelle `_startHold(-1)` : où qu'il soit rendu,
+  // correct ou inversé, `tester.tap` l'atteint et le delta vaut -1. Ils
+  // prouvent que Flutter transforme le hit-test à travers `RotatedBox` — une
+  // garantie du framework. Inverser `_half(-1)` et `_half(1)` dans
+  // `life_dial.dart` les laisse verts.
+  //
+  // Ce groupe-ci est géométrique et discriminant : il compare le centre
+  // ÉCRAN de la moitié décrément à celui de la zone, sur l'axe et avec le
+  // signe attendus pour chaque rotation. Aucune position n'est calculée pour
+  // taper — on ne tape pas ici, on vérifie où le rendu a placé les moitiés.
+  //
+  // Convention (`lib/models/table_seat.dart`) : `RotatedBox` tourne dans le
+  // sens HORAIRE. La moitié décrément est à GAUCHE dans le repère du joueur ;
+  // une rotation horaire d'un quart envoie le bord gauche de l'enfant sur le
+  // bord HAUT de l'écran, et trois quarts sur le bord bas :
+  //
+  //   0 (siège bas)    : décrément à gauche  -> dx inférieur
+  //   1 (siège gauche) : décrément en haut   -> dy inférieur
+  //   2 (siège haut)   : décrément à droite  -> dx supérieur
+  //   3 (siège droite) : décrément en bas    -> dy supérieur
+  //
+  // Vérification de discrimination : intervertir les deux moitiés dans
+  // `life_dial.dart` fait échouer les quatre orientations.
+  group('PlayerZone — géométrie des moitiés sous rotation (spec lot 6 §6.1)',
+      () {
+    // (quarterTurns, axe, la moitié décrément est-elle du côté des
+    // coordonnées basses ?)
+    const cases = <(int, String, bool)>[
+      (0, 'dx', true),
+      (1, 'dy', true),
+      (2, 'dx', false),
+      (3, 'dy', false),
+    ];
+
+    for (final (quarterTurns, axis, minusIsLower) in cases) {
+      testWidgets(
+          'quarterTurns=$quarterTurns : la moitié décrément est rendue du '
+          'côté ${minusIsLower ? 'bas' : 'haut'} de $axis', (tester) async {
+        await pumpZone(tester, buildPlayer(quarterTurns: quarterTurns));
+
+        Offset centerOfKey(String key) => tester.getCenter(
+              find.descendant(
+                of: find.byType(PlayerZone),
+                matching: find.byKey(ValueKey(key)),
+              ),
+            );
+
+        final zone = tester.getCenter(find.byType(PlayerZone));
+        final minus = centerOfKey('life_dial_half_minus');
+        final plus = centerOfKey('life_dial_half_plus');
+
+        double on(Offset o) => axis == 'dx' ? o.dx : o.dy;
+
+        if (minusIsLower) {
+          expect(on(minus), lessThan(on(zone)),
+              reason: 'à quarterTurns=$quarterTurns, la moitié décrément doit '
+                  'être rendue du côté bas de $axis');
+          expect(on(plus), greaterThan(on(zone)),
+              reason: "et la moitié incrément de l'autre côté");
+        } else {
+          expect(on(minus), greaterThan(on(zone)),
+              reason: 'à quarterTurns=$quarterTurns, la moitié décrément doit '
+                  'être rendue du côté haut de $axis');
+          expect(on(plus), lessThan(on(zone)),
+              reason: "et la moitié incrément de l'autre côté");
+        }
+      });
+    }
+  });
+
   // Tâche 4 du lot 6 : le cran de densité se décide sur la taille DANS LE
   // REPÈRE DU JOUEUR, pas sur la taille écran brute -- `PlayerZone` doit
   // transposer largeur/hauteur quand `quarterTurns` est impair (un siège
