@@ -102,6 +102,18 @@ Aucun n'est bloquant, tous sont documentés :
 
 ---
 
+## 6 bis. Un défaut qui t'appartient, trouvé à la toute fin du lot 3
+
+**L'aperçu de glisser-déposer déborde.**  enveloppe la zone complète dans une  **fixe**, indépendante de l'écran et du nombre de joueurs. Le contenu minimal incompressible d'une zone — avatar, nom, chiffre de vie, poignée — n'a structurellement aucune raison d'y tenir. Résultat : un débordement de mise en page pendant tout glissement de zone en mode édition.
+
+Découvert de la même façon que les autres : en **tentant** de remplacer un raccourci de test par le vrai geste de réordonnancement. La tentative a échoué de façon reproductible, sur session neuve, sans overlay.
+
+**Conséquence qui compte pour toi :** le vrai geste de réordonnancement est aujourd'hui **intestable en widget test**. Le test correspondant passe par une mutation directe de la session, documentée explicitement comme ne prouvant ni le câblage du glisser-déposer ni l'accessibilité du geste. C'est un point mort dans la couverture.
+
+La revue recommande — et je reprends la recommandation — que **le plan du lot 6 porte un critère de sortie « le vrai geste de réordonnancement passe en test »**. Sans ce rappel, le report devient permanent par défaut.
+
+Pourquoi c'est chez toi : une hauteur d'aperçu fixe est exactement une décision de densité, et le lot 6 est le lot de la densité.
+
 ## 7. Si tu ne devais retenir qu'une chose
 
 Le défaut le plus coûteux de ces trois lots n'a pas été trouvé par une revue de code. Il a été trouvé en remplaçant, dans un test, un appel de callback par un vrai `tester.tap()`.
