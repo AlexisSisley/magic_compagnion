@@ -1034,7 +1034,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
   Widget _buildPlayerZone(Player p, PlayerState ps) {
     return PlayerZone(
-      player: p, isCommander: _currentFormat.maxCommanders > 0, isHighlighted: _highlightedPlayerId == p.id,
+      player: p, isHighlighted: _highlightedPlayerId == p.id,
       onLifeChanged: (val) => _updateLife(p.id, val),
       onColorChanged: (c) => _updatePlayerColor(p.id, c),
       onRotationChanged: (r) => _updatePlayerRotation(p.id, r),

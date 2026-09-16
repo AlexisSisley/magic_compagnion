@@ -32,6 +32,7 @@ class PlayerZoneState {
   final double rotationAccumulator;
   final bool isAdjusting;
   final double wheelAccumulator;
+  final double wheelGestureDistance;
 
   const PlayerZoneState({
     this.floatingNumbers = const [],
@@ -39,6 +40,7 @@ class PlayerZoneState {
     this.rotationAccumulator = 0.0,
     this.isAdjusting = false,
     this.wheelAccumulator = 0.0,
+    this.wheelGestureDistance = 0.0,
   });
 
   PlayerZoneState copyWith({
@@ -47,6 +49,7 @@ class PlayerZoneState {
     double? rotationAccumulator,
     bool? isAdjusting,
     double? wheelAccumulator,
+    double? wheelGestureDistance,
   }) {
     return PlayerZoneState(
       floatingNumbers: floatingNumbers ?? this.floatingNumbers,
@@ -54,6 +57,7 @@ class PlayerZoneState {
       rotationAccumulator: rotationAccumulator ?? this.rotationAccumulator,
       isAdjusting: isAdjusting ?? this.isAdjusting,
       wheelAccumulator: wheelAccumulator ?? this.wheelAccumulator,
+      wheelGestureDistance: wheelGestureDistance ?? this.wheelGestureDistance,
     );
   }
 }
@@ -82,11 +86,19 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
   // --- Mode ajustement ---
 
   void enterAdjustMode() {
-    state = state.copyWith(isAdjusting: true, wheelAccumulator: 0.0);
+    state = state.copyWith(
+      isAdjusting: true,
+      wheelAccumulator: 0.0,
+      wheelGestureDistance: 0.0,
+    );
   }
 
   void exitAdjustMode() {
-    state = state.copyWith(isAdjusting: false, wheelAccumulator: 0.0);
+    state = state.copyWith(
+      isAdjusting: false,
+      wheelAccumulator: 0.0,
+      wheelGestureDistance: 0.0,
+    );
   }
 
   /// Consomme un glissement vertical et renvoie le nombre de points à appliquer.
@@ -96,30 +108,50 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
   /// Renvoie 0 tant que le seuil d'un point n'est pas atteint ; le reste est
   /// conservé pour l'appel suivant, sans quoi une série de petits glissements
   /// ne produirait jamais rien.
+  ///
+  /// Revue globale de branche (Critical) : la décision d'accélérer se prend
+  /// sur `wheelGestureDistance`, la distance **totale** du geste depuis
+  /// l'entrée en mode ajustement, jamais réduite par la consommation de pas —
+  /// pas sur `wheelAccumulator`, le résidu sous 8px qui, lui, repart
+  /// (presque) de zéro après chaque pas consommé. Sur un appareil réel,
+  /// `handleWheelDrag` est appelé une fois par `PointerMoveEvent` (~10px à
+  /// 60fps) : le résidu ne dépasse donc jamais quelques pixels et n'atteint
+  /// jamais le seuil de 120px, quelle que soit la longueur du geste — seul
+  /// un test qui appelle la méthode une seule fois avec un très grand `dy`
+  /// pouvait déclencher l'accélération, une chronologie que l'appareil ne
+  /// produit jamais.
   int handleWheelDrag(double dy) {
     if (!state.isAdjusting) return 0;
 
     final accumulated = state.wheelAccumulator + (-dy);
     final magnitude = accumulated.abs();
 
+    final gestureDistance = state.wheelGestureDistance + (-dy);
+    final gestureMagnitude = gestureDistance.abs();
+    final accelerated = gestureMagnitude > wheelAccelerationThreshold;
+
     // Au-delà du seuil, chaque pixel supplémentaire compte double : un grand
     // geste doit couvrir une grosse perte de PV sans traverser l'écran.
-    final double effective = magnitude <= wheelAccelerationThreshold
-        ? magnitude
-        : wheelAccelerationThreshold + (magnitude - wheelAccelerationThreshold) * 2;
+    final double effective = accelerated ? magnitude * 2 : magnitude;
 
     final steps = (effective / wheelPixelsPerUnit).floor();
     if (steps == 0) {
-      state = state.copyWith(wheelAccumulator: accumulated);
+      state = state.copyWith(
+        wheelAccumulator: accumulated,
+        wheelGestureDistance: gestureDistance,
+      );
       return 0;
     }
 
-    final consumed = steps * wheelPixelsPerUnit;
-    final remaining = magnitude <= wheelAccelerationThreshold
-        ? magnitude - consumed
-        : 0.0; // après accélération, on repart à zéro : le reste n'a plus de sens
+    // Le résidu se tient en pixels bruts, pas en pixels « effectifs » : on
+    // convertit donc les pixels consommés dans l'autre sens avant de calculer
+    // ce qu'il reste.
+    final consumedEffective = steps * wheelPixelsPerUnit;
+    final consumedRaw = accelerated ? consumedEffective / 2 : consumedEffective;
+    final remaining = magnitude - consumedRaw;
     state = state.copyWith(
       wheelAccumulator: accumulated.isNegative ? -remaining : remaining,
+      wheelGestureDistance: gestureDistance,
     );
     return accumulated.isNegative ? -steps : steps;
   }

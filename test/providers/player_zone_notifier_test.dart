@@ -78,6 +78,32 @@ void main() {
     test('ne produit rien hors mode ajustement', () {
       expect(notifierFor(0).handleWheelDrag(-100.0), 0);
     });
+
+    test(
+        'un grand geste fractionné en petits événements successifs '
+        'déclenche l\'accélération (revue globale, Critical)', () {
+      final n = notifierFor(0);
+      n.enterAdjustMode();
+
+      // Un vrai doigt appelle `handleWheelDrag` une fois par
+      // `PointerMoveEvent`, ~10px à la fois à 60fps — jamais un seul gros
+      // saut. 20 appels de 10px = 200px au total, largement au-delà du
+      // seuil de 120px.
+      var totalSteps = 0;
+      for (var i = 0; i < 20; i++) {
+        totalSteps += n.handleWheelDrag(10.0).abs();
+      }
+
+      // Sans l'accélération (le bug : elle se décidait sur le résidu local,
+      // qui ne dépasse jamais quelques pixels par appel), 200px produiraient
+      // exactement 200 / 8 = 25 points, linéaire du début à la fin. Avec
+      // l'accélération décidée sur la distance totale du geste : linéaire
+      // jusqu'à 120px (15 points), puis double au-delà (80px restants à 4px
+      // par point = 20 points) = 35 points.
+      expect(totalSteps, 35,
+          reason: 'un glissement fractionné qui dépasse le seuil doit '
+              'accélérer exactement comme un unique gros saut le ferait');
+    });
   });
 
   group('nombres flottants', () {

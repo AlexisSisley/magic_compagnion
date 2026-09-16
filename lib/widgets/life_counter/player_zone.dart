@@ -28,20 +28,19 @@ class PlayerZone extends ConsumerStatefulWidget {
     this.onSkinChanged,
     this.onNameTap,
     this.quarterTurns = 0,
-    this.isCommander = false,
     this.isHighlighted = false,
   });
 
   final Player player;
   final int quarterTurns;
-  final bool isCommander;
   final bool isHighlighted;
   final Function(int) onLifeChanged;
 
-  /// Ouverture du tiroir (tap ou glissement depuis la poignée) : compteurs,
-  /// monarque, élimination et dégâts de commandant y vivent désormais tous
-  /// (voir player_drawer.dart) — PlayerZone n'a plus besoin de callbacks
-  /// dédiés à chacun d'eux.
+  /// Ouverture du tiroir (tap sur la poignée — voir `ConditionalHandle`, qui
+  /// n'expose qu'un `onTap`, aucun glissement) : compteurs, monarque,
+  /// élimination et dégâts de commandant y vivent désormais tous (voir
+  /// player_drawer.dart) — PlayerZone n'a plus besoin de callbacks dédiés à
+  /// chacun d'eux.
   final VoidCallback? onOpenDrawer;
 
   final Function(Color) onColorChanged;
