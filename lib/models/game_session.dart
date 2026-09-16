@@ -214,6 +214,14 @@ class GameSession {
   }
 
   Map<String, dynamic> toJson() => {
+    // Marqueur de migration des rotations (revue finale, CRITICAL #2). Tout
+    // snapshot écrit par ce code porte déjà ses `quarterTurns` définitifs :
+    // `_migrateLegacyRotation` ne doit plus jamais s'exécuter dessus, sans
+    // quoi un joueur qui choisit délibérément « Même sens » (soit
+    // `[0, 0, 0, 0]`, exactement ce que l'heuristique prend pour un ancien
+    // snapshot) verrait son choix écrasé par les défauts de sièges à chaque
+    // rechargement.
+    'rotationsMigrated': true,
     'id': id,
     'format': format.toJson(),
     'players': players.map((p) => p.toJson()).toList(),
@@ -235,7 +243,11 @@ class GameSession {
     final (orderedPlayers, playerOrder) = rawPlayerOrder.length == rawPlayers.length
         ? _migrateLegacyOrder(rawPlayers, rawPlayerOrder)
         : (rawPlayers, rawPlayerOrder);
-    final players = _migrateLegacyRotation(orderedPlayers, playerOrder);
+    // Le marqueur est absent de tous les snapshots écrits avant ce
+    // correctif : ce sont eux, et eux seuls, que la migration doit toucher.
+    final players = json['rotationsMigrated'] == true
+        ? orderedPlayers
+        : _migrateLegacyRotation(orderedPlayers, playerOrder);
 
     return GameSession(
       id: json['id'] as String,
@@ -300,6 +312,15 @@ class GameSession {
   /// migration, reprendre une telle partie afficherait donc tous les joueurs
   /// à l'endroit, y compris ceux assis en face de l'appareil — régression
   /// visible dès le premier lancement après mise à jour.
+  ///
+  /// **Exécutable une seule fois** (revue finale, CRITICAL #2). `toJson`
+  /// écrit désormais `rotationsMigrated: true`, et `fromJson` (ci-dessus)
+  /// n'appelle cette méthode que si ce marqueur est absent — le cas de
+  /// tous les snapshots écrits avant ce correctif, et d'eux seuls. Sans
+  /// ce garde-fou, l'heuristique ci-dessous confondrait un tout-à-zéro
+  /// délibéré (le preset « Même sens » de `life_counter_page.dart`
+  /// produit exactement `[0, 0, 0, 0]`) avec un ancien snapshot, et
+  /// l'écraserait à chaque rechargement.
   ///
   /// Heuristique : si tous les `quarterTurns` valent 0 et qu'il y a plus d'un
   /// joueur, c'est indistinguable d'un ancien snapshot (ou d'une partie où

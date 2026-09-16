@@ -269,7 +269,11 @@ void main() {
         players: base.players.map((p) => p.copyWith(quarterTurns: 0)).toList(),
       );
 
-      final restored = GameSession.fromJson(legacy.toJson());
+      // Un vrai snapshot d'avant ce correctif ne porte pas le marqueur
+      // `rotationsMigrated` : c'est son absence qui autorise la migration.
+      final json = legacy.toJson()..remove('rotationsMigrated');
+
+      final restored = GameSession.fromJson(json);
 
       expect(restored.players.map((p) => p.quarterTurns).toList(), [2, 3, 0, 1]);
     });
@@ -293,6 +297,7 @@ void main() {
       // fait deja pour l'affichage.
       final json = legacy.toJson();
       json.remove('playerOrder');
+      json.remove('rotationsMigrated');
 
       final restored = GameSession.fromJson(json);
 
@@ -315,7 +320,8 @@ void main() {
         ],
       );
 
-      final restored = GameSession.fromJson(withOneRotated.toJson());
+      final restored = GameSession.fromJson(
+          withOneRotated.toJson()..remove('rotationsMigrated'));
 
       expect(
         restored.players.map((p) => p.quarterTurns).toList(),
@@ -335,6 +341,72 @@ void main() {
 
       expect(restored.players, hasLength(1));
       expect(restored.players.single.quarterTurns, 0);
+    });
+  });
+
+  // Revue finale, CRITICAL #2 : la migration ci-dessus ne s'execute qu'une
+  // fois. Le preset « Meme sens » (life_counter_page.dart) produit
+  // exactement `[0, 0, 0, 0]`, soit la forme meme que l'heuristique prend
+  // pour un ancien snapshot ; sans marqueur persiste, ce choix delibere
+  // etait ecrase par les defauts de sieges a chaque rechargement.
+  group('GameSession — la migration de rotation ne joue qu\'une fois', () {
+    test('toJson ecrit le marqueur rotationsMigrated', () {
+      final session = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: _configs(4),
+      );
+
+      expect(session.toJson()['rotationsMigrated'], isTrue);
+    });
+
+    test(
+        'un tout-a-zero DELIBERE (preset « Meme sens ») ecrit par ce code '
+        'survit au rechargement', () {
+      final base = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: _configs(4),
+      );
+      final sameWay = base.copyWith(
+        players: base.players.map((p) => p.copyWith(quarterTurns: 0)).toList(),
+      );
+
+      final restored = GameSession.fromJson(sameWay.toJson());
+
+      expect(restored.players.map((p) => p.quarterTurns).toList(),
+          [0, 0, 0, 0],
+          reason: 'le marqueur est present : la migration ne doit pas '
+              'reposer les defauts de sieges sur un choix explicite');
+    });
+
+    test(
+        'un ancien snapshot migre puis reecrit ne migre plus a la lecture '
+        'suivante', () {
+      final base = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: _configs(4),
+      );
+      final legacy = base.copyWith(
+        players: base.players.map((p) => p.copyWith(quarterTurns: 0)).toList(),
+      );
+
+      // 1re lecture : pas de marqueur, la migration joue.
+      final firstRead =
+          GameSession.fromJson(legacy.toJson()..remove('rotationsMigrated'));
+      expect(firstRead.players.map((p) => p.quarterTurns).toList(),
+          [2, 3, 0, 1]);
+
+      // Le joueur repasse ensuite tout le monde dans le meme sens, et la
+      // partie est resauvegardee : cette fois le marqueur est la.
+      final chosen = firstRead.copyWith(
+        players:
+            firstRead.players.map((p) => p.copyWith(quarterTurns: 0)).toList(),
+      );
+      final secondRead = GameSession.fromJson(chosen.toJson());
+
+      expect(secondRead.players.map((p) => p.quarterTurns).toList(),
+          [0, 0, 0, 0],
+          reason: 'une seconde lecture du snapshot reecrit ne doit plus rien '
+              'migrer');
     });
   });
 }
