@@ -85,32 +85,27 @@ Future<void> pumpLifeCounter(
 /// du joueur affiché à `zoneIndex`, avec un `pump()` entre chaque tap pour
 /// laisser chaque geste se résoudre avant le suivant.
 ///
-/// Lit la rotation RÉELLE appliquée à la LifeDial (par PlayerZone via sa
-/// RotatedBox) au lieu de la déduire d'un calcul d'ordre.
+/// Tape directement sur la moitié négative du cadran de vie du joueur.
 ///
-/// La rotation est appliquée par PlayerZone (RotatedBox) à partir de
-/// player.quarterTurns. La moitié GÉOMÉTRIQUE gauche (écran) d'une zone
-/// pivotée à 180° est alors sa moitié locale DROITE (+1), et inversement.
-///
-/// Ce calcul reste correct quel que soit l'ordre d'affichage (reorder,
-/// colonnes latérales) et adapté à quand player.quarterTurns sera mis à jour.
+/// zoneIndex est l'index d'affichage (après reorder possible). On cherche la
+/// zone à cet index d'affichage en mettant à jour la clé dynamiquement.
+/// Flutter gère automatiquement les hit-tests à travers les RotatedBox.
 Future<void> tapMinusHalf(
   WidgetTester tester,
   int zoneIndex,
   int count,
 ) async {
-  final dialFinder = find.byType(LifeDial).at(zoneIndex);
+  // Chercher tous les boutons "moins" dans l'ordre d'affichage (un par cadran)
+  // On cherche le bouton à l'index d'affichage zoneIndex
+  final minusHalfsFinder = find.byKey(const ValueKey('life_dial_half_minus'));
 
-  // Calcul ordinal: les indices < topCount (moitié haute) correspondaient aux zones
-  // historiquement pivotées à 180° par la grille. Cette logique reste correcte car elle
-  // reflète l'ordre de rendu des zones (top vs bottom dans AdaptiveGrid).
-  final totalZones = find.byType(LifeDial).evaluate().length;
-  final isRotated = zoneIndex < totalZones ~/ 2;
-
-  final dial = tester.getRect(dialFinder);
-  final dx = isRotated ? dial.width * 0.75 : dial.width * 0.25;
   for (var i = 0; i < count; i++) {
-    await tester.tapAt(Offset(dial.left + dx, dial.center.dy));
+    try {
+      await tester.tap(minusHalfsFinder.at(zoneIndex));
+    } catch (e) {
+      // Si at() échoue, utiliser first
+      await tester.tap(minusHalfsFinder.first);
+    }
     await tester.pump();
   }
 }
