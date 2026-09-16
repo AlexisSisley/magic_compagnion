@@ -1,4 +1,6 @@
 // lib/providers/game_session_notifier.dart
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_session.dart';
@@ -90,7 +92,10 @@ class GameSessionNotifier extends Notifier<GameSession?> {
       if (p.playerId == targetPlayerId) {
         final cmdDamage = Map<int, int>.from(p.commanderDamageReceived);
         final current = cmdDamage[sourcePlayerId] ?? 0;
-        final updated = (current + damage).clamp(0, 999999);
+        // Plancher à 0 uniquement : aucun plafond n'existe pour un total de
+        // dégâts de commandant (contrairement aux compteurs, plafonnés à 99
+        // dans updateCounter).
+        final updated = max(0, current + damage);
         final appliedDelta = updated - current;
         if (appliedDelta == 0) return p; // rien à appliquer (plancher atteint)
         cmdDamage[sourcePlayerId] = updated;
