@@ -37,8 +37,14 @@ La V4 procède donc **par strangulation in-place** : la page existante perd ses 
 Le chiffre de PV occupe toute la zone. Il n'y a ni rangée de compteurs permanente, ni pastilles fixes.
 
 - **Tap moitié gauche** : −1. **Tap moitié droite** : +1.
-- **Maintien sur une moitié** : répétition accélérée. Couvre la tranche 3 à 8 points sans rien ouvrir.
 - Le buffer de 2 secondes existant est conservé : les taps s'accumulent, un badge `+N` / `−N` s'affiche, l'application est différée.
+
+> **Amendement (lot 2, tâche 3).** La répétition accélérée au maintien, décrite ici à l'origine,
+> est abandonnée : l'appui long est devenu la porte du mode ajustement (§2.5), sur la même zone et
+> le même geste. Conserver les deux aurait exigé de réserver l'appui long à une sous-région de la
+> zone — la séparation spatiale que ce document écarte explicitement (§2.1 minimal gestuel, un
+> mode unique et global). La tranche qu'elle couvrait (3 à 8 points) reste accessible via la
+> molette du mode ajustement (8 px par point).
 
 ### 2.2 Poignée conditionnelle
 
@@ -68,7 +74,13 @@ Pas de pavé numérique custom : trop de state, de focus et de clavier système 
 
 La molette et le tiroir sont tous deux des glissements verticaux, comme la rotation de zone. Ils sont départagés par un **mode explicite** :
 
-**Un appui long fait basculer la zone en mode ajustement.** Les paliers ±5/±10 apparaissent, le glissement pilote la molette dans toute la zone. On relâche, on sort du mode.
+**Un appui long fait basculer la zone en mode ajustement.** Les paliers ±5/±10 apparaissent, et le glissement pilote la molette dans toute la zone.
+
+**Le mode persiste après le relâchement ; on en sort par un tap hors des paliers.**
+
+> **Amendement (lot 2).** Cette section disait à l'origine « on relâche, on sort du mode ». C'était une formule écrite avant que les paliers ±5/±10 ne soient intégrés au mode : une sortie au relâchement les rendrait **inatteignables**, puisqu'il faudrait garder le doigt posé pour rester dans le mode, donc pour qu'ils restent affichés. La molette seule aurait pu vivre dans un geste continu unique ; les paliers ne le peuvent pas. Le mode est donc persistant, et le tap hors des paliers est son geste de sortie.
+>
+> Conséquence d'implémentation, découverte à la même occasion : le delta d'un tap simple est émis au **relâchement** et non à l'appui. C'est ce qui permet à l'appui long d'annuler un tap en attente au lieu d'émettre un point de vie fantôme avant l'entrée en mode.
 
 **Conséquence assumée :** l'appui long est aujourd'hui occupé par le menu radial (monarque / éliminer / reset). Le tap sur le nom est déjà pris par l'historique du joueur. **Le menu radial déménage donc dans le tiroir**, qui devient le panneau complet du joueur.
 
@@ -77,13 +89,17 @@ Carte des gestes après V4 :
 | Geste | Action |
 |---|---|
 | Tap gauche / droite | −1 / +1 |
-| Maintien sur − / + | Répétition accélérée |
 | Appui long | Entrée en mode ajustement (molette + paliers) |
 | Glissement depuis la poignée | Ouverture du tiroir |
 | Glissement sur l'en-tête | Rotation de la zone |
 | Deux doigts (global) | Vue table |
 
-Le `RadialMenu` existant (161 lignes) est conservé comme composant ; seul son point d'invocation change.
+> **Amendement (lot 2, revue globale de branche).** Cette section disait à l'origine « le
+> `RadialMenu` existant est conservé comme composant ; seul son point d'invocation change ». Dans
+> les faits, le point d'invocation n'a pas changé de déclencheur, il a changé de **composant** : le
+> tiroir n'est pas un menu radial mais un `showModalBottomSheet` avec des `ListTile`. Le
+> `RadialMenu` n'a donc plus aucun appelant ; il est supprimé plutôt que conservé sans emploi,
+> l'historique git le garde si un lot futur en veut un.
 
 ### 2.6 Commander damage
 
@@ -135,7 +151,7 @@ La page perd :
 | Badge `_pendingDamage` et flash commander sur la mauvaise zone après reorder | État clé par `playerId` (§3.1) |
 | `GameSession.duration` / `startedAt` jamais renseignés ; durée perdue au redémarrage malgré la restauration du snapshot | La durée vit dans la session, plus dans le `State` |
 | Toggle « Timer de partie » du setup jamais transmis à la page — réglage sans effet | **Non corrigé par le lot 1.** Reporté au lot 4 (§4) : le réglage n'est câblé que là où `GameSetupModal` sera remplacé par le setup inline (§2.8) — le câbler à travers le modal actuel, voué à la suppression, serait du travail jeté. |
-| `_calculateDefaultRotation(int id, int totalPlayers)` ignore ses deux paramètres et retourne toujours `0` | Réécrit avec une vraie logique par nombre de joueurs, ou supprimé au profit des presets d'orientation existants |
+| `_calculateDefaultRotation(int id, int totalPlayers)` ignore ses deux paramètres et retourne toujours `0` | **Tranché par le lot 6** (`2026-09-16-life-counter-v4-lot6-table-multijoueur-design.md` §2.4) : supprimé, remplacé par `seatsFor(playerCount)`, qui calcule la rotation par défaut depuis le siège du joueur |
 | `reorderPlayers` du modèle contourné par une permutation physique de la liste | Le reorder passe par le modèle ; `playerOrder` devient la source de vérité |
 | `_saveSnapshot()` appelé en I/O synchrone après chaque tap | Écriture débattue (debounce) sur le cycle du buffer de dégâts |
 
@@ -159,7 +175,15 @@ La page perd :
 
 ### 3.4 Ce qui ne bouge pas
 
-Sont conservés tels quels : `AdaptiveGrid` et les presets d'orientation, `EliminationOverlay` et `CrackEffect`, `CriticalOverlay`, `AnimationService`, `DiceRollDialog`, `DamageHistorySheet`, `PlayerHistorySheet`, `DeathConfirmationOverlay`, `RadialMenu` (seul son point d'invocation change), le wakelock et le mode immersif, les profils Owner/Guest et la sélection d'artwork Scryfall, la persistance Drift de l'historique et le snapshot de reprise après crash.
+> **Amendé par le lot 6** (`2026-09-16-life-counter-v4-lot6-table-multijoueur-design.md` §4).
+> `AdaptiveGrid` **ne fait plus partie de cette liste** : sa règle de disposition figée
+> (moitié haute retournée) est fausse dès 4 joueurs autour d'un appareil posé à plat. Le lot 6
+> la réduit à un moteur de rendu piloté par un modèle de sièges. Les presets d'orientation
+> restent, mais changent de statut : réglage de secours, et non plus mode normal.
+
+Sont conservés tels quels : les presets d'orientation, `EliminationOverlay` et `CrackEffect`, `CriticalOverlay`, `AnimationService`, `DiceRollDialog`, `DamageHistorySheet`, `PlayerHistorySheet`, `DeathConfirmationOverlay`, le wakelock et le mode immersif, les profils Owner/Guest et la sélection d'artwork Scryfall, la persistance Drift de l'historique et le snapshot de reprise après crash.
+
+> **Amendement (lot 2).** `RadialMenu` figurait dans cette liste, « seul son point d'invocation change ». Il en sort : le tiroir est un `showModalBottomSheet` à `ListTile`, pas un menu radial, donc le composant s'est retrouvé sans aucun appelant. Il est supprimé plutôt que conservé sans emploi — garder un composant orphelin est exactement le sédiment que §1 reproche aux cycles V2 et V3. L'historique git le conserve si un lot ultérieur en veut un.
 
 ### 3.5 Compteurs personnalisés
 

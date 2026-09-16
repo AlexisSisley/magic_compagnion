@@ -147,4 +147,39 @@ abstract final class AppTextStyles {
       fontWeight: fontWeight,
       fontStyle: fontStyle,
     );
+
+  // ============================================================
+  // LIFE COUNTER (zone joueur V4)
+  // ============================================================
+
+  /// Chiffre du cadran de vie (88px, w200, resserre) : un cadran, pas un titre — police systeme, pas Cinzel.
+  static TextStyle lifeNumeral({Color? color, double? fontSize}) => TextStyle(
+    color: color ?? AppColors.textPrimary,
+    fontSize: fontSize ?? 88,
+    fontWeight: FontWeight.w200,
+    letterSpacing: -3,
+  );
+
+  /// Badge de delta en attente sous le chiffre de vie (20px, semibold).
+  static TextStyle lifeBadge({Color? color, double? fontSize}) => TextStyle(
+    color: color ?? AppColors.textPrimary,
+    fontSize: fontSize ?? 20,
+    fontWeight: FontWeight.w600,
+  );
+
+  /// Libellé des paliers du mode ajustement, ex. "+5"/"-10" (15px, w700).
+  static TextStyle lifeStepLabel({Color? color, double? fontSize}) =>
+      TextStyle(
+    color: color ?? AppColors.textPrimary,
+    fontSize: fontSize ?? 15,
+    fontWeight: FontWeight.w700,
+  );
+
+  /// Puce de la poignée conditionnelle (bandeau résumé), ex. "☠ 3" (13px, w700).
+  static TextStyle lifeHandleChip({Color? color, double? fontSize}) =>
+      TextStyle(
+    color: color ?? AppColors.textPrimary,
+    fontSize: fontSize ?? 13,
+    fontWeight: FontWeight.w700,
+  );
 }

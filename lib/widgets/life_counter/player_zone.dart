@@ -3,49 +3,46 @@
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../models/player_model.dart';
-import '../../models/scryfall_card_model.dart';
 import '../../services/local_card_service.dart';
 import '../../providers/service_providers.dart';
-// Import du sélecteur de versions pour choisir l'artwork
-import '../cards/versions_selector_sheet.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 // Sub-widgets
 import 'player_header.dart';
-import 'life_display.dart';
 import 'life_log.dart';
-import 'counter_strip.dart';
-
-enum CounterMode { life, poison, energy, commanderTax }
+import 'zone/life_dial.dart';
+import 'zone/conditional_handle.dart';
+import 'zone/player_skin_picker.dart';
 
 class PlayerZone extends ConsumerStatefulWidget {
   const PlayerZone({
     super.key,
     required this.player,
     required this.onLifeChanged,
-    required this.onShowCommanderDamage,
     required this.onColorChanged,
-    this.onStatChanged,
+    this.onOpenDrawer,
     this.onRotationChanged,
     this.onSkinChanged,
     this.onNameTap,
     this.quarterTurns = 0,
-    this.isCommander = false,
     this.isHighlighted = false,
   });
 
   final Player player;
   final int quarterTurns;
-  final bool isCommander;
   final bool isHighlighted;
   final Function(int) onLifeChanged;
-  final Function(String type, int val)? onStatChanged;
+
+  /// Ouverture du tiroir (tap sur la poignée — voir `ConditionalHandle`, qui
+  /// n'expose qu'un `onTap`, aucun glissement) : compteurs, monarque,
+  /// élimination et dégâts de commandant y vivent désormais tous (voir
+  /// player_drawer.dart) — PlayerZone n'a plus besoin de callbacks dédiés à
+  /// chacun d'eux.
+  final VoidCallback? onOpenDrawer;
+
   final Function(Color) onColorChanged;
   final Function(int)? onRotationChanged;
   final Function(String?)? onSkinChanged;
@@ -53,7 +50,6 @@ class PlayerZone extends ConsumerStatefulWidget {
   /// Optional callback triggered when the player name in the header is tapped.
   /// Wire this to open PlayerHistorySheet (Task 10).
   final VoidCallback? onNameTap;
-  final VoidCallback onShowCommanderDamage;
 
   @override
   ConsumerState<PlayerZone> createState() => _PlayerZoneState();
@@ -66,11 +62,13 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
   final List<FloatingNumberData> _floatingNumbers = [];
 
   int _nextNumberId = 0;
-  CounterMode _editMode = CounterMode.life;
-  Timer? _resetModeTimer;
   double _dragAccumulator = 0.0;
   Offset _lastLongPressPosition = Offset.zero;
   final double _rotationThreshold = 40.0;
+
+  /// Hauteur réservée à l'en-tête (palette, rotation, nom) au-dessus du
+  /// cadran de vie (spec §2.1 : le chiffre occupe le reste de la zone).
+  static const double _headerHeight = 40.0;
 
   // --- US-14.3 : Animation controllers ---
   late final AnimationController _pulseController;
@@ -79,13 +77,6 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
   late final Animation<double> _shakeAnimation;
   late final AnimationController _glowController;
   late final Animation<double> _glowAnimation;
-
-  final List<Color> _colorOptions = [
-    Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
-    AppColors.greyShade800, Colors.purple.shade900, Colors.orange.shade900,
-    Colors.teal.shade900, Colors.pink.shade900, Colors.brown.shade800,
-    Colors.indigo.shade900, Colors.blueGrey.shade800, Colors.black
-  ];
 
   @override
   void initState() {
@@ -115,6 +106,16 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     ]).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
 
     // Glow (opacity pulsation) : 1.5s, boucle infinie
+    //
+    // ATTENTION (tests) : `.repeat()` ne se termine jamais tant que le
+    // joueur reste monarque — `tester.pumpAndSettle()` fait alors timeout
+    // dans tout test dont l'arbre traverse un `PlayerZone` monarque (vu en
+    // ronde 1 de revue de la tâche 6). Utiliser `tester.pump(duration)` avec
+    // une durée bornée pour ces cas, jamais `pumpAndSettle()`. Le coût de
+    // rendu réel reste négligeable : l'animation ne tourne que pour le seul
+    // joueur monarque (au plus un par partie), et son sous-arbre est passé
+    // en `child:` de l'`AnimatedBuilder` — il n'est reconstruit qu'une fois,
+    // pas à chaque frame du glow.
     _glowController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -135,7 +136,6 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
 
   @override
   void dispose() {
-    _resetModeTimer?.cancel();
     _pulseController.dispose();
     _shakeController.dispose();
     _glowController.dispose();
@@ -155,35 +155,22 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
 
   // --- Logic (kept in orchestrator since it coordinates animations + callbacks) ---
 
+  /// Remonte un delta de vie : la zone ne mute plus le `Player` en place
+  /// (V4 — voir le tiroir pour les compteurs), elle se contente d'émettre et
+  /// de jouer le retour visuel (pulse/shake + nombre flottant).
   void _triggerChange(int change) {
-    _resetAutoReturnTimer();
-    if (_editMode == CounterMode.life) {
-      widget.onLifeChanged(change);
-      _showFloatingNumber(change, isLife: true);
-      if (change > 0) {
-        _pulseController.forward(from: 0);
-      } else if (change < 0) {
-        _shakeController.forward(from: 0);
-      }
-    } else {
-      setState(() {
-        if (_editMode == CounterMode.poison) widget.player.poison = (widget.player.poison + change).clamp(0, 99);
-        if (_editMode == CounterMode.energy) widget.player.energy = (widget.player.energy + change).clamp(0, 99);
-        if (_editMode == CounterMode.commanderTax) widget.player.commanderCastCount = (widget.player.commanderCastCount + change).clamp(0, 99);
-      });
-      _showFloatingNumber(change, isLife: false);
-      widget.onStatChanged?.call(_editMode.toString(), change);
+    widget.onLifeChanged(change);
+    _showFloatingNumber(change);
+    if (change > 0) {
+      _pulseController.forward(from: 0);
+    } else if (change < 0) {
+      _shakeController.forward(from: 0);
     }
   }
 
-  void _showFloatingNumber(int change, {bool isLife = true}) {
+  void _showFloatingNumber(int change) {
     final String text = (change > 0) ? '+$change' : '$change';
-    Color color;
-    if (isLife) {
-      color = (change > 0) ? AppColors.accentGreen : AppColors.accentRed;
-    } else {
-      color = _getModeColor(_editMode);
-    }
+    final Color color = (change > 0) ? AppColors.accentGreen : AppColors.accentRed;
 
     final int id = _nextNumberId++;
     final number = FloatingNumberData(id: id, text: text, color: color);
@@ -197,229 +184,6 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     Timer(const Duration(milliseconds: 600), () {
       if(mounted) setState(() => _floatingNumbers.removeWhere((n) => n.id == id));
     });
-  }
-
-  void _setEditMode(CounterMode mode) {
-    setState(() => _editMode = mode);
-    if (mode != CounterMode.life) {
-      _resetAutoReturnTimer();
-    } else {
-      _resetModeTimer?.cancel();
-    }
-  }
-
-  void _resetAutoReturnTimer() {
-    _resetModeTimer?.cancel();
-    if (_editMode != CounterMode.life) {
-      _resetModeTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted) setState(() => _editMode = CounterMode.life);
-      });
-    }
-  }
-
-  Color _getModeColor(CounterMode mode) {
-    switch (mode) {
-      case CounterMode.poison: return AppColors.accentGreen;
-      case CounterMode.energy: return AppColors.accent;
-      case CounterMode.commanderTax: return AppColors.amber;
-      default: return AppColors.textPrimary;
-    }
-  }
-
-  IconData _getModeIcon(CounterMode mode) {
-    switch (mode) {
-      case CounterMode.poison: return Icons.science;
-      case CounterMode.energy: return Icons.flash_on;
-      case CounterMode.commanderTax: return Icons.local_police;
-      default: return Icons.favorite;
-    }
-  }
-
-  String _getDisplayValue() {
-    switch (_editMode) {
-      case CounterMode.poison: return '${widget.player.poison}';
-      case CounterMode.energy: return '${widget.player.energy}';
-      case CounterMode.commanderTax: return '${widget.player.commanderCastCount}';
-      default: return '${widget.player.life}';
-    }
-  }
-
-  Future<void> _pickImage(BuildContext dialogCtx) async {
-    final ImagePicker picker = ImagePicker();
-    try {
-      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-      if (image != null && widget.onSkinChanged != null) {
-        widget.onSkinChanged!(image.path);
-        if (!mounted) return;
-        Navigator.of(dialogCtx).pop();
-      }
-    } catch (e) {
-      debugPrint('Erreur image picker: $e');
-    }
-  }
-
-  void _openArtworkSearch(BuildContext dialogCtx) {
-    // Close the color picker dialog using the dialog's own context
-    Navigator.of(dialogCtx).pop();
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.scaffoldBackground,
-      isScrollControlled: true,
-      builder: (sheetCtx) => _ArtworkSearchModal(
-        localCardService: _localCardService,
-        onCardSelected: (ScryfallCard card) {
-          final String artUrl = card.artCropUrl ?? card.imageUrl;
-          if (widget.onSkinChanged != null) {
-            widget.onSkinChanged!(artUrl);
-          }
-        },
-      ),
-    );
-  }
-
-  void _showColorPicker() {
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.scaffoldBackground,
-        title: Text('Personnalisation J${widget.player.id + 1}', style: AppTextStyles.cinzel()),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ElevatedButton.icon(
-              onPressed: () => _openArtworkSearch(dialogCtx),
-              icon: const Icon(Icons.palette, color: AppColors.textOnPrimary),
-              label: Text('Choisir un Artwork', style: AppTextStyles.bold()),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800, foregroundColor: AppColors.textOnPrimary),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () => _pickImage(dialogCtx),
-              icon: const Icon(Icons.photo_library),
-              label: const Text('Depuis la galerie'),
-              style: OutlinedButton.styleFrom(foregroundColor: AppColors.textSecondary, side: const BorderSide(color: AppColors.borderMedium)),
-            ),
-            if (widget.player.backgroundImagePath != null)
-               TextButton(
-                 onPressed: () {
-                   widget.onSkinChanged?.call(null);
-                   Navigator.of(dialogCtx).pop();
-                 },
-                 child: const Text("Supprimer l'image", style: TextStyle(color: AppColors.accentRed))
-               ),
-            const Divider(color: AppColors.borderMedium),
-            const Text('Couleur unie :', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12, runSpacing: 12,
-              alignment: WrapAlignment.center,
-              children: _colorOptions.map((c) => GestureDetector(
-                onTap: () { widget.onColorChanged(c); Navigator.of(dialogCtx).pop(); },
-                child: Container(
-                  width: 45, height: 45,
-                  decoration: BoxDecoration(
-                    color: c,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.textMuted, width: 2),
-                    boxShadow: [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 8)]
-                  ),
-                ),
-              )).toList(),
-            ),
-          ],
-        ),
-      )
-    );
-  }
-
-  void _showCommanderGallery() {
-    final gallery = widget.player.commanderGallery;
-    if (gallery.isEmpty) return;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.scaffoldBackground,
-      builder: (sheetCtx) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Commanders', style: AppTextStyles.cinzel(fontSize: 18)),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 120,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: gallery.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (ctx, i) {
-                  final entry = gallery[i];
-                  final isActive = widget.player.backgroundImagePath == entry.imageUrl;
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.of(sheetCtx).pop();
-                      if (widget.onSkinChanged != null) {
-                        widget.onSkinChanged!(entry.imageUrl);
-                        HapticFeedback.selectionClick();
-                      }
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 80, height: 80,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isActive ? AppColors.primary : AppColors.borderMedium,
-                              width: isActive ? 3 : 1,
-                            ),
-                            boxShadow: isActive ? [
-                              BoxShadow(color: AppColors.primary.withAlpha(80), blurRadius: 8),
-                            ] : null,
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: entry.imageUrl != null
-                              ? CachedNetworkImage(
-                                  imageUrl: entry.imageUrl!,
-                                  httpHeaders: const {'User-Agent': 'MagicCompanion/1.0', 'Accept': '*/*'},
-                                  fit: BoxFit.cover,
-                                  placeholder: (_, __) => Container(
-                                    color: AppColors.surfaceDarkest,
-                                    child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                                  ),
-                                  errorWidget: (_, __, ___) => Container(
-                                    color: AppColors.surfaceDarkest,
-                                    child: const Icon(Icons.broken_image, color: AppColors.textMuted),
-                                  ),
-                                )
-                              : Container(
-                                  color: AppColors.surfaceDarkest,
-                                  child: const Icon(Icons.image, color: AppColors.textMuted),
-                                ),
-                        ),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          width: 80,
-                          child: Text(
-                            entry.name,
-                            style: AppTextStyles.label(fontSize: 10),
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _rotate90Degrees() {
@@ -449,21 +213,18 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
   Widget build(BuildContext context) {
     Color bgColor = Color(widget.player.colorValue);
 
-    // Background image handling
-    Widget backgroundWidget;
+    // Image de fond (ou couleur unie de repli) : voir zone/player_skin_picker.dart.
+    final Widget backgroundWidget = buildPlayerBackground(widget.player);
 
-    if (widget.player.backgroundImagePath != null && widget.player.secondaryBackgroundImagePath != null) {
-      backgroundWidget = Row(
-        children: [
-          Expanded(child: _buildImage(widget.player.backgroundImagePath!)),
-          Expanded(child: _buildImage(widget.player.secondaryBackgroundImagePath!)),
-        ],
-      );
-    } else if (widget.player.backgroundImagePath != null) {
-      backgroundWidget = _buildImage(widget.player.backgroundImagePath!);
-    } else {
-      backgroundWidget = Container(color: bgColor);
-    }
+    // Résumé des compteurs pour la poignée conditionnelle (spec §2.2) : le
+    // "pire" dégât de commandant, pas le total, est ce qui menace vraiment.
+    final counterSummary = CounterSummary(
+      poison: widget.player.poison,
+      energy: widget.player.energy,
+      commanderTax: widget.player.commanderCastCount,
+      worstCommanderDamage: widget.player.commanderDamageReceived.values
+          .fold<int>(0, (max, v) => v > max ? v : max),
+    );
 
     // US-14.3 : Glow monarch via AnimatedBuilder
     Widget content = AnimatedBuilder(
@@ -496,55 +257,69 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
           Positioned.fill(child: backgroundWidget),
           Positioned.fill(child: Container(color: AppColors.textOnPrimary.withValues(alpha: 0.3))),
 
-          // Life display (center: -/value/+ row)
-          LifeDisplay(
-            displayValue: _getDisplayValue(),
-            editMode: _editMode,
-            modeColor: _getModeColor(_editMode),
-            modeIcon: _getModeIcon(_editMode),
-            onDecrement: () => _triggerChange(-1),
-            onDecrementLarge: () => _triggerChange(_editMode == CounterMode.commanderTax ? -10 : -5),
-            onIncrement: () => _triggerChange(1),
-            onIncrementLarge: () => _triggerChange(_editMode == CounterMode.commanderTax ? 10 : 5),
-            onTapCenter: () { if (_editMode != CounterMode.life) _setEditMode(CounterMode.life); },
-            pulseController: _pulseController,
-            pulseAnimation: _pulseAnimation,
-            shakeController: _shakeController,
-            shakeAnimation: _shakeAnimation,
+          // Corps central : en-tête (palette/rotation/nom), le chiffre de vie
+          // occupe tout le reste (spec §2.1), la poignée conditionnelle ferme
+          // la zone en bas (spec §2.2).
+          Positioned.fill(
+            child: Column(
+              children: [
+                SizedBox(
+                  height: _headerHeight,
+                  child: PlayerHeader(
+                    onShowColorPicker: () => showPlayerSkinPicker(
+                      context: context,
+                      player: widget.player,
+                      onColorChanged: widget.onColorChanged,
+                      onSkinChanged: widget.onSkinChanged,
+                      localCardService: _localCardService,
+                    ),
+                    onRotate: _rotate90Degrees,
+                    onLongPressStart: (details) {
+                      _dragAccumulator = 0.0;
+                      _lastLongPressPosition = details.localPosition;
+                      HapticFeedback.selectionClick();
+                    },
+                    onLongPressMoveUpdate: (details) {
+                      final double delta = details.localPosition.dx - _lastLongPressPosition.dx;
+                      _lastLongPressPosition = details.localPosition;
+                      _handleRotationDrag(delta);
+                    },
+                    playerName: widget.player.name,
+                    onNameTap: widget.onNameTap,
+                  ),
+                ),
+                Expanded(
+                  // US-14.3 : pulse (gain de vie) et shake (dégâts) — le
+                  // chiffre occupe tout le cadran désormais, l'animation
+                  // s'applique donc au cadran entier plutôt qu'à un Text isolé
+                  // comme au temps de LifeDisplay.
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([_pulseController, _shakeController]),
+                    builder: (context, child) {
+                      final double scale = _pulseController.isAnimating ? _pulseAnimation.value : 1.0;
+                      final double shakeX = _shakeController.isAnimating ? _shakeAnimation.value : 0.0;
+                      return Transform.translate(
+                        offset: Offset(shakeX, 0),
+                        child: Transform.scale(scale: scale, child: child),
+                      );
+                    },
+                    child: LifeDial(
+                      playerId: widget.player.id,
+                      life: widget.player.life,
+                      onDelta: _triggerChange,
+                    ),
+                  ),
+                ),
+                ConditionalHandle(
+                  summary: counterSummary,
+                  onTap: widget.onOpenDrawer,
+                ),
+              ],
+            ),
           ),
 
           // Floating numbers overlay
           LifeLog(floatingNumbers: _floatingNumbers),
-
-          // Header controls (palette + rotation + player name)
-          PlayerHeader(
-            onShowColorPicker: _showColorPicker,
-            onRotate: _rotate90Degrees,
-            onLongPressStart: (details) {
-              _dragAccumulator = 0.0;
-              _lastLongPressPosition = details.localPosition;
-              HapticFeedback.selectionClick();
-            },
-            onLongPressMoveUpdate: (details) {
-              final double delta = details.localPosition.dx - _lastLongPressPosition.dx;
-              _lastLongPressPosition = details.localPosition;
-              _handleRotationDrag(delta);
-            },
-            playerName: widget.player.name,
-            onNameTap: widget.onNameTap,
-          ),
-
-          // Counter strip (bottom)
-          CounterStrip(
-            editMode: _editMode,
-            poisonValue: widget.player.poison,
-            energyValue: widget.player.energy,
-            commanderTaxValue: widget.player.commanderCastCount,
-            totalCommanderDamage: widget.player.totalCommanderDamage,
-            isCommander: widget.isCommander,
-            onModeSelected: _setEditMode,
-            onShowCommanderDamage: widget.onShowCommanderDamage,
-          ),
 
           // Commander gallery quick-switch (top-right)
           if (widget.player.commanderGallery.isNotEmpty)
@@ -552,7 +327,11 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
               top: 4,
               right: 4,
               child: GestureDetector(
-                onTap: _showCommanderGallery,
+                onTap: () => showCommanderGallery(
+                  context: context,
+                  player: widget.player,
+                  onSkinChanged: widget.onSkinChanged,
+                ),
                 child: Container(
                   width: 32, height: 32,
                   decoration: BoxDecoration(
@@ -583,152 +362,6 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     return RotatedBox(
       quarterTurns: widget.player.quarterTurns,
       child: content,
-    );
-  }
-
-  Widget _buildImage(String path) {
-    if (path.startsWith('http')) {
-      return CachedNetworkImage(
-        imageUrl: path,
-        httpHeaders: const {'User-Agent': 'MagicCompanion/1.0', 'Accept': '*/*'},
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        placeholder: (context, url) => Container(color: AppColors.greyShade900),
-        errorWidget: (context, url, error) => Container(
-          color: AppColors.greyShade900,
-          child: const Center(child: Icon(Icons.image_not_supported, color: AppColors.borderMedium)),
-        ),
-      );
-    }
-    return Image(image: FileImage(File(path)), fit: BoxFit.cover,
-      errorBuilder: (c, e, s) => Container(
-        color: AppColors.greyShade900,
-        child: const Center(child: Icon(Icons.image_not_supported, color: AppColors.borderMedium)),
-      ),
-    );
-  }
-}
-
-// --- SOUS-WIDGET : MODALE DE RECHERCHE D'ARTWORK ---
-class _ArtworkSearchModal extends StatefulWidget {
-  final LocalCardService localCardService;
-  final Function(ScryfallCard) onCardSelected;
-
-  const _ArtworkSearchModal({required this.localCardService, required this.onCardSelected});
-
-  @override
-  State<_ArtworkSearchModal> createState() => _ArtworkSearchModalState();
-}
-
-class _ArtworkSearchModalState extends State<_ArtworkSearchModal> {
-  final TextEditingController _controller = TextEditingController();
-  List<ScryfallCard> _results = [];
-  Timer? _debounce;
-
-  void _onSearchChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () async {
-      if (query.trim().length >= 2) {
-        final results = await widget.localCardService.searchCards(query: query);
-        if (mounted) {
-          setState(() {
-            _results = results.take(20).toList();
-          });
-        }
-      } else {
-        if (mounted) setState(() => _results = []);
-      }
-    });
-  }
-
-  void _openVersionSelector(ScryfallCard card) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.transparent,
-      builder: (ctx) => VersionsSelectorSheet(
-        oracleId: card.oracleId,
-        currentCardId: card.id,
-        onVersionSelected: (version) {
-           widget.onCardSelected(version);
-           Navigator.of(context).pop();
-        },
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        padding: const EdgeInsets.all(16),
-        decoration: const BoxDecoration(
-          color: AppColors.scaffoldBackground,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Text('Choisir un Artwork', style: AppTextStyles.cinzel(fontSize: 18)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _controller,
-              autofocus: true,
-              style: AppTextStyles.cinzel(),
-              decoration: const InputDecoration(
-                hintText: 'Nom de la carte...',
-                hintStyle: TextStyle(color: AppColors.textDisabled),
-                prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
-                filled: true,
-                fillColor: AppColors.overlayMedium,
-                border: OutlineInputBorder(),
-              ),
-              onChanged: _onSearchChanged,
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: _results.isEmpty
-                  ? Center(child: Text("Tapez le nom d'une carte", style: AppTextStyles.cinzel(color: AppColors.textDisabled)))
-                  : GridView.builder(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        childAspectRatio: 0.7,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8
-                      ),
-                      itemCount: _results.length,
-                      itemBuilder: (context, index) {
-                        final card = _results[index];
-                        final imgUrl = card.smallImageUrl ?? '';
-
-                        return GestureDetector(
-                          onTap: () => _openVersionSelector(card),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Image.network(imgUrl, fit: BoxFit.cover, errorBuilder: (_, _, _)=>Container(color: AppColors.greyShade800)),
-                                Positioned(
-                                  bottom: 0, right: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(2),
-                                    color: AppColors.overlayDark,
-                                    child: const Icon(Icons.grid_view, size: 12, color: AppColors.textSecondary),
-                                  ),
-                                )
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -14,6 +14,7 @@ import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
+import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Double de test : bloque `saveSnapshot()` jusqu'à `releaseGate()`, pour
@@ -668,5 +669,179 @@ void main() {
           'le même joueur que celui annoncé dans le dialogue, même après '
           'un reorder',
     );
+  });
+
+  // --- Dette remboursée : le tiroir (showPlayerDrawer) rebranche 4 actions
+  // rendues injoignables par la suppression du menu radial (tâche 5). Ces
+  // quatre tests vérifient que chacune produit bien son effet sur la session,
+  // déclenchée depuis le tiroir (ouvert via la poignée conditionnelle de la
+  // zone du joueur 0), pas en appelant le contrôleur directement.
+
+  /// Monte la page avec un `container` explicite (pour lire l'état ensuite)
+  /// et un snapshot optionnel, comme `pumpLifeCounter` mais en exposant le
+  /// `ProviderContainer` — nécessaire ici pour vérifier l'effet des actions
+  /// du tiroir sur la session après coup.
+  Future<ProviderContainer> pumpWithContainer(
+    WidgetTester tester, {
+    GameSession? snapshot,
+  }) async {
+    SharedPreferences.setMockInitialValues({
+      if (snapshot != null) 'active_game_snapshot': json.encode(snapshot.toJson()),
+    });
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return container;
+  }
+
+  /// Ouvre le tiroir du joueur 0 en tapant réellement sa poignée conditionnelle
+  /// (première `ConditionalHandle` de l'arbre : les zones sont rendues dans
+  /// l'ordre d'affichage, qui coïncide avec l'ordre canonique tant qu'aucun
+  /// reorder n'a eu lieu).
+  ///
+  /// Un vrai `tester.tap` plutôt qu'un appel direct à `onTap` : sinon ces
+  /// tests ne verrouilleraient que le câblage logique, pas l'accessibilité
+  /// réelle du geste — si la poignée devenait un jour non tapable (recouverte,
+  /// `HitTestBehavior` changé, hauteur nulle), ils resteraient verts alors que
+  /// les quatre actions redeviendraient injoignables dans l'app.
+  Future<void> openDrawerForPlayerZero(WidgetTester tester) async {
+    await tester.tap(find.byType(ConditionalHandle).first);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets(
+      'DETTE 1/4 — le toggle monarque depuis le tiroir atteint la session',
+      (tester) async {
+    final container = await pumpWithContainer(tester);
+
+    await openDrawerForPlayerZero(tester);
+    await tester.tap(find.byKey(const ValueKey('action-monarch')));
+    // Pas de `pumpAndSettle()` ici : devenir monarque relance le glow du
+    // cadre de la zone (`_glowController.repeat()`, US-14.3), une animation
+    // en boucle infinie qui ferait timeout `pumpAndSettle`. Quelques frames
+    // bornées suffisent à laisser le tiroir se refermer et la mutation
+    // s'appliquer.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.players[0].isMonarch, isTrue,
+        reason: 'toggleMonarch() doit être atteignable depuis le tiroir, '
+            'seul point d\'accès restant depuis la suppression du menu '
+            'radial');
+  });
+
+  testWidgets(
+      "DETTE 2/4 — l'élimination volontaire depuis le tiroir atteint la "
+      'session',
+      (tester) async {
+    final container = await pumpWithContainer(tester);
+
+    await openDrawerForPlayerZero(tester);
+    await tester.tap(find.byKey(const ValueKey('action-eliminate')));
+    await tester.pumpAndSettle();
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.players[0].isEliminated, isTrue,
+        reason: "s'éliminer volontairement (hors détection de mort "
+            'automatique) doit rester possible depuis le tiroir');
+    expect(session.eliminationOrder, contains(0));
+  });
+
+  testWidgets(
+      "DETTE 3/4 — annuler l'élimination depuis le tiroir restaure le "
+      'joueur',
+      (tester) async {
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    final eliminated = baseSession.eliminatePlayer(0, atDuration: Duration.zero);
+    final container = await pumpWithContainer(tester, snapshot: eliminated);
+
+    // Précondition : le joueur 0 est bien éliminé au chargement.
+    expect(
+      container.read(gameSessionNotifierProvider)!.players[0].isEliminated,
+      isTrue,
+    );
+
+    await openDrawerForPlayerZero(tester);
+    // Le libellé de l'action bascule sur "Annuler l'élimination" pour un
+    // joueur déjà éliminé (voir player_drawer.dart) ; la clé reste la même.
+    await tester.tap(find.byKey(const ValueKey('action-eliminate')));
+    await tester.pumpAndSettle();
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.players[0].isEliminated, isFalse,
+        reason: '_undoElimination doit être recréée : le joueur redevient '
+            'vivant');
+    expect(session.eliminationOrder, isNot(contains(0)),
+        reason: 'le joueur annulé doit être retiré de eliminationOrder');
+  });
+
+  testWidgets(
+      'DETTE 4/4 — réinitialiser les compteurs depuis le tiroir ne touche '
+      'pas la vie',
+      (tester) async {
+    final container = await pumpWithContainer(tester);
+    final notifier = container.read(gameSessionNotifierProvider.notifier);
+
+    // Vie entamée et les trois compteurs non nuls avant reset.
+    notifier.updateLife(0, -10, gameDuration: Duration.zero);
+    notifier.updateCounter(0, 'poison', 3);
+    notifier.updateCounter(0, 'energy', 2);
+    notifier.updateCounter(0, 'commander_tax', 1);
+
+    await openDrawerForPlayerZero(tester);
+    await tester.tap(find.byKey(const ValueKey('action-reset')));
+    await tester.pumpAndSettle();
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    final player0 = session.players[0];
+    expect(player0.counters['poison'], 0);
+    expect(player0.counters['energy'], 0);
+    expect(player0.counters['commander_tax'], 0);
+    expect(
+      player0.life,
+      30,
+      reason: 'décision produit : onResetCounters ne remet que les '
+          'compteurs à zéro, jamais la vie (rétrécissement délibéré du '
+          "comportement de l'ancien menu radial)",
+    );
+  });
+
+  testWidgets(
+      "CRITICAL (ronde 1) — l'entrée dégâts de commandant du tiroir ouvre "
+      'le sélecteur',
+      (tester) async {
+    // La suppression de CounterStrip (tâche 6) a emporté son indicateur de
+    // dégâts de commandant, seul appelant de _showCommanderDamageSelector
+    // hors du tiroir : sans cette ligne provisoire, les dégâts de commandant
+    // deviendraient injoignables dans l'app. Ce test verrouille sa
+    // réouverture depuis le tiroir, en attendant la vraie grille du lot 3.
+    await pumpWithContainer(tester);
+
+    await openDrawerForPlayerZero(tester);
+    await tester.tap(find.byKey(const ValueKey('action-commander-damage')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Dégâts de Commandant'),
+      findsOneWidget,
+      reason: "le tiroir doit rouvrir le sélecteur plein écran existant "
+          '(_showCommanderDamageSelector), seul point de saisie restant',
+    );
+    expect(find.textContaining('Attaquant :'), findsOneWidget);
   });
 }
