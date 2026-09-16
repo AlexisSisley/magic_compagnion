@@ -106,8 +106,20 @@ Convention, écrite noir sur blanc : `RotatedBox` tourne dans le sens **horaire*
 
 Règles qui en découlent, à appliquer sans exception dans le lot 4 :
 - **Tout test qui désigne un joueur le fait par sa clé d'identité** : `ValueKey('player_zone_<playerId>')`.
-- **Toute position de tap se joue sur le widget par sa clé**, jamais sur un offset calculé — `ValueKey('life_dial_half_minus')` / `'life_dial_half_plus'`. Même quand le `RenderBox` est sous la main et que le calcul paraît juste : sous rotation de 90°, inverser gauche et droite ne suffit pas.
 - Un helper qui a besoin de l'ordre d'affichage le récupère par `session.playerOrder[index]`, pas par la position dans l'arbre.
+
+### Le corollaire, trouvé après coup, et qui vaut plus que la règle brute
+
+La première version de cette note disait « toute position de tap se joue par la clé, jamais par un offset calculé ». C'est faux pour une moitié des cas, et la revue finale du lot 6 l'a démontré : quatre tests de tap sous rotation ciblaient le bon widget par sa clé, donc le tap l'atteignait **où qu'il soit**. Inverser les deux moitiés de la table les aurait laissés verts. Ils prouvaient une garantie de Flutter, pas une propriété du lot.
+
+C'est le symétrique exact du défaut qui a coûté cinq constats aux lots 1-3 : là-bas des tests calculaient une position et touchaient le mauvais joueur. Les deux familles produisent un test vert et mensonger.
+
+La règle, dans sa forme utile :
+
+- **Cible par clé quand tu testes un COMPORTEMENT joignable par un geste.** La clé garantit que tu touches le bon widget quelle que soit la disposition — c'est précisément ce que tu veux quand la disposition n'est pas le sujet. « Ce tap ajoute un joueur » parle clé.
+- **Cible par géométrie quand la propriété testée EST la disposition.** Où se trouve le widget, quelle moitié est quelle moitié, quel siège est en haut. « Où apparaît ce joueur » parle géométrie.
+
+Le piège est que les deux familles se ressemblent : ce sont des `tester.tap` dans des tests de zone joueur. Ce qui les sépare n'est pas la forme du test, c'est **ce qu'il prétend prouver**. Le setup inline du lot 4 a des cases positionnelles par nature : tu auras les deux familles côte à côte dans le même fichier.
 
 ## Ce que ton setup inline doit respecter
 
