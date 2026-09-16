@@ -198,6 +198,19 @@ recâbler juste après.
 (attribution à la volée, vue table). Passer après lui évite que deux lots se disputent le
 même fichier.
 
+### 5.1.1 Prérequis : partir de la surface de gestes corrigée
+
+La tâche 3 du lot 2 a livré trois défauts Critical sur la gestion des gestes, tous
+**invisibles en test widget** : un appui long qui émettait un flux de points de vie
+fantômes, un appui long annulé au moindre pixel de mouvement alors que le reconnaisseur
+Flutter tolère `kTouchSlop` (18 px), et un glissement inerte seulement dans le faux temps
+de `flutter_test`.
+
+Le lot 6 hérite de cette surface de gestes : il la fait traverser des rotations de 90° et
+270°. Il ne démarre donc **pas avant que ces corrections soient mergées**. Repartir de la
+version défectueuse ferait empiler une transformation géométrique sur un reconnaisseur
+faux, et rendrait tout diagnostic ultérieur impossible à attribuer.
+
 ### 5.2 Découpe en tâches
 
 Chaque tâche est mergeable seule et laisse l'application jouable.
@@ -234,6 +247,57 @@ S'y ajoutent quatre tests de widget :
 **Dépendance au test d'intégration V4.** La spec V4 §5 exige un test bout-en-bout de partie
 complète. S'il existe au moment de ce lot, il doit tourner **à 4 joueurs** — sinon il valide
 une géométrie que plus personne n'utilise.
+
+### 6.1 Ce que les tests widget ne prouveront pas ici
+
+La tâche 3 du lot 2 a produit trois défauts Critical tous verts en test widget (§5.1.1). Le
+lot 6 aggrave ce risque plutôt qu'il ne l'évite, et il faut l'écrire avant de commencer
+plutôt que de le découvrir en revue.
+
+**Le piège propre à ce lot : le tap sous rotation.** Un tap sur un siège latéral traverse un
+`RotatedBox` avant d'atteindre les moitiés de `LifeDial`. Les coordonnées sont transformées :
+la moitié « gauche » dans le repère du joueur est la moitié « basse » à l'écran. Un test qui
+tape au centre-gauche du rectangle rendu **passera que la transformation soit correcte ou
+inversée** — il ne discrimine rien. C'est structurellement le même défaut que ceux du lot 2,
+appliqué à la géométrie.
+
+Deux exigences en découlent :
+
+- **Le test de tap sous rotation se formule dans le repère du joueur, pas de l'écran.** Pour
+  chacune des quatre orientations, taper la moitié « décrément » telle que le joueur la voit
+  et vérifier que le delta est bien négatif. Une orientation dont les deux moitiés sont
+  inversées doit faire **échouer** le test — si ce n'est pas le cas, le test est à jeter.
+- **Une vérification sur appareil réel à 4 joueurs est un critère de sortie du lot**, pas une
+  politesse. Les deux fonctions pures (`seatsFor`, `tierFor`) sont, elles, entièrement
+  couvertes en test de table : c'est précisément parce que la géométrie de rendu et les
+  gestes ne le sont pas que cette vérification manuelle est nécessaire.
+
+### 6.2 Trois façons dont un test de geste ment, toutes observées au lot 2
+
+Le lot 2 les a rencontrées une par une. Elles sont indépendantes : un test peut être juste
+sur l'une et faux sur les deux autres. Aucun test de geste du lot 6 n'est considéré comme
+acquis tant que les trois ne sont pas vérifiées.
+
+**1. Le geste est simulé au lieu d'être joué.** Appeler le callback directement plutôt que
+`tester.tap()`. C'est ce qui a masqué pendant tout le cycle V3 le fait qu'`EliminationOverlay`
+absorbait *tous* les gestes d'une zone éliminée, rendant l'annulation d'élimination
+injoignable. Le bug n'a été révélé que par le remplacement de l'appel direct par un vrai tap.
+
+**2. Le geste est joué au mauvais endroit du repère.** Le piège propre à ce lot (§6.1) :
+sous rotation de 90° ou 270°, un test qui vise le rectangle écran passe quelle que soit la
+transformation.
+
+**3. Le geste est joué au bon endroit, mais mal livré.** L'accélération de la molette était
+inerte sur appareil parce que les tests livraient 130 px en un seul appel, là où un doigt en
+livre une dizaine de petits incréments. **Tout test de glissement du lot 6 livre ses
+`PointerMoveEvent` en incréments réalistes**, jamais en un déplacement unique.
+
+**Conséquence sur la pile de composition.** Le cas `EliminationOverlay` n'est pas une
+anecdote : c'est un widget qui absorbe silencieusement les gestes de la couche en dessous.
+Le lot 6 insère précisément de nouvelles couches dans cette pile — les `RotatedBox` des
+sièges latéraux, et la couche d'alerte hors crans du §3.3 qui doit percer en cran minimal.
+**Chaque couche ajoutée par ce lot est vérifiée non-absorbante** : un tap qui la traverse
+doit atteindre `LifeDial`, et c'est un test, pas une relecture.
 
 ---
 
