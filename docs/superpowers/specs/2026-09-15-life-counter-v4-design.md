@@ -94,7 +94,12 @@ Carte des gestes après V4 :
 | Glissement sur l'en-tête | Rotation de la zone |
 | Deux doigts (global) | Vue table |
 
-Le `RadialMenu` existant (161 lignes) est conservé comme composant ; seul son point d'invocation change.
+> **Amendement (lot 2, revue globale de branche).** Cette section disait à l'origine « le
+> `RadialMenu` existant est conservé comme composant ; seul son point d'invocation change ». Dans
+> les faits, le point d'invocation n'a pas changé de déclencheur, il a changé de **composant** : le
+> tiroir n'est pas un menu radial mais un `showModalBottomSheet` avec des `ListTile`. Le
+> `RadialMenu` n'a donc plus aucun appelant ; il est supprimé plutôt que conservé sans emploi,
+> l'historique git le garde si un lot futur en veut un.
 
 ### 2.6 Commander damage
 
