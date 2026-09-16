@@ -9,6 +9,7 @@ import '../models/game_history_model.dart';
 import '../pages/life_counter/game_history_detail_page.dart';
 import '../pages/life_counter/game_history_page.dart';
 import '../pages/life_counter/life_counter_page.dart';
+import '../pages/life_counter/table_view_page.dart';
 import 'app_routes.dart';
 import 'page_transitions.dart';
 
@@ -37,6 +38,18 @@ List<RouteBase> lifeCounterRoutes() {
         final game = state.extra as GameHistoryItem;
         return GameHistoryDetailPage(game: game);
       },
+    ),
+    // Tache 4 (ronde de correction 1) : route declarative comme le reste des
+    // ecrans plein-page pousses par-dessus le shell (game-history, etc.),
+    // au lieu d'un Navigator.push/MaterialPageRoute isole. Hors du
+    // ShellRoute -- comme ses voisines ci-dessus -- donc aucune chrome de
+    // shell (bottom nav) ne s'ajoute par-dessus, et LifeCounterPage reste
+    // monte (pas de dispose()) pendant l'empilement : le mode immersif et le
+    // wakelock qu'elle pose dans initState() survivent au push/pop, comme
+    // ils survivent deja a la navigation vers /game-history.
+    GoRoute(
+      path: AppRoutes.tableView,
+      builder: (context, state) => const TableViewPage(),
     ),
   ];
 }

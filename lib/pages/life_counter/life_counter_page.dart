@@ -16,8 +16,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
+import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_history_model.dart';
 import 'package:magic_companion/models/game_session.dart';
@@ -33,6 +35,8 @@ import '../../widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/damage_history_sheet.dart';
 import 'package:magic_companion/widgets/life_counter/player_history_sheet.dart';
 import '../../widgets/life_counter/zone/player_drawer.dart';
+import '../../widgets/life_counter/zone/commander_damage_grid.dart';
+import '../../widgets/life_counter/zone/damage_attribution_row.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
 import '../../widgets/life_counter/layouts/adaptive_grid.dart';
@@ -43,6 +47,7 @@ import '../../widgets/life_counter/draggable_player_zone.dart';
 import '../../widgets/life_counter/animations/animation_service.dart';
 import '../../widgets/life_counter/snapshot_writer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../../router/app_router.dart';
 
 class LifeCounterPage extends ConsumerStatefulWidget {
   /// US-LC02 : Quand true, la page est dans le shell (tab0) et ne rend pas d'AppBar.
@@ -360,6 +365,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
     _controller.startNewGame(format: effectiveFormat, playerConfigs: configs);
 
+    // Dette du lot 3 (revue) : `PlayerZoneNotifier` n'est pas `autoDispose`,
+    // son état (mode ajustement, accumulateurs, nombres flottants en cours)
+    // traverse donc le cycle de vie des parties. Sans ce reset, une zone
+    // pouvait rouvrir une nouvelle partie déjà en mode ajustement, sans que
+    // l'utilisateur ait rien fait. Les identifiants de joueur d'une partie
+    // sont toujours 0..playerCount-1 (voir GameSession.newGame).
+    for (var i = 0; i < playerCount; i++) {
+      ref.read(playerZoneNotifierProvider(i).notifier).reset();
+    }
+
     setState(() {});
     _saveSnapshot();
 
@@ -551,11 +566,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     );
   }
 
-  /// Point d'entrée de test pour piloter le buffer de dégâts sans simuler de tap
-  /// (les zones sont pivotées par AdaptiveGrid, ce qui rend le tap fragile en test).
-  @visibleForTesting
-  void updateLifeForTest(int playerId, int change) => _updateLife(playerId, change);
-
   void _updateLife(int playerId, int change) {
     if (_isSelectingStarter) return;
     if (_session == null) return;
@@ -583,6 +593,66 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     setState(() {});
     _saveSnapshot();
     _checkDeathCondition(playerId);
+  }
+
+  /// Adversaires proposes par la rangee d'attribution (spec S2.6) pour le
+  /// joueur [playerId] dont le buffer tourne : tous les autres joueurs de
+  /// la session, sans le total qu'ils ont deja infligé (contrairement à
+  /// `CommanderDamageOpponent` de la grille du tiroir — voir le type
+  /// `DamageAttributionOpponent`, qui n'en a pas besoin).
+  List<DamageAttributionOpponent> _attributionOpponents(int playerId) {
+    final session = _session;
+    if (session == null) return const [];
+    return session.players
+        .where((other) => other.playerId != playerId)
+        .map((other) => (
+              playerId: other.playerId,
+              name: other.config.name,
+              colorValue: other.config.colorValue,
+            ))
+        .toList();
+  }
+
+  /// Attribution a la volee (spec S2.6) : CONSOMME le degat en attente de
+  /// [targetPlayerId], il ne s'en ajoute pas un second. Annule le minuteur
+  /// en attente, retire l'entree de `_pendingDamage`, puis applique le
+  /// montant absolu via `addCommanderDamage` — seul chemin d'ecriture des
+  /// degats de commandant, qui ajuste déjà la vie lui-même (plancher à 0
+  /// inclus, voir GameSessionNotifier.addCommanderDamage).
+  ///
+  /// Piège du signe : `pending` est negatif pour un degat (buffer alimenté
+  /// par des taps -1), alors que `addCommanderDamage` attend un `damage`
+  /// positif et retire les PV lui-même — `.abs()` est donc indispensable
+  /// ici, pas optionnel.
+  ///
+  /// Ronde de correction 1 (Critical) : `pending >= 0` sort tot, en plus du
+  /// garde d'affichage de `_buildPlayerZoneWithOverlays` — ceinture et
+  /// bretelles, puisque `onAttribute` est capturee dans une closure qui peut
+  /// survivre une frame au changement de signe (ex. un +1 arrive entre le
+  /// build qui a affiche la rangee et le tap qui l'attribue). Sans ce garde,
+  /// un buffer positif (lifelink) deviendrait un degat de commandant en plus
+  /// d'une perte de vie generique — l'inverse total de l'intention du
+  /// joueur.
+  void _attributeCommanderDamage(int targetPlayerId, int sourcePlayerId) {
+    final pending = _pendingDamage[targetPlayerId];
+    if (pending == null || pending >= 0) return;
+    _pendingTimers[targetPlayerId]?.cancel();
+    _pendingTimers.remove(targetPlayerId);
+    _pendingDamage.remove(targetPlayerId);
+    _controller.addCommanderDamage(
+      targetPlayerId: targetPlayerId,
+      sourcePlayerId: sourcePlayerId,
+      damage: pending.abs(),
+      gameDuration: _gameDuration,
+    );
+    setState(() {});
+    _saveSnapshot();
+    // Important #3 (ronde de correction 1) : meme signal visuel que
+    // `_onDrawerCommanderDamage` pour le meme evenement — l'attribution a la
+    // volee est precisement le geste ou l'utilisateur a besoin de la
+    // confirmation que son tap a ete compris comme du commander damage.
+    _triggerCommanderDamageFlash(targetPlayerId);
+    _checkDeathCondition(targetPlayerId);
   }
 
   void _updatePlayerColor(int playerId, Color color) {
@@ -686,61 +756,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           _resetGame(assignedProfiles: profiles, format: format);
         },
       )
-    );
-  }
-
-  void _showCommanderDamageSelector(Player attacker) {
-    final players = _legacyPlayers;
-    showModalBottomSheet(
-      context: context, backgroundColor: AppColors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(color: AppColors.scaffoldBackground.withValues(alpha: 0.9), borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom),
-        child: Wrap(
-          children: [
-            ListTile(title: Text('Dégâts de Commandant', style: AppTextStyles.bold()), subtitle: Text('Attaquant : ${attacker.name}', style: AppTextStyles.cinzel(color: AppColors.textSecondary))),
-            ...players.where((opp) => opp.id != attacker.id).map((opponent) {
-              final damage = opponent.commanderDamageReceived[attacker.id] ?? 0;
-              return ListTile(
-                leading: Icon(Icons.shield, color: Color(opponent.colorValue)),
-                title: Text(opponent.name, style: const TextStyle(color: AppColors.textPrimary)),
-                trailing: SizedBox(width: 150, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  IconButton(icon: const Icon(Icons.remove, color: AppColors.textSecondary), onPressed: () {
-                    if (damage > 0) {
-                      // addCommanderDamage already adjusts life internally — no need for a separate updateLife call
-                      _controller.addCommanderDamage(
-                        targetPlayerId: opponent.id,
-                        sourcePlayerId: attacker.id,
-                        damage: -1,
-                        gameDuration: _gameDuration,
-                      );
-                      setState(() {});
-                      _saveSnapshot();
-                    }
-                    Navigator.pop(context);
-                    _showCommanderDamageSelector(attacker);
-                  }),
-                  Text('$damage', style: AppTextStyles.pageTitle()),
-                  IconButton(icon: const Icon(Icons.add, color: AppColors.textSecondary), onPressed: () {
-                    _controller.addCommanderDamage(
-                      targetPlayerId: opponent.id,
-                      sourcePlayerId: attacker.id,
-                      damage: 1,
-                      gameDuration: _gameDuration,
-                    );
-                    setState(() {});
-                    _saveSnapshot();
-                    _triggerCommanderDamageFlash(opponent.id);
-                    _checkDeathCondition(opponent.id);
-                    Navigator.pop(context);
-                    _showCommanderDamageSelector(attacker);
-                  }),
-                ])),
-              );
-            })
-          ],
-        ),
-      ),
     );
   }
 
@@ -988,6 +1003,15 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       );
     }
 
+    // Rangee d'attribution a la volee (spec S2.6) : voir `_buildPlayerZone`,
+    // qui calcule sa visibilite et la passe a `PlayerZone` en donnees.
+    //
+    // Ronde de correction finale (Critical/Important #2) : elle ne vit plus
+    // ici, empilee PAR-DESSUS la zone -- ce Stack est hors du `RotatedBox`
+    // de `quarterTurns` de `PlayerZone`, donc la rangee ne pivotait jamais
+    // avec la zone (90deg/270deg). Deplacee DANS `PlayerZone` pour pivoter
+    // avec le reste.
+
     if (_showDeathOverlay.contains(playerState.playerId)) {
       zone = Stack(
         children: [
@@ -1008,13 +1032,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     return zone;
   }
 
-  /// Point d'entrée de test pour piloter un reorder sans simuler de drag
-  /// (les zones sont pivotées par AdaptiveGrid, ce qui rend le drag fragile
-  /// en test). Consommé aussi par la tâche 4b.
-  @visibleForTesting
-  void reorderForTest(int oldIndex, int newIndex) =>
-      _onReorderPlayers(oldIndex, newIndex);
-
   void _onReorderPlayers(int oldIndex, int newIndex) {
     final session = _session;
     if (session == null) return;
@@ -1033,6 +1050,19 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   Widget _buildPlayerZone(Player p, PlayerState ps) {
+    // Rangee d'attribution a la volee (spec S2.6) : visible seulement sur un
+    // buffer NEGATIF (un degat, jamais un gain de vie -- Critical #1 de la
+    // ronde de correction 1) en format Commander (ou equivalent), ET
+    // seulement hors mode ajustement (Critical #1 de la ronde de correction
+    // finale) -- `LifeDial._stepRow()` (paliers ±5/±10) est ancree au meme
+    // 30px du bas de la zone ; les deux se recouvraient sans ce dernier
+    // garde, et la rangee gagnait le hit-test, ajoutee apres dans le Stack.
+    final pending = _pendingDamage[ps.playerId] ?? 0;
+    final isAdjusting =
+        ref.watch(playerZoneNotifierProvider(ps.playerId)).isAdjusting;
+    final showAttribution =
+        pending < 0 && _currentFormat.maxCommanderDamage > 0 && !isAdjusting;
+
     return PlayerZone(
       player: p, isHighlighted: _highlightedPlayerId == p.id,
       onLifeChanged: (val) => _updateLife(p.id, val),
@@ -1040,16 +1070,33 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       onRotationChanged: (r) => _updatePlayerRotation(p.id, r),
       onSkinChanged: (path) => _updatePlayerSkin(p.id, path),
       onNameTap: () => _showPlayerHistory(p.id),
-      onOpenDrawer: () => _openPlayerDrawer(p, ps),
+      onOpenDrawer: () => _openPlayerDrawer(ps),
+      attributionOpponents:
+          showAttribution ? _attributionOpponents(ps.playerId) : null,
+      onAttributeDamage: (sourcePlayerId) =>
+          _attributeCommanderDamage(ps.playerId, sourcePlayerId),
     );
   }
 
   /// Ouvre le tiroir du joueur (spec §2.7) — remplace l'ancien menu radial
   /// (retiré en tâche 5) comme seul point d'accès à ces actions : compteurs,
   /// monarque, élimination volontaire / son annulation, reset des compteurs,
-  /// et (provisoirement — voir player_drawer.dart) l'ouverture du sélecteur
-  /// de dégâts de commandant en plein écran.
-  void _openPlayerDrawer(Player p, PlayerState ps) {
+  /// et la grille de dégâts de commandant reçus (remplace en tâche 2 le
+  /// sélecteur plein écran, orienté à l'envers — voir _onDrawerCommanderDamage).
+  void _openPlayerDrawer(PlayerState ps) {
+    final session = _session;
+    final opponents = session == null
+        ? const <CommanderDamageOpponent>[]
+        : session.players
+            .where((other) => other.playerId != ps.playerId)
+            .map((other) => CommanderDamageOpponent(
+                  playerId: other.playerId,
+                  name: other.config.name,
+                  colorValue: other.config.colorValue,
+                  damage: ps.commanderDamageReceived[other.playerId] ?? 0,
+                ))
+            .toList();
+
     showPlayerDrawer(
       context: context,
       playerName: ps.config.name,
@@ -1065,8 +1112,43 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       onToggleMonarch: () => _toggleMonarch(ps.playerId),
       onEliminate: () => _onDrawerEliminate(ps.playerId),
       onResetCounters: () => _resetPlayerCounters(ps.playerId),
-      onCommanderDamage: () => _showCommanderDamageSelector(p),
+      commanderDamage: opponents,
+      lethalCommanderDamage: _currentFormat.maxCommanderDamage,
+      onCommanderDamageDelta: (sourcePlayerId, delta) =>
+          _onDrawerCommanderDamage(ps.playerId, sourcePlayerId, delta),
     );
+  }
+
+  /// Câblage volontairement dans CE sens (dette D2 du plan) : `targetPlayerId`
+  /// est le joueur DONT LE TIROIR EST OUVERT (`drawerPlayerId`), et
+  /// `sourcePlayerId` la ligne tapée dans la grille. L'ancien sélecteur
+  /// (`_showCommanderDamageSelector`, supprimé ici) faisait l'inverse : il
+  /// listait les adversaires comme CIBLES et leur infligeait des dégâts
+  /// DEPUIS le joueur du tiroir — alors que la poignée de ce même joueur
+  /// affiche les dégâts qu'il a REÇUS. Une inversion ici laisserait la
+  /// poignée afficher un chiffre que ce tiroir ne peut plus corriger.
+  void _onDrawerCommanderDamage(
+      int drawerPlayerId, int sourcePlayerId, int delta) {
+    final target = _session?.players
+        .where((p) => p.playerId == drawerPlayerId)
+        .firstOrNull;
+    if (target == null) return;
+    // Le plancher à 0 (et l'ajustement de vie qui n'en découle que du delta
+    // réellement appliqué) vivent dans le notifier, pas ici : voir
+    // GameSessionNotifier.addCommanderDamage, seul chemin d'écriture, comme
+    // updateCounter l'est déjà pour les compteurs.
+    _controller.addCommanderDamage(
+      targetPlayerId: drawerPlayerId,
+      sourcePlayerId: sourcePlayerId,
+      damage: delta,
+      gameDuration: _gameDuration,
+    );
+    setState(() {});
+    _saveSnapshot();
+    if (delta > 0) {
+      _triggerCommanderDamageFlash(drawerPlayerId);
+      _checkDeathCondition(drawerPlayerId);
+    }
   }
 
   void _onDrawerCounterDelta(int playerId, String counterId, int delta) {
@@ -1137,9 +1219,26 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     return Container(
       height: 60,
       color: AppColors.textOnPrimary,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
+      // Tache 4 (ronde de correction 1) : la barre comptait deja 7 enfants
+      // de taille fixe avant le bouton "vue table" (le 8e) -- sur un
+      // telephone etroit, `Row(spaceEvenly)` seul depasse et leve une
+      // erreur de rendu (RenderFlex overflow), invisible sur un simulateur
+      // large. `LayoutBuilder` fournit la largeur disponible reelle ;
+      // `ConstrainedBox(minWidth: ...)` a l'interieur d'un
+      // `SingleChildScrollView` horizontal force le `Row` (mainAxisSize.min)
+      // a occuper au moins toute la largeur quand ca rentre -- ce qui
+      // preserve exactement le `spaceEvenly` d'origine -- et le laisse
+      // grandir a sa taille naturelle, scrollable, quand ca ne rentre pas.
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
           // Quick orientation presets (tap) / Game info (long press)
           GestureDetector(
             onLongPress: _showGameInfoSheet,
@@ -1193,6 +1292,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
             icon: const Icon(Icons.history, color: AppColors.textSecondary),
             onPressed: _showDamageHistory,
           ),
+          // Vue table (tache 4) : bouton dedie, pas de geste a deux doigts
+          // sur les zones -- voir table_view_page.dart pour la justification.
+          IconButton(
+            key: const ValueKey('action-table-view'),
+            icon: const Icon(Icons.table_chart_outlined, color: AppColors.textSecondary),
+            onPressed: _showTableView,
+          ),
           // Edit mode toggle (NEW)
           IconButton(
             icon: Icon(
@@ -1209,7 +1315,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
             icon: const Icon(Icons.people, color: AppColors.textSecondary),
             onPressed: _showGameSetupDialog,
           ),
-        ],
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1445,6 +1555,18 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         ],
       ),
     );
+  }
+
+  /// Ouvre la vue table (tache 4, ronde de correction 1) : une route
+  /// GoRouter declarative (`AppRoutes.tableView`, enregistree dans
+  /// `life_counter_routes.dart`), comme toutes les autres pages plein-ecran
+  /// poussees par-dessus le shell (`/game-history`, etc.) -- pas un
+  /// `Navigator.push`/`MaterialPageRoute` isole, qui aurait ete le seul de
+  /// tout `lib/` et aurait rendu la vue introuvable dans `app_router.dart`.
+  /// Elle lit `gameSessionNotifierProvider` elle-meme (ConsumerWidget), donc
+  /// aucun etat n'a besoin d'etre passe en parametre.
+  void _showTableView() {
+    context.push(AppRoutes.tableView);
   }
 
   void _showDiceSelector() {

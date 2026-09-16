@@ -73,6 +73,66 @@ void main() {
     expect(target.lifeHistory.last.source, 'Commander: Sarah');
   });
 
+  // Ronde de correction 1 (tâche 2) : le plancher à 0 de
+  // commanderDamageReceived vit dans le notifier (seul chemin d'écriture),
+  // pas côté page — comme updateCounter le fait déjà pour les compteurs.
+  // Retirer temporairement le `.clamp(0, ...)` dans addCommanderDamage fait
+  // échouer ces deux tests : le premier verrait life passer à 41 (un point
+  // rendu gratuitement) et commanderDamageReceived[2] à -1 ; le second
+  // resterait vert par coïncidence (aucun plancher atteint), ce qui
+  // confirme qu'il ne teste que le chemin nominal.
+  test(
+      'décrémenter un total de commander damage déjà à zéro ne change ni la '
+      'carte des dégâts ni les points de vie', () {
+    getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+
+    getNotifier().addCommanderDamage(
+      targetPlayerId: 0,
+      sourcePlayerId: 2,
+      damage: -1,
+      gameDuration: const Duration(minutes: 1),
+    );
+
+    final target = container.read(gameSessionNotifierProvider)!.players[0];
+    expect(target.life, 40,
+        reason: 'aucun dégât n\'a été annulé : aucun point de vie ne doit '
+            'être rendu');
+    expect(target.commanderDamageReceived[2] ?? 0, 0,
+        reason: 'le total ne doit jamais devenir négatif');
+    expect(target.lifeHistory, isEmpty,
+        reason: 'un delta sans effet réel ne doit pas non plus journaliser '
+            'un faux événement');
+  });
+
+  test(
+      'décrémenter un total de commander damage de 1 le ramène à zéro et '
+      'rend exactement un point de vie', () {
+    getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+    getNotifier().addCommanderDamage(
+      targetPlayerId: 0,
+      sourcePlayerId: 2,
+      damage: 1,
+      gameDuration: const Duration(minutes: 1),
+    );
+    // Précondition : 1 dégât reçu, 1 PV perdu.
+    var target = container.read(gameSessionNotifierProvider)!.players[0];
+    expect(target.life, 39);
+    expect(target.commanderDamageReceived[2], 1);
+
+    getNotifier().addCommanderDamage(
+      targetPlayerId: 0,
+      sourcePlayerId: 2,
+      damage: -1,
+      gameDuration: const Duration(minutes: 2),
+    );
+
+    target = container.read(gameSessionNotifierProvider)!.players[0];
+    expect(target.commanderDamageReceived[2], 0);
+    expect(target.life, 40,
+        reason: 'annuler l\'unique dégât reçu doit rendre exactement le '
+            'point de vie qu\'il avait coûté, ni plus ni moins');
+  });
+
   test('toggleMonarch est exclusif', () {
     getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
     getNotifier().toggleMonarch(1);

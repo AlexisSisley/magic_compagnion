@@ -59,7 +59,9 @@ Ce comportement a une propriété recherchée : **le changement de forme de la z
 
 ### 2.3 Vue table
 
-Un geste global à deux doigts replie la table en une liste compacte : une ligne par joueur, avec PV, compteurs non nuls, monarque et état d'élimination. Elle répond au moment précis où l'on veut lire toute la table — typiquement avant d'attaquer. On relâche, on revient au jeu.
+Un **bouton de la barre centrale** replie la table en une liste compacte : une ligne par joueur, avec PV, compteurs non nuls, monarque et état d'élimination. Elle répond au moment précis où l'on veut lire toute la table — typiquement avant d'attaquer.
+
+> **Amendement (lot 3).** Cette section prévoyait « un geste global à deux doigts ». Il est abandonné au profit d'un bouton dans la barre centrale. Raison : un détecteur à deux pointeurs entrerait en concurrence avec la surface de gestes de la zone joueur, qui a coûté trois rondes de correction et quatre constats Critical au lot 2, et dont l'équilibre tient à une seule décision architecturale — l'appui long vit hors de l'arène de gestes. Y ajouter un concurrent multi-pointeurs rouvrirait exactement ce qui vient d'être stabilisé, pour un confort marginal. La barre centrale existe déjà et porte les actions globales.
 
 ### 2.4 Saisie de gros montants
 
@@ -90,9 +92,11 @@ Carte des gestes après V4 :
 |---|---|
 | Tap gauche / droite | −1 / +1 |
 | Appui long | Entrée en mode ajustement (molette + paliers) |
-| Glissement depuis la poignée | Ouverture du tiroir |
+| Tap sur la poignée | Ouverture du tiroir |
 | Glissement sur l'en-tête | Rotation de la zone |
-| Deux doigts (global) | Vue table |
+| Bouton de la barre centrale | Vue table |
+
+> **Amendement (lot 3).** Deux lignes de ce tableau ont été corrigées sur ce que les lots ont réellement livré. L'ouverture du tiroir se fait par un **tap** sur la poignée, pas par un glissement : la poignée n'expose qu'un `onTap`, et un glissement supplémentaire sur la zone entrerait en concurrence avec la molette du mode ajustement. La vue table s'ouvre par un **bouton**, pour la raison exposée en §2.3.
 
 > **Amendement (lot 2, revue globale de branche).** Cette section disait à l'origine « le
 > `RadialMenu` existant est conservé comme composant ; seul son point d'invocation change ». Dans

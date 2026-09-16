@@ -1,7 +1,15 @@
 // test/widgets/life_counter/zone/player_drawer_test.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/player_drawer.dart';
+
+const _defaultCommanderDamage = [
+  CommanderDamageOpponent(
+      playerId: 1, name: 'Sam', colorValue: 0xFFFF0000, damage: 0),
+  CommanderDamageOpponent(
+      playerId: 2, name: 'Mia', colorValue: 0xFF00FF00, damage: 6),
+];
 
 class _Captured {
   // Un record `(String, int)` plutôt qu'un `MapEntry` : `MapEntry` n'a pas
@@ -10,10 +18,10 @@ class _Captured {
   // échouer `expect` même quand le comportement est correct. Les records ont
   // une égalité structurelle native en Dart 3.
   final counterDeltas = <(String, int)>[];
+  final commanderDamageDeltas = <(int, int)>[];
   var monarchToggled = false;
   var eliminated = false;
   var reset = false;
-  var commanderDamageOpened = false;
 }
 
 Future<_Captured> _openDrawer(
@@ -21,6 +29,8 @@ Future<_Captured> _openDrawer(
   Map<String, int> counters = const {'poison': 0, 'energy': 0, 'commander_tax': 0},
   bool isMonarch = false,
   bool isEliminated = false,
+  List<CommanderDamageOpponent> commanderDamage = _defaultCommanderDamage,
+  int lethalCommanderDamage = 21,
 }) async {
   final captured = _Captured();
   await tester.pumpWidget(
@@ -39,7 +49,10 @@ Future<_Captured> _openDrawer(
               onToggleMonarch: () => captured.monarchToggled = true,
               onEliminate: () => captured.eliminated = true,
               onResetCounters: () => captured.reset = true,
-              onCommanderDamage: () => captured.commanderDamageOpened = true,
+              commanderDamage: commanderDamage,
+              onCommanderDamageDelta: (sourceId, d) =>
+                  captured.commanderDamageDeltas.add((sourceId, d)),
+              lethalCommanderDamage: lethalCommanderDamage,
             ),
             child: const Text('ouvrir'),
           ),
@@ -102,15 +115,45 @@ void main() {
   });
 
   testWidgets(
-      "l'action dégâts de commandant appelle son callback (ligne "
-      'provisoire lot 2, cf. lot 3)', (tester) async {
+      'affiche la grille de dégâts de commandant reçus, une ligne par '
+      'adversaire avec son total', (tester) async {
+    await _openDrawer(tester);
+    expect(find.text('Sam'), findsOneWidget);
+    expect(find.text('Mia'), findsOneWidget);
+    expect(find.text('6'), findsOneWidget);
+  });
+
+  testWidgets(
+      'taper + sur une ligne de la grille émet onCommanderDamageDelta avec '
+      'l\'id de CETTE ligne, sans fermer le tiroir', (tester) async {
     final captured = await _openDrawer(tester);
-    await tester.tap(find.byKey(const ValueKey('action-commander-damage')));
-    await tester.pumpAndSettle();
-    expect(captured.commanderDamageOpened, isTrue);
+    await tester.tap(find.byKey(const ValueKey('commander-damage-2-plus')));
+    await tester.pump();
+
+    expect(captured.commanderDamageDeltas, [(2, 1)]);
     expect(captured.monarchToggled, isFalse);
     expect(captured.eliminated, isFalse);
     expect(captured.reset, isFalse);
+    expect(find.text('Alexis'), findsOneWidget,
+        reason: 'contrairement aux actions, la grille est un filet de '
+            'rattrapage consulté à chaud : le tiroir doit rester ouvert');
+    expect(find.text('7'), findsOneWidget,
+        reason: 'la copie locale de la grille doit refléter le nouveau '
+            'total immédiatement, comme les compteurs');
+  });
+
+  testWidgets(
+      'ronde de correction 1 (Important, "seconde porte") — un seuil '
+      'letal de 0 (format sans commandant, ex. Standard) masque la grille '
+      'de dégâts de commandant', (tester) async {
+    await _openDrawer(tester, lethalCommanderDamage: 0);
+
+    expect(find.byType(CommanderDamageGrid), findsNothing);
+    expect(find.text('Sam'), findsNothing);
+    expect(find.text('Mia'), findsNothing);
+    // Le reste du tiroir reste intact.
+    expect(find.text('Alexis'), findsOneWidget);
+    expect(find.text('Poison'), findsOneWidget);
   });
 
   testWidgets('une action ferme le tiroir', (tester) async {

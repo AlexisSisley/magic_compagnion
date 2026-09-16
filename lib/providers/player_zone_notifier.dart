@@ -158,7 +158,13 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
 
   // --- Nombres flottants ---
 
-  void showFloatingNumber(int delta) {
+  /// Ajoute un nombre flottant et renvoie l'id qui lui a été assigné, pour
+  /// que l'appelant puisse l'animer puis le retirer plus tard (voir
+  /// `animateFloatingNumber`/`removeFloatingNumber`) sans avoir à connaître
+  /// par ailleurs la façon dont cet id est choisi — un `ref.read` séparé sur
+  /// `nextNumberId` juste avant l'appel serait un couplage implicite à cette
+  /// implémentation interne.
+  int showFloatingNumber(int delta) {
     final text = delta > 0 ? '+$delta' : '$delta';
     final color = delta > 0 ? AppColors.accentGreen : AppColors.accentRed;
     final id = state.nextNumberId;
@@ -169,6 +175,7 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
       ],
       nextNumberId: id + 1,
     );
+    return id;
   }
 
   void animateFloatingNumber(int id) {
@@ -191,6 +198,17 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
   // --- Rotation ---
 
   int rotate90Degrees(int currentQuarterTurns) => (currentQuarterTurns + 1) % 4;
+
+  /// Remet l'accumulateur de rotation à zéro sans toucher au reste de
+  /// l'état. Appelé au début de chaque nouveau geste de glissement
+  /// (`onLongPressStart`) : le résidu d'un geste précédent, achevé sans
+  /// franchir le seuil, ne doit pas se combiner avec un nouveau geste sans
+  /// rapport (position de doigt différente, direction potentiellement
+  /// opposée) — sans quoi le nouveau geste hériterait d'un biais invisible
+  /// pour l'utilisateur.
+  void resetRotationDrag() {
+    state = state.copyWith(rotationAccumulator: 0.0);
+  }
 
   int? handleRotationDrag(double delta, int currentQuarterTurns) {
     final accumulated = state.rotationAccumulator + delta;
