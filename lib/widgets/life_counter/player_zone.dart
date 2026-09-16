@@ -2,7 +2,6 @@
 
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -189,27 +188,17 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     }
   }
 
-  /// Délègue au notifier (`showFloatingNumber`) l'apparition du nombre, puis
-  /// programme son animation puis son retrait via deux `Timer`, comme avant
-  /// — la seule différence est que l'état vit désormais dans le notifier.
-  ///
-  /// Attention au cycle de vie : ces `Timer` peuvent se déclencher après le
-  /// démontage de la zone (changement de layout, retrait du joueur...). Le
-  /// provider n'est pas `autoDispose`, un appel tardif ne plantera donc pas
-  /// — mais il écrirait dans l'état d'une zone qui n'existe plus. D'où les
-  /// gardes `if (!mounted) return;` avant tout accès à `ref`.
+  /// Délègue entièrement au notifier (`showFloatingNumber`) : apparition,
+  /// animation à 50ms et retrait à 600ms. Ce widget n'arme plus de `Timer`
+  /// ni ne garde de `mounted` sur ce chemin -- le notifier possède l'état
+  /// (`state.floatingNumbers`), il possède donc aussi son propre nettoyage
+  /// (voir le commentaire de `PlayerZoneNotifier._animateTimers`). Avant
+  /// cette correction (tâche 7 du lot 6), ces `Timer` vivaient ici, gardés
+  /// par `if (!mounted) return;` : si la zone était démontée entre
+  /// l'affichage et les 600ms, la garde empêchait le retrait et le nombre
+  /// restait affiché indéfiniment -- le bug signalé par l'utilisateur.
   void _showFloatingNumber(int change) {
-    final int id = _notifier.showFloatingNumber(change);
-
-    Timer(const Duration(milliseconds: 50), () {
-      if (!mounted) return;
-      _notifier.animateFloatingNumber(id);
-    });
-
-    Timer(const Duration(milliseconds: 600), () {
-      if (!mounted) return;
-      _notifier.removeFloatingNumber(id);
-    });
+    _notifier.showFloatingNumber(change);
   }
 
   void _rotate90Degrees() {
