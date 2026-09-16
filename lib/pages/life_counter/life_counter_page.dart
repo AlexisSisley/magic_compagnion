@@ -1046,6 +1046,17 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     order[oldIndex] = order[newIndex];
     order[newIndex] = temp;
     _controller.reorderPlayers(order);
+    // Décision utilisateur (revue finale, IMPORTANT #1) : après un
+    // réordonnancement, chaque zone prend l'orientation par défaut de son
+    // NOUVEAU siège. Sans cela, une zone déplacée du haut vers le siège
+    // gauche gardait ses 180° et devenait illisible depuis cette chaise.
+    // C'est assumé : une rotation choisie à la main sur une zone déplacée
+    // est perdue.
+    final seats = seatsFor(order.length);
+    for (var displayIndex = 0; displayIndex < order.length; displayIndex++) {
+      _controller.updateRotation(
+          order[displayIndex], seats[displayIndex].quarterTurns);
+    }
     setState(() {});
     _saveSnapshot();
   }
@@ -1304,6 +1315,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           ),
           // Edit mode toggle (NEW)
           IconButton(
+            key: const ValueKey('action-edit-mode'),
             icon: Icon(
               Icons.build,
               color: _isEditMode ? AppColors.primary : AppColors.textSecondary,
