@@ -16,6 +16,7 @@ import '../data/database/app_database.dart';
 import '../services/backup_service.dart';
 import '../services/bulk_data_service.dart';
 import '../services/collection_service.dart';
+import '../services/counter_type_service.dart';
 import '../services/deck_service.dart';
 import '../services/edhrec_service.dart';
 import '../services/game_history_service.dart';
@@ -101,4 +102,8 @@ final localCardsInitProvider = FutureProvider<void>((ref) async {
 
 final gameSessionServiceProvider = Provider<GameSessionService>((ref) {
   return GameSessionService();
+});
+
+final counterTypeServiceProvider = Provider<CounterTypeService>((ref) {
+  return CounterTypeService();
 });

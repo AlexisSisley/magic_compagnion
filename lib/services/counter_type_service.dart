@@ -1,0 +1,74 @@
+// Fichier : lib/services/counter_type_service.dart
+//
+// Lot 5, tache 1 : persistance des compteurs personnalises crees par
+// l'utilisateur. Meme forme que GameSessionService.loadLastTable() : une
+// cle SharedPreferences, une liste JSON, et un chargement qui ne leve
+// jamais -- une cle absente, un JSON illisible ou un enregistrement ecrit
+// par une version future du modele rendent une liste vide plutot que de
+// faire planter le demarrage de l'application.
+
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/counter_type.dart';
+
+class CounterTypeService {
+  static const _key = 'custom_counter_types';
+
+  /// Charge les compteurs personnalises. Ne leve jamais : cle absente,
+  /// JSON invalide ou enregistrement incomplet (champ requis manquant)
+  /// rendent tous une liste vide.
+  Future<List<CounterType>> loadCustomTypes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonStr = prefs.getString(_key);
+    if (jsonStr == null) return [];
+    try {
+      final List<dynamic> list = json.decode(jsonStr);
+      return list
+          .map((e) => CounterType.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Cree ou remplace (par [CounterType.id]) un compteur personnalise.
+  ///
+  /// Refuse -- sans rien ecrire -- un [type] dont l'id usurpe celui d'un
+  /// compteur integre (`CounterType.builtInCounters`) : l'accepter
+  /// donnerait deux entrees pour le meme id dans le catalogue, et le
+  /// tiroir du joueur en afficherait une au hasard, de facon non
+  /// deterministe.
+  Future<void> saveCustomType(CounterType type) async {
+    final isBuiltInId =
+        CounterType.builtInCounters.any((builtIn) => builtIn.id == type.id);
+    if (isBuiltInId) {
+      throw ArgumentError.value(
+        type.id,
+        'type.id',
+        'Un compteur personnalise ne peut pas usurper l\'id d\'un compteur integre',
+      );
+    }
+
+    final types = await loadCustomTypes();
+    final index = types.indexWhere((t) => t.id == type.id);
+    if (index != -1) {
+      types[index] = type;
+    } else {
+      types.add(type);
+    }
+    await _saveList(types);
+  }
+
+  /// Retire le compteur personnalise [id]. Ne leve pas si [id] est absent.
+  Future<void> deleteCustomType(String id) async {
+    final types = await loadCustomTypes();
+    types.removeWhere((t) => t.id == id);
+    await _saveList(types);
+  }
+
+  Future<void> _saveList(List<CounterType> types) async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = json.encode(types.map((t) => t.toJson()).toList());
+    await prefs.setString(_key, encoded);
+  }
+}
