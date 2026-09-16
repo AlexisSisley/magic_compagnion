@@ -38,6 +38,16 @@ class CounterTypeService {
   /// donnerait deux entrees pour le meme id dans le catalogue, et le
   /// tiroir du joueur en afficherait une au hasard, de facon non
   /// deterministe.
+  ///
+  /// Ce refus leve `ArgumentError` : c'est une garde interne, la derniere
+  /// ligne de defense du modele de donnees -- **pas** le mode de refus
+  /// destine aux appelants UI. Un dialogue de creation qui derive l'id du
+  /// nom saisi (tache 4 : pas de champ id) peut atteindre ce cas des qu'un
+  /// joueur nomme son compteur "Poison". L'UI doit passer par
+  /// `CounterCatalogNotifier.saveCustomType`
+  /// (`lib/providers/counter_catalog_provider.dart`), qui attrape cette
+  /// exception et rend un `CounterCatalogActionResult` en echec au lieu de
+  /// la laisser remonter jusqu'a un `onPressed`.
   Future<void> saveCustomType(CounterType type) async {
     final isBuiltInId =
         CounterType.builtInCounters.any((builtIn) => builtIn.id == type.id);

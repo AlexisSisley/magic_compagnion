@@ -38,6 +38,56 @@ class CounterCatalogNotifier extends Notifier<List<CounterType>> {
     final custom = await _service.loadCustomTypes();
     state = [...CounterType.builtInCounters, ...custom];
   }
+
+  /// Point d'entree pour l'UI (ex. le dialogue de creation de compteur,
+  /// tache 4) : sauvegarde [type] et recharge le catalogue.
+  ///
+  /// Ronde de correction 1 : `CounterTypeService.saveCustomType` leve en
+  /// interne (derniere ligne de defense) quand `type.id` usurpe un
+  /// compteur integre -- un dialogue derive l'id du nom saisi, donc un
+  /// joueur qui nomme son compteur "Poison" declenche ce cas depuis un
+  /// simple `onPressed`. Cette methode ne laisse jamais cette exception
+  /// remonter jusqu'a l'UI : elle l'attrape et rend un
+  /// [CounterCatalogActionResult] en echec avec un message exploitable,
+  /// sur le modele de `GameSetupNotifier.saveProfile` /
+  /// `GameSetupActionResult`.
+  Future<CounterCatalogActionResult> saveCustomType(CounterType type) async {
+    try {
+      await _service.saveCustomType(type);
+      await load();
+      return const CounterCatalogActionResult(
+        success: true,
+        message: 'Compteur sauvegarde',
+      );
+    } on ArgumentError catch (e) {
+      return CounterCatalogActionResult(
+        success: false,
+        message: 'Impossible de creer ce compteur : ${e.message}',
+      );
+    } catch (_) {
+      return const CounterCatalogActionResult(
+        success: false,
+        message: 'Erreur inattendue lors de la sauvegarde du compteur',
+      );
+    }
+  }
+}
+
+/// Resultat d'une action du catalogue de compteurs, rendu par l'UI plutot
+/// que leve. Meme forme que `GameSetupActionResult`
+/// (`lib/providers/game_setup_notifier.dart`), volontairement dupliquee ici
+/// plutot que reutilisee : importer un type nomme "GameSetup..." depuis la
+/// feature "compteurs" aurait couple deux features sans rapport pour un
+/// simple `{success, message}` -- chaque Notifier de ce depot definit son
+/// propre type de resultat d'action.
+class CounterCatalogActionResult {
+  final bool success;
+  final String message;
+
+  const CounterCatalogActionResult({
+    this.success = true,
+    this.message = '',
+  });
 }
 
 final counterCatalogProvider =

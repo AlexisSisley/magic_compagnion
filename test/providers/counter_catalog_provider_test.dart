@@ -87,6 +87,63 @@ void main() {
     expect(catalog, hasLength(4));
   });
 
+  group('saveCustomType (point d\'entree UI, ne leve jamais)', () {
+    test('cree un compteur personnalise, rend un succes, et le catalogue le reflete', () async {
+      const shield = CounterType(
+        id: 'custom_shield',
+        name: 'Shield',
+        emoji: '🛡️',
+        color: 0xFF2196F3,
+        maxValue: 20,
+      );
+
+      final result = await getNotifier().saveCustomType(shield);
+
+      expect(result.success, isTrue);
+      expect(result.message, isNotEmpty);
+      final catalog = container.read(counterCatalogProvider);
+      expect(catalog.map((c) => c.id).toList(), [
+        'poison',
+        'energy',
+        'commander_tax',
+        'commander_damage',
+        'custom_shield',
+      ]);
+    });
+
+    test(
+        'ronde de correction 1 : nommer un compteur "Poison" (id derive '
+        'usurpant un integre) rend un echec avec un message non vide, '
+        'sans lever, et laisse le catalogue inchange', () async {
+      final beforeIds =
+          container.read(counterCatalogProvider).map((c) => c.id).toList();
+
+      // Meme id que le compteur poison integre : c'est ce que produirait le
+      // dialogue de creation (tache 4, pas de champ id, derive du nom) si un
+      // joueur nomme son compteur personnalise "Poison".
+      const impostor = CounterType(
+        id: 'poison',
+        name: 'Poison',
+        emoji: '☠️',
+        color: 0xFF000000,
+        maxValue: 999,
+      );
+
+      final result = await getNotifier().saveCustomType(impostor);
+
+      expect(result.success, isFalse);
+      expect(result.message, isNotEmpty);
+
+      // Preuve de discriminance : meme LONGUEUR et meme SEQUENCE d'ids
+      // qu'avant la tentative -- pas seulement le compte, sinon un
+      // remplacement silencieux de "poison" par l'usurpateur passerait.
+      final afterIds =
+          container.read(counterCatalogProvider).map((c) => c.id).toList();
+      expect(afterIds, beforeIds);
+      expect(afterIds, hasLength(4));
+    });
+  });
+
   group('resolution id -> CounterType', () {
     test('resout un id integre', () {
       final resolved = container.read(counterTypeByIdProvider('poison'));
