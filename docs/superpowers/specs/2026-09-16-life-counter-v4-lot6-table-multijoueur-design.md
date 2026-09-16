@@ -101,6 +101,12 @@ Aucun champ de modèle n'est ajouté :
 `_calculateDefaultRotation` est **supprimée**, remplacée par `seatsFor`. La spec V4 §3.2
 laissait le choix entre la réécrire et la supprimer ; ce lot tranche.
 
+> **Constaté à l'écriture du plan (2026-09-16) :** les lots 1 à 3 l'ont déjà retirée —
+> `grep -rn "calculateDefaultRotation" lib/ test/` ne renvoie rien. Il ne reste donc rien à
+> supprimer, seulement `seatsFor` à brancher là où les rotations initiales sont posées : la
+> factory `GameSession.newGame` (`game_session.dart:147`), qui construit aujourd'hui chaque
+> `PlayerState` avec `quarterTurns` à sa valeur par défaut de 0.
+
 ---
 
 ## 3. Le contrat de densité
