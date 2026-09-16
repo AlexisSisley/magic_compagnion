@@ -35,6 +35,8 @@ import 'package:magic_companion/widgets/life_counter/damage_history_sheet.dart';
 import 'package:magic_companion/widgets/life_counter/player_history_sheet.dart';
 import '../../widgets/life_counter/zone/player_drawer.dart';
 import '../../widgets/life_counter/zone/commander_damage_grid.dart';
+import '../../widgets/life_counter/zone/damage_attribution_row.dart';
+import '../../widgets/life_counter/zone/conditional_handle.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
 import '../../widgets/life_counter/layouts/adaptive_grid.dart';
@@ -597,6 +599,52 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _checkDeathCondition(playerId);
   }
 
+  /// Adversaires proposes par la rangee d'attribution (spec S2.6) pour le
+  /// joueur [playerId] dont le buffer tourne : tous les autres joueurs de
+  /// la session, sans le total qu'ils ont deja infligé (contrairement à
+  /// `CommanderDamageOpponent` de la grille du tiroir — voir le type
+  /// `DamageAttributionOpponent`, qui n'en a pas besoin).
+  List<DamageAttributionOpponent> _attributionOpponents(int playerId) {
+    final session = _session;
+    if (session == null) return const [];
+    return session.players
+        .where((other) => other.playerId != playerId)
+        .map((other) => (
+              playerId: other.playerId,
+              name: other.config.name,
+              colorValue: other.config.colorValue,
+            ))
+        .toList();
+  }
+
+  /// Attribution a la volee (spec S2.6) : CONSOMME le degat en attente de
+  /// [targetPlayerId], il ne s'en ajoute pas un second. Annule le minuteur
+  /// en attente, retire l'entree de `_pendingDamage`, puis applique le
+  /// montant absolu via `addCommanderDamage` — seul chemin d'ecriture des
+  /// degats de commandant, qui ajuste déjà la vie lui-même (plancher à 0
+  /// inclus, voir GameSessionNotifier.addCommanderDamage).
+  ///
+  /// Piège du signe : `pending` est negatif pour un degat (buffer alimenté
+  /// par des taps -1), alors que `addCommanderDamage` attend un `damage`
+  /// positif et retire les PV lui-même — `.abs()` est donc indispensable
+  /// ici, pas optionnel.
+  void _attributeCommanderDamage(int targetPlayerId, int sourcePlayerId) {
+    final pending = _pendingDamage[targetPlayerId];
+    if (pending == null) return;
+    _pendingTimers[targetPlayerId]?.cancel();
+    _pendingTimers.remove(targetPlayerId);
+    _pendingDamage.remove(targetPlayerId);
+    _controller.addCommanderDamage(
+      targetPlayerId: targetPlayerId,
+      sourcePlayerId: sourcePlayerId,
+      damage: pending.abs(),
+      gameDuration: _gameDuration,
+    );
+    setState(() {});
+    _saveSnapshot();
+    _checkDeathCondition(targetPlayerId);
+  }
+
   void _updatePlayerColor(int playerId, Color color) {
     if (_session == null) return;
     final players = _session!.players.map((p) {
@@ -938,6 +986,34 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
               child: Text(
                 pendingText,
                 style: AppTextStyles.bold(color: AppColors.textPrimary, fontSize: 14),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Rangee d'attribution a la volee (spec S2.6) : uniquement pendant que
+    // le buffer tourne sur CE joueur, et seulement en format Commander (ou
+    // equivalent). `_pendingDamage.containsKey` — pas la variable `pending`
+    // ci-dessus, qui defaut a 0 — pour suivre la presence de l'entree, pas
+    // sa valeur : le brief conditionne explicitement sur cette presence.
+    if (_pendingDamage.containsKey(playerState.playerId) &&
+        _currentFormat.maxCommanderDamage > 0) {
+      zone = Stack(
+        children: [
+          zone,
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: ConditionalHandle.reservedHeight,
+            child: Center(
+              child: DamageAttributionRow(
+                opponents: _attributionOpponents(playerState.playerId),
+                onAttribute: (sourcePlayerId) => _attributeCommanderDamage(
+                  playerState.playerId,
+                  sourcePlayerId,
+                ),
               ),
             ),
           ),

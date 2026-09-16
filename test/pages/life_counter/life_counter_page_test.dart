@@ -17,6 +17,7 @@ import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
+import 'package:magic_companion/widgets/life_counter/zone/life_dial.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Double de test : bloque `saveSnapshot()` jusqu'à `releaseGate()`, pour
@@ -1007,5 +1008,172 @@ void main() {
           'pas autoDispose, une zone pouvait sinon revenir en mode '
           "ajustement au retour, sans que l'utilisateur ait rien fait",
     );
+  });
+
+  // --- Lot 3, tâche 3 : attribution à la volée (spec §2.6). Pendant que le
+  // buffer de dégâts tourne sur un joueur, une rangée d'avatars adverses
+  // apparaît ; un tap dessus convertit le dégât en attente en dégâts de
+  // commandant de l'avatar tapé. Tous les gestes ci-dessous sont de vrais
+  // `tester.tapAt` sur le cadran réel (LifeDial), pas des appels directs au
+  // callback -- voir « la leçon des lots 1 et 2 » du plan.
+  //
+  // Joueur d'indice 2 (Sarah) choisi comme émetteur du buffer : avec 4
+  // joueurs, `AdaptiveGrid` pivote à 180° les zones du haut (indices 0-1) et
+  // laisse celles du bas (indices 2-3) droites -- taper la moitié gauche
+  // géométrique du cadran de Sarah correspond donc bien à sa moitié gauche
+  // visuelle (-1), sans avoir à compenser une rotation.
+
+  /// Tape `count` fois la moitié gauche (−1) du cadran du joueur d'indice
+  /// `zoneIndex` dans l'ordre d'affichage courant, avec un `pump()` entre
+  /// chaque tap pour laisser chaque geste se résoudre avant le suivant.
+  Future<void> tapMinusHalf(
+    WidgetTester tester,
+    int zoneIndex,
+    int count,
+  ) async {
+    final dial = tester.getRect(find.byType(LifeDial).at(zoneIndex));
+    for (var i = 0; i < count; i++) {
+      await tester.tapAt(Offset(dial.left + dial.width * 0.25, dial.center.dy));
+      await tester.pump();
+    }
+  }
+
+  testWidgets(
+      'en format Commander, la rangée d\'attribution apparaît pendant que '
+      'le buffer tourne, avec un avatar par adversaire (pas le joueur '
+      'lui-même)', (tester) async {
+    await pumpWithContainer(tester);
+
+    // Deux taps (pas un seul) : un tap unique laisserait le nombre flottant
+    // du geste ("-1", voir player_zone._showFloatingNumber) coexister avec
+    // le badge cumulé du buffer, qui affiche aussi "-1" après un seul tap —
+    // ambigu pour l'assertion de précondition ci-dessous.
+    await tapMinusHalf(tester, 2, 2);
+
+    expect(find.text('-2'), findsOneWidget,
+        reason: 'précondition : le buffer tourne bien sur le joueur 2');
+    expect(find.byKey(const ValueKey('damage-attribution-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('damage-attribution-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('damage-attribution-3')), findsOneWidget);
+    expect(find.byKey(const ValueKey('damage-attribution-2')), findsNothing,
+        reason:
+            'le joueur dont le buffer tourne ne doit pas s\'auto-proposer '
+            'comme cible de sa propre attribution');
+
+    // Purge les minuteurs de nombres flottants encore en vol (600ms) avant
+    // la fin du test, sous peine de l'assertion `!timersPending` du binding.
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+      'taper un avatar CONVERTIT le dégât en attente en dégât de '
+      'commandant : la vie ne baisse qu\'une seule fois, aucun dégât '
+      'générique ne s\'ajoute en plus (test le plus important de la tâche)',
+      (tester) async {
+    // Sarah (2) a déjà reçu 2 dégâts de commandant d'Alex (0) avant le
+    // buffer testé ici : un bug de signe qui passerait le pending brut
+    // (négatif) plutôt que sa valeur absolue ferait alors REMONTER sa vie
+    // (le plancher à 0 de `addCommanderDamage` masquerait le bug si on
+    // partait de 0 dégât déjà reçu) -- voir le commentaire de
+    // `_attributeCommanderDamage`.
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    final withPriorDamage = baseSession.copyWith(
+      players: [
+        baseSession.players[0],
+        baseSession.players[1],
+        baseSession.players[2]
+            .copyWith(life: 38, commanderDamageReceived: {0: 2}),
+        baseSession.players[3],
+      ],
+    );
+    final container =
+        await pumpWithContainer(tester, snapshot: withPriorDamage);
+
+    // Cinq taps −1 sur le cadran de Sarah (2) : 5 dégâts en attente.
+    await tapMinusHalf(tester, 2, 5);
+    expect(find.text('-5'), findsOneWidget,
+        reason: 'précondition : 5 dégâts en attente avant toute attribution');
+
+    // Attribution à Alex (0), pendant que le buffer tourne encore.
+    await tester.tap(find.byKey(const ValueKey('damage-attribution-0')));
+    await tester.pump();
+
+    var session = container.read(gameSessionNotifierProvider)!;
+    expect(session.players[2].commanderDamageReceived[0], 7,
+        reason: 'les 5 dégâts en attente doivent s\'ajouter aux 2 déjà '
+            'reçus d\'Alex (0), comme un dégât de commandant normal');
+    expect(session.players[2].life, 33,
+        reason: 'la vie ne doit baisser qu\'une seule fois, du montant '
+            'tapé (38 -> 33) -- pas 38 -> 33 puis -5 supplémentaires, et '
+            'surtout pas remontée par une erreur de signe');
+
+    // Le minuteur en attente devait être annulé et l'entrée retirée du
+    // buffer : laisser largement passer sa fenêtre de 2s ne doit produire
+    // aucune seconde application.
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    session = container.read(gameSessionNotifierProvider)!;
+    expect(session.players[2].life, 33,
+        reason: 'si le minuteur en attente n\'avait pas été annulé, il '
+            'aurait appliqué un second dégât générique de 5 ici (33 -> 28)');
+    expect(session.players[2].commanderDamageReceived[0], 7);
+    expect(find.text('-5'), findsNothing,
+        reason: 'aucun badge de buffer ne doit subsister après attribution');
+  });
+
+  testWidgets(
+      'sans tap sur un avatar, le dégât en attente reste générique une '
+      'fois le buffer expiré', (tester) async {
+    final container = await pumpWithContainer(tester);
+
+    await tapMinusHalf(tester, 2, 3);
+    expect(find.text('-3'), findsOneWidget);
+    // La rangée est bien visible pendant le buffer, sans quoi ce test ne
+    // prouverait rien de l'absence d'attribution volontaire.
+    expect(find.byKey(const ValueKey('damage-attribution-0')), findsOneWidget);
+
+    // Aucun tap sur un avatar : le buffer expire normalement.
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.players[2].life, 37, reason: '40 - 3, dégât générique');
+    expect(session.players[2].commanderDamageReceived, isEmpty,
+        reason: 'sans attribution, le dégât reste générique : aucun dégât '
+            'de commandant ne doit apparaître');
+  });
+
+  testWidgets(
+      'en format sans dégâts de commandant (maxCommanderDamage == 0, comme '
+      'Standard), la rangée d\'attribution n\'apparaît jamais',
+      (tester) async {
+    final noCommanderDamageFormat = commanderFormat.copyWith(
+      id: 'standard',
+      name: 'Standard',
+      maxCommanderDamage: 0,
+    );
+    final baseSession = GameSession.newGame(
+      format: noCommanderDamageFormat,
+      playerConfigs: testConfigs,
+    );
+    await pumpWithContainer(tester, snapshot: baseSession);
+
+    await tapMinusHalf(tester, 2, 3);
+
+    expect(find.text('-3'), findsOneWidget,
+        reason: 'précondition : le buffer tourne bien malgré le format');
+    expect(find.byKey(const ValueKey('damage-attribution-0')), findsNothing);
+    expect(find.byKey(const ValueKey('damage-attribution-1')), findsNothing);
+    expect(find.byKey(const ValueKey('damage-attribution-3')), findsNothing);
+
+    // Purge les minuteurs de nombres flottants encore en vol (600ms) avant
+    // la fin du test, sous peine de l'assertion `!timersPending` du binding.
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
   });
 }
