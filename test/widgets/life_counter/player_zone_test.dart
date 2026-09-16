@@ -396,4 +396,42 @@ void main() {
     );
     expect(find.byType(DamageAttributionRow), findsNothing);
   });
+
+  // Lot 6 §6.1 — le test que ce lot existe pour écrire : à 4-6 joueurs,
+  // chaque zone tourne (`RotatedBox(quarterTurns: widget.player.quarterTurns)`
+  // ci-dessus), et le geste doit continuer à suivre ce que le joueur *voit*,
+  // pas l'écran non tourné. On calcule la position du tap dans le repère du
+  // joueur -- le quart gauche du cadran de `LifeDial`, qui contient la moitié
+  // décrément avant toute rotation -- puis on la transforme en coordonnées
+  // écran via `localToGlobal`, qui traverse le `RotatedBox`. Jamais de
+  // position calculée directement en repère écran (leçon des tâches
+  // précédentes), et jamais d'appel direct au callback : le geste est joué.
+  group('PlayerZone — tap sous rotation (spec lot 6 §6.1)', () {
+    for (final quarterTurns in [0, 1, 2, 3]) {
+      testWidgets(
+          'quarterTurns=$quarterTurns : taper le quart gauche du repère '
+          'joueur, transformé en écran, retire un point', (tester) async {
+        final deltas =
+            await pumpZone(tester, buildPlayer(quarterTurns: quarterTurns));
+
+        final dialBox = tester.renderObject<RenderBox>(find.byType(LifeDial));
+        final localLeftQuarter =
+            Offset(dialBox.size.width * 0.25, dialBox.size.height * 0.5);
+        final screenTap = dialBox.localToGlobal(localLeftQuarter);
+
+        await tester.tapAt(screenTap);
+        await tester.pump();
+
+        expect(deltas, [-1],
+            reason: 'à quarterTurns=$quarterTurns, le quart gauche du repère '
+                'joueur doit rester la moitié décrément une fois transformé '
+                'en coordonnées écran');
+
+        // Purge les deux Timer internes du nombre flottant (50 ms puis
+        // 600 ms), comme les autres tests de tap de ce fichier.
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpAndSettle();
+      });
+    }
+  });
 }

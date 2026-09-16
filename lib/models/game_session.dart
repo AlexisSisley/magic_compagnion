@@ -1,6 +1,7 @@
 // lib/models/game_session.dart
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/player_config.dart';
+import 'package:magic_companion/models/table_seat.dart';
 
 class LifeEvent {
   final int delta;
@@ -143,11 +144,17 @@ class GameSession {
     String? tag,
   }) {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
+    // Sieges par defaut (spec lot 6 §2) : a la creation, `playerOrder` est
+    // encore l'identite (ci-dessous), donc le siege d'affichage i est bien
+    // celui du joueur i. `updateRotation` peut ensuite remplacer ce defaut
+    // a tout moment ; poser une valeur non nulle ici n'empeche rien.
+    final seats = seatsFor(playerConfigs.length);
     final players = List.generate(playerConfigs.length, (i) {
       return PlayerState(
         playerId: i,
         config: playerConfigs[i],
         life: format.startingLife,
+        quarterTurns: seats[i].quarterTurns,
       );
     });
     return GameSession(
@@ -225,9 +232,10 @@ class GameSession {
         .map((p) => PlayerState.fromJson(p as Map<String, dynamic>))
         .toList();
     final rawPlayerOrder = (json['playerOrder'] as List?)?.cast<int>() ?? [];
-    final (players, playerOrder) = rawPlayerOrder.length == rawPlayers.length
+    final (orderedPlayers, playerOrder) = rawPlayerOrder.length == rawPlayers.length
         ? _migrateLegacyOrder(rawPlayers, rawPlayerOrder)
         : (rawPlayers, rawPlayerOrder);
+    final players = _migrateLegacyRotation(orderedPlayers, playerOrder);
 
     return GameSession(
       id: json['id'] as String,
@@ -278,6 +286,49 @@ class GameSession {
       return (canonicalPlayers, physicalOrder);
     }
     return (players, playerOrder);
+  }
+
+  /// Migration silencieuse d'un ancien snapshot, pour la rotation (lot 6).
+  ///
+  /// Avant ce lot, `AdaptiveGrid` compensait elle-même la moitié haute en la
+  /// pivotant de 180°, et tous les snapshots écrits par les versions
+  /// installées portent donc `quarterTurns = 0` pour chaque joueur — la
+  /// grille faisait tout le travail visuel, `PlayerState.quarterTurns`
+  /// restant un simple défaut inerte. `AdaptiveGrid` est désormais purement
+  /// positionnelle (tâche 2 du lot 6) : elle ne pivote plus rien, seul
+  /// `PlayerZone` applique `RotatedBox(quarterTurns: ...)`. Sans cette
+  /// migration, reprendre une telle partie afficherait donc tous les joueurs
+  /// à l'endroit, y compris ceux assis en face de l'appareil — régression
+  /// visible dès le premier lancement après mise à jour.
+  ///
+  /// Heuristique : si tous les `quarterTurns` valent 0 et qu'il y a plus d'un
+  /// joueur, c'est indistinguable d'un ancien snapshot (ou d'une partie où
+  /// personne n'a jamais tourné sa zone, auquel cas recevoir les défauts du
+  /// siège est de toute façon le bon résultat) — on applique les défauts de
+  /// `seatsFor`, dans l'ordre d'affichage `playerOrder`. Dès qu'un seul
+  /// joueur a tourné sa zone, on ne touche à rien : un vrai zéro voisin d'une
+  /// rotation choisie doit rester un vrai zéro.
+  static List<PlayerState> _migrateLegacyRotation(
+    List<PlayerState> players,
+    List<int> playerOrder,
+  ) {
+    if (players.length <= 1) return players;
+    if (players.any((p) => p.quarterTurns != 0)) return players;
+
+    final seats = seatsFor(players.length);
+    final byPlayerId = {for (final p in players) p.playerId: p};
+
+    for (var displayIndex = 0; displayIndex < playerOrder.length; displayIndex++) {
+      if (displayIndex >= seats.length) break;
+      final playerId = playerOrder[displayIndex];
+      final player = byPlayerId[playerId];
+      if (player == null) continue;
+      byPlayerId[playerId] = player.copyWith(
+        quarterTurns: seats[displayIndex].quarterTurns,
+      );
+    }
+
+    return players.map((p) => byPlayerId[p.playerId] ?? p).toList();
   }
 
   static bool _intListEquals(List<int> a, List<int> b) {

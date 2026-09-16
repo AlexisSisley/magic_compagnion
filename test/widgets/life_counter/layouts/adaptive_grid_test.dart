@@ -19,6 +19,9 @@ Widget _grid(int playerCount) {
 Offset _centerOf(WidgetTester tester, int index) =>
     tester.getCenter(find.byKey(ValueKey('player_$index')));
 
+Size _sizeOf(WidgetTester tester, int index) =>
+    tester.getSize(find.byKey(ValueKey('player_$index')));
+
 void main() {
   group('AdaptiveGrid — non-regression face-a-face', () {
     testWidgets('2 joueurs : joueur 0 au-dessus du joueur 1',
@@ -99,6 +102,59 @@ void main() {
           reason: 'le joueur de gauche (3) doit etre a gauche de celui du haut (0)');
       expect(_centerOf(tester, 1).dx, greaterThan(_centerOf(tester, 0).dx),
           reason: 'le joueur de droite (1) doit etre a droite de celui du haut (0)');
+    });
+  });
+
+  // Ces tests restent purement positionnels (amendement rulings 4/5, task-3
+  // brief) : `AdaptiveGrid` ne pivote plus rien depuis la tâche 2, donc rien
+  // ici ne peut lire un `quarterTurns` sur la grille. Les assertions de
+  // rotation vivent désormais sur `GameSession.newGame`
+  // (test/models/game_session_test.dart), qui seul les pose.
+  group('AdaptiveGrid — sieges lateraux', () {
+    testWidgets('4 joueurs : gauche et droite encadrent le centre',
+        (tester) async {
+      await tester.pumpWidget(_grid(4));
+      // seatsFor(4) = [top, right, bottom, left] : joueur 0 = haut,
+      // 1 = droite, 3 = gauche.
+      final gauche = _centerOf(tester, 3).dx;
+      final droite = _centerOf(tester, 1).dx;
+      final haut = _centerOf(tester, 0).dx;
+      expect(gauche, lessThan(haut));
+      expect(droite, greaterThan(haut));
+    });
+
+    testWidgets('4 joueurs : haut et bas encadrent verticalement',
+        (tester) async {
+      await tester.pumpWidget(_grid(4));
+      expect(_centerOf(tester, 0).dy, lessThan(_centerOf(tester, 2).dy));
+    });
+
+    testWidgets('6 joueurs : deux en haut, deux en bas, un de chaque cote',
+        (tester) async {
+      await tester.pumpWidget(_grid(6));
+      // seatsFor(6) = [top, top, right, bottom, bottom, left].
+      expect(_centerOf(tester, 0).dy, equals(_centerOf(tester, 1).dy));
+      expect(_centerOf(tester, 3).dy, equals(_centerOf(tester, 4).dy));
+      expect(_centerOf(tester, 5).dx, lessThan(_centerOf(tester, 0).dx),
+          reason:
+              'le joueur de gauche (5) doit etre a gauche de la rangee du haut');
+      expect(_centerOf(tester, 2).dx, greaterThan(_centerOf(tester, 0).dx),
+          reason:
+              'le joueur de droite (2) doit etre a droite de la rangee du haut');
+    });
+
+    testWidgets('8 joueurs : aucune colonne laterale, largeurs uniformes',
+        (tester) async {
+      await tester.pumpWidget(_grid(8));
+      // Une colonne laterale ferait `sideColumnFraction` (22%) de la largeur
+      // totale : si un seul joueur en heritait, sa largeur detonnerait de
+      // celle des sept autres, tous dans les deux sous-grilles 2x2.
+      final reference = _sizeOf(tester, 0).width;
+      for (int i = 1; i < 8; i++) {
+        expect(_sizeOf(tester, i).width, closeTo(reference, 0.5),
+            reason: 'joueur $i : largeur differente des autres, signe d\'une '
+                'colonne laterale qui ne devrait pas exister a 8 joueurs');
+      }
     });
   });
 }

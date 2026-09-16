@@ -17,7 +17,18 @@ class AdaptiveGrid extends StatelessWidget {
   final Widget centralBar;
 
   /// Part de largeur prise par une colonne laterale quand elle existe.
-  static const double sideColumnFraction = 0.22;
+  ///
+  /// Un siege lateral pivote a 90/270 (tache 3 du lot 6) : `RotatedBox`
+  /// echange largeur et hauteur pour son contenu, donc la largeur de cette
+  /// colonne devient la hauteur DISPONIBLE pour la Column de
+  /// `player_zone.dart` (en-tete 40 + poignee 30 = 70 fixes, avant meme le
+  /// cadran). A 0.22, un telephone de 320 de large (le plus etroit courant)
+  /// ne laissait que ~64px a cette colonne une fois pivotee : RenderFlex
+  /// overflow des que `GameSession.newGame` a commence a poser une vraie
+  /// rotation laterale (avant la tache 3, `quarterTurns` valait toujours 0,
+  /// donc ce chemin n'etait jamais exerce). 0.30 laisse une marge sur ce
+  /// plancher ; le calibrage fin par palier de densite est la tache 4.
+  static const double sideColumnFraction = 0.30;
 
   @override
   Widget build(BuildContext context) {

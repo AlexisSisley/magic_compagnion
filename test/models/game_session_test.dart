@@ -4,6 +4,13 @@ import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/models/game_session.dart';
 
+/// Configs de test génériques, une par joueur (id/nom uniques, reste par
+/// défaut) — évite de retaper la même liste littérale dans chaque test.
+List<PlayerConfig> _configs(int count) => List.generate(
+      count,
+      (i) => PlayerConfig(id: 'p${i + 1}', name: 'Joueur ${i + 1}', type: PlayerType.guest),
+    );
+
 void main() {
   final commanderFormat = GameFormat.builtInFormats.firstWhere((f) => f.id == 'commander');
 
@@ -200,6 +207,93 @@ void main() {
 
       expect(restored.players.map((p) => p.playerId).toList(), [0, 1, 2, 3]);
       expect(restored.playerOrder, [3, 1, 2, 0]);
+    });
+  });
+
+  group('GameSession.newGame — rotations initiales (lot 6 §2)', () {
+    test('4 joueurs : haut/droite/bas/gauche -> [2, 3, 0, 1]', () {
+      final session = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: _configs(4),
+      );
+      expect(session.players.map((p) => p.quarterTurns).toList(), [2, 3, 0, 1]);
+    });
+
+    test('2 joueurs : face-a-face historique preserve -> [2, 0]', () {
+      final session = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: _configs(2),
+      );
+      expect(session.players.map((p) => p.quarterTurns).toList(), [2, 0]);
+    });
+
+    test('8 joueurs : aucune rotation laterale, chaque quarterTurns vaut 0 ou 2',
+        () {
+      final session = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: _configs(8),
+      );
+      for (final p in session.players) {
+        expect(p.quarterTurns, anyOf(0, 2), reason: 'joueur ${p.playerId}');
+      }
+    });
+  });
+
+  group('GameSession.fromJson — migration de rotation heritee (lot 6)', () {
+    test(
+        'ancien snapshot, 4 joueurs tous a 0, recoit les defauts de siege '
+        '[2, 3, 0, 1]', () {
+      final base = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: _configs(4),
+      );
+      // Reproduit un snapshot ecrit avant ce lot : la grille compensait alors
+      // pour la moitie haute, donc `quarterTurns` valait 0 pour tout le monde.
+      final legacy = base.copyWith(
+        players: base.players.map((p) => p.copyWith(quarterTurns: 0)).toList(),
+      );
+
+      final restored = GameSession.fromJson(legacy.toJson());
+
+      expect(restored.players.map((p) => p.quarterTurns).toList(), [2, 3, 0, 1]);
+    });
+
+    test(
+        'un joueur qui a deja tourne sa zone bloque toute la migration, meme '
+        'les zeros des autres', () {
+      final base = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: _configs(4),
+      );
+      final withOneRotated = base.copyWith(
+        players: [
+          base.players[0].copyWith(quarterTurns: 0),
+          base.players[1].copyWith(quarterTurns: 0),
+          base.players[2].copyWith(quarterTurns: 1),
+          base.players[3].copyWith(quarterTurns: 0),
+        ],
+      );
+
+      final restored = GameSession.fromJson(withOneRotated.toJson());
+
+      expect(
+        restored.players.map((p) => p.quarterTurns).toList(),
+        [0, 0, 1, 0],
+        reason: 'des qu un joueur a tourne, aucune valeur ne doit bouger, y '
+            'compris les zeros des autres',
+      );
+    });
+
+    test('snapshot a un seul joueur : pas de migration, pas de crash', () {
+      final single = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: _configs(1),
+      );
+
+      final restored = GameSession.fromJson(single.toJson());
+
+      expect(restored.players, hasLength(1));
+      expect(restored.players.single.quarterTurns, 0);
     });
   });
 }
