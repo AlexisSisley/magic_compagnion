@@ -36,6 +36,7 @@ class AppRoutes {
   static const String deckDetail = '/decks/detail';
   static const String gameHistoryDetail = '/game-history/detail';
   static const String scanHistory = '/scanner/history';
+  static const String tableView = '/table-view';
 }
 
 /// Index des onglets dans le BottomNavigationBar.

@@ -1,4 +1,6 @@
 // lib/providers/game_session_notifier.dart
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_session.dart';
@@ -63,6 +65,17 @@ class GameSessionNotifier extends Notifier<GameSession?> {
     state = session.copyWith(players: players);
   }
 
+  /// Le plancher `0` (comme `updateCounter` ci-dessus) vit ici, pas côté
+  /// appelant : c'est le seul chemin d'écriture de `commanderDamageReceived`,
+  /// et sans ce plancher serveur, un delta négatif sous zéro (ex. tap "−"
+  /// sur une source déjà à 0 dans la grille du tiroir) écrirait une valeur
+  /// négative en session.
+  ///
+  /// Le point de vie ne suit que le delta RÉELLEMENT appliqué à la carte des
+  /// dégâts, pas le `damage` brut demandé : si le plancher absorbe tout ou
+  /// partie du décrément (ex. total déjà à 0), retirer `damage` complet de
+  /// la vie rendrait un point de vie gratuit qui ne correspond à aucun
+  /// dégât annulé.
   void addCommanderDamage({
     required int targetPlayerId,
     required int sourcePlayerId,
@@ -78,14 +91,21 @@ class GameSessionNotifier extends Notifier<GameSession?> {
     final players = session.players.map((p) {
       if (p.playerId == targetPlayerId) {
         final cmdDamage = Map<int, int>.from(p.commanderDamageReceived);
-        cmdDamage[sourcePlayerId] = (cmdDamage[sourcePlayerId] ?? 0) + damage;
+        final current = cmdDamage[sourcePlayerId] ?? 0;
+        // Plancher à 0 uniquement : aucun plafond n'existe pour un total de
+        // dégâts de commandant (contrairement aux compteurs, plafonnés à 99
+        // dans updateCounter).
+        final updated = max(0, current + damage);
+        final appliedDelta = updated - current;
+        if (appliedDelta == 0) return p; // rien à appliquer (plancher atteint)
+        cmdDamage[sourcePlayerId] = updated;
         final event = LifeEvent(
-          delta: -damage,
+          delta: -appliedDelta,
           source: 'Commander: $sourceName',
           timestamp: gameDuration,
         );
         return p.copyWith(
-          life: p.life - damage,
+          life: p.life - appliedDelta,
           commanderDamageReceived: cmdDamage,
           lifeHistory: [...p.lifeHistory, event],
         );

@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/player_model.dart';
 import '../../services/local_card_service.dart';
 import '../../providers/service_providers.dart';
+import '../../providers/player_zone_notifier.dart';
 
 // Sub-widgets
 import 'player_header.dart';
@@ -16,6 +17,7 @@ import 'life_log.dart';
 import 'zone/life_dial.dart';
 import 'zone/conditional_handle.dart';
 import 'zone/player_skin_picker.dart';
+import 'zone/damage_attribution_row.dart';
 
 class PlayerZone extends ConsumerStatefulWidget {
   const PlayerZone({
@@ -29,12 +31,30 @@ class PlayerZone extends ConsumerStatefulWidget {
     this.onNameTap,
     this.quarterTurns = 0,
     this.isHighlighted = false,
+    this.attributionOpponents,
+    this.onAttributeDamage,
   });
 
   final Player player;
   final int quarterTurns;
   final bool isHighlighted;
   final Function(int) onLifeChanged;
+
+  /// Rangée d'attribution à la volée (spec S2.6, tâche 3 du lot 3). `null`
+  /// ou vide masque la rangée -- c'est l'appelant (`life_counter_page.dart`)
+  /// qui décide de la visibilité (buffer négatif, format Commander, zone
+  /// pas en mode ajustement) ; ce widget ne fait qu'afficher ce qu'on lui
+  /// donne, au même titre que `player.commanderDamageReceived`.
+  ///
+  /// Ronde de correction finale (Critical/Important #2) : vit ICI, DANS le
+  /// `RotatedBox` de `quarterTurns` ci-dessous -- et non empilée par-dessus
+  /// depuis `life_counter_page.dart` comme au premier jet -- pour pivoter
+  /// avec le reste de la zone. Contrairement au badge de buffer (décoratif,
+  /// même défaut resté tel quel, voir la note du lot 6), cette rangée est
+  /// une cible tactile : mal orientée, elle tombe au bas de l'écran plutôt
+  /// qu'au bas de la zone telle que le joueur la lit à 90°/270°.
+  final List<DamageAttributionOpponent>? attributionOpponents;
+  final void Function(int sourcePlayerId)? onAttributeDamage;
 
   /// Ouverture du tiroir (tap sur la poignée — voir `ConditionalHandle`, qui
   /// n'expose qu'un `onTap`, aucun glissement) : compteurs, monarque,
@@ -59,12 +79,13 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     with TickerProviderStateMixin {
   LocalCardService get _localCardService => ref.read(localCardServiceProvider);
 
-  final List<FloatingNumberData> _floatingNumbers = [];
+  /// Le notifier de cette zone (nombres flottants, rotation, mode
+  /// ajustement — voir `player_zone_notifier.dart`). Getter de lecture
+  /// ordinaire, jamais utilisé dans `dispose()`.
+  PlayerZoneNotifier get _notifier =>
+      ref.read(playerZoneNotifierProvider(widget.player.id).notifier);
 
-  int _nextNumberId = 0;
-  double _dragAccumulator = 0.0;
   Offset _lastLongPressPosition = Offset.zero;
-  final double _rotationThreshold = 40.0;
 
   /// Hauteur réservée à l'en-tête (palette, rotation, nom) au-dessus du
   /// cadran de vie (spec §2.1 : le chiffre occupe le reste de la zone).
@@ -168,42 +189,42 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     }
   }
 
+  /// Délègue au notifier (`showFloatingNumber`) l'apparition du nombre, puis
+  /// programme son animation puis son retrait via deux `Timer`, comme avant
+  /// — la seule différence est que l'état vit désormais dans le notifier.
+  ///
+  /// Attention au cycle de vie : ces `Timer` peuvent se déclencher après le
+  /// démontage de la zone (changement de layout, retrait du joueur...). Le
+  /// provider n'est pas `autoDispose`, un appel tardif ne plantera donc pas
+  /// — mais il écrirait dans l'état d'une zone qui n'existe plus. D'où les
+  /// gardes `if (!mounted) return;` avant tout accès à `ref`.
   void _showFloatingNumber(int change) {
-    final String text = (change > 0) ? '+$change' : '$change';
-    final Color color = (change > 0) ? AppColors.accentGreen : AppColors.accentRed;
-
-    final int id = _nextNumberId++;
-    final number = FloatingNumberData(id: id, text: text, color: color);
-
-    if(mounted) setState(() => _floatingNumbers.add(number));
+    final int id = _notifier.showFloatingNumber(change);
 
     Timer(const Duration(milliseconds: 50), () {
-      if(mounted) setState(() { number.top = -50.0; number.opacity = 0.0; });
+      if (!mounted) return;
+      _notifier.animateFloatingNumber(id);
     });
 
     Timer(const Duration(milliseconds: 600), () {
-      if(mounted) setState(() => _floatingNumbers.removeWhere((n) => n.id == id));
+      if (!mounted) return;
+      _notifier.removeFloatingNumber(id);
     });
   }
 
   void _rotate90Degrees() {
-    if (widget.onRotationChanged != null) {
-      final nextRot = (widget.player.quarterTurns + 1) % 4;
-      widget.onRotationChanged!(nextRot);
-      HapticFeedback.lightImpact();
-    }
+    if (widget.onRotationChanged == null) return;
+    final nextRot = _notifier.rotate90Degrees(widget.player.quarterTurns);
+    widget.onRotationChanged!(nextRot);
+    HapticFeedback.lightImpact();
   }
 
   void _handleRotationDrag(double delta) {
     if (widget.onRotationChanged == null) return;
-    _dragAccumulator += delta;
-    if (_dragAccumulator.abs() > _rotationThreshold) {
-      int direction = _dragAccumulator > 0 ? 1 : -1;
-      int newRot = (widget.player.quarterTurns + direction) % 4;
-      if (newRot < 0) newRot += 4;
-      widget.onRotationChanged!(newRot);
+    final nextRot = _notifier.handleRotationDrag(delta, widget.player.quarterTurns);
+    if (nextRot != null) {
+      widget.onRotationChanged!(nextRot);
       HapticFeedback.mediumImpact();
-      _dragAccumulator = 0.0;
     }
   }
 
@@ -275,7 +296,10 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                     ),
                     onRotate: _rotate90Degrees,
                     onLongPressStart: (details) {
-                      _dragAccumulator = 0.0;
+                      // Un nouveau geste ne doit pas hériter du résidu d'un
+                      // geste précédent, achevé sans franchir le seuil (voir
+                      // le doc-comment de `resetRotationDrag`).
+                      _notifier.resetRotationDrag();
                       _lastLongPressPosition = details.localPosition;
                       HapticFeedback.selectionClick();
                     },
@@ -318,8 +342,14 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
             ),
           ),
 
-          // Floating numbers overlay
-          LifeLog(floatingNumbers: _floatingNumbers),
+          // Floating numbers overlay — la liste vit dans le notifier (voir
+          // `_showFloatingNumber`) : `watch` pour reconstruire l'overlay
+          // quand un nombre apparaît, s'anime ou disparaît.
+          LifeLog(
+            floatingNumbers: ref
+                .watch(playerZoneNotifierProvider(widget.player.id))
+                .floatingNumbers,
+          ),
 
           // Commander gallery quick-switch (top-right)
           if (widget.player.commanderGallery.isNotEmpty)
@@ -340,6 +370,27 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                     border: Border.all(color: AppColors.borderMedium, width: 1),
                   ),
                   child: const Icon(Icons.swap_horiz, color: AppColors.textPrimary, size: 18),
+                ),
+              ),
+            ),
+
+          // Rangée d'attribution à la volée (spec S2.6) — voir le
+          // doc-comment de `attributionOpponents` : ancrée juste au-dessus
+          // de la poignée conditionnelle, comme la rangée de paliers
+          // ±5/±10 de `LifeDial._stepRow()`. Les deux ne coexistent jamais
+          // (l'appelant masque `attributionOpponents` en mode ajustement,
+          // ronde de correction finale Critical #1) : plus besoin de
+          // partager le même 30px du bas sans se recouvrir.
+          if (widget.attributionOpponents != null &&
+              widget.attributionOpponents!.isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: ConditionalHandle.reservedHeight,
+              child: Center(
+                child: DamageAttributionRow(
+                  opponents: widget.attributionOpponents!,
+                  onAttribute: widget.onAttributeDamage!,
                 ),
               ),
             ),

@@ -118,6 +118,13 @@ class GameFormat {
       minPlayers: 2,
       maxPlayers: 2,
       maxCommanders: 0,
+      // Aucun commandant dans ce format (maxCommanders: 0 ci-dessus) : le
+      // defaut herite (21) etait une violation de la spec, restee muette
+      // jusqu'a la tache 3 du lot 3, qui l'a rendue visible et agissante
+      // (rangee d'attribution, grille du tiroir) plutot que simplement
+      // affichee. Corrige ici, pas migre : une partie Standard deja
+      // sauvegardee garde 21 dans son JSON.
+      maxCommanderDamage: 0,
       enabledCounterIds: ['poison', 'energy'],
       isBuiltIn: true,
     ),

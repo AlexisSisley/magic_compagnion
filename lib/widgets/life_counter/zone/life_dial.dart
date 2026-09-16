@@ -22,14 +22,12 @@ class LifeDial extends ConsumerStatefulWidget {
     required this.playerId,
     required this.life,
     required this.onDelta,
-    this.pendingDelta = 0,
     this.textColor,
   });
 
   final int playerId;
   final int life;
   final void Function(int delta) onDelta;
-  final int pendingDelta;
   final Color? textColor;
 
   @override
@@ -210,28 +208,12 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   }
 
   Widget _readout(Color color) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            '${widget.life}',
-            style: AppTextStyles.lifeNumeral(color: color),
-          ),
-        ),
-        if (widget.pendingDelta != 0)
-          Text(
-            widget.pendingDelta > 0
-                ? '+${widget.pendingDelta}'
-                : '${widget.pendingDelta}',
-            style: AppTextStyles.lifeBadge(
-              color: widget.pendingDelta > 0
-                  ? AppColors.accentGreen
-                  : AppColors.accentRed,
-            ),
-          ),
-      ],
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        '${widget.life}',
+        style: AppTextStyles.lifeNumeral(color: color),
+      ),
     );
   }
 
