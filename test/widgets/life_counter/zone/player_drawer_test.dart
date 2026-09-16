@@ -22,6 +22,8 @@ class _Captured {
   var monarchToggled = false;
   var eliminated = false;
   var reset = false;
+  var rotated = false;
+  var colorPickerOpened = false;
 }
 
 Future<_Captured> _openDrawer(
@@ -53,6 +55,8 @@ Future<_Captured> _openDrawer(
               onCommanderDamageDelta: (sourceId, d) =>
                   captured.commanderDamageDeltas.add((sourceId, d)),
               lethalCommanderDamage: lethalCommanderDamage,
+              onRotate: () => captured.rotated = true,
+              onShowColorPicker: () => captured.colorPickerOpened = true,
             ),
             child: const Text('ouvrir'),
           ),
@@ -100,14 +104,39 @@ void main() {
 
   testWidgets('l\'action éliminer appelle son callback', (tester) async {
     final captured = await _openDrawer(tester);
+    // Tourner + Couleur (ronde de correction 1, tâche 2) poussent Éliminer
+    // sous le pli du tiroir dans ce test à petite fenêtre : il faut le
+    // faire défiler avant de le taper, comme un vrai doigt le ferait.
+    await tester.ensureVisible(find.byKey(const ValueKey('action-eliminate')));
     await tester.tap(find.byKey(const ValueKey('action-eliminate')));
     await tester.pumpAndSettle();
     expect(captured.eliminated, isTrue);
     expect(captured.monarchToggled, isFalse);
   });
 
+  testWidgets(
+      'l\'action tourner appelle onRotate (ronde de correction 1, tâche 2)',
+      (tester) async {
+    final captured = await _openDrawer(tester);
+    await tester.tap(find.byKey(const ValueKey('action-rotate')));
+    await tester.pumpAndSettle();
+    expect(captured.rotated, isTrue);
+    expect(captured.colorPickerOpened, isFalse);
+  });
+
+  testWidgets(
+      'l\'action couleur appelle onShowColorPicker (ronde de correction 1, '
+      'tâche 2)', (tester) async {
+    final captured = await _openDrawer(tester);
+    await tester.tap(find.byKey(const ValueKey('action-color')));
+    await tester.pumpAndSettle();
+    expect(captured.colorPickerOpened, isTrue);
+    expect(captured.rotated, isFalse);
+  });
+
   testWidgets('l\'action réinitialiser appelle son callback', (tester) async {
     final captured = await _openDrawer(tester);
+    await tester.ensureVisible(find.byKey(const ValueKey('action-reset')));
     await tester.tap(find.byKey(const ValueKey('action-reset')));
     await tester.pumpAndSettle();
     expect(captured.reset, isTrue);

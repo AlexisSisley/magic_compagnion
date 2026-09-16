@@ -1070,7 +1070,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       onRotationChanged: (r) => _updatePlayerRotation(p.id, r),
       onSkinChanged: (path) => _updatePlayerSkin(p.id, path),
       onNameTap: () => _showPlayerHistory(p.id),
-      onOpenDrawer: () => _openPlayerDrawer(ps),
+      onOpenDrawer: (onRotate, onShowColorPicker) =>
+          _openPlayerDrawer(ps, onRotate, onShowColorPicker),
       attributionOpponents:
           showAttribution ? _attributionOpponents(ps.playerId) : null,
       onAttributeDamage: (sourcePlayerId) =>
@@ -1083,7 +1084,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   /// monarque, élimination volontaire / son annulation, reset des compteurs,
   /// et la grille de dégâts de commandant reçus (remplace en tâche 2 le
   /// sélecteur plein écran, orienté à l'envers — voir _onDrawerCommanderDamage).
-  void _openPlayerDrawer(PlayerState ps) {
+  void _openPlayerDrawer(
+    PlayerState ps,
+    VoidCallback onRotate,
+    VoidCallback onShowColorPicker,
+  ) {
     final session = _session;
     final opponents = session == null
         ? const <CommanderDamageOpponent>[]
@@ -1116,6 +1121,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       lethalCommanderDamage: _currentFormat.maxCommanderDamage,
       onCommanderDamageDelta: (sourcePlayerId, delta) =>
           _onDrawerCommanderDamage(ps.playerId, sourcePlayerId, delta),
+      onRotate: onRotate,
+      onShowColorPicker: onShowColorPicker,
     );
   }
 

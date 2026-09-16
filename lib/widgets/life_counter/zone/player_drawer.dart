@@ -37,6 +37,15 @@ Future<void> showPlayerDrawer({
   required List<CommanderDamageOpponent> commanderDamage,
   required void Function(int sourcePlayerId, int delta) onCommanderDamageDelta,
   required int lethalCommanderDamage,
+  // Ronde de correction 1 (tâche 2, v2 multijoueur) : au cran `minimal`,
+  // `PlayerHeader` (seul point d'accès à la rotation et à la couleur) est
+  // masqué -- le tiroir devient donc le point d'entrée GARANTI de ces deux
+  // actions à tous les crans, sa poignée ne descendant jamais sous 30 px.
+  // Les callbacks viennent de `PlayerZone` (`_rotate90Degrees`,
+  // `showPlayerSkinPicker`) : ce tiroir ne fait que les relayer, sans
+  // dupliquer leur logique.
+  required VoidCallback onRotate,
+  required VoidCallback onShowColorPicker,
 }) {
   HapticFeedback.selectionClick();
   return showModalBottomSheet<void>(
@@ -70,6 +79,14 @@ Future<void> showPlayerDrawer({
       // chaud, éventuellement plusieurs fois).
       onCommanderDamageDelta: onCommanderDamageDelta,
       lethalCommanderDamage: lethalCommanderDamage,
+      onRotate: () {
+        Navigator.of(sheetCtx).pop();
+        onRotate();
+      },
+      onShowColorPicker: () {
+        Navigator.of(sheetCtx).pop();
+        onShowColorPicker();
+      },
     ),
   );
 }
@@ -87,6 +104,8 @@ class _PlayerDrawerBody extends StatefulWidget {
     required this.commanderDamage,
     required this.onCommanderDamageDelta,
     required this.lethalCommanderDamage,
+    required this.onRotate,
+    required this.onShowColorPicker,
   });
 
   final String playerName;
@@ -100,6 +119,8 @@ class _PlayerDrawerBody extends StatefulWidget {
   final List<CommanderDamageOpponent> commanderDamage;
   final void Function(int sourcePlayerId, int delta) onCommanderDamageDelta;
   final int lethalCommanderDamage;
+  final VoidCallback onRotate;
+  final VoidCallback onShowColorPicker;
 
   @override
   State<_PlayerDrawerBody> createState() => _PlayerDrawerBodyState();
@@ -184,6 +205,24 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
                 ),
               ],
               const Divider(height: 26),
+              // Ronde de correction 1 (tâche 2) : accès garanti à la
+              // rotation et à la couleur à tous les crans de densité, y
+              // compris `minimal` où `PlayerHeader` (leur seul autre point
+              // d'accès) est masqué.
+              _action(
+                key: const ValueKey('action-rotate'),
+                icon: Icons.rotate_right,
+                label: 'Tourner',
+                color: AppColors.textSecondary,
+                onTap: widget.onRotate,
+              ),
+              _action(
+                key: const ValueKey('action-color'),
+                icon: Icons.palette,
+                label: 'Couleur',
+                color: AppColors.textSecondary,
+                onTap: widget.onShowColorPicker,
+              ),
               _action(
                 key: const ValueKey('action-monarch'),
                 icon: Icons.star,

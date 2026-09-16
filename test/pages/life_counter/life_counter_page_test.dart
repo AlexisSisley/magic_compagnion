@@ -795,6 +795,10 @@ void main() {
     final container = await pumpWithContainer(tester);
 
     await openDrawerForPlayerZero(tester);
+    // Tourner + Couleur (ronde de correction 1, tâche 2) allongent le
+    // tiroir : sur la taille d'écran de test, "action-monarch" n'est plus
+    // visible sans défiler (même raison que "action-reset" plus bas).
+    await tester.ensureVisible(find.byKey(const ValueKey('action-monarch')));
     await tester.tap(find.byKey(const ValueKey('action-monarch')));
     // Pas de `pumpAndSettle()` ici : devenir monarque relance le glow du
     // cadre de la zone (`_glowController.repeat()`, US-14.3), une animation
@@ -818,6 +822,7 @@ void main() {
     final container = await pumpWithContainer(tester);
 
     await openDrawerForPlayerZero(tester);
+    await tester.ensureVisible(find.byKey(const ValueKey('action-eliminate')));
     await tester.tap(find.byKey(const ValueKey('action-eliminate')));
     await tester.pumpAndSettle();
 
@@ -848,6 +853,7 @@ void main() {
     await openDrawerForPlayerZero(tester);
     // Le libellé de l'action bascule sur "Annuler l'élimination" pour un
     // joueur déjà éliminé (voir player_drawer.dart) ; la clé reste la même.
+    await tester.ensureVisible(find.byKey(const ValueKey('action-eliminate')));
     await tester.tap(find.byKey(const ValueKey('action-eliminate')));
     await tester.pumpAndSettle();
 

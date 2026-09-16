@@ -62,7 +62,16 @@ class PlayerZone extends ConsumerStatefulWidget {
   /// élimination et dégâts de commandant y vivent désormais tous (voir
   /// player_drawer.dart) — PlayerZone n'a plus besoin de callbacks dédiés à
   /// chacun d'eux.
-  final VoidCallback? onOpenDrawer;
+  ///
+  /// Ronde de correction 1 (tâche 2, v2 multijoueur) : reçoit maintenant
+  /// `_rotate90Degrees` et l'ouverture du sélecteur de couleur en argument.
+  /// L'appelant (`life_counter_page.dart`, seul à connaître la session pour
+  /// construire `showPlayerDrawer(...)`) les relaie tels quels au tiroir, qui
+  /// devient le point d'accès GARANTI à la rotation et à la couleur à tous
+  /// les crans de densité -- y compris `minimal`, où `PlayerHeader` (leur
+  /// seul autre point d'accès) est masqué.
+  final void Function(VoidCallback onRotate, VoidCallback onShowColorPicker)?
+      onOpenDrawer;
 
   final Function(Color) onColorChanged;
   final Function(int)? onRotationChanged;
@@ -251,6 +260,17 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
           .fold<int>(0, (max, v) => v > max ? v : max),
     );
 
+    // Extrait pour être réutilisé tel quel par le tiroir (ronde de
+    // correction 1, tâche 2) : PlayerHeader et PlayerDrawer doivent ouvrir
+    // EXACTEMENT le même sélecteur, sans dupliquer ces paramètres.
+    void openColorPicker() => showPlayerSkinPicker(
+          context: context,
+          player: widget.player,
+          onColorChanged: widget.onColorChanged,
+          onSkinChanged: widget.onSkinChanged,
+          localCardService: _localCardService,
+        );
+
     // Tâche 2 (v2 multijoueur) : construit le corps de la zone pour un
     // `DensityTier` donné. Extrait en fonction plutôt qu'assigné directement
     // à une variable locale, car il doit être appelé DEPUIS le `LayoutBuilder`
@@ -307,13 +327,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                         ? const SizedBox.shrink()
                         : PlayerHeader(
                             key: const ValueKey('player-zone-header'),
-                            onShowColorPicker: () => showPlayerSkinPicker(
-                              context: context,
-                              player: widget.player,
-                              onColorChanged: widget.onColorChanged,
-                              onSkinChanged: widget.onSkinChanged,
-                              localCardService: _localCardService,
-                            ),
+                            onShowColorPicker: openColorPicker,
                             onRotate: _rotate90Degrees,
                             onLongPressStart: (details) {
                               // Un nouveau geste ne doit pas hériter du résidu d'un
@@ -356,7 +370,12 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                   ),
                   ConditionalHandle(
                     summary: counterSummary,
-                    onTap: widget.onOpenDrawer,
+                    onTap: widget.onOpenDrawer == null
+                        ? null
+                        : () => widget.onOpenDrawer!(
+                              _rotate90Degrees,
+                              openColorPicker,
+                            ),
                     height: handleHeight,
                     // Sous le cran `comfort`, plus de place pour le résumé
                     // des compteurs secondaires : la poignée reste un simple

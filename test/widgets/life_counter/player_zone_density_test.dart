@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/player_model.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
+import 'package:magic_companion/widgets/life_counter/zone/player_drawer.dart';
 
 Player _buildPlayer({int poison = 0, int quarterTurns = 0}) {
   return Player(
@@ -112,5 +113,76 @@ void main() {
     );
 
     expect(find.textContaining('☠ 3'), findsOneWidget);
+  });
+
+  testWidgets(
+      'au cran minimal, le tiroir reste le point d\'accès garanti à la '
+      'rotation -- PlayerHeader (son autre accès) est masqué (ronde de '
+      'correction 1, tâche 2)', (tester) async {
+    int? rotatedTo;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => SizedBox(
+                width: 300,
+                // Cran minimal (même geometrie que le test ci-dessus) :
+                // PlayerHeader -- et son bouton "Tourner" -- est masqué.
+                height: 72,
+                child: PlayerZone(
+                  player: _buildPlayer(),
+                  onLifeChanged: (_) {},
+                  onColorChanged: (_) {},
+                  onRotationChanged: (v) => rotatedTo = v,
+                  // Le test tient ici le rôle de `life_counter_page.dart` :
+                  // seul l'appelant connaît la session nécessaire à
+                  // `showPlayerDrawer`, mais il relaie tel quel ce que
+                  // `PlayerZone` lui fournit (`_rotate90Degrees`,
+                  // `showPlayerSkinPicker`), sans dupliquer leur logique.
+                  onOpenDrawer: (onRotate, onShowColorPicker) =>
+                      showPlayerDrawer(
+                    context: context,
+                    playerName: 'Alexis',
+                    counters: const {},
+                    isMonarch: false,
+                    isEliminated: false,
+                    onCounterDelta: (_, _) {},
+                    onToggleMonarch: () {},
+                    onEliminate: () {},
+                    onResetCounters: () {},
+                    commanderDamage: const [],
+                    onCommanderDamageDelta: (_, _) {},
+                    lethalCommanderDamage: 0,
+                    onRotate: onRotate,
+                    onShowColorPicker: onShowColorPicker,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('player-zone-header')), findsNothing,
+        reason: 'confirme qu\'on est bien au cran minimal, en-tête masqué');
+
+    await tester.tap(find.byType(ConditionalHandle));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('action-rotate')), findsOneWidget,
+        reason: '"Tourner" doit rester trouvable dans le tiroir même quand '
+            'PlayerHeader, son autre point d\'accès, est masqué');
+
+    await tester.ensureVisible(find.byKey(const ValueKey('action-rotate')));
+    await tester.tap(find.byKey(const ValueKey('action-rotate')));
+    await tester.pumpAndSettle();
+
+    expect(rotatedTo, 1,
+        reason: 'taper "Tourner" dans le tiroir doit vraiment déclencher la '
+            'rotation (_rotate90Degrees), pas seulement fermer le tiroir');
   });
 }
