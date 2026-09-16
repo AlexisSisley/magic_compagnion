@@ -1407,4 +1407,68 @@ void main() {
     expect(buttonRect.left, greaterThanOrEqualTo(0));
     expect(buttonRect.right, lessThanOrEqualTo(320));
   });
+
+  // --- Vague de correction finale du lot 3 (Critical #1) : la rangée
+  // d'attribution (tâche 3) et les paliers ±5/±10 du mode ajustement (lot 2,
+  // spec §2.5) sont tous les deux ancrés au bas de la zone -- sur certaines
+  // géométries d'écran ils se superposent, et la rangée, ajoutée après dans
+  // le Stack, gagne le hit-test. Aucun test de ce fichier n'entrait en mode
+  // ajustement avant celui-ci. Le correctif retenu (le plus simple, et le
+  // plus juste : les deux mécanismes servent la même intention -- saisir un
+  // montant -- et ne doivent jamais coexister) masque la rangée dès que la
+  // zone est en mode ajustement, quel que soit le signe du buffer.
+  testWidgets(
+      'en mode ajustement, la rangée d\'attribution n\'apparaît jamais '
+      '(même sur un buffer négatif) : les paliers ±5/±10 restent seuls '
+      'maîtres du bas de la zone, atteignables par un second tap',
+      (tester) async {
+    final container = await pumpWithContainer(tester);
+
+    // Appui long réel sur le cadran de Sarah (2) : bascule en mode
+    // ajustement (spec §2.5) -- pas d'appel direct au notifier, voir « la
+    // leçon des lots 1 et 2 ».
+    await tester.longPress(find.byType(LifeDial).at(2));
+    await tester.pump();
+
+    // Le palier "-5", cherché comme DESCENDANT du cadran de Sarah (2) :
+    // dès le premier tap, un badge de buffer affichant aussi "-5" apparaît
+    // ailleurs dans la zone (hors du LifeDial) -- `find.text('-5')` seul
+    // deviendrait ambigu pour le second tap sans cette portée.
+    Finder stepMinus5() => find.descendant(
+          of: find.byType(LifeDial).at(2),
+          matching: find.text('-5'),
+        );
+
+    // Premier tap sur le palier "-5" : alimente le buffer à -5, négatif,
+    // en format Commander -- les deux conditions qui, sans le garde
+    // `!isAdjusting` du correctif, suffiraient à faire apparaître la
+    // rangée d'attribution.
+    await tester.tap(stepMinus5());
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('damage-attribution-0')), findsNothing,
+        reason: 'la rangée ne doit jamais apparaître pendant que la zone '
+            'est en mode ajustement, même sur un buffer négatif : sur les '
+            'géométries où elle recouvre les paliers, elle en volerait le '
+            'hit-test');
+
+    // Second tap AU MÊME ENDROIT (le palier n'a pas bougé, aucune rangée
+    // n'a jamais pu prendre sa place) : doit rester un second palier,
+    // jamais une attribution silencieuse à un adversaire.
+    await tester.tap(stepMinus5());
+    await tester.pump();
+
+    // Laisse le buffer de 2s s'appliquer normalement.
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.players[2].life, 30,
+        reason: 'les deux taps sur le palier -5 doivent cumuler -10 '
+            '(40 -> 30), comme deux paliers -- pas -5 générique puis une '
+            'attribution silencieuse au second tap');
+    expect(session.players[2].commanderDamageReceived, isEmpty,
+        reason: 'aucune attribution ne doit avoir eu lieu : le second tap '
+            'devait rester un palier, jamais un avatar recouvrant');
+  });
 }

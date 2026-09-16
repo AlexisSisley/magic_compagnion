@@ -7,11 +7,17 @@ import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/widgets/life_counter/player_header.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
+import 'package:magic_companion/widgets/life_counter/zone/damage_attribution_row.dart';
 import 'package:magic_companion/widgets/life_counter/zone/life_dial.dart';
 
 /// `commanderDamageReceived` est **requis** dans le constructeur de `Player`
 /// (`lib/models/player_model.dart:30`) — ne pas l'omettre.
-Player buildPlayer({int life = 40, int poison = 0, int energy = 0}) {
+Player buildPlayer({
+  int life = 40,
+  int poison = 0,
+  int energy = 0,
+  int quarterTurns = 0,
+}) {
   return Player(
     id: 0,
     name: 'Alexis',
@@ -20,6 +26,7 @@ Player buildPlayer({int life = 40, int poison = 0, int energy = 0}) {
     commanderDamageReceived: const {},
     poison: poison,
     energy: energy,
+    quarterTurns: quarterTurns,
   );
 }
 
@@ -44,6 +51,43 @@ Future<List<int>> pumpZone(WidgetTester tester, Player player) async {
   );
   await tester.pumpAndSettle();
   return deltas;
+}
+
+const _attributionOpponents = [
+  (playerId: 1, name: 'Sam', colorValue: 0xFFFF0000),
+  (playerId: 2, name: 'Mia', colorValue: 0xFF00FF00),
+];
+
+/// Monte la zone avec la rangée d'attribution (spec S2.6) câblée — voir
+/// `pumpZone` ci-dessus pour la variante sans, utilisée par le reste des
+/// tests de ce fichier.
+Future<List<int>> pumpZoneWithAttribution(
+  WidgetTester tester, {
+  required Player player,
+  List<DamageAttributionOpponent>? attributionOpponents,
+}) async {
+  final attributed = <int>[];
+  await tester.pumpWidget(
+    ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 340,
+            height: 340,
+            child: PlayerZone(
+              player: player,
+              onLifeChanged: (_) {},
+              onColorChanged: (_) {},
+              attributionOpponents: attributionOpponents,
+              onAttributeDamage: attributed.add,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return attributed;
 }
 
 void main() {
@@ -294,5 +338,62 @@ void main() {
     );
 
     await second.up();
+  });
+
+  // --- Ronde de correction finale du lot 3 (Critical/Important #2) : la
+  // rangée d'attribution à la volée (spec S2.6) vit maintenant DANS
+  // PlayerZone, à l'intérieur du RotatedBox de `quarterTurns` -- et non plus
+  // empilée par-dessus depuis life_counter_page.dart, qui ne pivotait
+  // jamais avec la zone (90°/270°, cas normal à 4 joueurs).
+
+  testWidgets(
+      'la rangée d\'attribution vit DANS le RotatedBox qui pivote la zone, '
+      'pas empilée par-dessus (ronde de correction finale, #2)',
+      (tester) async {
+    await pumpZoneWithAttribution(
+      tester,
+      player: buildPlayer(quarterTurns: 2),
+      attributionOpponents: _attributionOpponents,
+    );
+
+    expect(find.byType(DamageAttributionRow), findsOneWidget);
+    final rotatedAncestor = find.ancestor(
+      of: find.byType(DamageAttributionRow),
+      matching: find.byWidgetPredicate(
+          (w) => w is RotatedBox && w.quarterTurns == 2),
+    );
+    expect(rotatedAncestor, findsOneWidget,
+        reason: 'la rangée doit être un descendant du RotatedBox qui pivote '
+            'toute la zone, pour pivoter avec elle à 90°/270° -- pas rester '
+            'droite pendant que le joueur lit sa zone de côté');
+  });
+
+  testWidgets(
+      'un tap sur un avatar de la rangée émet le sourcePlayerId de CET '
+      'avatar', (tester) async {
+    final attributed = await pumpZoneWithAttribution(
+      tester,
+      player: buildPlayer(),
+      attributionOpponents: _attributionOpponents,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('damage-attribution-2')));
+    await tester.pump();
+
+    expect(attributed, [2]);
+  });
+
+  testWidgets(
+      'sans adversaires proposés (null ou vide), la rangée ne s\'affiche '
+      'jamais', (tester) async {
+    await pumpZoneWithAttribution(tester, player: buildPlayer());
+    expect(find.byType(DamageAttributionRow), findsNothing);
+
+    await pumpZoneWithAttribution(
+      tester,
+      player: buildPlayer(),
+      attributionOpponents: const [],
+    );
+    expect(find.byType(DamageAttributionRow), findsNothing);
   });
 }

@@ -17,6 +17,7 @@ import 'life_log.dart';
 import 'zone/life_dial.dart';
 import 'zone/conditional_handle.dart';
 import 'zone/player_skin_picker.dart';
+import 'zone/damage_attribution_row.dart';
 
 class PlayerZone extends ConsumerStatefulWidget {
   const PlayerZone({
@@ -30,12 +31,30 @@ class PlayerZone extends ConsumerStatefulWidget {
     this.onNameTap,
     this.quarterTurns = 0,
     this.isHighlighted = false,
+    this.attributionOpponents,
+    this.onAttributeDamage,
   });
 
   final Player player;
   final int quarterTurns;
   final bool isHighlighted;
   final Function(int) onLifeChanged;
+
+  /// Rangée d'attribution à la volée (spec S2.6, tâche 3 du lot 3). `null`
+  /// ou vide masque la rangée -- c'est l'appelant (`life_counter_page.dart`)
+  /// qui décide de la visibilité (buffer négatif, format Commander, zone
+  /// pas en mode ajustement) ; ce widget ne fait qu'afficher ce qu'on lui
+  /// donne, au même titre que `player.commanderDamageReceived`.
+  ///
+  /// Ronde de correction finale (Critical/Important #2) : vit ICI, DANS le
+  /// `RotatedBox` de `quarterTurns` ci-dessous -- et non empilée par-dessus
+  /// depuis `life_counter_page.dart` comme au premier jet -- pour pivoter
+  /// avec le reste de la zone. Contrairement au badge de buffer (décoratif,
+  /// même défaut resté tel quel, voir la note du lot 6), cette rangée est
+  /// une cible tactile : mal orientée, elle tombe au bas de l'écran plutôt
+  /// qu'au bas de la zone telle que le joueur la lit à 90°/270°.
+  final List<DamageAttributionOpponent>? attributionOpponents;
+  final void Function(int sourcePlayerId)? onAttributeDamage;
 
   /// Ouverture du tiroir (tap sur la poignée — voir `ConditionalHandle`, qui
   /// n'expose qu'un `onTap`, aucun glissement) : compteurs, monarque,
@@ -351,6 +370,27 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                     border: Border.all(color: AppColors.borderMedium, width: 1),
                   ),
                   child: const Icon(Icons.swap_horiz, color: AppColors.textPrimary, size: 18),
+                ),
+              ),
+            ),
+
+          // Rangée d'attribution à la volée (spec S2.6) — voir le
+          // doc-comment de `attributionOpponents` : ancrée juste au-dessus
+          // de la poignée conditionnelle, comme la rangée de paliers
+          // ±5/±10 de `LifeDial._stepRow()`. Les deux ne coexistent jamais
+          // (l'appelant masque `attributionOpponents` en mode ajustement,
+          // ronde de correction finale Critical #1) : plus besoin de
+          // partager le même 30px du bas sans se recouvrir.
+          if (widget.attributionOpponents != null &&
+              widget.attributionOpponents!.isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: ConditionalHandle.reservedHeight,
+              child: Center(
+                child: DamageAttributionRow(
+                  opponents: widget.attributionOpponents!,
+                  onAttribute: widget.onAttributeDamage!,
                 ),
               ),
             ),

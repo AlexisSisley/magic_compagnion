@@ -37,7 +37,6 @@ import 'package:magic_companion/widgets/life_counter/player_history_sheet.dart';
 import '../../widgets/life_counter/zone/player_drawer.dart';
 import '../../widgets/life_counter/zone/commander_damage_grid.dart';
 import '../../widgets/life_counter/zone/damage_attribution_row.dart';
-import '../../widgets/life_counter/zone/conditional_handle.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
 import '../../widgets/life_counter/layouts/adaptive_grid.dart';
@@ -1004,39 +1003,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       );
     }
 
-    // Rangee d'attribution a la volee (spec S2.6) : uniquement pendant que
-    // le buffer tourne sur CE joueur avec un montant NEGATIF (un degat), et
-    // seulement en format Commander (ou equivalent).
+    // Rangee d'attribution a la volee (spec S2.6) : voir `_buildPlayerZone`,
+    // qui calcule sa visibilite et la passe a `PlayerZone` en donnees.
     //
-    // Ronde de correction 1 : `containsKey` seul (sans regarder le signe)
-    // laissait la rangee apparaitre sur un buffer positif (lifelink, etc.)
-    // — un tap y aurait alors transforme un GAIN de vie en degat de
-    // commandant. `pending < 0` corrige aussi le point symetrique (Important
-    // #2) : un −1 puis +1 qui ramene le buffer a 0 fait disparaitre la
-    // rangee en meme temps que le badge, au lieu de rester affichee jusqu'a
-    // l'expiration du minuteur — `_applyPendingDamage` traite deja ce retour
-    // a zero, ce chemin doit s'y aligner.
-    if (pending < 0 && _currentFormat.maxCommanderDamage > 0) {
-      zone = Stack(
-        children: [
-          zone,
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: ConditionalHandle.reservedHeight,
-            child: Center(
-              child: DamageAttributionRow(
-                opponents: _attributionOpponents(playerState.playerId),
-                onAttribute: (sourcePlayerId) => _attributeCommanderDamage(
-                  playerState.playerId,
-                  sourcePlayerId,
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
+    // Ronde de correction finale (Critical/Important #2) : elle ne vit plus
+    // ici, empilee PAR-DESSUS la zone -- ce Stack est hors du `RotatedBox`
+    // de `quarterTurns` de `PlayerZone`, donc la rangee ne pivotait jamais
+    // avec la zone (90deg/270deg). Deplacee DANS `PlayerZone` pour pivoter
+    // avec le reste.
 
     if (_showDeathOverlay.contains(playerState.playerId)) {
       zone = Stack(
@@ -1076,6 +1050,19 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   Widget _buildPlayerZone(Player p, PlayerState ps) {
+    // Rangee d'attribution a la volee (spec S2.6) : visible seulement sur un
+    // buffer NEGATIF (un degat, jamais un gain de vie -- Critical #1 de la
+    // ronde de correction 1) en format Commander (ou equivalent), ET
+    // seulement hors mode ajustement (Critical #1 de la ronde de correction
+    // finale) -- `LifeDial._stepRow()` (paliers ±5/±10) est ancree au meme
+    // 30px du bas de la zone ; les deux se recouvraient sans ce dernier
+    // garde, et la rangee gagnait le hit-test, ajoutee apres dans le Stack.
+    final pending = _pendingDamage[ps.playerId] ?? 0;
+    final isAdjusting =
+        ref.watch(playerZoneNotifierProvider(ps.playerId)).isAdjusting;
+    final showAttribution =
+        pending < 0 && _currentFormat.maxCommanderDamage > 0 && !isAdjusting;
+
     return PlayerZone(
       player: p, isHighlighted: _highlightedPlayerId == p.id,
       onLifeChanged: (val) => _updateLife(p.id, val),
@@ -1084,6 +1071,10 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       onSkinChanged: (path) => _updatePlayerSkin(p.id, path),
       onNameTap: () => _showPlayerHistory(p.id),
       onOpenDrawer: () => _openPlayerDrawer(ps),
+      attributionOpponents:
+          showAttribution ? _attributionOpponents(ps.playerId) : null,
+      onAttributeDamage: (sourcePlayerId) =>
+          _attributeCommanderDamage(ps.playerId, sourcePlayerId),
     );
   }
 

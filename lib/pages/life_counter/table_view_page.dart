@@ -14,11 +14,13 @@
 // page elle-meme n'ajoute, et ne doit jamais ajouter, aucun detecteur de
 // geste sur une zone joueur.
 //
-// Choix de forme (documente dans le rapport de tache) : une route poussee
-// (Navigator.push + MaterialPageRoute), pas un tiroir ni une feuille modale.
-// La vue table est un ecran de LECTURE -- on la consulte, on ne declenche
-// aucune action depuis elle -- alors que tous les tiroirs/feuilles de
-// life_counter_page.dart portent des actions ponctuelles sur un joueur
+// Choix de forme (documente dans le rapport de tache) : une route poussee,
+// pas un tiroir ni une feuille modale. Convertie en route GoRouter
+// declarative (voir lib/router/life_counter_routes.dart, AppRoutes.tableView)
+// a la ronde de correction 1 -- plus de Navigator.push/MaterialPageRoute
+// isole. La vue table est un ecran de LECTURE -- on la consulte, on ne
+// declenche aucune action depuis elle -- alors que tous les tiroirs/feuilles
+// de life_counter_page.dart portent des actions ponctuelles sur un joueur
 // (showModalBottomSheet, showDialog). Une route pleine page lui donne un
 // bouton retour standard et une entree d'historique de navigation propre,
 // sans reutiliser la semantique "action rapide" des feuilles modales.

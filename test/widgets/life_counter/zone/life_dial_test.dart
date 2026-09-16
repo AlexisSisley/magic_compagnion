@@ -8,7 +8,6 @@ import 'package:magic_companion/widgets/life_counter/zone/life_dial.dart';
 Future<List<int>> pumpDial(
   WidgetTester tester, {
   int life = 40,
-  int pendingDelta = 0,
 }) async {
   final deltas = <int>[];
   await tester.pumpWidget(
@@ -21,7 +20,6 @@ Future<List<int>> pumpDial(
             child: LifeDial(
               playerId: 0,
               life: life,
-              pendingDelta: pendingDelta,
               onDelta: deltas.add,
             ),
           ),
@@ -187,17 +185,6 @@ void main() {
     await tester.pump();
 
     expect(deltas, [-1, 1]);
-  });
-
-  testWidgets('le badge de dégâts en attente s\'affiche quand il est non nul',
-      (tester) async {
-    await pumpDial(tester, life: 40, pendingDelta: -5);
-    expect(find.text('-5'), findsOneWidget);
-  });
-
-  testWidgets('aucun badge quand le delta en attente est nul', (tester) async {
-    await pumpDial(tester, life: 40, pendingDelta: 0);
-    expect(find.text('0'), findsNothing);
   });
 
   group('mode ajustement', () {
