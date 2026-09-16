@@ -26,6 +26,7 @@ import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/models/player_model.dart';
 import 'package:magic_companion/models/profile_model.dart'; // CommanderEntry, Profile
+import 'package:magic_companion/models/table_seat.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/providers/service_providers.dart';
@@ -135,6 +136,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   Player _toLegacyPlayer(int index, PlayerState ps) {
     // Include pending (buffered) damage in displayed life
     final pending = _pendingDamage[ps.playerId] ?? 0;
+
+
     return Player(
       // Use the real playerId (not the display index) so callbacks target the correct PlayerState
       id: ps.playerId,
@@ -922,6 +925,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       final playerState = orderedPlayers[index];
 
       Widget zone = _buildPlayerZoneWithOverlays(player, playerState, index);
+
+      // Envelopper la zone dans une clé basée sur le player.id pour permettre
+      // aux tests de trouver la zone spécifique du joueur indépendamment de
+      // l'ordre d'affichage (reorder, colonnes latérales, etc.)
+      zone = KeyedSubtree(
+        key: ValueKey('player_zone_${player.id}'),
+        child: zone,
+      );
 
       if (_isEditMode) {
         zone = DraggablePlayerZone(
