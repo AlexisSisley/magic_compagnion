@@ -2,35 +2,23 @@
 // Sub-widget extracted from PlayerZone: floating change numbers overlay.
 
 import 'package:flutter/material.dart';
+import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
 
-/// Data class for a single floating number animation.
-class FloatingNumberData {
-  final int id;
-  final String text;
-  final Color color;
-  double top;
-  double opacity;
-
-  FloatingNumberData({
-    required this.id,
-    required this.text,
-    required this.color,
-    this.top = 20.0,
-    this.opacity = 1.0,
-  });
-}
-
 /// Displays floating change numbers (e.g., "+3", "-5") that animate upward and fade.
 /// Placed as an overlay in the center of the player zone via IgnorePointer.
+///
+/// `FloatingNumber` (le modèle, pas de type dupliqué ici) vient du notifier
+/// `PlayerZoneNotifier` — c'est lui qui possède désormais le cycle de vie
+/// (apparition, animation, retrait) de ces nombres.
 class LifeLog extends StatelessWidget {
   const LifeLog({
     super.key,
     required this.floatingNumbers,
   });
 
-  final List<FloatingNumberData> floatingNumbers;
+  final List<FloatingNumber> floatingNumbers;
 
   @override
   Widget build(BuildContext context) {

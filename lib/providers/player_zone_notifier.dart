@@ -192,6 +192,17 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
 
   int rotate90Degrees(int currentQuarterTurns) => (currentQuarterTurns + 1) % 4;
 
+  /// Remet l'accumulateur de rotation à zéro sans toucher au reste de
+  /// l'état. Appelé au début de chaque nouveau geste de glissement
+  /// (`onLongPressStart`) : le résidu d'un geste précédent, achevé sans
+  /// franchir le seuil, ne doit pas se combiner avec un nouveau geste sans
+  /// rapport (position de doigt différente, direction potentiellement
+  /// opposée) — sans quoi le nouveau geste hériterait d'un biais invisible
+  /// pour l'utilisateur.
+  void resetRotationDrag() {
+    state = state.copyWith(rotationAccumulator: 0.0);
+  }
+
   int? handleRotationDrag(double delta, int currentQuarterTurns) {
     final accumulated = state.rotationAccumulator + delta;
     if (accumulated.abs() <= rotationThreshold) {
