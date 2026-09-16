@@ -1026,6 +1026,77 @@ git commit -m "fix: render the pending damage badge inside the zone's rotated fr
 
 ---
 
+## Task 7 : Le nombre flottant qui ne disparaît jamais
+
+Bug signalé par l'utilisateur en cours de lot : le `+X` vert / `−1` rouge reste affiché indéfiniment. Ajouté au lot 6 parce que c'est ce lot qui multiplie les démontages de zone — changement de cran, de siège, de rotation.
+
+**Files:**
+- Modify: `lib/providers/player_zone_notifier.dart`
+- Modify: `lib/widgets/life_counter/player_zone.dart`
+- Test: `test/providers/player_zone_notifier_test.dart`
+
+### Cause racine — établie, pas supposée
+
+Le cycle de vie du nombre flottant est **partagé entre deux propriétaires qui n'ont pas la même durée de vie** :
+
+- **L'état vit dans le notifier.** `PlayerZoneNotifier.showFloatingNumber` ajoute le nombre à `state.floatingNumbers` (`player_zone_notifier.dart:167`). Le provider est une `NotifierProvider.family` **sans `autoDispose`** (`:231`) — constat déjà reporté au lot 1. Son état survit donc à toutes les zones.
+- **La suppression vit dans le widget.** `PlayerZone._showFloatingNumber` (`player_zone.dart:201`) arme deux `Timer` non stockés et non annulés : 50 ms pour animer, 600 ms pour retirer. Chacun est gardé par `if (!mounted) return;`.
+- **`dispose()` n'annule rien** (`player_zone.dart:159-164`) : il ne libère que les trois `AnimationController`.
+
+**Conséquence :** si la zone est démontée entre l'affichage et les 600 ms, le timer de suppression se déclenche, la garde `mounted` le fait sortir, et **le nombre reste dans l'état du notifier pour toujours**. La prochaine zone montée pour ce `playerId` le réaffiche — figé, sans animation, indéfiniment. C'est exactement le symptôme rapporté.
+
+Les gardes `mounted` ont été ajoutées pour éviter d'écrire dans l'état d'une zone morte. Elles ont converti un risque de plantage en fuite permanente.
+
+**Ce qui démonte une zone en pratique :** ouvrir la vue table (lot 3) ou toute route modale dans les 600 ms suivant un tap, entrer ou sortir du mode édition, un reorder. Et, à partir de ce lot, tout changement de cran de densité ou de siège.
+
+### La correction
+
+**Le propriétaire de l'état doit être le propriétaire du cycle de vie.** Les timers descendent dans le notifier :
+
+- `showFloatingNumber` arme lui-même ses deux échéances et n'a plus besoin de renvoyer un id à un appelant chargé du ménage.
+- Le notifier garde ses `Timer` dans un champ et les annule via `ref.onDispose`.
+- `PlayerZone._showFloatingNumber` se réduit à un appel, sans `Timer` ni garde `mounted` — il n'y a plus rien à garder.
+- `animateFloatingNumber` / `removeFloatingNumber` restent publiques si des tests les visent, mais ne sont plus appelées depuis le widget.
+
+**Ne pas** corriger en rendant le provider `autoDispose` : ça effacerait aussi `isAdjusting` et la rotation en cours, et ça traiterait le symptôme (l'état traîne) au lieu de la cause (personne ne le nettoie).
+
+- [ ] **Step 1 : Écrire le test qui échoue**
+
+Dans `test/providers/player_zone_notifier_test.dart`, décrit par ses assertions :
+
+1. **Le nombre disparaît sans aucun widget.** Créer un `ProviderContainer`, appeler `showFloatingNumber(-1)`, avancer le temps au-delà de 600 ms, vérifier que `floatingNumbers` est vide. C'est le test qui énonce la propriété : le nettoyage n'appartient pas au widget. Il échoue aujourd'hui, le notifier n'ayant aucun timer.
+2. **Deux nombres rapprochés disparaissent tous les deux**, sans que le second prolonge le premier.
+3. **L'animation reste appliquée** : juste après 50 ms, l'entrée visée a bien `opacity == 0.0` et `top == -50.0`.
+
+Le temps se pilote avec `fakeAsync` (`package:fake_async/fake_async.dart`, transitif de `flutter_test`). Si l'import ne résout pas, utiliser un test de widget et `tester.pump(Duration(...))` — mais le test 1 doit rester **sans aucune zone montée**, c'est tout son intérêt.
+
+- [ ] **Step 2 : Lancer le test pour vérifier qu'il échoue**
+
+Run: `flutter test test/providers/player_zone_notifier_test.dart`
+Expected: FAIL — `floatingNumbers` contient encore l'entrée après 600 ms.
+
+- [ ] **Step 3 : Descendre les timers dans le notifier**
+
+- [ ] **Step 4 : Retirer les timers et les gardes du widget**
+
+- [ ] **Step 5 : Lancer la suite complète**
+
+Run: `flutter test`
+Expected: PASS. Les tests existants qui appelaient `animateFloatingNumber` / `removeFloatingNumber` à la main peuvent devoir changer — les lire avant de les modifier, ils peuvent signaler une vraie régression.
+
+- [ ] **Step 6 : Vérifier la discrimination**
+
+Retirer temporairement l'annulation dans `ref.onDispose`, vérifier qu'un test échoue, rétablir. Si aucun n'échoue, le test 1 ne couvre pas l'annulation — le renforcer.
+
+- [ ] **Step 7 : Commit**
+
+```bash
+git add lib/providers/player_zone_notifier.dart lib/widgets/life_counter/player_zone.dart test/providers/player_zone_notifier_test.dart
+git commit -m "fix: let the notifier own the floating number lifecycle"
+```
+
+---
+
 ## Critères de sortie du lot
 
 Les tests ne suffisent pas ici, et c'est écrit dans la spec §6.1 plutôt que découvert en revue.
