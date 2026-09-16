@@ -129,5 +129,51 @@ void main() {
       await tester.pumpWidget(buildWidget(isEliminated: false));
       expect(find.byType(EliminationOverlay), findsOneWidget);
     });
+
+    testWidgets(
+        "un enfant tapable reste atteignable une fois l'animation "
+        "d'élimination terminée (verrou anti-régression)",
+        (tester) async {
+      // Ronde 1 de revue de la tâche 6 : les trois couches décoratives
+      // (flash, fissures, cache sombre + icône) absorbaient tous les gestes
+      // sur la zone une fois éliminée — la phase 3 reste affichée en
+      // permanence après l'animation et n'avait pas d'`IgnorePointer`. Ça
+      // rendait "Annuler l'élimination" injoignable dans l'app réelle malgré
+      // un câblage logique correct, et rien ici ne le détectait puisqu'aucun
+      // test ne traversait l'overlay au doigt. Ce test protège le composant
+      // lui-même, indépendamment de qui l'utilise.
+      var tapped = false;
+      await tester.pumpWidget(buildWidget(
+        isEliminated: true,
+        child: GestureDetector(
+          key: const Key('tappable_child'),
+          // `HitTestBehavior.opaque` : un `SizedBox` sans couleur ne
+          // s'enregistre pas lui-même comme hit (`HitTestBehavior.deferToChild`,
+          // le défaut de `GestureDetector`, dépend du hit propre de l'enfant).
+          // Sans ce réglage explicite, ce test échouerait même sans aucun
+          // `Container` opaque devant lui — pour un défaut qui n'a rien à voir
+          // avec `EliminationOverlay`.
+          behavior: HitTestBehavior.opaque,
+          onTap: () => tapped = true,
+          child: const SizedBox(width: 100, height: 100),
+        ),
+      ));
+
+      // Traverse toute l'animation (900ms) pour atteindre l'état statique
+      // final (cache sombre + icône), celui qui reste affiché en permanence.
+      await tester.pump(const Duration(milliseconds: 1000));
+
+      await tester.tap(find.byKey(const Key('tappable_child')));
+      await tester.pump();
+
+      expect(
+        tapped,
+        isTrue,
+        reason: 'les trois couches décoratives sont purement visuelles : un '
+            "IgnorePointer manquant sur l'une d'elles bloquerait tous les "
+            'gestes sur une zone éliminée, y compris ceux qui doivent '
+            'rester ouverts',
+      );
+    });
   });
 }
