@@ -33,6 +33,24 @@
 9. **Aucun nouveau geste global** sans validation explicite.
 10. **Les tests de widgets se décrivent par leurs assertions dans ce plan, jamais en code verbatim.** Le code de test écrit de mémoire a produit six défauts de compilation sur les lots 1 et 2 ; les lots 3 et 4, passés aux intentions décrites, n'en ont eu aucun.
 11. **Ce lot ne déplace pas de pixels dans la table.** S'il s'avérait qu'une tâche change la disposition d'une zone joueur, elle sort du périmètre et attend la maquette — voir « Hors périmètre ».
+12. **Aucune dégradation silencieuse.** Rien de ce que ce lot affiche ne doit défiler, se rogner ou disparaître sans le dire. Si un contenu ne tient pas, il se compte (« +2 ») ou il change de forme — il ne se cache pas derrière un défilement qu'on ne voit pas. C'est la mécanique exacte qui a fait échouer le lot 6 : un `SingleChildScrollView` horizontal qui rognait cinq actions sur huit sans aucune affordance. Reprise de la spec v2 §4.3 de la session table.
+
+---
+
+## Contrat avec le chantier « table v2 » (session parallèle)
+
+Ce lot avance en parallèle de la refonte de disposition. Les deux se touchent en un seul point — la poignée conditionnelle — et le contrat a été négocié explicitement.
+
+**Ce qui est garanti à ce lot :**
+- **`reservedHeight = 30.0` ne bouge pas**, en permanence, calme ou non.
+- **Le bas de zone est stable.** La rangée de paliers devient **transitoire** : décision utilisateur prise sur maquette, le mode d'ajustement ne vit plus que pendant l'appui (appui long → glissé sur le palier → relâché). Les trois éléments qu'on craignait de voir s'empiler ne coexistent donc jamais : la poignée est permanente, la rangée d'attribution est gardée par `!isAdjusting` (`life_counter_page.dart:1063`, vérifié présent), et les paliers n'existent que doigt posé.
+
+**Ce que ce lot doit savoir et respecter :**
+- **`reservedHeight` est devenue porteuse pour toute la disposition.** La spec v2 §6 en dérive le plancher de zone : `kZoneShortEdgeFloor = kZoneHeaderHeight (40) + kZoneHandleHeight (30) = 70`. La hauteur de la poignée n'est plus un détail de la zone, c'est le petit côté minimal d'une zone dans son propre repère, et la règle d'abordabilité des colonnes latérales s'appuie dessus. **Ne la change pas, et si une tâche a besoin de plus de place, dis-le au lieu de la rogner.**
+- **La largeur disponible pour les puces varie beaucoup plus que la hauteur.** Trois crans de densité (`comfort` / `compact` / `minimal`), et au cran `minimal` une zone n'affiche **que les PV**. Les puces de compteurs appartiennent aux « compteurs secondaires » du cran `comfort`.
+- **Une zone en siège latéral est pivotée**, donc son petit côté est la largeur de colonne et son grand côté la hauteur de colonne. La poignée s'étire le long du grand côté : un siège latéral a donc **plus** de place pour les puces, pas moins. Le cas contraignant n'est pas le siège latéral, c'est le cran minimal et les parties nombreuses.
+
+**Le point de vigilance transmis par l'autre session :** « relâcher ferme » n'est pas encore éprouvé au pouce. Si le geste se révèle pénible, le repli est le mode persistant, et le bas de zone redevient disputé. Elle préviendra. Ce lot ne construit donc rien qui suppose la disparition de la rangée de paliers.
 
 ---
 
@@ -175,7 +193,17 @@ Le doc-comment existant explique pourquoi le clamp vit dans le notifier et non c
 
 **Intentions de test :** une poignée avec un compteur personnalisé non nul n'est pas calme et affiche sa puce ; `isCalm` reste vrai quand tous les compteurs sont à zéro **même s'il y en a beaucoup** ; la puce du pire dégât de commandant est inchangée. Et un test de non-régression sur la hauteur réservée, **vérifié discriminant**.
 
-> **Attention au débordement :** la poignée fait 30 px de haut et affichait au plus quatre puces. Avec des compteurs personnalisés il peut y en avoir davantage. Décide de ce qui se passe au-delà de ce qui tient — et **écris le test qui fixe ta décision**. Ne laisse pas le cas se résoudre par un débordement de `Row`. Consigne ton choix dans ton rapport.
+> **Le débordement — et c'est le point où ce lot touche le chantier de disposition, donc lis-le en entier.**
+>
+> La poignée fait 30 px de haut et affichait au plus quatre puces. Avec des compteurs personnalisés il peut y en avoir n'importe combien, et la largeur disponible varie d'un cran de densité à l'autre.
+>
+> **Ne fige pas la stratégie d'affichage.** Câble le comportement générique — la poignée sait résumer *n* compteurs — et rends le rendu **paramétrable**, pour que la session table tranche l'affichage avec le reste de la disposition, sur sa maquette. C'est une décision de mise en page dans une zone dont elle redéfinit la taille.
+>
+> **Le défaut à utiliser en attendant**, transmis par cette session, à prendre comme provisoire et non comme acquis : **priorisation par gravité, puis troncature avec un « +N »**.
+>
+> **Et une interdiction, elle, définitive : pas de défilement.** Une bande de 30 px qui défile est indécouvrable — c'est très exactement le mécanisme qui a fait échouer le lot 6, où une barre d'actions scrollable cachait cinq icônes sur huit sans aucune affordance. Réduire la taille des puces n'est pas une option non plus : on passe sous le seuil lisible. Un contenu qui ne tient pas **se compte**, il ne se cache pas.
+>
+> Écris le test qui fixe le comportement générique et le défaut, et consigne dans ton rapport que la stratégie est paramétrable et pourquoi.
 
 - [ ] **Step 1 :** écrire les tests de 3a et 3b, vérifier qu'ils échouent.
 - [ ] **Step 2 :** implémenter 3a, puis 3b.
@@ -262,8 +290,20 @@ Ces constats viennent du lot 4 et vivent aujourd'hui dans un journal SDD **git-i
 
 ## Critères de sortie du lot
 
+### Automatiques
+
 - `flutter test` vert dans son intégralité, `flutter analyze` sans erreur ni avertissement.
 - `CounterType` est importé et utilisé par du code de `lib/`, et plus aucune map de compteurs codée en dur ne subsiste dans `player_drawer.dart` ni `life_counter_page.dart`.
 - Une partie Standard n'affiche plus la taxe de commandant.
 - Un compteur créé survit à la fermeture de l'application et à un rechargement de session.
 - Le test d'intégration bout-en-bout passe.
+
+### Visuels — bloquants
+
+**Aucun merge sans ces captures, regardées par l'utilisateur.** Ce lot déplace des pixels dans le tiroir et sur la poignée ; il est donc soumis à la même porte que la table (spec v2 §7.2). Ce ne sont pas une formalité : ce sont la seule preuve que les tests ne savent pas produire, et le lot 6 est parti en production avec 1028 tests verts faute de l'avoir franchie.
+
+1. **Le tiroir en Commander** — quatre compteurs, emojis lisibles, cibles ± confortables au doigt.
+2. **Le tiroir en Standard** — deux compteurs, et **plus de taxe de commandant**. C'est la preuve visuelle du défaut corrigé.
+3. **Le tiroir avec deux compteurs personnalisés** créés à la main, à côté des intégrés.
+4. **La poignée conditionnelle avec plus de puces qu'il n'en tient**, pour voir ce que donne la troncature « +N » à 30 px de haut — et à la largeur d'une zone de partie à 4 joueurs, pas sur un écran de test confortable.
+5. **Le dialogue de création**, rempli, sur téléphone en portrait.
