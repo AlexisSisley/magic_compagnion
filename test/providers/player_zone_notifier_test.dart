@@ -109,20 +109,37 @@ void main() {
 
   group('nombres flottants', () {
     test('showFloatingNumber empile avec le bon texte et des ids croissants', () {
-      final n = notifierFor(0);
-      n.showFloatingNumber(3);
-      n.showFloatingNumber(-5);
-      final numbers = stateFor(0).floatingNumbers;
-      expect(numbers.map((f) => f.text).toList(), ['+3', '-5']);
-      expect(numbers.map((f) => f.id).toList(), [0, 1]);
+      // showFloatingNumber arme désormais ses propres Timer (50ms/600ms,
+      // voir la correction de la tâche 7) : sans fakeAsync ici, ils
+      // resteraient de vrais Timer en vol après la fin du test, pour se
+      // déclencher plus tard sur un notifier déjà disposé par tearDown --
+      // ronde de correction 1, confirmée empiriquement (voir le rapport de
+      // la tâche 7). fakeAsync les fait tous s'épuiser avant la fin du test.
+      fakeAsync((async) {
+        final n = notifierFor(0);
+        n.showFloatingNumber(3);
+        n.showFloatingNumber(-5);
+        final numbers = stateFor(0).floatingNumbers;
+        expect(numbers.map((f) => f.text).toList(), ['+3', '-5']);
+        expect(numbers.map((f) => f.id).toList(), [0, 1]);
+
+        async.elapse(const Duration(milliseconds: 601));
+      });
     });
 
     test('removeFloatingNumber retire le bon', () {
-      final n = notifierFor(0);
-      n.showFloatingNumber(1);
-      n.showFloatingNumber(2);
-      n.removeFloatingNumber(0);
-      expect(stateFor(0).floatingNumbers.single.text, '+2');
+      // Même raison que le test précédent : purger les Timer de
+      // showFloatingNumber avant la fin du test pour ne pas en laisser fuir
+      // vers les tests suivants.
+      fakeAsync((async) {
+        final n = notifierFor(0);
+        n.showFloatingNumber(1);
+        n.showFloatingNumber(2);
+        n.removeFloatingNumber(0);
+        expect(stateFor(0).floatingNumbers.single.text, '+2');
+
+        async.elapse(const Duration(milliseconds: 601));
+      });
     });
   });
 
