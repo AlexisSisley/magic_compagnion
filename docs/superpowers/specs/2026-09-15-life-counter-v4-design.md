@@ -181,7 +181,9 @@ La page perd :
 > la réduit à un moteur de rendu piloté par un modèle de sièges. Les presets d'orientation
 > restent, mais changent de statut : réglage de secours, et non plus mode normal.
 
-Sont conservés tels quels : les presets d'orientation, `EliminationOverlay` et `CrackEffect`, `CriticalOverlay`, `AnimationService`, `DiceRollDialog`, `DamageHistorySheet`, `PlayerHistorySheet`, `DeathConfirmationOverlay`, `RadialMenu` (seul son point d'invocation change), le wakelock et le mode immersif, les profils Owner/Guest et la sélection d'artwork Scryfall, la persistance Drift de l'historique et le snapshot de reprise après crash.
+Sont conservés tels quels : les presets d'orientation, `EliminationOverlay` et `CrackEffect`, `CriticalOverlay`, `AnimationService`, `DiceRollDialog`, `DamageHistorySheet`, `PlayerHistorySheet`, `DeathConfirmationOverlay`, le wakelock et le mode immersif, les profils Owner/Guest et la sélection d'artwork Scryfall, la persistance Drift de l'historique et le snapshot de reprise après crash.
+
+> **Amendement (lot 2).** `RadialMenu` figurait dans cette liste, « seul son point d'invocation change ». Il en sort : le tiroir est un `showModalBottomSheet` à `ListTile`, pas un menu radial, donc le composant s'est retrouvé sans aucun appelant. Il est supprimé plutôt que conservé sans emploi — garder un composant orphelin est exactement le sédiment que §1 reproche aux cycles V2 et V3. L'historique git le conserve si un lot ultérieur en veut un.
 
 ### 3.5 Compteurs personnalisés
 
