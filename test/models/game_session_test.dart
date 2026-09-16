@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/models/game_session.dart';
+import 'package:magic_companion/models/table_seat.dart';
 
 /// Configs de test génériques, une par joueur (id/nom uniques, reste par
 /// défaut) — évite de retaper la même liste littérale dans chaque test.
@@ -227,11 +228,26 @@ void main() {
       expect(session.players.map((p) => p.quarterTurns).toList(), [2, 0]);
     });
 
-    test('8 joueurs : aucune rotation laterale, chaque quarterTurns vaut 0 ou 2',
-        () {
+    test(
+        '8 joueurs : aucune rotation laterale, quarterTurns suit exactement '
+        'les defauts de seatsFor(8)', () {
+      // Ronde de correction 1 (MINOR) : `anyOf(0, 2)` seul passait par
+      // construction (le defaut 0 de PlayerState appartient deja a cet
+      // ensemble), donc retirer le cablage de seatsFor dans `newGame` ne
+      // faisait pas echouer ce test. On compare desormais a la sortie REELLE
+      // de `seatsFor(8)` (pas a une liste recopiee a la main), ce qui exige
+      // que `newGame` l'utilise vraiment ; l'assertion `anyOf` est conservee
+      // en plus, pour documenter explicitement l'absence de siege lateral.
       final session = GameSession.newGame(
         format: commanderFormat,
         playerConfigs: _configs(8),
+      );
+      final expectedQuarterTurns =
+          seatsFor(8).map((seat) => seat.quarterTurns).toList();
+
+      expect(
+        session.players.map((p) => p.quarterTurns).toList(),
+        expectedQuarterTurns,
       );
       for (final p in session.players) {
         expect(p.quarterTurns, anyOf(0, 2), reason: 'joueur ${p.playerId}');
@@ -254,6 +270,31 @@ void main() {
       );
 
       final restored = GameSession.fromJson(legacy.toJson());
+
+      expect(restored.players.map((p) => p.quarterTurns).toList(), [2, 3, 0, 1]);
+    });
+
+    test(
+        'ronde de correction 1 (CRITICAL) : snapshot sans champ playerOrder '
+        'du tout (ecrit avant le lot 1), 4 joueurs tous a 0, recoit quand '
+        'meme les defauts de siege [2, 3, 0, 1]', () {
+      final base = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: _configs(4),
+      );
+      final legacy = base.copyWith(
+        players: base.players.map((p) => p.copyWith(quarterTurns: 0)).toList(),
+      );
+
+      // `playerOrder` n'existait pas avant le lot 1 : simule un snapshot ou
+      // le champ est totalement absent du JSON, pas seulement egal a
+      // l'identite. `fromJson` doit alors retomber sur l'ordre canonique de
+      // `players` pour la migration, exactement comme `_orderedPlayers` le
+      // fait deja pour l'affichage.
+      final json = legacy.toJson();
+      json.remove('playerOrder');
+
+      final restored = GameSession.fromJson(json);
 
       expect(restored.players.map((p) => p.quarterTurns).toList(), [2, 3, 0, 1]);
     });

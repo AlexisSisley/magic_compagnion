@@ -308,6 +308,18 @@ class GameSession {
   /// `seatsFor`, dans l'ordre d'affichage `playerOrder`. Dès qu'un seul
   /// joueur a tourné sa zone, on ne touche à rien : un vrai zéro voisin d'une
   /// rotation choisie doit rester un vrai zéro.
+  ///
+  /// Ronde de correction 1 (CRITICAL) : `playerOrder` a été introduit au
+  /// lot 1, deux jours avant celui-ci. `fromJson` (ci-dessus) passe ici un
+  /// `playerOrder` **vide** dès que le champ est absent du JSON ou de
+  /// longueur différente de `players` — exactement le cas de TOUS les
+  /// snapshots écrits par la version installée aujourd'hui. Sans ce repli,
+  /// la boucle ci-dessous ne s'exécute jamais et aucune rotation n'est
+  /// migrée pour la population même que cette migration existe pour
+  /// protéger. Repli : dans ce cas, l'ordre d'affichage EST l'ordre canonique
+  /// de `players` (`playerId` == index), comme le fait déjà
+  /// `_orderedPlayers` (life_counter_page.dart) pour l'affichage lui-même
+  /// quand `playerOrder` ne correspond pas.
   static List<PlayerState> _migrateLegacyRotation(
     List<PlayerState> players,
     List<int> playerOrder,
@@ -316,11 +328,14 @@ class GameSession {
     if (players.any((p) => p.quarterTurns != 0)) return players;
 
     final seats = seatsFor(players.length);
+    final effectiveOrder = playerOrder.length == players.length
+        ? playerOrder
+        : players.map((p) => p.playerId).toList();
     final byPlayerId = {for (final p in players) p.playerId: p};
 
-    for (var displayIndex = 0; displayIndex < playerOrder.length; displayIndex++) {
+    for (var displayIndex = 0; displayIndex < effectiveOrder.length; displayIndex++) {
       if (displayIndex >= seats.length) break;
-      final playerId = playerOrder[displayIndex];
+      final playerId = effectiveOrder[displayIndex];
       final player = byPlayerId[playerId];
       if (player == null) continue;
       byPlayerId[playerId] = player.copyWith(
