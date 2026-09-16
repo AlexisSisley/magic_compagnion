@@ -87,25 +87,31 @@ Future<void> pumpLifeCounter(
 ///
 /// Tape directement sur la moitié négative du cadran de vie du joueur.
 ///
-/// zoneIndex est l'index d'affichage (après reorder possible). On cherche la
-/// zone à cet index d'affichage en mettant à jour la clé dynamiquement.
+/// zoneIndex est l'index d'affichage (après reorder possible). On trouve d'abord
+/// le LifeDial à cet index, puis on tape sur sa moitié négative par clé.
 /// Flutter gère automatiquement les hit-tests à travers les RotatedBox.
 Future<void> tapMinusHalf(
   WidgetTester tester,
   int zoneIndex,
   int count,
 ) async {
-  // Chercher tous les boutons "moins" dans l'ordre d'affichage (un par cadran)
-  // On cherche le bouton à l'index d'affichage zoneIndex
-  final minusHalfsFinder = find.byKey(const ValueKey('life_dial_half_minus'));
+  // Obtenir le container et la session pour traduire zoneIndex (ordre d'affichage) → playerId
+  final element = tester.element(find.byType(LifeCounterPage));
+  final container = ProviderScope.containerOf(element);
+  final session = container.read(gameSessionNotifierProvider)!;
+  final playerId = session.playerOrder[zoneIndex];
+
+  // Chercher la zone du joueur par sa clé playerId
+  final zoneFinder = find.byKey(ValueKey('player_zone_$playerId'));
+
+  // Trouver la moitié négative comme descendante
+  final minusHalfFinder = find.descendant(
+    of: zoneFinder,
+    matching: find.byKey(const ValueKey('life_dial_half_minus')),
+  );
 
   for (var i = 0; i < count; i++) {
-    try {
-      await tester.tap(minusHalfsFinder.at(zoneIndex));
-    } catch (e) {
-      // Si at() échoue, utiliser first
-      await tester.tap(minusHalfsFinder.first);
-    }
+    await tester.tap(minusHalfFinder);
     await tester.pump();
   }
 }
