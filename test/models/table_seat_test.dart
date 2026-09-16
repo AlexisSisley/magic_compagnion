@@ -53,4 +53,16 @@ void main() {
     expect(tops.map((s) => s.slot).toList(), [0, 1]);
     expect(tops.every((s) => s.slotCount == 2), isTrue);
   });
+
+  test('3 joueurs : face à face sans latéral', () {
+    expect(seatsFor(3).map((s) => s.side).toList(),
+        [TableSide.top, TableSide.bottom, TableSide.bottom]);
+  });
+
+  test('8 joueurs : face à face sans latéral', () {
+    expect(seatsFor(8).map((s) => s.side).toList(), [
+      TableSide.top, TableSide.top, TableSide.top, TableSide.top,
+      TableSide.bottom, TableSide.bottom, TableSide.bottom, TableSide.bottom,
+    ]);
+  });
 }
