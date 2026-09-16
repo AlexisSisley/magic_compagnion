@@ -95,6 +95,15 @@ Future<void> _dragZoneOnto(
   await tester.pumpAndSettle();
 }
 
+
+/// Applique le preset d'orientation [label] par le vrai chemin d'interface.
+Future<void> _applyPreset(WidgetTester tester, String label) async {
+  await tester.tap(find.byKey(const ValueKey('orientation_presets_button')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(ValueKey('orientation_preset_$label')));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets(
       '4 joueurs, swap 0 <-> 3 : chaque zone prend l\'orientation de son '
@@ -144,5 +153,66 @@ void main() {
     expect(_rotations(container), [1, 3, 0, 2],
         reason: 'la rotation manuelle du joueur 0 est perdue : le siège '
             'gauche impose 1 quart de tour');
+  });
+
+  testWidgets(
+      "4 joueurs : un réordonnancement ne touche PAS l'orientation des zones "
+      "que personne n'a déplacées (re-revue scopée, R1)", (tester) async {
+    final container = await _pump(tester, _session(4));
+    final notifier = container.read(gameSessionNotifierProvider.notifier);
+
+    // « Même sens » : les quatre zones à 0. C'est le choix délibéré que le
+    // marqueur de migration (CRITICAL #2) protège au rechargement — il ne
+    // doit pas sauter au premier glisser-déposer sans rapport.
+    for (var playerId = 0; playerId < 4; playerId++) {
+      notifier.updateRotation(playerId, 0);
+    }
+    await tester.pumpAndSettle();
+    expect(_rotations(container), [0, 0, 0, 0]);
+
+    await tester.tap(find.byKey(const ValueKey('action-edit-mode')));
+    await tester.pumpAndSettle();
+
+    await _dragZoneOnto(tester, fromPlayerId: 0, toPlayerId: 3);
+
+    // Seuls les joueurs 0 et 3 ont changé de siège : ils prennent le leur
+    // (gauche = 1 pour le joueur 0, haut = 2 pour le joueur 3). Les joueurs
+    // 1 et 2 n'ont pas bougé et gardent le 0 choisi.
+    expect(_rotations(container), [1, 0, 0, 2],
+        reason: 'reposer TOUTES les rotations remettrait les joueurs 1 et 2 '
+            'à 3 et 0, détruisant « Même sens » sur des zones intactes');
+  });
+
+  testWidgets(
+      "4 joueurs : après un réordonnancement, un preset se pose dans l'ordre "
+      "D'AFFICHAGE, pas dans l'ordre canonique (re-revue scopée, R2)",
+      (tester) async {
+    final container = await _pump(tester, _session(4));
+
+    await tester.tap(find.byKey(const ValueKey('action-edit-mode')));
+    await tester.pumpAndSettle();
+    await _dragZoneOnto(tester, fromPlayerId: 0, toPlayerId: 3);
+    await tester.tap(find.byKey(const ValueKey('action-edit-mode')));
+    await tester.pumpAndSettle();
+
+    expect(container.read(gameSessionNotifierProvider)!.playerOrder,
+        [3, 1, 2, 0],
+        reason: "sans le swap, l'ordre d'affichage vaudrait l'ordre "
+            "canonique et le test ne distinguerait plus rien");
+
+    // Tout remettre à plat pour que le preset ait quelque chose à changer.
+    final notifier = container.read(gameSessionNotifierProvider.notifier);
+    for (var playerId = 0; playerId < 4; playerId++) {
+      notifier.updateRotation(playerId, 0);
+    }
+    await tester.pumpAndSettle();
+
+    await _applyPreset(tester, 'Table');
+
+    // Ordre d'affichage [3, 1, 2, 0] sur les sièges [2, 3, 0, 1].
+    // Posé dans l'ordre canonique, on lirait [2, 3, 0, 1] : deux joueurs à
+    // l'envers de leur chaise, et l'aperçu montrerait pourtant le bon dessin.
+    expect(_rotations(container), [1, 3, 0, 2],
+        reason: 'le preset doit suivre `playerOrder`, pas `players`');
   });
 }
