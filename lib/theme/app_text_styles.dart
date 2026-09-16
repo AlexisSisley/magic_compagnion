@@ -174,4 +174,12 @@ abstract final class AppTextStyles {
     fontSize: fontSize ?? 15,
     fontWeight: FontWeight.w700,
   );
+
+  /// Puce de la poignée conditionnelle (bandeau résumé), ex. "☠ 3" (13px, w700).
+  static TextStyle lifeHandleChip({Color? color, double? fontSize}) =>
+      TextStyle(
+    color: color ?? AppColors.textPrimary,
+    fontSize: fontSize ?? 13,
+    fontWeight: FontWeight.w700,
+  );
 }
