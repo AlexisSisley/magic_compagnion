@@ -104,7 +104,7 @@ Aucun n'est bloquant, tous sont documentés :
 
 ## 6 bis. Un défaut qui t'appartient, trouvé à la toute fin du lot 3
 
-**L'aperçu de glisser-déposer déborde.**  enveloppe la zone complète dans une  **fixe**, indépendante de l'écran et du nombre de joueurs. Le contenu minimal incompressible d'une zone — avatar, nom, chiffre de vie, poignée — n'a structurellement aucune raison d'y tenir. Résultat : un débordement de mise en page pendant tout glissement de zone en mode édition.
+**L'aperçu de glisser-déposer déborde.** `lib/widgets/life_counter/draggable_player_zone.dart:103-107` enveloppe la zone complète dans une `SizedBox(height: 130)` **fixe**, indépendante de l'écran et du nombre de joueurs. Le contenu minimal incompressible d'une zone — avatar, nom, chiffre de vie, poignée — n'a structurellement aucune raison d'y tenir. Résultat : un débordement de mise en page pendant tout glissement de zone en mode édition.
 
 Découvert de la même façon que les autres : en **tentant** de remplacer un raccourci de test par le vrai geste de réordonnancement. La tentative a échoué de façon reproductible, sur session neuve, sans overlay.
 
