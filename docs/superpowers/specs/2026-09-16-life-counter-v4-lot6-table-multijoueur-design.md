@@ -151,6 +151,18 @@ C'est la seule chose autorisée à percer en cran minimal, précisément parce q
 seule qu'on ne peut pas se permettre de rater. Le rendu réutilise `CriticalOverlay`, que la
 spec V4 §3.4 conserve.
 
+**Les trois seuils ne produisent pas le même niveau d'alerte, et c'est voulu.** Vie ≤ 5 et
+poison ≥ `maxPoison − 2` portent le niveau à `danger` ; 18 dégâts de commandant d'une même
+source le portent directement à `lethal`. L'asymétrie reflète une asymétrie du jeu : à 18
+dégâts d'une seule source, **une unique connexion supplémentaire tue**, alors qu'un joueur à
+deux compteurs de poison de la mort en demande encore deux, et qu'un joueur à 5 points de vie
+survit à beaucoup d'attaques. Le niveau `lethal` reste par ailleurs celui du ratio de vie
+(≤ 10 % du total de départ).
+
+**Aucun seuil ne peut faire redescendre une alerte.** Chaque seuil absolu ne fait qu'aggraver
+le niveau déjà calculé par le ratio — un joueur à 2 points de vie ne repasse jamais sous
+`lethal` parce qu'un seuil secondaire n'est pas atteint.
+
 ### 3.4 Le cran ne change jamais en cours de partie
 
 Il est figé au démarrage et ne se recalcule qu'à un changement du nombre de joueurs ou
