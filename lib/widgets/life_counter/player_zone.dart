@@ -34,6 +34,7 @@ class PlayerZone extends ConsumerStatefulWidget {
     this.isHighlighted = false,
     this.attributionOpponents,
     this.onAttributeDamage,
+    this.pendingDamage = 0,
   });
 
   final Player player;
@@ -50,12 +51,26 @@ class PlayerZone extends ConsumerStatefulWidget {
   /// Ronde de correction finale (Critical/Important #2) : vit ICI, DANS le
   /// `RotatedBox` de `quarterTurns` ci-dessous -- et non empilée par-dessus
   /// depuis `life_counter_page.dart` comme au premier jet -- pour pivoter
-  /// avec le reste de la zone. Contrairement au badge de buffer (décoratif,
-  /// même défaut resté tel quel, voir la note du lot 6), cette rangée est
-  /// une cible tactile : mal orientée, elle tombe au bas de l'écran plutôt
-  /// qu'au bas de la zone telle que le joueur la lit à 90°/270°.
+  /// avec le reste de la zone : mal orientée, elle tomberait au bas de
+  /// l'écran plutôt qu'au bas de la zone telle que le joueur la lit à
+  /// 90°/270°. Même raisonnement, même correction pour `pendingDamage`
+  /// ci-dessous (tâche 6 du lot 6).
   final List<DamageAttributionOpponent>? attributionOpponents;
   final void Function(int sourcePlayerId)? onAttributeDamage;
+
+  /// Solde du buffer de dégâts de 2s en attente d'application (voir
+  /// `life_counter_page._pendingDamage`) : 0 masque le badge, un signe
+  /// choisit sa couleur (gain vs dégât). État transitoire, pas un compteur
+  /// permanent -- il reste affiché à tous les crans de densité, y compris
+  /// au cran minimal (spec §3.3 : seule la couche d'alerte perce le
+  /// silence du cran minimal, ce badge n'est pas cette couche).
+  ///
+  /// Vit ICI, DANS le `RotatedBox` de `quarterTurns` -- corrigé au lot 6
+  /// tâche 6 : rendu hors de la zone depuis `life_counter_page.dart`
+  /// jusqu'ici, il ne pivotait jamais avec elle, ce qui restait discret
+  /// tant que les rotations non nulles étaient rares. Ce lot place deux
+  /// sièges sur quatre à 90°/270°, ce qui rend le défaut visible.
+  final int pendingDamage;
 
   /// Ouverture du tiroir (tap sur la poignée — voir `ConditionalHandle`, qui
   /// n'expose qu'un `onTap`, aucun glissement) : compteurs, monarque,
@@ -426,6 +441,41 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                 child: DamageAttributionRow(
                   opponents: widget.attributionOpponents!,
                   onAttribute: widget.onAttributeDamage!,
+                ),
+              ),
+            ),
+
+          // Badge de dégâts en attente (voir le doc-comment de
+          // `pendingDamage`) : ancré top/right comme l'icône de galerie de
+          // commandants ci-dessus -- les deux ne se recouvrent qu'au cas
+          // marginal où une galerie ET un buffer sont actifs en même temps
+          // sur le même joueur, préexistant à cette correction et hors
+          // périmètre de la tâche 6.
+          // Badge de dégâts en attente (voir le doc-comment de
+          // `pendingDamage`) : ancré top/right comme l'icône de galerie de
+          // commandants ci-dessus -- les deux ne se recouvrent qu'au cas
+          // marginal où une galerie ET un buffer sont actifs en même temps
+          // sur le même joueur, préexistant à cette correction et hors
+          // périmètre de la tâche 6.
+          if (widget.pendingDamage != 0)
+            Positioned(
+              key: const ValueKey('pending_damage_badge'),
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (widget.pendingDamage > 0
+                          ? AppColors.accentGreen
+                          : AppColors.accentRed)
+                      .withAlpha(180),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  widget.pendingDamage > 0
+                      ? '+${widget.pendingDamage}'
+                      : '${widget.pendingDamage}',
+                  style: AppTextStyles.bold(color: AppColors.textPrimary, fontSize: 14),
                 ),
               ),
             ),

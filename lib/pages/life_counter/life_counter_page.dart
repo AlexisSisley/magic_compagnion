@@ -998,32 +998,10 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       );
     }
 
-    // Pending damage buffer indicator (Bug 4)
-    final pending = _pendingDamage[playerState.playerId] ?? 0;
-    if (pending != 0) {
-      final pendingText = pending > 0 ? '+$pending' : '$pending';
-      final pendingColor = pending > 0 ? AppColors.accentGreen : AppColors.accentRed;
-      zone = Stack(
-        children: [
-          zone,
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: pendingColor.withAlpha(180),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                pendingText,
-                style: AppTextStyles.bold(color: AppColors.textPrimary, fontSize: 14),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
+    // Le badge de degats en attente (Bug 4) est passe en donnees a
+    // `PlayerZone` via `_buildPlayerZone` (voir `pendingDamage`) et rendu
+    // DANS son `RotatedBox` -- corrige au lot 6 tache 6 : empile ici, hors
+    // de la zone comme au premier jet, il ne pivotait jamais avec elle.
 
     // Rangee d'attribution a la volee (spec S2.6) : voir `_buildPlayerZone`,
     // qui calcule sa visibilite et la passe a `PlayerZone` en donnees.
@@ -1097,6 +1075,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           showAttribution ? _attributionOpponents(ps.playerId) : null,
       onAttributeDamage: (sourcePlayerId) =>
           _attributeCommanderDamage(ps.playerId, sourcePlayerId),
+      pendingDamage: pending,
     );
   }
 

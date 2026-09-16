@@ -90,6 +90,34 @@ Future<List<int>> pumpZoneWithAttribution(
   return attributed;
 }
 
+/// Monte la zone avec un solde de dégâts en attente câblé (tâche 6 du
+/// lot 6) — voir `pumpZone` ci-dessus pour la variante sans.
+Future<void> pumpZoneWithPendingDamage(
+  WidgetTester tester, {
+  required Player player,
+  required int pendingDamage,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 340,
+            height: 340,
+            child: PlayerZone(
+              player: player,
+              onLifeChanged: (_) {},
+              onColorChanged: (_) {},
+              pendingDamage: pendingDamage,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('la zone affiche les PV et rien d\'autre au calme',
       (tester) async {
@@ -520,5 +548,41 @@ void main() {
               'du joueur : <200, donc minimal -- le libellé du PlayerHeader '
               'doit disparaître (spec §3.2)');
     });
+  });
+
+  // Tâche 6 du lot 6 : le badge de dégâts en attente (le buffer de 2s de
+  // `life_counter_page._pendingDamage`) vivait hors du `RotatedBox` de la
+  // zone -- il ne pivotait donc pas avec elle. Peu visible tant que les
+  // rotations non nulles étaient rares, mais ce lot place systématiquement
+  // deux sièges sur quatre à 90°/270°.
+  testWidgets('le badge de degats en attente pivote avec sa zone',
+      (tester) async {
+    await pumpZoneWithPendingDamage(
+      tester,
+      player: buildPlayer(quarterTurns: 1),
+      pendingDamage: -5,
+    );
+
+    final badge = find.byKey(const ValueKey('pending_damage_badge'));
+    expect(badge, findsOneWidget);
+
+    final rotatedAncestors = find.ancestor(
+      of: badge,
+      matching: find.byType(RotatedBox),
+    );
+    expect(rotatedAncestors, findsWidgets,
+        reason: 'le badge doit vivre dans le repere de la zone, sous le '
+            'meme RotatedBox que le chiffre de PV -- pas a cote de lui');
+  });
+
+  testWidgets('sans degat en attente (0), le badge ne s\'affiche jamais',
+      (tester) async {
+    await pumpZoneWithPendingDamage(
+      tester,
+      player: buildPlayer(),
+      pendingDamage: 0,
+    );
+
+    expect(find.byKey(const ValueKey('pending_damage_badge')), findsNothing);
   });
 }
