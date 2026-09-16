@@ -3,12 +3,14 @@
 //
 // Lot 2 — la coquille : compteurs et actions (ces dernières reprises du menu
 // radial, qui perd son appui long au profit du mode ajustement, spec §2.5).
-// Lot 3 y ajoutera la grille de dégâts de commandant.
+// Lot 3 — la grille de dégâts de commandant reçus (§2.7 point 2), qui
+// remplace la ligne provisoire ouvrant le sélecteur plein écran.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
+import 'commander_damage_grid.dart';
 
 const _counterLabels = <String, String>{
   'poison': 'Poison',
@@ -32,7 +34,9 @@ Future<void> showPlayerDrawer({
   required VoidCallback onToggleMonarch,
   required VoidCallback onEliminate,
   required VoidCallback onResetCounters,
-  required VoidCallback onCommanderDamage,
+  required List<CommanderDamageOpponent> commanderDamage,
+  required void Function(int sourcePlayerId, int delta) onCommanderDamageDelta,
+  required int lethalCommanderDamage,
 }) {
   HapticFeedback.selectionClick();
   return showModalBottomSheet<void>(
@@ -60,10 +64,12 @@ Future<void> showPlayerDrawer({
         Navigator.of(sheetCtx).pop();
         onResetCounters();
       },
-      onCommanderDamage: () {
-        Navigator.of(sheetCtx).pop();
-        onCommanderDamage();
-      },
+      commanderDamage: commanderDamage,
+      // Contrairement aux autres actions, taper ± sur la grille ne ferme
+      // pas le tiroir (spec §2.7 : « filet de rattrapage » consulté à
+      // chaud, éventuellement plusieurs fois).
+      onCommanderDamageDelta: onCommanderDamageDelta,
+      lethalCommanderDamage: lethalCommanderDamage,
     ),
   );
 }
@@ -78,7 +84,9 @@ class _PlayerDrawerBody extends StatefulWidget {
     required this.onToggleMonarch,
     required this.onEliminate,
     required this.onResetCounters,
-    required this.onCommanderDamage,
+    required this.commanderDamage,
+    required this.onCommanderDamageDelta,
+    required this.lethalCommanderDamage,
   });
 
   final String playerName;
@@ -89,7 +97,9 @@ class _PlayerDrawerBody extends StatefulWidget {
   final VoidCallback onToggleMonarch;
   final VoidCallback onEliminate;
   final VoidCallback onResetCounters;
-  final VoidCallback onCommanderDamage;
+  final List<CommanderDamageOpponent> commanderDamage;
+  final void Function(int sourcePlayerId, int delta) onCommanderDamageDelta;
+  final int lethalCommanderDamage;
 
   @override
   State<_PlayerDrawerBody> createState() => _PlayerDrawerBodyState();
@@ -100,6 +110,11 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
   /// refléter le changement immédiatement sans attendre un rebuild de la page.
   late final Map<String, int> _values = Map<String, int>.from(widget.counters);
 
+  /// Même raison qu'au-dessus, pour les totaux de la grille de dégâts de
+  /// commandant reçus.
+  late final List<CommanderDamageOpponent> _commanderDamage =
+      List<CommanderDamageOpponent>.from(widget.commanderDamage);
+
   void _bump(String id, int delta) {
     setState(() {
       _values[id] = ((_values[id] ?? 0) + delta).clamp(0, 99);
@@ -107,65 +122,84 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
     widget.onCounterDelta(id, delta);
   }
 
+  void _bumpCommanderDamage(int sourcePlayerId, int delta) {
+    setState(() {
+      final index = _commanderDamage.indexWhere(
+        (o) => o.playerId == sourcePlayerId,
+      );
+      if (index != -1) {
+        final current = _commanderDamage[index];
+        _commanderDamage[index] = CommanderDamageOpponent(
+          playerId: current.playerId,
+          name: current.name,
+          colorValue: current.colorValue,
+          damage: (current.damage + delta).clamp(0, 999),
+        );
+      }
+    });
+    widget.onCommanderDamageDelta(sourcePlayerId, delta);
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 34,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.textSecondary,
-                  borderRadius: BorderRadius.circular(2),
+        // La grille de dégâts de commandant reçus (lot 3) ajoute une ligne
+        // par adversaire : à 8 joueurs, compteurs + grille + actions ne
+        // tiennent plus dans un tiroir non scrollable. `SingleChildScrollView`
+        // laisse le contenu déborder proprement plutôt que de le tronquer.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 34,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.textSecondary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            Text(widget.playerName, style: AppTextStyles.cardTitle()),
-            const SizedBox(height: 14),
-            for (final id in _counterLabels.keys) _counterRow(id),
-            const Divider(height: 26),
-            // Provisoire (lot 2) : ouvre le sélecteur plein écran existant,
-            // seul point de saisie des dégâts de commandant depuis la
-            // suppression de CounterStrip. Le lot 3 remplacera cette ligne
-            // par la vraie grille de dégâts dans le tiroir lui-même.
-            _action(
-              key: const ValueKey('action-commander-damage'),
-              icon: Icons.shield,
-              label: 'Dégâts de commandant',
-              color: AppColors.accent,
-              onTap: widget.onCommanderDamage,
-            ),
-            _action(
-              key: const ValueKey('action-monarch'),
-              icon: Icons.star,
-              label: widget.isMonarch ? 'Retirer le monarque' : 'Monarque',
-              color: AppColors.amber,
-              onTap: widget.onToggleMonarch,
-            ),
-            _action(
-              key: const ValueKey('action-eliminate'),
-              icon: widget.isEliminated ? Icons.undo : Icons.person_off,
-              label: widget.isEliminated
-                  ? 'Annuler l\'élimination'
-                  : 'Éliminer',
-              color: AppColors.accentRed,
-              onTap: widget.onEliminate,
-            ),
-            _action(
-              key: const ValueKey('action-reset'),
-              icon: Icons.restart_alt,
-              label: 'Réinitialiser les compteurs',
-              color: AppColors.textSecondary,
-              onTap: widget.onResetCounters,
-            ),
-          ],
+              Text(widget.playerName, style: AppTextStyles.cardTitle()),
+              const SizedBox(height: 14),
+              for (final id in _counterLabels.keys) _counterRow(id),
+              const Divider(height: 26),
+              CommanderDamageGrid(
+                opponents: _commanderDamage,
+                lethalThreshold: widget.lethalCommanderDamage,
+                onDelta: _bumpCommanderDamage,
+              ),
+              const Divider(height: 26),
+              _action(
+                key: const ValueKey('action-monarch'),
+                icon: Icons.star,
+                label: widget.isMonarch ? 'Retirer le monarque' : 'Monarque',
+                color: AppColors.amber,
+                onTap: widget.onToggleMonarch,
+              ),
+              _action(
+                key: const ValueKey('action-eliminate'),
+                icon: widget.isEliminated ? Icons.undo : Icons.person_off,
+                label: widget.isEliminated
+                    ? 'Annuler l\'élimination'
+                    : 'Éliminer',
+                color: AppColors.accentRed,
+                onTap: widget.onEliminate,
+              ),
+              _action(
+                key: const ValueKey('action-reset'),
+                icon: Icons.restart_alt,
+                label: 'Réinitialiser les compteurs',
+                color: AppColors.textSecondary,
+                onTap: widget.onResetCounters,
+              ),
+            ],
+          ),
         ),
       ),
     );

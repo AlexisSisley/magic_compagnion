@@ -15,6 +15,7 @@ import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
+import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -805,6 +806,10 @@ void main() {
     notifier.updateCounter(0, 'commander_tax', 1);
 
     await openDrawerForPlayerZero(tester);
+    // La grille de dégâts de commandant (lot 3) allonge le tiroir : sur la
+    // taille d'écran de test, "action-reset" (la dernière action) n'est
+    // plus visible sans défiler.
+    await tester.ensureVisible(find.byKey(const ValueKey('action-reset')));
     await tester.tap(find.byKey(const ValueKey('action-reset')));
     await tester.pumpAndSettle();
 
@@ -822,28 +827,96 @@ void main() {
     );
   });
 
-  testWidgets(
-      "CRITICAL (ronde 1) — l'entrée dégâts de commandant du tiroir ouvre "
-      'le sélecteur',
-      (tester) async {
-    // La suppression de CounterStrip (tâche 6) a emporté son indicateur de
-    // dégâts de commandant, seul appelant de _showCommanderDamageSelector
-    // hors du tiroir : sans cette ligne provisoire, les dégâts de commandant
-    // deviendraient injoignables dans l'app. Ce test verrouille sa
-    // réouverture depuis le tiroir, en attendant la vraie grille du lot 3.
-    await pumpWithContainer(tester);
+  // --- Lot 3, tâche 2 : la grille de dégâts de commandant reçus, dans le
+  // tiroir. Remplace la ligne provisoire du lot 2 (le sélecteur plein écran
+  // orienté à l'envers) et corrige son sens : la grille liste les
+  // adversaires comme SOURCES des dégâts REÇUS par le joueur dont le tiroir
+  // est ouvert. Quatre joueurs aux identifiants distincts (0-3) : une
+  // inversion playerId <-> sourcePlayerId serait détectée par les
+  // assertions croisées ci-dessous.
 
+  testWidgets(
+      'la grille du tiroir écrit les dégâts sur le joueur DONT LE TIROIR '
+      'EST OUVERT, avec la ligne tapée comme SOURCE — pas l\'inverse',
+      (tester) async {
+    final container = await pumpWithContainer(tester);
+
+    // Tiroir du joueur 0 (Alex), ouvert par un vrai tap sur sa poignée.
     await openDrawerForPlayerZero(tester);
-    await tester.tap(find.byKey(const ValueKey('action-commander-damage')));
-    await tester.pumpAndSettle();
+
+    // La grille liste les trois autres joueurs (1, 2, 3) comme sources.
+    // On tape sur la ligne du joueur 2 (Sarah).
+    await tester.tap(find.byKey(const ValueKey('commander-damage-2-plus')));
+    await tester.pump();
+    // Laisse le minuteur du flash de dégâts de commandant (600ms) se purger
+    // avant la fin du test (même contrainte que les autres tests de flash).
+    await tester.pump(const Duration(milliseconds: 600));
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    final player0 = session.players[0];
+    final player2 = session.players[2];
 
     expect(
-      find.text('Dégâts de Commandant'),
-      findsOneWidget,
-      reason: "le tiroir doit rouvrir le sélecteur plein écran existant "
-          '(_showCommanderDamageSelector), seul point de saisie restant',
+      player0.commanderDamageReceived[2],
+      1,
+      reason: 'le joueur DONT LE TIROIR EST OUVERT (0) doit recevoir le '
+          'dégât, la ligne tapée (2, Sarah) en étant la SOURCE',
     );
-    expect(find.textContaining('Attaquant :'), findsOneWidget);
+    expect(player0.life, 39,
+        reason: 'le joueur du tiroir perd 1 PV (40 -> 39)');
+
+    expect(
+      player2.commanderDamageReceived[0],
+      isNull,
+      reason: 'une grille inversée écrirait ce dégât sur la source (2) '
+          'plutôt que sur le joueur du tiroir (0)',
+    );
+    expect(player2.life, 40,
+        reason: 'la source ne doit perdre aucun PV — seul le joueur du '
+            'tiroir en perd');
+    expect(player0.commanderDamageReceived[1] ?? 0, 0,
+        reason: 'seule la ligne tapée (2) doit être affectée, pas les '
+            'autres adversaires (1, 3) listés dans la même grille');
+    expect(player0.commanderDamageReceived[3] ?? 0, 0);
+  });
+
+  testWidgets(
+      'la grille du tiroir liste bien tous les adversaires (pas le joueur '
+      'du tiroir lui-même) avec leur total déjà reçu',
+      (tester) async {
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    // Le joueur 0 a déjà reçu 5 dégâts du joueur 3 avant l'ouverture du tiroir.
+    final withDamage = baseSession.copyWith(
+      players: [
+        baseSession.players[0].copyWith(
+          life: 35,
+          commanderDamageReceived: {3: 5},
+        ),
+        ...baseSession.players.sublist(1),
+      ],
+    );
+    await pumpWithContainer(tester, snapshot: withDamage);
+
+    await openDrawerForPlayerZero(tester);
+
+    // Les trois adversaires (Max=1, Sarah=2, Leo=3) apparaissent comme
+    // sources dans la grille, et le total déjà reçu de Leo (3) est affiché.
+    // Recherche bornée à la grille : le nom d'un adversaire est aussi
+    // affiché sur sa propre zone, ailleurs dans l'arbre.
+    final grid = find.byType(CommanderDamageGrid);
+    expect(grid, findsOneWidget);
+    expect(find.descendant(of: grid, matching: find.text('Max')),
+        findsOneWidget);
+    expect(find.descendant(of: grid, matching: find.text('Sarah')),
+        findsOneWidget);
+    expect(find.descendant(of: grid, matching: find.text('Leo')),
+        findsOneWidget);
+    expect(find.descendant(of: grid, matching: find.text('5')),
+        findsOneWidget,
+        reason: 'le total déjà reçu de la source 3 doit être affiché');
   });
 
   testWidgets(

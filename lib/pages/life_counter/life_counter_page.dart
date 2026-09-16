@@ -34,6 +34,7 @@ import '../../widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/damage_history_sheet.dart';
 import 'package:magic_companion/widgets/life_counter/player_history_sheet.dart';
 import '../../widgets/life_counter/zone/player_drawer.dart';
+import '../../widgets/life_counter/zone/commander_damage_grid.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
 import '../../widgets/life_counter/layouts/adaptive_grid.dart';
@@ -700,61 +701,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     );
   }
 
-  void _showCommanderDamageSelector(Player attacker) {
-    final players = _legacyPlayers;
-    showModalBottomSheet(
-      context: context, backgroundColor: AppColors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(color: AppColors.scaffoldBackground.withValues(alpha: 0.9), borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom),
-        child: Wrap(
-          children: [
-            ListTile(title: Text('Dégâts de Commandant', style: AppTextStyles.bold()), subtitle: Text('Attaquant : ${attacker.name}', style: AppTextStyles.cinzel(color: AppColors.textSecondary))),
-            ...players.where((opp) => opp.id != attacker.id).map((opponent) {
-              final damage = opponent.commanderDamageReceived[attacker.id] ?? 0;
-              return ListTile(
-                leading: Icon(Icons.shield, color: Color(opponent.colorValue)),
-                title: Text(opponent.name, style: const TextStyle(color: AppColors.textPrimary)),
-                trailing: SizedBox(width: 150, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  IconButton(icon: const Icon(Icons.remove, color: AppColors.textSecondary), onPressed: () {
-                    if (damage > 0) {
-                      // addCommanderDamage already adjusts life internally — no need for a separate updateLife call
-                      _controller.addCommanderDamage(
-                        targetPlayerId: opponent.id,
-                        sourcePlayerId: attacker.id,
-                        damage: -1,
-                        gameDuration: _gameDuration,
-                      );
-                      setState(() {});
-                      _saveSnapshot();
-                    }
-                    Navigator.pop(context);
-                    _showCommanderDamageSelector(attacker);
-                  }),
-                  Text('$damage', style: AppTextStyles.pageTitle()),
-                  IconButton(icon: const Icon(Icons.add, color: AppColors.textSecondary), onPressed: () {
-                    _controller.addCommanderDamage(
-                      targetPlayerId: opponent.id,
-                      sourcePlayerId: attacker.id,
-                      damage: 1,
-                      gameDuration: _gameDuration,
-                    );
-                    setState(() {});
-                    _saveSnapshot();
-                    _triggerCommanderDamageFlash(opponent.id);
-                    _checkDeathCondition(opponent.id);
-                    Navigator.pop(context);
-                    _showCommanderDamageSelector(attacker);
-                  }),
-                ])),
-              );
-            })
-          ],
-        ),
-      ),
-    );
-  }
-
   void _endGame() {
     final players = _legacyPlayers;
     showDialog(
@@ -1051,16 +997,29 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       onRotationChanged: (r) => _updatePlayerRotation(p.id, r),
       onSkinChanged: (path) => _updatePlayerSkin(p.id, path),
       onNameTap: () => _showPlayerHistory(p.id),
-      onOpenDrawer: () => _openPlayerDrawer(p, ps),
+      onOpenDrawer: () => _openPlayerDrawer(ps),
     );
   }
 
   /// Ouvre le tiroir du joueur (spec §2.7) — remplace l'ancien menu radial
   /// (retiré en tâche 5) comme seul point d'accès à ces actions : compteurs,
   /// monarque, élimination volontaire / son annulation, reset des compteurs,
-  /// et (provisoirement — voir player_drawer.dart) l'ouverture du sélecteur
-  /// de dégâts de commandant en plein écran.
-  void _openPlayerDrawer(Player p, PlayerState ps) {
+  /// et la grille de dégâts de commandant reçus (remplace en tâche 2 le
+  /// sélecteur plein écran, orienté à l'envers — voir _onDrawerCommanderDamage).
+  void _openPlayerDrawer(PlayerState ps) {
+    final session = _session;
+    final opponents = session == null
+        ? const <CommanderDamageOpponent>[]
+        : session.players
+            .where((other) => other.playerId != ps.playerId)
+            .map((other) => CommanderDamageOpponent(
+                  playerId: other.playerId,
+                  name: other.config.name,
+                  colorValue: other.config.colorValue,
+                  damage: ps.commanderDamageReceived[other.playerId] ?? 0,
+                ))
+            .toList();
+
     showPlayerDrawer(
       context: context,
       playerName: ps.config.name,
@@ -1076,8 +1035,41 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       onToggleMonarch: () => _toggleMonarch(ps.playerId),
       onEliminate: () => _onDrawerEliminate(ps.playerId),
       onResetCounters: () => _resetPlayerCounters(ps.playerId),
-      onCommanderDamage: () => _showCommanderDamageSelector(p),
+      commanderDamage: opponents,
+      lethalCommanderDamage: _currentFormat.maxCommanderDamage,
+      onCommanderDamageDelta: (sourcePlayerId, delta) =>
+          _onDrawerCommanderDamage(ps.playerId, sourcePlayerId, delta),
     );
+  }
+
+  /// Câblage volontairement dans CE sens (dette D2 du plan) : `targetPlayerId`
+  /// est le joueur DONT LE TIROIR EST OUVERT (`drawerPlayerId`), et
+  /// `sourcePlayerId` la ligne tapée dans la grille. L'ancien sélecteur
+  /// (`_showCommanderDamageSelector`, supprimé ici) faisait l'inverse : il
+  /// listait les adversaires comme CIBLES et leur infligeait des dégâts
+  /// DEPUIS le joueur du tiroir — alors que la poignée de ce même joueur
+  /// affiche les dégâts qu'il a REÇUS. Une inversion ici laisserait la
+  /// poignée afficher un chiffre que ce tiroir ne peut plus corriger.
+  void _onDrawerCommanderDamage(
+      int drawerPlayerId, int sourcePlayerId, int delta) {
+    final target = _session?.players
+        .where((p) => p.playerId == drawerPlayerId)
+        .firstOrNull;
+    if (target == null) return;
+    final current = target.commanderDamageReceived[sourcePlayerId] ?? 0;
+    if (delta < 0 && current <= 0) return; // ne descend pas sous zéro
+    _controller.addCommanderDamage(
+      targetPlayerId: drawerPlayerId,
+      sourcePlayerId: sourcePlayerId,
+      damage: delta,
+      gameDuration: _gameDuration,
+    );
+    setState(() {});
+    _saveSnapshot();
+    if (delta > 0) {
+      _triggerCommanderDamageFlash(drawerPlayerId);
+      _checkDeathCondition(drawerPlayerId);
+    }
   }
 
   void _onDrawerCounterDelta(int playerId, String counterId, int delta) {
