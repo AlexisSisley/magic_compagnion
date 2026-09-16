@@ -1,11 +1,20 @@
-// Fichier : lib/controllers/game_setup_controller.dart
-// Sprint 12, US-12.7 : Controller pour GameSetupModal.
-// Extrait la logique metier (format, joueurs, profils) du widget.
+// Fichier : lib/providers/game_setup_notifier.dart
+// Lot 4, tâche 2 : GameSetupController (StateNotifier, Sprint 12 US-12.7) →
+// GameSetupNotifier (Notifier Riverpod), état du nouveau setup inline.
+//
+// `int startingLife` est remplacé par `GameFormat format` : le format porte
+// aujourd'hui aussi les seuils de mort (maxPoison, maxCommanderDamage,
+// lethalAtZeroLife), pas seulement les PV de départ — voir
+// lib/models/game_format.dart. `formatLabel` disparaît avec cette migration :
+// il dérivait un nom de format à partir des PV de départ, ce que
+// `GameFormat.name` donne désormais directement.
 
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/game_format.dart';
 import '../models/profile_model.dart';
 import '../services/profile_service.dart';
+import 'service_providers.dart';
 
 // --- RESULT OBJECT pour les actions ---
 
@@ -21,11 +30,27 @@ class GameSetupActionResult {
 
 // --- ETAT IMMUTABLE ---
 
+/// Format par défaut du setup : Commander (40 PV), identique à
+/// `GameFormat.builtInFormats.first`. Dupliqué ici en `const` littéral car
+/// une valeur par défaut de paramètre doit être une expression constante —
+/// l'indexation d'une liste (même `const`) ne l'est pas.
+const _defaultFormat = GameFormat(
+  id: 'commander',
+  name: 'Commander',
+  startingLife: 40,
+  minPlayers: 2,
+  maxPlayers: 8,
+  maxCommanders: 2,
+  enabledCounterIds: ['poison', 'energy', 'commander_tax', 'commander_damage'],
+  isBuiltIn: true,
+);
+
 class GameSetupState {
-  final int startingLife;
+  final GameFormat format;
   final List<Profile?> selectedProfiles;
   final List<Profile> availableProfiles;
   final bool isLoadingProfiles;
+  final bool timerEnabled;
 
   /// Nombre max de joueurs autorises.
   static const int maxPlayers = 8;
@@ -34,23 +59,26 @@ class GameSetupState {
   static const int minPlayers = 2;
 
   const GameSetupState({
-    this.startingLife = 40,
+    this.format = _defaultFormat,
     this.selectedProfiles = const [null, null, null, null],
     this.availableProfiles = const [],
     this.isLoadingProfiles = false,
+    this.timerEnabled = true,
   });
 
   GameSetupState copyWith({
-    int? startingLife,
+    GameFormat? format,
     List<Profile?>? selectedProfiles,
     List<Profile>? availableProfiles,
     bool? isLoadingProfiles,
+    bool? timerEnabled,
   }) {
     return GameSetupState(
-      startingLife: startingLife ?? this.startingLife,
+      format: format ?? this.format,
       selectedProfiles: selectedProfiles ?? this.selectedProfiles,
       availableProfiles: availableProfiles ?? this.availableProfiles,
       isLoadingProfiles: isLoadingProfiles ?? this.isLoadingProfiles,
+      timerEnabled: timerEnabled ?? this.timerEnabled,
     );
   }
 
@@ -62,9 +90,6 @@ class GameSetupState {
 
   /// Peut-on retirer un joueur ?
   bool get canRemovePlayer => playerCount > minPlayers;
-
-  /// Le format actuel (Commander ou Standard) base sur les PV.
-  String get formatLabel => startingLife == 40 ? 'Commander' : 'Standard';
 
   /// True si tous les slots sont remplis (aucun null).
   bool get allSlotsAssigned => selectedProfiles.every((p) => p != null);
@@ -89,16 +114,19 @@ const List<int> defaultProfileColorValues = [
   0xFF424242, // AppColors.greyShade800
 ];
 
-// --- CONTROLLER ---
+// --- NOTIFIER ---
 
-class GameSetupController extends StateNotifier<GameSetupState> {
-  final ProfileService _profileService;
+class GameSetupNotifier extends Notifier<GameSetupState> {
+  // `NotifierProvider` sans argument attend un constructeur sans argument
+  // (`GameSetupNotifier.new`) : `ProfileService` ne se passe donc pas au
+  // constructeur, il se lit dans `build()` via `ref.read`.
+  late final ProfileService _profileService;
 
-  GameSetupController({
-    required ProfileService profileService,
-    int initialLife = 40,
-  })  : _profileService = profileService,
-        super(GameSetupState(startingLife: initialLife));
+  @override
+  GameSetupState build() {
+    _profileService = ref.read(profileServiceProvider);
+    return const GameSetupState();
+  }
 
   /// Charge la liste de profils depuis le service.
   Future<void> loadProfiles() async {
@@ -114,9 +142,14 @@ class GameSetupController extends StateNotifier<GameSetupState> {
     }
   }
 
-  /// Change le format de jeu (Commander=40, Standard=20, ou custom).
-  void selectFormat(int life) {
-    state = state.copyWith(startingLife: life);
+  /// Change le format de jeu (Commander, Standard, ou un format custom).
+  void selectFormat(GameFormat format) {
+    state = state.copyWith(format: format);
+  }
+
+  /// Active/désactive le chronomètre de partie.
+  void setTimerEnabled(bool enabled) {
+    state = state.copyWith(timerEnabled: enabled);
   }
 
   /// Assigne un profil a un slot joueur donne.
@@ -154,21 +187,36 @@ class GameSetupController extends StateNotifier<GameSetupState> {
     );
   }
 
-  /// Retire le dernier slot joueur (min 2).
-  GameSetupActionResult removePlayer() {
+  /// Retire le slot joueur a [index] (min 2 joueurs restants).
+  ///
+  /// Ronde de correction 1, tache 3 du lot 4 : avant cette methode, le "-"
+  /// d'une case de `SetupSeat` appelait `removePlayer()`, qui retire
+  /// toujours le DERNIER slot -- taper sur la case de Bob a 4 joueurs
+  /// retirait Dave. `index` est desormais l'identite reelle du slot retire.
+  GameSetupActionResult removePlayerAt(int index) {
     if (!state.canRemovePlayer) {
       return const GameSetupActionResult(
         success: false,
         message: 'Minimum 2 joueurs requis',
       );
     }
-    final updated = List<Profile?>.from(state.selectedProfiles)..removeLast();
+    if (index < 0 || index >= state.playerCount) {
+      return const GameSetupActionResult(
+        success: false,
+        message: 'Index joueur invalide',
+      );
+    }
+    final updated = List<Profile?>.from(state.selectedProfiles)..removeAt(index);
     state = state.copyWith(selectedProfiles: updated);
     return const GameSetupActionResult(
       success: true,
       message: 'Joueur retire',
     );
   }
+
+  /// Retire le dernier slot joueur (min 2). Delegue a [removePlayerAt] pour
+  /// que ce raccourci et le retrait cible partagent les memes gardes.
+  GameSetupActionResult removePlayer() => removePlayerAt(state.playerCount - 1);
 
   /// Sauvegarde un profil (creation ou mise a jour) et recharge la liste.
   Future<GameSetupActionResult> saveProfile(Profile profile) async {
@@ -237,6 +285,21 @@ class GameSetupController extends StateNotifier<GameSetupState> {
       secondaryCommanderScryfallId: secondaryCommanderScryfallId,
       secondaryCommanderName: secondaryCommanderName,
       secondaryCommanderArtCropUrl: secondaryCommanderArtCropUrl,
+      // Ronde de correction 1, tache 4 : repris de game_setup_modal.dart
+      // `_showCreateProfileDialog` (ligne ~837), qui amorcait deja
+      // `commanderGallery` avec le commandant PRINCIPAL choisi a la
+      // creation -- jamais le secondaire, ce dialogue n'en avait pas.
+      // Sans cette entree, player_zone.dart et player_skin_picker.dart
+      // n'ont rien a proposer au premier switch de commandant en partie.
+      commanderGallery: commanderScryfallId != null
+          ? [
+              CommanderEntry(
+                scryfallId: commanderScryfallId,
+                name: commanderName ?? '',
+                artCropUrl: commanderArtCropUrl,
+              ),
+            ]
+          : const [],
     );
 
     await saveProfile(profile);
@@ -258,6 +321,22 @@ class GameSetupController extends StateNotifier<GameSetupState> {
   }) async {
     if (name.trim().isEmpty) return null;
 
+    // Ronde de correction 1, tache 4 : repris de game_setup_modal.dart
+    // `_showProfileForm` (ligne ~685), qui ne RAJOUTE jamais d'entree a la
+    // galerie a l'edition (contrairement a la creation) mais ne l'ECRASE
+    // pas non plus : `commanderGallery: existingProfile?.commanderGallery
+    // ?? []`. Avant ce correctif, `updateProfile` reconstruisait toujours
+    // un `Profile` sans passer `commanderGallery`, qui retombait donc a
+    // `const []` -- toute modification remettait silencieusement la
+    // galerie a zero.
+    List<CommanderEntry> existingGallery = const [];
+    for (final p in state.availableProfiles) {
+      if (p.id == existingId) {
+        existingGallery = p.commanderGallery;
+        break;
+      }
+    }
+
     final profile = Profile(
       id: existingId,
       name: name.trim(),
@@ -268,6 +347,7 @@ class GameSetupController extends StateNotifier<GameSetupState> {
       secondaryCommanderScryfallId: secondaryCommanderScryfallId,
       secondaryCommanderName: secondaryCommanderName,
       secondaryCommanderArtCropUrl: secondaryCommanderArtCropUrl,
+      commanderGallery: existingGallery,
     );
 
     await saveProfile(profile);
@@ -281,3 +361,7 @@ class GameSetupController extends StateNotifier<GameSetupState> {
     return profile;
   }
 }
+
+final gameSetupProvider = NotifierProvider<GameSetupNotifier, GameSetupState>(
+  GameSetupNotifier.new,
+);
