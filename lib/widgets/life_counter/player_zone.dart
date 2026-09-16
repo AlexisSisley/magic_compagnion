@@ -18,6 +18,7 @@ import 'zone/life_dial.dart';
 import 'zone/conditional_handle.dart';
 import 'zone/player_skin_picker.dart';
 import 'zone/damage_attribution_row.dart';
+import 'layouts/density_tier.dart';
 
 class PlayerZone extends ConsumerStatefulWidget {
   const PlayerZone({
@@ -232,6 +233,28 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final int quarterTurns = widget.player.quarterTurns;
+
+        // Le cran de densite se decide sur la taille DANS LE REPERE DU
+        // JOUEUR (tache 4 du lot 6) : un siege lateral (90/270) est haut et
+        // etroit a l'ecran mais large et bas pour le joueur qui le lit une
+        // fois la zone tournee -- `RotatedBox` echange les axes pour son
+        // enfant. `constraints` ici est mesure AVANT cette rotation (elle
+        // n'est appliquee qu'au `return` ci-dessous), donc on transpose
+        // nous-memes.
+        final Size sizeInPlayerFrame = quarterTurns.isOdd
+            ? Size(constraints.maxHeight, constraints.maxWidth)
+            : Size(constraints.maxWidth, constraints.maxHeight);
+        final DensityTier tier = tierFor(sizeInPlayerFrame);
+
+        return _buildZone(context, tier, quarterTurns);
+      },
+    );
+  }
+
+  Widget _buildZone(BuildContext context, DensityTier tier, int quarterTurns) {
     Color bgColor = Color(widget.player.colorValue);
 
     // Image de fond (ou couleur unie de repli) : voir zone/player_skin_picker.dart.
@@ -308,7 +331,12 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                       _lastLongPressPosition = details.localPosition;
                       _handleRotationDrag(delta);
                     },
-                    playerName: widget.player.name,
+                    // Cran minimal (tache 4, spec §3.2) : le nom se reduit a
+                    // la pastille de couleur deja portee par le fond de la
+                    // zone -- on n'affiche plus le libelle du PlayerHeader,
+                    // qui n'a pas la place de s'afficher sans deborder.
+                    playerName:
+                        tier == DensityTier.minimal ? null : widget.player.name,
                     onNameTap: widget.onNameTap,
                   ),
                 ),
@@ -337,6 +365,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                 ConditionalHandle(
                   summary: counterSummary,
                   onTap: widget.onOpenDrawer,
+                  tier: tier,
                 ),
               ],
             ),
@@ -380,13 +409,19 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
           // ±5/±10 de `LifeDial._stepRow()`. Les deux ne coexistent jamais
           // (l'appelant masque `attributionOpponents` en mode ajustement,
           // ronde de correction finale Critical #1) : plus besoin de
-          // partager le même 30px du bas sans se recouvrir.
+          // partager le même bas sans se recouvrir.
+          //
+          // La hauteur effective de la poignée dépend désormais du cran
+          // (tâche 4) : en confort elle vaut 48, pas 30 -- ancrer sur
+          // `ConditionalHandle.reservedHeight` (le plancher, invariant)
+          // recouvrirait 18px de la poignée dès 2-3 joueurs. `handleHeightFor`
+          // est la seule source qui connaisse la hauteur réelle.
           if (widget.attributionOpponents != null &&
               widget.attributionOpponents!.isNotEmpty)
             Positioned(
               left: 0,
               right: 0,
-              bottom: ConditionalHandle.reservedHeight,
+              bottom: handleHeightFor(tier),
               child: Center(
                 child: DamageAttributionRow(
                   opponents: widget.attributionOpponents!,
@@ -411,7 +446,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     );
 
     return RotatedBox(
-      quarterTurns: widget.player.quarterTurns,
+      quarterTurns: quarterTurns,
       child: content,
     );
   }

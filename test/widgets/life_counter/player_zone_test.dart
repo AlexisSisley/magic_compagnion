@@ -369,6 +369,27 @@ void main() {
   });
 
   testWidgets(
+      'à cran confort, la rangée d\'attribution ne recouvre pas la poignée '
+      '(ruling 2)', (tester) async {
+    // Boîte 340×340 -> tierFor(340,340) = comfort -> handleHeightFor = 48,
+    // pas les 30 du plancher historique `ConditionalHandle.reservedHeight`.
+    await pumpZoneWithAttribution(
+      tester,
+      player: buildPlayer(),
+      attributionOpponents: _attributionOpponents,
+    );
+
+    final rowRect = tester.getRect(find.byType(DamageAttributionRow));
+    final handleRect = tester.getRect(find.byType(ConditionalHandle));
+
+    expect(rowRect.bottom, lessThanOrEqualTo(handleRect.top),
+        reason: 'la rangée doit s\'arrêter au-dessus de la poignée, jamais '
+            'la recouvrir -- un ancrage sur reservedHeight (30, le plancher) '
+            'plutôt que handleHeightFor(tier) (48 en confort) la ferait '
+            'déborder de 18px dans la poignée');
+  });
+
+  testWidgets(
       'un tap sur un avatar de la rangée émet le sourcePlayerId de CET '
       'avatar', (tester) async {
     final attributed = await pumpZoneWithAttribution(
@@ -439,5 +460,65 @@ void main() {
         await tester.pumpAndSettle();
       });
     }
+  });
+
+  // Tâche 4 du lot 6 : le cran de densité se décide sur la taille DANS LE
+  // REPÈRE DU JOUEUR, pas sur la taille écran brute -- `PlayerZone` doit
+  // transposer largeur/hauteur quand `quarterTurns` est impair (un siège
+  // latéral est haut et étroit à l'écran, large et bas pour le joueur).
+  // Ces deux tests utilisent la MÊME boîte écran (150×400) et ne changent
+  // que la rotation : un oubli de transposition ferait passer le cas tourné
+  // en cran minimal au lieu de compact -- exactement le bug que
+  // `tierFor`/`AdaptiveGrid.sideColumnFraction` (ruling 13) existent pour
+  // éviter.
+  group('PlayerZone — cran de densité selon le repère du joueur (tâche 4)', () {
+    Future<void> pumpSized(
+      WidgetTester tester, {
+      required double width,
+      required double height,
+      required int quarterTurns,
+    }) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: width,
+                height: height,
+                child: PlayerZone(
+                  player: buildPlayer(quarterTurns: quarterTurns),
+                  onLifeChanged: (_) {},
+                  onColorChanged: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+        'une colonne latérale (150 large × 400 haut à l\'écran, tournée à '
+        '90°) est 400×150 pour le joueur : cran compact, le nom reste '
+        'affiché', (tester) async {
+      await pumpSized(tester, width: 150, height: 400, quarterTurns: 1);
+      expect(find.text('Alexis'), findsOneWidget,
+          reason: 'transposée, la boîte fait 150 de haut pour le joueur : '
+              'compact (>=120), jamais minimal malgré les 150 de largeur '
+              'écran -- seul un défaut de transposition ferait disparaître '
+              'le nom ici');
+    });
+
+    testWidgets(
+        'la même boîte écran (150×400) sans rotation reste 150×400 pour le '
+        'joueur : cran minimal, le nom disparaît au profit de la pastille '
+        'de couleur', (tester) async {
+      await pumpSized(tester, width: 150, height: 400, quarterTurns: 0);
+      expect(find.text('Alexis'), findsNothing,
+          reason: 'sans rotation, 150 de largeur est directement la largeur '
+              'du joueur : <200, donc minimal -- le libellé du PlayerHeader '
+              'doit disparaître (spec §3.2)');
+    });
   });
 }

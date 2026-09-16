@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
+import 'package:magic_companion/widgets/life_counter/layouts/density_tier.dart';
 
 /// Ce qui menace un joueur, condensé.
 class CounterSummary {
@@ -33,24 +34,42 @@ class CounterSummary {
 }
 
 class ConditionalHandle extends StatelessWidget {
-  const ConditionalHandle({super.key, required this.summary, this.onTap});
+  const ConditionalHandle({
+    super.key,
+    required this.summary,
+    this.onTap,
+    this.tier = DensityTier.compact,
+  });
 
   final CounterSummary summary;
   final VoidCallback? onTap;
 
-  /// Hauteur réservée en permanence, calme ou non. Sans réservation, la zone
-  /// changerait de hauteur utile en cours de partie et le chiffre de PV
-  /// sauterait — visible surtout à 8 joueurs sur petit écran.
+  /// Cran de densite de la zone (tache 4 du lot 6) : decide de la hauteur
+  /// effective via `handleHeightFor` et, en cran minimal, rend le bandeau
+  /// muet (voir `_band` ci-dessous) — jamais l'inverse, la densite ne
+  /// masque jamais la cible tactile elle-meme.
+  final DensityTier tier;
+
+  /// Plancher historique (lot 2) : la hauteur ne descend jamais en dessous,
+  /// quel que soit le cran. Depuis la tache 4, ce n'est plus la hauteur
+  /// EFFECTIVE de la poignee -- c'est `handleHeightFor(tier)` -- mais reste
+  /// exposee pour d'autres eventuels lecteurs (aucun a ce jour, voir
+  /// `grep -rn "reservedHeight" lib/`).
   static const double reservedHeight = 30.0;
 
   @override
   Widget build(BuildContext context) {
+    // En cran minimal, le bandeau de compteurs est muet : seul le grip
+    // reste visible, quel que soit `summary.isCalm`. La cible tactile,
+    // elle, ne retrecit jamais (contrainte globale 2 : `tester.tap` doit
+    // toujours pouvoir l'atteindre).
+    final bool showGripOnly = tier == DensityTier.minimal || summary.isCalm;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: SizedBox(
-        height: reservedHeight,
-        child: summary.isCalm ? _grip() : _band(),
+        height: handleHeightFor(tier),
+        child: showGripOnly ? _grip() : _band(),
       ),
     );
   }

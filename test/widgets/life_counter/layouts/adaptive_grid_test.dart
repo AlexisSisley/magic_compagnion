@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/widgets/life_counter/layouts/adaptive_grid.dart';
+import 'package:magic_companion/widgets/life_counter/layouts/density_tier.dart';
 
 Widget _grid(int playerCount) {
   return MaterialApp(
@@ -155,6 +156,50 @@ void main() {
             reason: 'joueur $i : largeur differente des autres, signe d\'une '
                 'colonne laterale qui ne devrait pas exister a 8 joueurs');
       }
+    });
+
+    // Tache 4 du lot 6, ruling 13 : `sideColumnFraction` (0.30) seul ne
+    // protegeait plus rien sur un ecran assez etroit -- c'est desormais
+    // `kZoneHeightFloor` (le contrat de densite) qui garantit un plancher
+    // absolu, quel que soit le pourcentage applique.
+    testWidgets(
+        '4 joueurs, ecran tres etroit : la colonne laterale ne descend '
+        'jamais sous le plancher de densite', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              // 0.30 * 150 = 45 < kZoneHeightFloor (70) : sans plancher
+              // absolu, la colonne laterale tomberait sous les 70px dont
+              // `player_zone.dart` a besoin une fois tournee (en-tete 40 +
+              // poignee >= 30).
+              width: 150,
+              height: 600,
+              child: AdaptiveGrid(
+                playerZones: List.generate(
+                  4,
+                  (i) => Container(key: ValueKey('player_$i')),
+                ),
+                centralBar:
+                    Container(key: const ValueKey('central_bar'), height: 60),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // seatsFor(4) = [top, right, bottom, left] : joueur 1 = droite,
+      // joueur 3 = gauche -- les deux colonnes laterales. Chaque zone est
+      // entouree d'un `Padding(all: 2)` (2px de chaque cote de largeur).
+      final floorAfterPadding = kZoneHeightFloor - 4;
+      expect(_sizeOf(tester, 1).width,
+          greaterThanOrEqualTo(floorAfterPadding - 0.5),
+          reason: 'colonne de droite : 45 (fraction seule, sans plancher) '
+              'moins le padding donnerait ~41 ; avec le plancher a '
+              '$kZoneHeightFloor elle doit rester a ~$floorAfterPadding');
+      expect(_sizeOf(tester, 3).width,
+          greaterThanOrEqualTo(floorAfterPadding - 0.5),
+          reason: 'colonne de gauche : meme garantie');
     });
   });
 }

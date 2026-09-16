@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:magic_companion/models/table_seat.dart';
+import 'package:magic_companion/widgets/life_counter/layouts/density_tier.dart';
 
 /// Moteur de rendu des zones joueur (spec lot 6 §2.1).
 ///
@@ -16,18 +19,20 @@ class AdaptiveGrid extends StatelessWidget {
   final List<Widget> playerZones;
   final Widget centralBar;
 
-  /// Part de largeur prise par une colonne laterale quand elle existe.
+  /// Part de largeur prise par une colonne laterale quand elle existe, sur
+  /// les ecrans assez larges pour que ce ratio suffise a lui seul.
   ///
   /// Un siege lateral pivote a 90/270 (tache 3 du lot 6) : `RotatedBox`
   /// echange largeur et hauteur pour son contenu, donc la largeur de cette
   /// colonne devient la hauteur DISPONIBLE pour la Column de
-  /// `player_zone.dart` (en-tete 40 + poignee 30 = 70 fixes, avant meme le
-  /// cadran). A 0.22, un telephone de 320 de large (le plus etroit courant)
-  /// ne laissait que ~64px a cette colonne une fois pivotee : RenderFlex
-  /// overflow des que `GameSession.newGame` a commence a poser une vraie
-  /// rotation laterale (avant la tache 3, `quarterTurns` valait toujours 0,
-  /// donc ce chemin n'etait jamais exerce). 0.30 laisse une marge sur ce
-  /// plancher ; le calibrage fin par palier de densite est la tache 4.
+  /// `player_zone.dart` (en-tete 40 + poignee, au moins `kZoneHeightFloor`
+  /// au total). Cette fraction n'est plus, a elle seule, ce qui protege ce
+  /// plancher : tache 4 du lot 6, ruling 13 -- `build()` ci-dessous applique
+  /// `kZoneHeightFloor` (le contrat de densite, `density_tier.dart`) comme
+  /// largeur minimale absolue de la colonne. 0.30 redevient donc un simple
+  /// reglage esthetique pour les ecrans larges, jamais la seule garantie
+  /// contre l'overflow decouvert a la tache 3 sur un telephone de 320 de
+  /// large.
   static const double sideColumnFraction = 0.30;
 
   @override
@@ -64,7 +69,14 @@ class AdaptiveGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final sideWidth = constraints.maxWidth * sideColumnFraction;
+        // Plancher absolu (tache 4, ruling 13) : quel que soit l'ecran, la
+        // colonne laterale ne doit jamais descendre sous `kZoneHeightFloor`
+        // -- sans quoi, une fois pivotee par `PlayerZone`, elle offre a la
+        // Column (en-tete + poignee) moins que ce dont celle-ci a besoin.
+        final sideWidth = math.max(
+          constraints.maxWidth * sideColumnFraction,
+          kZoneHeightFloor,
+        );
         return Row(
           children: [
             if (left.isNotEmpty)
