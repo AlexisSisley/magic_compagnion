@@ -919,6 +919,64 @@ void main() {
         reason: 'le total déjà reçu de la source 3 doit être affiché');
   });
 
+  // Point mineur de la ronde de correction 1 : « adversaire éliminé toujours
+  // listé » n'était vérifié qu'au niveau du widget isolé (le type ne porte
+  // aucune info d'élimination). Ce test couvre le vrai scénario produit :
+  // un joueur réellement éliminé reste une source corrigeable après coup
+  // dans le tiroir d'un autre joueur.
+  testWidgets(
+      'un adversaire réellement éliminé reste listé dans la grille du '
+      'tiroir, avec son total corrigeable', (tester) async {
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    // Leo (3) est éliminé, mais avait déjà infligé 2 dégâts de commandant à
+    // Alex (0) avant son élimination.
+    final eliminated = baseSession.eliminatePlayer(3, atDuration: Duration.zero);
+    final withDamage = eliminated.copyWith(
+      players: [
+        eliminated.players[0].copyWith(
+          life: 38,
+          commanderDamageReceived: {3: 2},
+        ),
+        ...eliminated.players.sublist(1),
+      ],
+    );
+    final container = await pumpWithContainer(tester, snapshot: withDamage);
+
+    // Précondition : Leo est bien éliminé au chargement.
+    expect(
+      container.read(gameSessionNotifierProvider)!.players[3].isEliminated,
+      isTrue,
+    );
+
+    await openDrawerForPlayerZero(tester);
+
+    final grid = find.byType(CommanderDamageGrid);
+    expect(
+      find.descendant(of: grid, matching: find.text('Leo')),
+      findsOneWidget,
+      reason: 'un adversaire éliminé doit rester listé comme source, pas '
+          'disparaître de la grille',
+    );
+    expect(find.descendant(of: grid, matching: find.text('2')),
+        findsOneWidget,
+        reason: 'son total déjà reçu reste consultable');
+
+    // Le total reste corrigeable : un tap sur sa ligne l'incrémente comme
+    // n'importe quel autre adversaire.
+    await tester.tap(find.byKey(const ValueKey('commander-damage-3-plus')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    final player0 = container.read(gameSessionNotifierProvider)!.players[0];
+    expect(player0.commanderDamageReceived[3], 3,
+        reason: 'le total attribué à un adversaire éliminé reste '
+            'incrémentable depuis le tiroir');
+    expect(player0.life, 37);
+  });
+
   testWidgets(
       "PlayerZoneNotifier.reset() est câblé sur le démarrage d'une nouvelle "
       'partie (ronde de correction 1 de la tâche 1) : le mode ajustement '

@@ -1056,8 +1056,10 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         .where((p) => p.playerId == drawerPlayerId)
         .firstOrNull;
     if (target == null) return;
-    final current = target.commanderDamageReceived[sourcePlayerId] ?? 0;
-    if (delta < 0 && current <= 0) return; // ne descend pas sous zéro
+    // Le plancher à 0 (et l'ajustement de vie qui n'en découle que du delta
+    // réellement appliqué) vivent dans le notifier, pas ici : voir
+    // GameSessionNotifier.addCommanderDamage, seul chemin d'écriture, comme
+    // updateCounter l'est déjà pour les compteurs.
     _controller.addCommanderDamage(
       targetPlayerId: drawerPlayerId,
       sourcePlayerId: sourcePlayerId,
