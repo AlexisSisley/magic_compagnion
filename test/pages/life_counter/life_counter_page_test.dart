@@ -297,14 +297,17 @@ void main() {
     expect(find.text('-5'), findsOneWidget);
 
     // L'assertion de proximité de centres proposée à l'origine est fragile :
-    // les zones du haut de la grille sont pivotées à 180° par AdaptiveGrid,
-    // ce qui peut rapprocher géométriquement deux centres de zones distinctes
+    // deux zones voisines peuvent avoir des centres géométriquement proches
     // sans qu'elles soient la même zone. On vérifie donc une inclusion
     // géométrique réelle : le centre du badge tombe dans le rectangle de la
-    // zone du joueur 0, affichée en dernière position après le swap 0<->3
-    // sur ces 4 joueurs.
+    // zone du joueur 0 — repérée par sa clé `player_zone_0`, pas par sa
+    // position d'affichage (AdaptiveGrid ne pivote plus rien depuis le lot 6 :
+    // c'est PlayerZone qui applique sa propre rotation).
     final badge = tester.getCenter(find.text('-5'));
-    final zoneRect = tester.getRect(find.byType(PlayerZone).last);
+    final zoneRect = tester.getRect(find.descendant(
+      of: find.byKey(const ValueKey('player_zone_0')),
+      matching: find.byType(PlayerZone),
+    ));
     expect(
       zoneRect.contains(badge),
       isTrue,
@@ -1262,8 +1265,12 @@ void main() {
     await pumpWithContainer(tester);
 
     // Deux taps +1 (moitié droite du cadran de Sarah, non pivoté) : un gain
-    // de vie en attente, jamais un dégât.
-    final dial = tester.getRect(find.byType(LifeDial).at(2));
+    // de vie en attente, jamais un dégât. Repéré par la clé de sa zone
+    // (playerId=2), pas par une position ordinale dans l'arbre.
+    final dial = tester.getRect(find.descendant(
+      of: find.byKey(const ValueKey('player_zone_2')),
+      matching: find.byType(LifeDial),
+    ));
     for (var i = 0; i < 2; i++) {
       await tester.tapAt(Offset(dial.left + dial.width * 0.75, dial.center.dy));
       await tester.pump();
@@ -1301,8 +1308,12 @@ void main() {
             'disparition');
 
     // Les deux +1 qui suivent ramènent le buffer net à 0, avant expiration
-    // des 2s.
-    final dial = tester.getRect(find.byType(LifeDial).at(2));
+    // des 2s. Repéré par la clé de la zone de Sarah (playerId=2), pas par une
+    // position ordinale dans l'arbre.
+    final dial = tester.getRect(find.descendant(
+      of: find.byKey(const ValueKey('player_zone_2')),
+      matching: find.byType(LifeDial),
+    ));
     for (var i = 0; i < 2; i++) {
       await tester.tapAt(Offset(dial.left + dial.width * 0.75, dial.center.dy));
       await tester.pump();
@@ -1439,18 +1450,25 @@ void main() {
       (tester) async {
     final container = await pumpWithContainer(tester);
 
-    // Appui long réel sur le cadran de Sarah (2) : bascule en mode
-    // ajustement (spec §2.5) -- pas d'appel direct au notifier, voir « la
-    // leçon des lots 1 et 2 ».
-    await tester.longPress(find.byType(LifeDial).at(2));
+    // Le cadran de Sarah (playerId=2), repéré par la clé de sa zone, pas par
+    // une position ordinale dans l'arbre.
+    final sarahDial = find.descendant(
+      of: find.byKey(const ValueKey('player_zone_2')),
+      matching: find.byType(LifeDial),
+    );
+
+    // Appui long réel sur le cadran de Sarah : bascule en mode ajustement
+    // (spec §2.5) -- pas d'appel direct au notifier, voir « la leçon des
+    // lots 1 et 2 ».
+    await tester.longPress(sarahDial);
     await tester.pump();
 
-    // Le palier "-5", cherché comme DESCENDANT du cadran de Sarah (2) :
-    // dès le premier tap, un badge de buffer affichant aussi "-5" apparaît
-    // ailleurs dans la zone (hors du LifeDial) -- `find.text('-5')` seul
-    // deviendrait ambigu pour le second tap sans cette portée.
+    // Le palier "-5", cherché comme DESCENDANT du cadran de Sarah : dès le
+    // premier tap, un badge de buffer affichant aussi "-5" apparaît ailleurs
+    // dans la zone (hors du LifeDial) -- `find.text('-5')` seul deviendrait
+    // ambigu pour le second tap sans cette portée.
     Finder stepMinus5() => find.descendant(
-          of: find.byType(LifeDial).at(2),
+          of: sarahDial,
           matching: find.text('-5'),
         );
 
