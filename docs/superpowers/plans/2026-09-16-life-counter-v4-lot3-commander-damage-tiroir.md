@@ -4,7 +4,7 @@
 
 **Goal:** Rendre la saisie des dégâts de commandant quasi gratuite — un tap pendant le buffer de dégâts — et donner au tiroir son contenu définitif, plus une vue d'ensemble de la table.
 
-**Architecture:** Le tiroir reçoit la grille de commander damage **reçu**, qui remplace la ligne provisoire du lot 2. L'attribution à la volée se greffe sur le buffer de dégâts existant, sans coût de geste supplémentaire. La vue table est un écran plein, ouvert par un geste global. Le lot solde aussi la dette de `PlayerZoneNotifier`, laissée à moitié orpheline par le lot 2.
+**Architecture:** Le tiroir reçoit la grille de commander damage **reçu**, qui remplace la ligne provisoire du lot 2. L'attribution à la volée se greffe sur le buffer de dégâts existant, sans coût de geste supplémentaire. La vue table est un écran plein, ouvert par un bouton de la barre centrale. Le lot solde aussi la dette de `PlayerZoneNotifier`, laissée à moitié orpheline par le lot 2.
 
 **Tech Stack:** Flutter (SDK ^3.9.2), `flutter_riverpod` ^3.0.3, `flutter_test`.
 
@@ -314,19 +314,21 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `gameSessionNotifierProvider`, `GameSession`, `PlayerState`.
-- Produces: `Future<void> showTableView(BuildContext context, WidgetRef ref)` ou un widget de route — choisis selon ce qui s'intègre le mieux, et documente ton choix.
+- Produces: `Future<void> showTableView(BuildContext context, WidgetRef ref)` ou un widget de route — choisis selon ce qui s'intègre le mieux, et documente ton choix. Plus un bouton dans la barre centrale de `life_counter_page.dart`, à côté des actions globales existantes.
 
 > **Spec §2.3.** Une liste compacte, une ligne par joueur : PV, compteurs non nuls, monarque, état d'élimination. Elle répond au moment où l'on veut lire **toute** la table, typiquement avant d'attaquer.
 
-> **Le geste.** La spec dit « deux doigts ». Un `ScaleGestureDetector` ou un `RawGestureDetector` à deux pointeurs entre en concurrence avec la surface de gestes de `LifeDial`, qui a coûté trois rondes de correction au lot 2 et dont l'équilibre est délicat. **Avant d'implémenter le geste, vérifie qu'il ne perturbe ni le tap, ni l'appui long, ni la molette** — les 20 tests de `life_dial_test.dart` doivent rester verts, et ce sont eux le garde-fou.
+> **L'ouverture se fait par un bouton dans la barre centrale — pas par un geste à deux doigts.** La spec §2.3 prévoyait « un geste global à deux doigts » ; il est abandonné par décision explicite, et §2.3 est amendée en ce sens.
 >
-> Si le geste à deux doigts s'avère impossible à départager proprement, **arrête-toi et signale-le** plutôt que de dégrader la surface existante : un bouton dans la barre centrale est un repli acceptable, et c'est une décision qui me revient.
+> Raison : un détecteur à deux pointeurs entrerait en concurrence avec la surface de gestes de `LifeDial`, qui a coûté **trois rondes de correction et quatre constats Critical** au lot 2, et dont l'équilibre tient à une seule décision architecturale (l'appui long vit hors de l'arène de gestes). Y ajouter un concurrent multi-pointeurs, c'est rouvrir précisément ce qui vient d'être stabilisé, pour un confort marginal. La barre centrale existe déjà et porte les actions globales.
+>
+> **N'ajoute aucun détecteur de geste sur les zones joueur dans cette tâche.** Les 20 tests de `life_dial_test.dart` doivent rester verts sans modification — c'est le garde-fou.
 
 - [ ] **Step 1: Écrire les tests qui échouent**
 
 Dans `test/pages/life_counter/table_view_page_test.dart` : la vue affiche une ligne par joueur, avec ses PV ; les compteurs à zéro n'apparaissent pas ; le monarque est signalé ; un joueur éliminé est distingué. Construis une session à quatre joueurs aux états contrastés.
 
-Dans `test/pages/life_counter/life_counter_page_test.dart` : le geste d'ouverture affiche la vue, et les tests de `life_dial_test.dart` restent verts (c'est le vrai test de non-régression du geste).
+Dans `test/pages/life_counter/life_counter_page_test.dart` : un **vrai tap** sur le bouton de la barre centrale affiche la vue.
 
 - [ ] **Step 2: Lancer les tests pour vérifier qu'ils échouent**
 
@@ -335,12 +337,12 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implémenter**
 
-Écrire la vue, puis le geste d'ouverture. Dans cet ordre : la vue est testable seule, le geste est la partie risquée.
+Écrire la vue, puis le bouton de la barre centrale qui l'ouvre. Dans cet ordre : la vue est testable seule.
 
 - [ ] **Step 4: Lancer les tests**
 
 Run: `flutter test`
-Expected: PASS, **y compris les 20 tests de `life_dial_test.dart` sans modification**. S'ils cassent, c'est le geste qui est en cause, pas eux.
+Expected: PASS, **y compris les 20 tests de `life_dial_test.dart` sans modification**. S'ils cassent, tu as touché à la surface de gestes des zones, ce que cette tâche interdit.
 
 - [ ] **Step 5: Commit**
 
@@ -416,7 +418,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - [ ] Les 20 tests de `life_dial_test.dart` sont verts **sans modification**.
 - [ ] **Vérification manuelle — attribution.** Partie Commander à 4 : taper 7 dégâts sur un joueur, attribuer à un adversaire, vérifier que les PV ont baissé **une seule fois** de 7 et que le total de cette source est bien 7.
 - [ ] **Vérification manuelle — sens de la grille.** Ouvrir le tiroir d'un joueur, corriger un total dans la grille, et vérifier que c'est bien la poignée **de ce joueur** qui change.
-- [ ] **Vérification manuelle — vue table.** Ouvrir la vue à 4 joueurs, vérifier que l'état lu correspond aux zones, et que le geste ne perturbe ni le tap, ni l'appui long, ni la molette.
+- [ ] **Vérification manuelle — vue table.** Ouvrir la vue à 4 joueurs depuis le bouton de la barre centrale et vérifier que l'état lu correspond aux zones.
 
 ## Ce que ce lot ne fait pas
 
