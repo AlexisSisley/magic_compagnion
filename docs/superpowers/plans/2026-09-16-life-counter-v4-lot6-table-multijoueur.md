@@ -554,6 +554,20 @@ git commit -m "refactor: drive AdaptiveGrid from seatsFor instead of a hardcoded
 
 C'est la tâche où le changement devient visible pour le joueur.
 
+> **Amendement en cours d'exécution — rulings 4 et 5 du ledger.** Le plan d'origine était faux sur
+> un point de composition : il faisait rotationner `AdaptiveGrid` *et* posait la rotation du siège
+> dans `PlayerState.quarterTurns`, que `PlayerZone` applique déjà (`player_zone.dart:413-416`). Un
+> joueur du haut aurait cumulé 180° + 180° = 360°, table à l'envers de l'intention, avec tous les
+> tests de la tâche 1 verts — `seatsFor` est pure et ne sait rien de la grille.
+>
+> **La rotation appartient à `PlayerZone`, jamais à la grille.** La tâche 2 rend `AdaptiveGrid`
+> purement positionnelle. Deux conséquences pour cette tâche :
+>
+> 1. **Les tests de rotation ne se font plus sur la grille** mais sur la session : les assertions
+>    de `quarterTurns` portent sur `GameSession.newGame`, et les tests de la grille restent
+>    positionnels (qui est à gauche de qui, qui est au-dessus de qui).
+> 2. **Une migration de chargement est requise** — étape 3bis ci-dessous.
+
 **Files:**
 - Modify: `lib/models/game_session.dart` (factory `newGame`, ~ligne 147)
 - Test: `test/widgets/life_counter/layouts/adaptive_grid_test.dart` (tests ajoutés)
@@ -648,6 +662,20 @@ Dans `lib/models/game_session.dart`, importer `table_seat.dart` et, dans la fact
 ```
 
 La rotation ainsi posée est un **défaut** : `updateRotation` (`lib/providers/game_session_notifier.dart:122`) continue de la remplacer, et la valeur du joueur est persistée. Ne rien changer à ce chemin.
+
+- [ ] **Step 3bis : migrer les parties sauvegardées avant ce lot**
+
+Conséquence directe du ruling 4, et **la partie la plus risquée de cette tâche**. Aujourd'hui les snapshots portent `quarterTurns = 0` pour tout le monde, la grille compensant pour la moitié haute. Une fois la grille neutralisée, une partie reprise afficherait **tous les joueurs à l'endroit** — régression visible au premier lancement après mise à jour.
+
+Le fichier contient déjà une migration écrite pour exactement ce motif : `_migrateLegacyOrder` (`game_session.dart:246-281`, migration M-3 de `playerOrder`). **Calquer la nouvelle dessus** — même emplacement, même style de commentaire expliquant le symptôme réel évité, même appel depuis `fromJson`.
+
+Heuristique : si **tous** les `quarterTurns` valent 0 **et** qu'il y a plus d'un joueur, appliquer les défauts de `seatsFor`. Un snapshot écrit après ce lot ne déclenche jamais la branche dès qu'un joueur a tourné sa zone ; un snapshot où personne n'a jamais tourné sa zone est indistinguable d'un ancien, et recevoir les défauts du siège est de toute façon le bon résultat.
+
+Trois tests, décrits par leurs assertions :
+
+1. **Ancien snapshot, 4 joueurs, tous à 0** → après `fromJson`, les `quarterTurns` valent `[2, 3, 0, 1]`.
+2. **Snapshot où un joueur a tourné sa zone** (au moins un `quarterTurns != 0`) → aucune valeur n'est touchée, y compris les zéros des autres.
+3. **Snapshot à un seul joueur** → pas de migration, pas de crash.
 
 - [ ] **Step 4: Lancer la suite complète**
 
