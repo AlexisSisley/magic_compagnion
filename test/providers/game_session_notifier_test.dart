@@ -180,6 +180,26 @@ void main() {
       final player = container.read(gameSessionNotifierProvider)!.players[0];
       expect(player.counters['poison'], 3);
     });
+
+    test('clamps une valeur négative à 0', () {
+      // Le tiroir (showPlayerDrawer) ne clampe que sa copie locale
+      // d'affichage et émet le delta brut quand même : un tap "−" sur un
+      // compteur déjà à 0 appellerait updateCounter(playerId, id, -1) sans
+      // ce clamp côté notifier.
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().updateCounter(0, 'poison', -1);
+
+      final player = container.read(gameSessionNotifierProvider)!.players[0];
+      expect(player.counters['poison'], 0);
+    });
+
+    test('clamps une valeur au-delà de 99', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().updateCounter(0, 'poison', 150);
+
+      final player = container.read(gameSessionNotifierProvider)!.players[0];
+      expect(player.counters['poison'], 99);
+    });
   });
 
   group('eliminatePlayer', () {

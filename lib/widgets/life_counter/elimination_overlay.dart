@@ -147,48 +147,62 @@ class _EliminationOverlayState extends State<EliminationOverlay>
         // Base child content always present
         widget.child,
 
+        // Les trois phases ci-dessous sont purement décoratives : sans
+        // `IgnorePointer`, leur `Container` plein (en particulier la phase 3,
+        // qui reste affichée en permanence une fois l'animation terminée)
+        // absorbait tous les gestes sur la zone, y compris la poignée du
+        // tiroir — rendant "Annuler l'élimination" injoignable dès qu'un
+        // joueur était éliminé (trouvé en ronde 1 de revue de la tâche 6, en
+        // durcissant les tests du tiroir avec de vrais `tester.tap`).
+
         // Phase 1: white flash
-        AnimatedBuilder(
-          animation: _flashOpacity,
-          builder: (context, _) {
-            if (_flashOpacity.value <= 0.0) return const SizedBox.shrink();
-            return Opacity(
-              opacity: _flashOpacity.value,
-              child: Container(color: Colors.white),
-            );
-          },
+        IgnorePointer(
+          child: AnimatedBuilder(
+            animation: _flashOpacity,
+            builder: (context, _) {
+              if (_flashOpacity.value <= 0.0) return const SizedBox.shrink();
+              return Opacity(
+                opacity: _flashOpacity.value,
+                child: Container(color: Colors.white),
+              );
+            },
+          ),
         ),
 
         // Phase 2: crack lines
-        AnimatedBuilder(
-          animation: _crackProgress,
-          builder: (context, _) {
-            if (_crackProgress.value <= 0.0) return const SizedBox.shrink();
-            return CustomPaint(
-              painter: CrackEffect(progress: _crackProgress.value),
-            );
-          },
+        IgnorePointer(
+          child: AnimatedBuilder(
+            animation: _crackProgress,
+            builder: (context, _) {
+              if (_crackProgress.value <= 0.0) return const SizedBox.shrink();
+              return CustomPaint(
+                painter: CrackEffect(progress: _crackProgress.value),
+              );
+            },
+          ),
         ),
 
         // Phase 3 + static: dark overlay with elimination icon
-        AnimatedBuilder(
-          animation: _finalOverlayOpacity,
-          builder: (context, _) {
-            final opacity = _animationComplete ? 1.0 : _finalOverlayOpacity.value;
-            if (opacity <= 0.0) return const SizedBox.shrink();
-            return Opacity(
-              opacity: opacity,
-              child: Container(
-                color: AppColors.overlayVeryDark,
-                alignment: Alignment.center,
-                child: const Icon(
-                  EliminationOverlay.eliminationIcon,
-                  color: AppColors.textPrimary,
-                  size: 48,
+        IgnorePointer(
+          child: AnimatedBuilder(
+            animation: _finalOverlayOpacity,
+            builder: (context, _) {
+              final opacity = _animationComplete ? 1.0 : _finalOverlayOpacity.value;
+              if (opacity <= 0.0) return const SizedBox.shrink();
+              return Opacity(
+                opacity: opacity,
+                child: Container(
+                  color: AppColors.overlayVeryDark,
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    EliminationOverlay.eliminationIcon,
+                    color: AppColors.textPrimary,
+                    size: 48,
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ],
     );

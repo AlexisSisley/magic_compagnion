@@ -43,13 +43,19 @@ class GameSessionNotifier extends Notifier<GameSession?> {
     state = session.copyWith(players: players);
   }
 
+  /// Le clamp `0..99` vit ici, pas côté appelant : `updateCounter` est le
+  /// seul chemin d'écriture des compteurs (poison/énergie/taxe), et le
+  /// tiroir (`showPlayerDrawer`) ne clampe que sa copie locale d'affichage —
+  /// sans ce clamp serveur, un delta négatif sous zéro (ex. tap "−" sur un
+  /// compteur déjà à 0) écrirait une valeur négative en session.
   void updateCounter(int playerId, String counterId, int value) {
     final session = state;
     if (session == null) return;
+    final clamped = value.clamp(0, 99);
     final players = session.players.map((p) {
       if (p.playerId == playerId) {
         final counters = Map<String, int>.from(p.counters);
-        counters[counterId] = value;
+        counters[counterId] = clamped;
         return p.copyWith(counters: counters);
       }
       return p;

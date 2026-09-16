@@ -13,6 +13,7 @@ class _Captured {
   var monarchToggled = false;
   var eliminated = false;
   var reset = false;
+  var commanderDamageOpened = false;
 }
 
 Future<_Captured> _openDrawer(
@@ -38,6 +39,7 @@ Future<_Captured> _openDrawer(
               onToggleMonarch: () => captured.monarchToggled = true,
               onEliminate: () => captured.eliminated = true,
               onResetCounters: () => captured.reset = true,
+              onCommanderDamage: () => captured.commanderDamageOpened = true,
             ),
             child: const Text('ouvrir'),
           ),
@@ -97,6 +99,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(captured.reset, isTrue);
     expect(captured.eliminated, isFalse);
+  });
+
+  testWidgets(
+      "l'action dégâts de commandant appelle son callback (ligne "
+      'provisoire lot 2, cf. lot 3)', (tester) async {
+    final captured = await _openDrawer(tester);
+    await tester.tap(find.byKey(const ValueKey('action-commander-damage')));
+    await tester.pumpAndSettle();
+    expect(captured.commanderDamageOpened, isTrue);
+    expect(captured.monarchToggled, isFalse);
+    expect(captured.eliminated, isFalse);
+    expect(captured.reset, isFalse);
   });
 
   testWidgets('une action ferme le tiroir', (tester) async {

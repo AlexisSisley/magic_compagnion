@@ -1056,20 +1056,20 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     return PlayerZone(
       player: p, isCommander: _currentFormat.maxCommanders > 0, isHighlighted: _highlightedPlayerId == p.id,
       onLifeChanged: (val) => _updateLife(p.id, val),
-      onShowCommanderDamage: () => _showCommanderDamageSelector(p),
       onColorChanged: (c) => _updatePlayerColor(p.id, c),
       onRotationChanged: (r) => _updatePlayerRotation(p.id, r),
       onSkinChanged: (path) => _updatePlayerSkin(p.id, path),
       onNameTap: () => _showPlayerHistory(p.id),
-      onOpenDrawer: () => _openPlayerDrawer(ps),
+      onOpenDrawer: () => _openPlayerDrawer(p, ps),
     );
   }
 
   /// Ouvre le tiroir du joueur (spec §2.7) — remplace l'ancien menu radial
-  /// (retiré en tâche 5) comme seul point d'accès à ces quatre actions :
-  /// compteurs, monarque, élimination volontaire / son annulation, reset des
-  /// compteurs.
-  void _openPlayerDrawer(PlayerState ps) {
+  /// (retiré en tâche 5) comme seul point d'accès à ces actions : compteurs,
+  /// monarque, élimination volontaire / son annulation, reset des compteurs,
+  /// et (provisoirement — voir player_drawer.dart) l'ouverture du sélecteur
+  /// de dégâts de commandant en plein écran.
+  void _openPlayerDrawer(Player p, PlayerState ps) {
     showPlayerDrawer(
       context: context,
       playerName: ps.config.name,
@@ -1085,6 +1085,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       onToggleMonarch: () => _toggleMonarch(ps.playerId),
       onEliminate: () => _onDrawerEliminate(ps.playerId),
       onResetCounters: () => _resetPlayerCounters(ps.playerId),
+      onCommanderDamage: () => _showCommanderDamageSelector(p),
     );
   }
 

@@ -705,15 +705,18 @@ void main() {
     return container;
   }
 
-  /// Ouvre le tiroir du joueur 0 en déclenchant la poignée conditionnelle de
-  /// sa zone (première `ConditionalHandle` de l'arbre : les zones sont
-  /// rendues dans l'ordre d'affichage, qui coïncide avec l'ordre canonique
-  /// tant qu'aucun reorder n'a eu lieu).
+  /// Ouvre le tiroir du joueur 0 en tapant réellement sa poignée conditionnelle
+  /// (première `ConditionalHandle` de l'arbre : les zones sont rendues dans
+  /// l'ordre d'affichage, qui coïncide avec l'ordre canonique tant qu'aucun
+  /// reorder n'a eu lieu).
+  ///
+  /// Un vrai `tester.tap` plutôt qu'un appel direct à `onTap` : sinon ces
+  /// tests ne verrouilleraient que le câblage logique, pas l'accessibilité
+  /// réelle du geste — si la poignée devenait un jour non tapable (recouverte,
+  /// `HitTestBehavior` changé, hauteur nulle), ils resteraient verts alors que
+  /// les quatre actions redeviendraient injoignables dans l'app.
   Future<void> openDrawerForPlayerZero(WidgetTester tester) async {
-    final handle = tester.widget<ConditionalHandle>(
-      find.byType(ConditionalHandle).first,
-    );
-    handle.onTap!();
+    await tester.tap(find.byType(ConditionalHandle).first);
     await tester.pumpAndSettle();
   }
 
@@ -816,5 +819,29 @@ void main() {
           'compteurs à zéro, jamais la vie (rétrécissement délibéré du '
           "comportement de l'ancien menu radial)",
     );
+  });
+
+  testWidgets(
+      "CRITICAL (ronde 1) — l'entrée dégâts de commandant du tiroir ouvre "
+      'le sélecteur',
+      (tester) async {
+    // La suppression de CounterStrip (tâche 6) a emporté son indicateur de
+    // dégâts de commandant, seul appelant de _showCommanderDamageSelector
+    // hors du tiroir : sans cette ligne provisoire, les dégâts de commandant
+    // deviendraient injoignables dans l'app. Ce test verrouille sa
+    // réouverture depuis le tiroir, en attendant la vraie grille du lot 3.
+    await pumpWithContainer(tester);
+
+    await openDrawerForPlayerZero(tester);
+    await tester.tap(find.byKey(const ValueKey('action-commander-damage')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Dégâts de Commandant'),
+      findsOneWidget,
+      reason: "le tiroir doit rouvrir le sélecteur plein écran existant "
+          '(_showCommanderDamageSelector), seul point de saisie restant',
+    );
+    expect(find.textContaining('Attaquant :'), findsOneWidget);
   });
 }

@@ -32,6 +32,7 @@ Future<void> showPlayerDrawer({
   required VoidCallback onToggleMonarch,
   required VoidCallback onEliminate,
   required VoidCallback onResetCounters,
+  required VoidCallback onCommanderDamage,
 }) {
   HapticFeedback.selectionClick();
   return showModalBottomSheet<void>(
@@ -59,6 +60,10 @@ Future<void> showPlayerDrawer({
         Navigator.of(sheetCtx).pop();
         onResetCounters();
       },
+      onCommanderDamage: () {
+        Navigator.of(sheetCtx).pop();
+        onCommanderDamage();
+      },
     ),
   );
 }
@@ -73,6 +78,7 @@ class _PlayerDrawerBody extends StatefulWidget {
     required this.onToggleMonarch,
     required this.onEliminate,
     required this.onResetCounters,
+    required this.onCommanderDamage,
   });
 
   final String playerName;
@@ -83,6 +89,7 @@ class _PlayerDrawerBody extends StatefulWidget {
   final VoidCallback onToggleMonarch;
   final VoidCallback onEliminate;
   final VoidCallback onResetCounters;
+  final VoidCallback onCommanderDamage;
 
   @override
   State<_PlayerDrawerBody> createState() => _PlayerDrawerBodyState();
@@ -124,6 +131,17 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
             const SizedBox(height: 14),
             for (final id in _counterLabels.keys) _counterRow(id),
             const Divider(height: 26),
+            // Provisoire (lot 2) : ouvre le sélecteur plein écran existant,
+            // seul point de saisie des dégâts de commandant depuis la
+            // suppression de CounterStrip. Le lot 3 remplacera cette ligne
+            // par la vraie grille de dégâts dans le tiroir lui-même.
+            _action(
+              key: const ValueKey('action-commander-damage'),
+              icon: Icons.shield,
+              label: 'Dégâts de commandant',
+              color: AppColors.accent,
+              onTap: widget.onCommanderDamage,
+            ),
             _action(
               key: const ValueKey('action-monarch'),
               icon: Icons.star,

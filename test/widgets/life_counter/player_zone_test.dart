@@ -33,7 +33,6 @@ Future<List<int>> pumpZone(WidgetTester tester, Player player) async {
             child: PlayerZone(
               player: player,
               onLifeChanged: deltas.add,
-              onShowCommanderDamage: () {},
               onColorChanged: (_) {},
             ),
           ),
