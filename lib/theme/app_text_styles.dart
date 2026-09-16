@@ -152,12 +152,19 @@ abstract final class AppTextStyles {
   // LIFE COUNTER (zone joueur V4)
   // ============================================================
 
-  /// Chiffre du cadran de vie (88px, w200, resserre) : un cadran, pas un titre — police systeme, pas Cinzel.
-  static TextStyle lifeNumeral({Color? color, double? fontSize}) => TextStyle(
+  /// Chiffre du cadran de vie (88px, w300).
+  ///
+  /// Roboto Mono, et pas par gout du style : ses chiffres ont tous la meme
+  /// largeur, donc le nombre ne se decale pas quand il change de valeur.
+  /// Avec une police proportionnelle, passer de 40 a 39 deplace le chiffre de
+  /// quelques pixels, et le compteur bouge sous le doigt a chaque tap — sur un
+  /// ecran qu'on tape des dizaines de fois par partie, ca se remarque.
+  static TextStyle lifeNumeral({Color? color, double? fontSize}) =>
+      GoogleFonts.robotoMono(
     color: color ?? AppColors.textPrimary,
     fontSize: fontSize ?? 88,
-    fontWeight: FontWeight.w200,
-    letterSpacing: -3,
+    fontWeight: FontWeight.w300,
+    letterSpacing: -2,
   );
 
   /// Badge de delta en attente sous le chiffre de vie (20px, semibold).
