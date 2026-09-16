@@ -1264,15 +1264,17 @@ void main() {
       (tester) async {
     await pumpWithContainer(tester);
 
-    // Deux taps +1 (moitié droite du cadran de Sarah, non pivoté) : un gain
-    // de vie en attente, jamais un dégât. Repéré par la clé de sa zone
-    // (playerId=2), pas par une position ordinale dans l'arbre.
-    final dial = tester.getRect(find.descendant(
+    // Deux taps +1 sur le cadran de Sarah : un gain de vie en attente,
+    // jamais un dégât. Tape la moitié positive par sa clé
+    // (`life_dial_half_plus`), scopée par la clé de sa zone (playerId=2) --
+    // aucun calcul de position, donc valide même une fois les sièges
+    // pivotés (tâche 3).
+    final plusHalf = find.descendant(
       of: find.byKey(const ValueKey('player_zone_2')),
-      matching: find.byType(LifeDial),
-    ));
+      matching: find.byKey(const ValueKey('life_dial_half_plus')),
+    );
     for (var i = 0; i < 2; i++) {
-      await tester.tapAt(Offset(dial.left + dial.width * 0.75, dial.center.dy));
+      await tester.tap(plusHalf);
       await tester.pump();
     }
 
@@ -1308,14 +1310,16 @@ void main() {
             'disparition');
 
     // Les deux +1 qui suivent ramènent le buffer net à 0, avant expiration
-    // des 2s. Repéré par la clé de la zone de Sarah (playerId=2), pas par une
-    // position ordinale dans l'arbre.
-    final dial = tester.getRect(find.descendant(
+    // des 2s. Tape la moitié positive du cadran de Sarah par sa clé
+    // (`life_dial_half_plus`), scopée par la clé de sa zone (playerId=2) --
+    // aucun calcul de position, donc valide même une fois les sièges
+    // pivotés (tâche 3).
+    final plusHalf = find.descendant(
       of: find.byKey(const ValueKey('player_zone_2')),
-      matching: find.byType(LifeDial),
-    ));
+      matching: find.byKey(const ValueKey('life_dial_half_plus')),
+    );
     for (var i = 0; i < 2; i++) {
-      await tester.tapAt(Offset(dial.left + dial.width * 0.75, dial.center.dy));
+      await tester.tap(plusHalf);
       await tester.pump();
     }
 

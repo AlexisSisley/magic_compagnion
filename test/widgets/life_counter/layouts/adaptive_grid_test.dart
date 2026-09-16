@@ -36,9 +36,25 @@ void main() {
 
     testWidgets('7 joueurs : 3 en haut, 4 en bas', (tester) async {
       await tester.pumpWidget(_grid(7));
-      for (int i = 3; i < 7; i++) {
-        expect(_centerOf(tester, i).dy, greaterThan(_centerOf(tester, 0).dy), reason: 'joueur $i en bas');
-      }
+      // Les trois du haut (0, 1, 2) doivent partager la meme rangee : une
+      // repartition fautive (2 en haut / 5 en bas, par exemple) romprait
+      // cette egalite sans que la seule comparaison haut/bas (ci-dessous)
+      // ne la voie.
+      expect(_centerOf(tester, 0).dy, equals(_centerOf(tester, 1).dy),
+          reason: 'les joueurs 0 et 1 doivent etre sur la meme rangee du haut');
+      expect(_centerOf(tester, 1).dy, equals(_centerOf(tester, 2).dy),
+          reason: 'les joueurs 1 et 2 doivent etre sur la meme rangee du haut');
+      // Les quatre du bas (3, 4, 5, 6) doivent eux aussi partager la meme
+      // rangee.
+      expect(_centerOf(tester, 3).dy, equals(_centerOf(tester, 4).dy),
+          reason: 'les joueurs 3 et 4 doivent etre sur la meme rangee du bas');
+      expect(_centerOf(tester, 4).dy, equals(_centerOf(tester, 5).dy),
+          reason: 'les joueurs 4 et 5 doivent etre sur la meme rangee du bas');
+      expect(_centerOf(tester, 5).dy, equals(_centerOf(tester, 6).dy),
+          reason: 'les joueurs 5 et 6 doivent etre sur la meme rangee du bas');
+      // Et la rangee du haut est bien au-dessus de celle du bas.
+      expect(_centerOf(tester, 0).dy, lessThan(_centerOf(tester, 3).dy),
+          reason: 'la rangee du haut doit etre au-dessus de celle du bas');
     });
 
     testWidgets('8 joueurs : deux sous-grilles 2x2', (tester) async {
@@ -72,12 +88,17 @@ void main() {
       );
     });
 
-    testWidgets('4 joueurs : test presente mais non discriminant', (tester) async {
+    testWidgets('4 joueurs : un siege par cote (haut, droite, bas, gauche)',
+        (tester) async {
       await tester.pumpWidget(_grid(4));
-      expect(find.byKey(const ValueKey('player_0')), findsOneWidget);
-      expect(find.byKey(const ValueKey('player_1')), findsOneWidget);
-      expect(find.byKey(const ValueKey('player_2')), findsOneWidget);
-      expect(find.byKey(const ValueKey('player_3')), findsOneWidget);
+      // seatsFor(4) = [top, right, bottom, left] : joueur 0 = haut,
+      // 1 = droite, 2 = bas, 3 = gauche.
+      expect(_centerOf(tester, 0).dy, lessThan(_centerOf(tester, 2).dy),
+          reason: 'le joueur du haut (0) doit etre au-dessus de celui du bas (2)');
+      expect(_centerOf(tester, 3).dx, lessThan(_centerOf(tester, 0).dx),
+          reason: 'le joueur de gauche (3) doit etre a gauche de celui du haut (0)');
+      expect(_centerOf(tester, 1).dx, greaterThan(_centerOf(tester, 0).dx),
+          reason: 'le joueur de droite (1) doit etre a droite de celui du haut (0)');
     });
   });
 }
