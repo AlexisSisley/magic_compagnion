@@ -93,12 +93,12 @@ Future<void> pumpLifeCounter(
 Future<void> tapMinusHalf(
   WidgetTester tester,
   int zoneIndex,
-  int count,
-) async {
+  int count, {
+  ProviderContainer? container,
+}) async {
   // Obtenir le container et la session pour traduire zoneIndex (ordre d'affichage) → playerId
-  final element = tester.element(find.byType(LifeCounterPage));
-  final container = ProviderScope.containerOf(element);
-  final session = container.read(gameSessionNotifierProvider)!;
+  final resolvedContainer = container ?? ProviderScope.containerOf(tester.element(find.byType(LifeCounterPage)));
+  final session = resolvedContainer.read(gameSessionNotifierProvider)!;
   final playerId = session.playerOrder[zoneIndex];
 
   // Chercher la zone du joueur par sa clé playerId
@@ -290,7 +290,7 @@ void main() {
 
     // Dégâts en attente sur le joueur 0, affiché en dernière position (index
     // 3) après le swap 0<->3 : 5 vrais taps sur la moitié −1 de son cadran.
-    await tapMinusHalf(tester, 3, 5);
+    await tapMinusHalf(tester, 3, 5, container: container);
     await tester.pump(const Duration(milliseconds: 100));
 
     // Un seul badge, et il doit être celui du joueur 0.
