@@ -5,11 +5,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/pages/life_counter/life_counter_page.dart';
 import 'package:magic_companion/pages/life_counter/table_view_page.dart';
+import 'package:magic_companion/router/app_router.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
@@ -1256,13 +1258,48 @@ void main() {
 
   testWidgets(
       'un vrai tap sur le bouton de la barre centrale ouvre la vue table '
-      '(tâche 4) — pas de geste à deux doigts sur les zones',
+      '(tâche 4, ronde de correction 1) via une route GoRouter — pas de '
+      'geste à deux doigts sur les zones',
       (tester) async {
     final baseSession = GameSession.newGame(
       format: commanderFormat,
       playerConfigs: testConfigs,
     );
-    await pumpLifeCounter(tester, snapshot: baseSession);
+    SharedPreferences.setMockInitialValues({
+      'active_game_snapshot': json.encode(baseSession.toJson()),
+    });
+
+    // Ronde de correction 1 : `_showTableView` pousse désormais
+    // `AppRoutes.tableView` via `context.push` (GoRouter), comme toutes les
+    // autres pages plein-écran empilées par-dessus le shell — un simple
+    // `MaterialApp` (sans GoRouter) ne suffit donc plus pour ce test. Les
+    // deux routes ci-dessous reproduisent le strict nécessaire de
+    // `life_counter_routes.dart` : le shell (ici juste un `Scaffold`, voir
+    // la note de `pumpLifeCounter`) et la route détail visée.
+    final router = GoRouter(
+      initialLocation: AppRoutes.lifeCounter,
+      routes: [
+        GoRoute(
+          path: AppRoutes.lifeCounter,
+          builder: (context, state) =>
+              const Scaffold(body: LifeCounterPage()),
+        ),
+        GoRoute(
+          path: AppRoutes.tableView,
+          builder: (context, state) => const TableViewPage(),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.byType(TableViewPage), findsNothing,
         reason: 'précondition : la vue table n\'est pas encore ouverte');
@@ -1274,5 +1311,52 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(TableViewPage), findsOneWidget);
+  });
+
+  testWidgets(
+      'ronde de correction 1 (Important) — la barre centrale ne déborde pas '
+      'sur un téléphone étroit, et son 8e bouton (vue table) reste '
+      'réellement atteignable',
+      (tester) async {
+    // 320px logiques : le plus étroit des téléphones courants. La barre
+    // centrale comptait déjà 7 enfants de taille fixe (dont un cercle de
+    // 50×50) avant le bouton de la tâche 4, qui porte le total à 8 — sans
+    // protection, `Row(spaceEvenly)` seul dépasse ici et lève une erreur de
+    // rendu (RenderFlex overflow), invisible sur un simulateur large.
+    final originalSize = tester.view.physicalSize;
+    final originalDpr = tester.view.devicePixelRatio;
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.physicalSize = originalSize;
+      tester.view.devicePixelRatio = originalDpr;
+    });
+
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    await pumpLifeCounter(tester, snapshot: baseSession);
+
+    // Le cœur du test : sans la protection (LayoutBuilder + ScrollView +
+    // ConstrainedBox), ce pump aurait déjà capturé une exception de
+    // dépassement à ce stade.
+    expect(tester.takeException(), isNull,
+        reason: 'la barre centrale ne doit jamais déborder, même sur un '
+            'écran étroit');
+
+    // Pas seulement « aucune exception » : le bouton doit être réellement
+    // amenable à l'écran par un défilement, pas coincé hors champ à
+    // l'infini derrière un ConstrainedBox mal borné.
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('action-table-view')),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    final buttonRect =
+        tester.getRect(find.byKey(const ValueKey('action-table-view')));
+    expect(buttonRect.left, greaterThanOrEqualTo(0));
+    expect(buttonRect.right, lessThanOrEqualTo(320));
   });
 }

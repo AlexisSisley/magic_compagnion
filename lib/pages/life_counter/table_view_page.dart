@@ -131,7 +131,7 @@ class _PlayerRow extends StatelessWidget {
                     ),
                     child: const Icon(
                       EliminationOverlay.eliminationIcon,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       size: 12,
                     ),
                   ),

@@ -16,6 +16,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/player_zone_notifier.dart';
@@ -47,7 +48,7 @@ import '../../widgets/life_counter/draggable_player_zone.dart';
 import '../../widgets/life_counter/animations/animation_service.dart';
 import '../../widgets/life_counter/snapshot_writer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-import 'table_view_page.dart';
+import '../../router/app_router.dart';
 
 class LifeCounterPage extends ConsumerStatefulWidget {
   /// US-LC02 : Quand true, la page est dans le shell (tab0) et ne rend pas d'AppBar.
@@ -1239,9 +1240,26 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     return Container(
       height: 60,
       color: AppColors.textOnPrimary,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
+      // Tache 4 (ronde de correction 1) : la barre comptait deja 7 enfants
+      // de taille fixe avant le bouton "vue table" (le 8e) -- sur un
+      // telephone etroit, `Row(spaceEvenly)` seul depasse et leve une
+      // erreur de rendu (RenderFlex overflow), invisible sur un simulateur
+      // large. `LayoutBuilder` fournit la largeur disponible reelle ;
+      // `ConstrainedBox(minWidth: ...)` a l'interieur d'un
+      // `SingleChildScrollView` horizontal force le `Row` (mainAxisSize.min)
+      // a occuper au moins toute la largeur quand ca rentre -- ce qui
+      // preserve exactement le `spaceEvenly` d'origine -- et le laisse
+      // grandir a sa taille naturelle, scrollable, quand ca ne rentre pas.
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
           // Quick orientation presets (tap) / Game info (long press)
           GestureDetector(
             onLongPress: _showGameInfoSheet,
@@ -1318,7 +1336,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
             icon: const Icon(Icons.people, color: AppColors.textSecondary),
             onPressed: _showGameSetupDialog,
           ),
-        ],
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1556,14 +1578,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     );
   }
 
-  /// Ouvre la vue table (tache 4) : une route poussee, pas un tiroir ni une
-  /// feuille modale -- voir table_view_page.dart pour la justification de ce
-  /// choix. Elle lit `gameSessionNotifierProvider` elle-meme (ConsumerWidget),
-  /// donc aucun etat n'a besoin d'etre passe en parametre.
+  /// Ouvre la vue table (tache 4, ronde de correction 1) : une route
+  /// GoRouter declarative (`AppRoutes.tableView`, enregistree dans
+  /// `life_counter_routes.dart`), comme toutes les autres pages plein-ecran
+  /// poussees par-dessus le shell (`/game-history`, etc.) -- pas un
+  /// `Navigator.push`/`MaterialPageRoute` isole, qui aurait ete le seul de
+  /// tout `lib/` et aurait rendu la vue introuvable dans `app_router.dart`.
+  /// Elle lit `gameSessionNotifierProvider` elle-meme (ConsumerWidget), donc
+  /// aucun etat n'a besoin d'etre passe en parametre.
   void _showTableView() {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => const TableViewPage()),
-    );
+    context.push(AppRoutes.tableView);
   }
 
   void _showDiceSelector() {
