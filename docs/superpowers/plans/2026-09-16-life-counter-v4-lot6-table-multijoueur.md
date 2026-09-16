@@ -27,6 +27,18 @@ Ces contraintes s'appliquent à **toutes** les tâches. Elles sont la conséquen
 
 ---
 
+## Forme des tests dans ce plan
+
+**Les tests de fonctions pures sont écrits verbatim. Les tests de widgets sont décrits par leurs assertions, pas par leur code.**
+
+Ce n'est pas de la paresse, c'est une correction. Les plans des lots 1 et 2 prescrivaient du code de test écrit de mémoire ; il a produit **six défauts de compilation**, dont un `enum` pris pour un `int` et une API Riverpod mal employée. Le lot 3 est passé aux assertions décrites : zéro défaut de ce type.
+
+Ce plan a été revu sur ce critère après coup, et deux blocs de son premier jet ne compilaient pas — `GameSession.newGame(playerCount: 4)` alors que la factory prend `playerConfigs`, et `CriticalOverlay(level: 2)` alors que `level` est un `CriticalLevel`. Les deux sont corrigés ci-dessous. La règle vaut pour l'implémenteur : **lis la signature, n'écris pas de mémoire.**
+
+Une fonction pure de ce lot (`seatsFor`, `tierFor`) n'a ni dépendance ni API à deviner — son test reste verbatim et sert de référence de style.
+
+---
+
 ## Écarts constatés entre la spec et le code livré
 
 À vérifier au démarrage, ils changent deux tâches :
@@ -599,38 +611,26 @@ Ajouter au groupe `AdaptiveGrid` de `test/widgets/life_counter/layouts/adaptive_
   });
 ```
 
-Ajouter dans `test/models/game_session_test.dart` :
+Ajouter dans `test/models/game_session_test.dart` un groupe `GameSession.newGame — rotations initiales`, décrit par ses assertions :
+
+**Signature réelle, vérifiée** (`lib/models/game_session.dart:139`) :
 
 ```dart
-  group('GameSession.newGame — rotations initiales', () {
-    test('4 joueurs : chaque joueur recoit la rotation de son siege', () {
-      final session = GameSession.newGame(
-        format: GameFormat.commander,
-        playerCount: 4,
-      );
-      expect(session.players.map((p) => p.quarterTurns).toList(), [2, 3, 0, 1]);
-    });
-
-    test('2 joueurs : face a face, comme avant', () {
-      final session = GameSession.newGame(
-        format: GameFormat.commander,
-        playerCount: 2,
-      );
-      expect(session.players.map((p) => p.quarterTurns).toList(), [2, 0]);
-    });
-
-    test('8 joueurs : aucune rotation laterale', () {
-      final session = GameSession.newGame(
-        format: GameFormat.commander,
-        playerCount: 8,
-      );
-      expect(session.players.every((p) => p.quarterTurns == 0 || p.quarterTurns == 2),
-          isTrue);
-    });
-  });
+factory GameSession.newGame({
+  required GameFormat format,
+  required List<PlayerConfig> playerConfigs,
+  List<String>? extraCounterIds,
+  String? tag,
+})
 ```
 
-> **Adapter la signature de `GameSession.newGame` à ce que le code expose réellement** (lire `lib/models/game_session.dart:147` avant d'écrire : le nom des paramètres peut différer). Ne pas inventer une signature ; ne pas non plus la changer.
+Elle prend **`playerConfigs`, pas `playerCount`**. Construire les configs avec un helper local du fichier de test — regarder d'abord si `game_session_test.dart` en a déjà un, et le réutiliser plutôt que d'en écrire un second. `PlayerConfig` exige `id`, `name`, `type` et `colorValue` (`lib/models/player_config.dart:38`).
+
+Trois tests :
+
+1. **4 joueurs → `[2, 3, 0, 1]`.** Assertion sur `session.players.map((p) => p.quarterTurns).toList()`. C'est le test qui porte tout le lot : haut, droite, bas, gauche.
+2. **2 joueurs → `[2, 0]`.** Le face-à-face historique est préservé.
+3. **8 joueurs → aucune rotation latérale.** Chaque `quarterTurns` vaut 0 ou 2.
 
 - [ ] **Step 2: Lancer les tests pour vérifier qu'ils échouent**
 
@@ -884,36 +884,18 @@ C'est la tâche qui applique directement la leçon du lot 2 : `EliminationOverla
 
 - [ ] **Step 1: Écrire les tests qui échouent**
 
-Ajouter à `test/widgets/life_counter/critical_overlay_test.dart` :
+Ajouter à `test/widgets/life_counter/critical_overlay_test.dart` un groupe `CriticalOverlay — non absorbant`, décrit par ses assertions.
 
-```dart
-  group('CriticalOverlay — non absorbant', () {
-    testWidgets('un vrai tap traverse la couche et atteint l enfant',
-        (tester) async {
-      int taps = 0;
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: CriticalOverlay(
-            level: 2,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => taps++,
-              child: const SizedBox(width: 200, height: 200),
-            ),
-          ),
-        ),
-      ));
+**Signature réelle, vérifiée** (`lib/widgets/life_counter/critical_overlay.dart:15`) : `CriticalOverlay({required CriticalLevel level, required Widget child})`. **`level` est un `enum CriticalLevel { safe, warning, danger, lethal }`** (`animation_service.dart:12`), pas un `int` — passer `CriticalLevel.danger`, jamais `2`.
 
-      await tester.tap(find.byType(SizedBox).first);
-      await tester.pump();
-      expect(taps, 1,
-          reason: 'meme motif qu EliminationOverlay au lot 2 : une couche '
-              'qui avale les gestes de la couche en dessous');
-    });
-  });
-```
+Un seul test, mais c'est le test qui compte :
 
-> Adapter le nom du paramètre `level` à la signature réelle de `CriticalOverlay` — la lire avant d'écrire.
+- Monter un `CriticalOverlay` à `CriticalLevel.danger` autour d'un enfant qui compte ses taps.
+- **Jouer un vrai `tester.tap`** sur l'enfant — jamais appeler son callback (contrainte globale 2).
+- Attendre exactement **un** tap reçu.
+- `reason:` mentionnant qu'il s'agit du même motif qu'`EliminationOverlay` au lot 2 : une couche qui avale les gestes de celle en dessous.
+
+Le calcul du niveau se lit dans `AnimationService.getCriticalLevel({required int currentLife, required int startingLife})`, qui ne regarde aujourd'hui **que la vie** — voir l'étape 4.
 
 - [ ] **Step 2: Lancer le test**
 
@@ -928,7 +910,9 @@ Envelopper la décoration dans `IgnorePointer`, comme le lot 2 l'a fait pour les
 
 Dans `_buildPlayerZoneWithOverlays`, vérifier que `CriticalOverlay` est appliqué **quel que soit le cran** de la zone. Spec §3.3 : vie ≤ 5, poison ≥ `maxPoison − 2`, ou 18+ dégâts de commandant d'une même source. C'est la seule chose autorisée à percer en cran minimal.
 
-Si le calcul actuel (`AnimationService.getCriticalLevel`) ne couvre que la vie, l'étendre au poison et au commander damage, avec un test par condition.
+**Vérifié : `AnimationService.getCriticalLevel` ne couvre aujourd'hui que la vie** — elle prend `currentLife` et `startingLife` et retourne un `CriticalLevel` sur le ratio (`≤ 0.10` → `lethal`, `≤ 0.25` → `danger`, `≤ 0.50` → `warning`). L'étendre au poison et au commander damage demande donc de **changer sa signature**, ce qui touche tous ses appelants.
+
+Deux options, à trancher à l'exécution plutôt qu'ici : ajouter des paramètres optionnels nommés (`poison`, `maxPoison`, `worstCommanderDamage`) avec des défauts qui préservent le comportement actuel, ou laisser la fonction intacte et calculer le niveau d'alerte étendu dans la page. La première garde le calcul en un seul endroit ; la seconde ne touche à aucun appelant. Un test par condition dans les deux cas : vie ≤ 5, poison ≥ `maxPoison − 2`, commander damage ≥ 18 d'une même source.
 
 - [ ] **Step 5: Lancer la suite complète**
 
@@ -1018,6 +1002,7 @@ Les tests ne suffisent pas ici, et c'est écrit dans la spec §6.1 plutôt que d
   - le badge de dégâts en attente apparaît à l'endroit sur les deux sièges latéraux.
 - [ ] **Vérification sur appareil réel, à 8 joueurs sur petit écran** : le cran minimal reste lisible, et la poignée reste atteignable.
 - [ ] Les quatre points à calibrer de la spec §7 sont tranchés ou explicitement reportés : seuils en pixels des crans, lisibilité d'un siège latéral en minimal, découverte du tiroir en minimal.
+- [ ] **Le réordonnancement par glisser-déposer est vérifié aux quatre orientations, sur appareil.** Report hérité du lot 3 : l'aperçu de glissement fige la zone à 130 px, ce qui rend le vrai geste intestable en widget test. La revue du lot 3 avertit que sans rappel explicite ce report devient permanent — d'où sa présence ici, en critère de sortie et non en constat reporté. Ce lot le rend d'autant plus visible qu'il place des zones sur quatre côtés : un glissement depuis un siège latéral traverse une rotation.
 
 ---
 
