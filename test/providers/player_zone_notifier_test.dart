@@ -1,5 +1,4 @@
 // test/providers/player_zone_notifier_test.dart
-import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/providers/player_zone_notifier.dart';
@@ -109,115 +108,20 @@ void main() {
 
   group('nombres flottants', () {
     test('showFloatingNumber empile avec le bon texte et des ids croissants', () {
-      // showFloatingNumber arme désormais ses propres Timer (50ms/600ms,
-      // voir la correction de la tâche 7) : sans fakeAsync ici, ils
-      // resteraient de vrais Timer en vol après la fin du test, pour se
-      // déclencher plus tard sur un notifier déjà disposé par tearDown --
-      // ronde de correction 1, confirmée empiriquement (voir le rapport de
-      // la tâche 7). fakeAsync les fait tous s'épuiser avant la fin du test.
-      fakeAsync((async) {
-        final n = notifierFor(0);
-        n.showFloatingNumber(3);
-        n.showFloatingNumber(-5);
-        final numbers = stateFor(0).floatingNumbers;
-        expect(numbers.map((f) => f.text).toList(), ['+3', '-5']);
-        expect(numbers.map((f) => f.id).toList(), [0, 1]);
-
-        async.elapse(const Duration(milliseconds: 601));
-      });
+      final n = notifierFor(0);
+      n.showFloatingNumber(3);
+      n.showFloatingNumber(-5);
+      final numbers = stateFor(0).floatingNumbers;
+      expect(numbers.map((f) => f.text).toList(), ['+3', '-5']);
+      expect(numbers.map((f) => f.id).toList(), [0, 1]);
     });
 
     test('removeFloatingNumber retire le bon', () {
-      // Même raison que le test précédent : purger les Timer de
-      // showFloatingNumber avant la fin du test pour ne pas en laisser fuir
-      // vers les tests suivants.
-      fakeAsync((async) {
-        final n = notifierFor(0);
-        n.showFloatingNumber(1);
-        n.showFloatingNumber(2);
-        n.removeFloatingNumber(0);
-        expect(stateFor(0).floatingNumbers.single.text, '+2');
-
-        async.elapse(const Duration(milliseconds: 601));
-      });
-    });
-  });
-
-  group('nombres flottants — cycle de vie (bug : le nombre restait affiché '
-      'indéfiniment)', () {
-    test(
-        'le nombre disparaît de lui-même après 600ms, sans aucun widget '
-        'monté : c\'est le notifier qui possède son propre nettoyage, pas '
-        'un widget observateur', () {
-      fakeAsync((async) {
-        final n = notifierFor(0);
-        n.showFloatingNumber(-1);
-        expect(stateFor(0).floatingNumbers, isNotEmpty);
-
-        async.elapse(const Duration(milliseconds: 601));
-
-        expect(stateFor(0).floatingNumbers, isEmpty,
-            reason: 'aucun widget ne tourne dans ce test -- si le retrait '
-                'dépendait d\'un Timer côté widget (comme avant la '
-                'correction), il ne se produirait jamais ici, et le nombre '
-                'resterait affiché indéfiniment, exactement le bug signalé');
-      });
-    });
-
-    test(
-        'deux nombres rapprochés disparaissent tous les deux, sans que le '
-        'second ne prolonge la durée de vie du premier', () {
-      fakeAsync((async) {
-        final n = notifierFor(0);
-        n.showFloatingNumber(1);
-        async.elapse(const Duration(milliseconds: 200));
-        n.showFloatingNumber(2);
-
-        // 601ms depuis le premier (t=0) : son minuteur de retrait doit
-        // s'être déclenché ; celui du second (armé à t=200, retrait à
-        // t=800) ne s'est pas encore déclenché.
-        async.elapse(const Duration(milliseconds: 401));
-        expect(stateFor(0).floatingNumbers.map((f) => f.text).toList(), ['+2']);
-
-        // 601ms depuis le second : son propre minuteur se déclenche à son
-        // tour, indépendamment du premier.
-        async.elapse(const Duration(milliseconds: 200));
-        expect(stateFor(0).floatingNumbers, isEmpty);
-      });
-    });
-
-    test('l\'animation reste appliquée à 50ms : opacity 0.0 et top -50.0', () {
-      fakeAsync((async) {
-        final n = notifierFor(0);
-        n.showFloatingNumber(-1);
-
-        async.elapse(const Duration(milliseconds: 51));
-
-        final entry = stateFor(0).floatingNumbers.single;
-        expect(entry.opacity, 0.0);
-        expect(entry.top, -50.0);
-      });
-    });
-
-    test(
-        'ref.onDispose annule les minuteurs en vol : un Timer qui '
-        'échoirait après la disposition du container ne doit pas tenter '
-        'd\'écrire dans un notifier détruit', () {
-      fakeAsync((async) {
-        final localContainer = ProviderContainer();
-        localContainer
-            .read(playerZoneNotifierProvider(0).notifier)
-            .showFloatingNumber(-1);
-        localContainer.dispose();
-
-        // Sans l'annulation dans `ref.onDispose`, le Timer de 600ms armé par
-        // `showFloatingNumber` continuerait de courir malgré la disposition
-        // du container, et tenterait d'écrire dans l'état d'un notifier
-        // détruit à son échéance -- ce qui lève ici plutôt que de rester
-        // silencieux.
-        expect(() => async.elapse(const Duration(milliseconds: 601)),
-            returnsNormally);
-      });
+      final n = notifierFor(0);
+      n.showFloatingNumber(1);
+      n.showFloatingNumber(2);
+      n.removeFloatingNumber(0);
+      expect(stateFor(0).floatingNumbers.single.text, '+2');
     });
   });
 

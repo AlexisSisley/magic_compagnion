@@ -280,9 +280,7 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   }
 
   Widget _half(int delta) {
-    final halfKey = delta < 0 ? 'life_dial_half_minus' : 'life_dial_half_plus';
     return GestureDetector(
-      key: ValueKey(halfKey),
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => _startHold(delta),
       onTapUp: (_) => _confirmTap(delta),

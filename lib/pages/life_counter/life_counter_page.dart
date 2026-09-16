@@ -26,7 +26,6 @@ import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/models/player_model.dart';
 import 'package:magic_companion/models/profile_model.dart'; // CommanderEntry, Profile
-import 'package:magic_companion/models/table_seat.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/providers/service_providers.dart';
@@ -136,8 +135,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   Player _toLegacyPlayer(int index, PlayerState ps) {
     // Include pending (buffered) damage in displayed life
     final pending = _pendingDamage[ps.playerId] ?? 0;
-
-
     return Player(
       // Use the real playerId (not the display index) so callbacks target the correct PlayerState
       id: ps.playerId,
@@ -926,14 +923,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
       Widget zone = _buildPlayerZoneWithOverlays(player, playerState, index);
 
-      // Envelopper la zone dans une clé basée sur le player.id pour permettre
-      // aux tests de trouver la zone spécifique du joueur indépendamment de
-      // l'ordre d'affichage (reorder, colonnes latérales, etc.)
-      zone = KeyedSubtree(
-        key: ValueKey('player_zone_${player.id}'),
-        child: zone,
-      );
-
       if (_isEditMode) {
         zone = DraggablePlayerZone(
           index: index,
@@ -952,21 +941,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   Widget _buildPlayerZoneWithOverlays(Player player, PlayerState playerState, int index) {
-    // Spec V4 §3.3 : la couche d'alerte percant tous les crans regarde aussi
-    // le poison et le pire degat de commandant d'une seule source, pas
-    // seulement le ratio de vie — `worstCommanderDamage` isole la source la
-    // plus proche du seuil de mort (21), une somme de toutes les sources
-    // masquerait un joueur a 18 d'une seule source mais 0 des autres.
-    final commanderDamageValues = player.commanderDamageReceived.values;
-    final worstCommanderDamage = commanderDamageValues.isEmpty
-        ? 0
-        : commanderDamageValues.reduce((a, b) => a > b ? a : b);
     final criticalLevel = AnimationService.getCriticalLevel(
       currentLife: player.life,
       startingLife: _currentFormat.startingLife,
-      poison: player.poison,
-      maxPoison: _currentFormat.maxPoison > 0 ? _currentFormat.maxPoison : null,
-      worstCommanderDamage: worstCommanderDamage,
     );
 
     Widget zone = _buildPlayerZone(player, playerState);
@@ -999,10 +976,32 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       );
     }
 
-    // Le badge de degats en attente (Bug 4) est passe en donnees a
-    // `PlayerZone` via `_buildPlayerZone` (voir `pendingDamage`) et rendu
-    // DANS son `RotatedBox` -- corrige au lot 6 tache 6 : empile ici, hors
-    // de la zone comme au premier jet, il ne pivotait jamais avec elle.
+    // Pending damage buffer indicator (Bug 4)
+    final pending = _pendingDamage[playerState.playerId] ?? 0;
+    if (pending != 0) {
+      final pendingText = pending > 0 ? '+$pending' : '$pending';
+      final pendingColor = pending > 0 ? AppColors.accentGreen : AppColors.accentRed;
+      zone = Stack(
+        children: [
+          zone,
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: pendingColor.withAlpha(180),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                pendingText,
+                style: AppTextStyles.bold(color: AppColors.textPrimary, fontSize: 14),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     // Rangee d'attribution a la volee (spec S2.6) : voir `_buildPlayerZone`,
     // qui calcule sa visibilite et la passe a `PlayerZone` en donnees.
@@ -1046,22 +1045,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     order[oldIndex] = order[newIndex];
     order[newIndex] = temp;
     _controller.reorderPlayers(order);
-    // Décision utilisateur (revue finale, IMPORTANT #1) : une zone DÉPLACÉE
-    // prend l'orientation par défaut de son NOUVEAU siège. Sans cela, une
-    // zone déplacée du haut vers le siège gauche gardait ses 180° et
-    // devenait illisible depuis cette chaise. C'est assumé : une rotation
-    // choisie à la main sur une zone déplacée est perdue.
-    //
-    // Seules les deux zones permutées changent de siège (re-revue scopée,
-    // R1). Les reposer TOUTES détruisait l'orientation des joueurs que
-    // personne n'avait touchés : un preset « Même sens » ([0, 0, 0, 0]),
-    // que le marqueur de migration venait justement de protéger au
-    // rechargement, sautait au premier glisser-déposer sans rapport.
-    final seats = seatsFor(order.length);
-    for (final displayIndex in {oldIndex, newIndex}) {
-      _controller.updateRotation(
-          order[displayIndex], seats[displayIndex].quarterTurns);
-    }
     setState(() {});
     _saveSnapshot();
   }
@@ -1092,7 +1075,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           showAttribution ? _attributionOpponents(ps.playerId) : null,
       onAttributeDamage: (sourcePlayerId) =>
           _attributeCommanderDamage(ps.playerId, sourcePlayerId),
-      pendingDamage: pending,
     );
   }
 
@@ -1261,7 +1243,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           GestureDetector(
             onLongPress: _showGameInfoSheet,
             child: IconButton(
-              key: const ValueKey('orientation_presets_button'),
               icon: const Icon(Icons.screen_rotation_alt, color: AppColors.textSecondary),
               onPressed: _showOrientationPresets,
             ),
@@ -1320,7 +1301,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           ),
           // Edit mode toggle (NEW)
           IconButton(
-            key: const ValueKey('action-edit-mode'),
             icon: Icon(
               Icons.build,
               color: _isEditMode ? AppColors.primary : AppColors.textSecondary,
@@ -1358,9 +1338,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
             children: [
               Text('Orientation des zones', style: AppTextStyles.cinzel(fontSize: 18)),
               const SizedBox(height: 4),
-              Text('$count joueurs',
-                  style: AppTextStyles.label(
-                      color: AppColors.textMuted, fontSize: 12)),
+              Text('$count joueurs', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 12,
@@ -1368,7 +1346,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                 alignment: WrapAlignment.center,
                 children: presets.map((preset) {
                   return GestureDetector(
-                    key: ValueKey('orientation_preset_${preset.label}'),
                     onTap: () {
                       Navigator.of(sheetCtx).pop();
                       _applyOrientationPreset(preset.rotations);
@@ -1385,10 +1362,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                         children: [
                           Expanded(child: _buildOrientationPreview(preset.rotations, count)),
                           const SizedBox(height: 4),
-                          Text(preset.label,
-                              style: AppTextStyles.bold(
-                                  color: AppColors.textPrimary, fontSize: 10),
-                              textAlign: TextAlign.center),
+                          Text(preset.label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center),
                         ],
                       ),
                     ),
@@ -1403,155 +1378,122 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     );
   }
 
-  /// Presets d'orientation pour [count] joueurs.
-  ///
-  /// Les valeurs sont des `quarterTurns` finaux, posés tels quels sur
-  /// `PlayerState.quarterTurns` : `PlayerZone` est le seul à tourner quoi que
-  /// ce soit (`RotatedBox`, sens horaire), et la convention de sièges est
-  /// bas = 0, gauche = 1, haut = 2, droite = 3 (`lib/models/table_seat.dart`).
-  ///
-  /// « Table » est exactement la disposition par défaut de `seatsFor` : à
-  /// 4-6 joueurs elle assoit deux joueurs sur les côtés, là où « Face à
-  /// face » n'oriente que sur l'axe haut/bas.
   List<_OrientationPreset> _getOrientationPresets(int count) {
-    final seatRotations = seatsFor(count)
-        .map((seat) => seat.quarterTurns)
-        .toList(growable: false);
-    // Moitié haute tournée vers l'utilisateur, moitié basse dans son sens :
-    // la règle historique, conservée comme choix explicite même quand les
-    // sièges par défaut placent des joueurs sur les côtés.
-    final faceToFace = List<int>.generate(count, (i) => i < count ~/ 2 ? 2 : 0);
-
-    final candidates = <_OrientationPreset>[
-      _OrientationPreset('Table', seatRotations),
-      _OrientationPreset('Face à face', faceToFace),
-      if (count == 2) const _OrientationPreset('Côte à côte', [1, 3]),
-      _OrientationPreset('Même sens', List<int>.filled(count, 0)),
-    ];
-
-    // À 2-3 joueurs et au-delà de 6, `seatsFor` EST déjà le face-à-face :
-    // deux vignettes identiques n'aideraient personne. On ne garde que la
-    // première de chaque disposition distincte.
-    final seen = <String>{};
+    if (count == 2) {
+      return [
+        _OrientationPreset('Face à face', [2, 0]),
+        _OrientationPreset('Même sens', [0, 0]),
+        _OrientationPreset('Côte à côte', [1, 3]),
+      ];
+    }
+    if (count == 3) {
+      // Layout: 1 top (index 0), 2 bottom (indices 1, 2)
+      return [
+        _OrientationPreset('Face à face', [2, 0, 0]),
+        _OrientationPreset('Même sens', [0, 0, 0]),
+        _OrientationPreset('Triangle', [2, 1, 3]),
+      ];
+    }
+    if (count == 4) {
+      return [
+        _OrientationPreset('Face à face', [2, 2, 0, 0]),
+        _OrientationPreset('Côtés', [1, 3, 1, 3]),
+        _OrientationPreset('Table', [1, 3, 0, 2]),
+        _OrientationPreset('Cercle', [2, 2, 1, 3]),
+        _OrientationPreset('Même sens', [0, 0, 0, 0]),
+      ];
+    }
+    if (count == 5) {
+      // Layout: 2 top (indices 0-1), 3 bottom (indices 2-4)
+      return [
+        _OrientationPreset('Face à face', [2, 2, 0, 0, 0]),
+        _OrientationPreset('Même sens', [0, 0, 0, 0, 0]),
+      ];
+    }
+    if (count == 6) {
+      return [
+        _OrientationPreset('Face à face', [2, 2, 2, 0, 0, 0]),
+        _OrientationPreset('Côtés', [1, 2, 3, 1, 0, 3]),
+        _OrientationPreset('Même sens', [0, 0, 0, 0, 0, 0]),
+      ];
+    }
+    // Fallback for any count — top half = floor(count/2) to match AdaptiveGrid
+    final halfUp = List.generate(count, (i) => i < count ~/ 2 ? 2 : 0);
+    final allSame = List.filled(count, 0);
     return [
-      for (final preset in candidates)
-        if (seen.add(preset.rotations.join(','))) preset,
+      _OrientationPreset('Face à face', halfUp),
+      _OrientationPreset('Même sens', allSame),
     ];
   }
 
   void _applyOrientationPreset(List<int> rotations) {
     if (_session == null) return;
-    // Les presets décrivent une position visuelle (le siège autour de la
-    // table) : il faut donc les appliquer dans l'ordre d'affichage, pas dans
-    // l'ordre canonique, sous peine de tourner le mauvais joueur après un
-    // reorder.
-    //
-    // Les valeurs sont posées telles quelles : rien d'autre que `PlayerZone`
-    // ne tourne une zone. La compensation de 180° qui vivait ici datait de
-    // l'époque où `AdaptiveGrid` pivotait elle-même la moitié haute ; la
-    // grille est purement positionnelle depuis le lot 6 (voir le test
-    // « AdaptiveGrid ne contient aucune RotatedBox »), et cette soustraction
-    // était devenue une désorientation de 180°.
+    // Les presets décrivent une position visuelle (haut/bas de la grille) :
+    // il faut donc les appliquer dans l'ordre d'affichage, pas dans l'ordre
+    // canonique, sous peine de tourner le mauvais joueur après un reorder.
     final players = _orderedPlayers;
+    final topCount = players.length ~/ 2;
     for (int i = 0; i < players.length && i < rotations.length; i++) {
-      _controller.updateRotation(players[i].playerId, rotations[i] % 4);
+      // AdaptiveGrid wraps the top half in RotatedBox(quarterTurns: 2),
+      // so we must compensate: subtract 2 quarter turns for top-row zones
+      // to get the intended visual orientation.
+      int effectiveRotation = rotations[i];
+      if (i < topCount) {
+        effectiveRotation = (rotations[i] - 2) % 4;
+        if (effectiveRotation < 0) effectiveRotation += 4;
+      }
+      _controller.updateRotation(players[i].playerId, effectiveRotation);
     }
     setState(() {});
     _saveSnapshot();
     HapticFeedback.mediumImpact();
   }
 
-  /// Vignette d'aperçu d'un preset, sur la géométrie réelle de `seatsFor`.
-  ///
-  /// Même découpage que `AdaptiveGrid` : deux colonnes latérales facultatives
-  /// encadrant une zone centrale coupée en rangée haute et rangée basse.
-  /// L'aperçu montre donc à la fois où chaque zone ira et comment elle sera
-  /// tournée — un modèle purement haut/bas mentirait dès 4 joueurs, où deux
-  /// sièges sur quatre sont latéraux.
   Widget _buildOrientationPreview(List<int> rotations, int count) {
-    final seats = seatsFor(count);
-    List<int> indicesOn(TableSide side) => [
-          for (int i = 0; i < seats.length; i++)
-            if (seats[i].side == side) i,
-        ];
-    final top = indicesOn(TableSide.top);
-    final bottom = indicesOn(TableSide.bottom);
-    final left = indicesOn(TableSide.left);
-    final right = indicesOn(TableSide.right);
+    // Mirror the AdaptiveGrid layout: topCount = floor(count/2), bottomCount = count - topCount
+    final topCount = count ~/ 2;
+    final bottomCount = count - topCount;
+    final rows = topCount == 0 ? 1 : 2;
+    final maxCols = topCount > bottomCount ? topCount : bottomCount;
 
     return LayoutBuilder(builder: (ctx, constraints) {
-      final width = constraints.maxWidth;
-      final height = constraints.maxHeight;
-      final sideWidth = width * AdaptiveGrid.sideColumnFraction;
-      final leftWidth = left.isEmpty ? 0.0 : sideWidth;
-      final rightWidth = right.isEmpty ? 0.0 : sideWidth;
-      final centreWidth = width - leftWidth - rightWidth;
-
-      Widget cell(int index, double x, double y, double w, double h) {
-        final rotation = index < rotations.length ? rotations[index] : 0;
-        return Positioned(
-          left: x,
-          top: y,
-          width: w,
-          height: h,
-          child: Container(
-            margin: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: AppColors.primaryShade800.withAlpha(60),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: AppColors.borderMedium, width: 0.5),
-            ),
-            child: Center(
-              child: Text(
-                _arrowForRotation(rotation),
-                style: AppTextStyles.label(
-                    color: AppColors.textPrimary, fontSize: 16),
-              ),
-            ),
-          ),
-        );
-      }
-
-      List<Widget> sideColumn(List<int> indices, double x, double w) => [
-            for (int slot = 0; slot < indices.length; slot++)
-              cell(indices[slot], x, slot * height / indices.length, w,
-                  height / indices.length),
-          ];
-
-      List<Widget> centreRow(List<int> indices, double y, double h) => [
-            for (int slot = 0; slot < indices.length; slot++)
-              cell(
-                indices[slot],
-                leftWidth + slot * centreWidth / indices.length,
-                y,
-                centreWidth / indices.length,
-                h,
-              ),
-          ];
-
-      // Une seule rangée occupée prend toute la hauteur (1 joueur) ; sinon
-      // haut et bas se partagent la vignette.
-      final rowHeight =
-          (top.isEmpty || bottom.isEmpty) ? height : height / 2;
-
+      final cellW = constraints.maxWidth / maxCols;
+      final cellH = constraints.maxHeight / rows;
       return Stack(
-        children: [
-          ...sideColumn(left, 0, leftWidth),
-          ...sideColumn(right, leftWidth + centreWidth, rightWidth),
-          ...centreRow(top, 0, rowHeight),
-          ...centreRow(bottom, height - rowHeight, rowHeight),
-        ],
+        children: List.generate(count, (i) {
+          final bool isTop = i < topCount;
+          final int row = isTop ? 0 : (rows - 1);
+          final int col = isTop ? i : (i - topCount);
+          final int rowCols = isTop ? topCount : bottomCount;
+          // Center the row if it has fewer items than maxCols
+          final double offsetX = (maxCols - rowCols) * cellW / 2;
+          final rotation = rotations[i];
+          final arrow = _arrowForRotation(rotation);
+          return Positioned(
+            left: offsetX + col * cellW,
+            top: row * cellH,
+            width: cellW,
+            height: cellH,
+            child: Container(
+              margin: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: AppColors.primaryShade800.withAlpha(60),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: AppColors.borderMedium, width: 0.5),
+              ),
+              child: Center(
+                child: Text(arrow, style: const TextStyle(fontSize: 16, color: AppColors.textPrimary)),
+              ),
+            ),
+          );
+        }),
       );
     });
   }
 
-  /// Sens vers lequel pointe le HAUT de la zone une fois tournée, c'est-à-dire
-  /// l'opposé du joueur, assis de l'autre côté (`table_seat.dart`).
-  ///
-  /// `RotatedBox` tourne dans le sens horaire : 0 = haut, 1 = droite,
-  /// 2 = bas, 3 = gauche.
   String _arrowForRotation(int quarterTurns) {
     switch (quarterTurns % 4) {
+      case 0: return '↑';
       case 1: return '→';
       case 2: return '↓';
       case 3: return '←';

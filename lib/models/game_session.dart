@@ -1,7 +1,6 @@
 // lib/models/game_session.dart
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/player_config.dart';
-import 'package:magic_companion/models/table_seat.dart';
 
 class LifeEvent {
   final int delta;
@@ -144,17 +143,11 @@ class GameSession {
     String? tag,
   }) {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
-    // Sieges par defaut (spec lot 6 §2) : a la creation, `playerOrder` est
-    // encore l'identite (ci-dessous), donc le siege d'affichage i est bien
-    // celui du joueur i. `updateRotation` peut ensuite remplacer ce defaut
-    // a tout moment ; poser une valeur non nulle ici n'empeche rien.
-    final seats = seatsFor(playerConfigs.length);
     final players = List.generate(playerConfigs.length, (i) {
       return PlayerState(
         playerId: i,
         config: playerConfigs[i],
         life: format.startingLife,
-        quarterTurns: seats[i].quarterTurns,
       );
     });
     return GameSession(
@@ -214,14 +207,6 @@ class GameSession {
   }
 
   Map<String, dynamic> toJson() => {
-    // Marqueur de migration des rotations (revue finale, CRITICAL #2). Tout
-    // snapshot écrit par ce code porte déjà ses `quarterTurns` définitifs :
-    // `_migrateLegacyRotation` ne doit plus jamais s'exécuter dessus, sans
-    // quoi un joueur qui choisit délibérément « Même sens » (soit
-    // `[0, 0, 0, 0]`, exactement ce que l'heuristique prend pour un ancien
-    // snapshot) verrait son choix écrasé par les défauts de sièges à chaque
-    // rechargement.
-    'rotationsMigrated': true,
     'id': id,
     'format': format.toJson(),
     'players': players.map((p) => p.toJson()).toList(),
@@ -240,14 +225,9 @@ class GameSession {
         .map((p) => PlayerState.fromJson(p as Map<String, dynamic>))
         .toList();
     final rawPlayerOrder = (json['playerOrder'] as List?)?.cast<int>() ?? [];
-    final (orderedPlayers, playerOrder) = rawPlayerOrder.length == rawPlayers.length
+    final (players, playerOrder) = rawPlayerOrder.length == rawPlayers.length
         ? _migrateLegacyOrder(rawPlayers, rawPlayerOrder)
         : (rawPlayers, rawPlayerOrder);
-    // Le marqueur est absent de tous les snapshots écrits avant ce
-    // correctif : ce sont eux, et eux seuls, que la migration doit toucher.
-    final players = json['rotationsMigrated'] == true
-        ? orderedPlayers
-        : _migrateLegacyRotation(orderedPlayers, playerOrder);
 
     return GameSession(
       id: json['id'] as String,
@@ -298,73 +278,6 @@ class GameSession {
       return (canonicalPlayers, physicalOrder);
     }
     return (players, playerOrder);
-  }
-
-  /// Migration silencieuse d'un ancien snapshot, pour la rotation (lot 6).
-  ///
-  /// Avant ce lot, `AdaptiveGrid` compensait elle-même la moitié haute en la
-  /// pivotant de 180°, et tous les snapshots écrits par les versions
-  /// installées portent donc `quarterTurns = 0` pour chaque joueur — la
-  /// grille faisait tout le travail visuel, `PlayerState.quarterTurns`
-  /// restant un simple défaut inerte. `AdaptiveGrid` est désormais purement
-  /// positionnelle (tâche 2 du lot 6) : elle ne pivote plus rien, seul
-  /// `PlayerZone` applique `RotatedBox(quarterTurns: ...)`. Sans cette
-  /// migration, reprendre une telle partie afficherait donc tous les joueurs
-  /// à l'endroit, y compris ceux assis en face de l'appareil — régression
-  /// visible dès le premier lancement après mise à jour.
-  ///
-  /// **Exécutable une seule fois** (revue finale, CRITICAL #2). `toJson`
-  /// écrit désormais `rotationsMigrated: true`, et `fromJson` (ci-dessus)
-  /// n'appelle cette méthode que si ce marqueur est absent — le cas de
-  /// tous les snapshots écrits avant ce correctif, et d'eux seuls. Sans
-  /// ce garde-fou, l'heuristique ci-dessous confondrait un tout-à-zéro
-  /// délibéré (le preset « Même sens » de `life_counter_page.dart`
-  /// produit exactement `[0, 0, 0, 0]`) avec un ancien snapshot, et
-  /// l'écraserait à chaque rechargement.
-  ///
-  /// Heuristique : si tous les `quarterTurns` valent 0 et qu'il y a plus d'un
-  /// joueur, c'est indistinguable d'un ancien snapshot (ou d'une partie où
-  /// personne n'a jamais tourné sa zone, auquel cas recevoir les défauts du
-  /// siège est de toute façon le bon résultat) — on applique les défauts de
-  /// `seatsFor`, dans l'ordre d'affichage `playerOrder`. Dès qu'un seul
-  /// joueur a tourné sa zone, on ne touche à rien : un vrai zéro voisin d'une
-  /// rotation choisie doit rester un vrai zéro.
-  ///
-  /// Ronde de correction 1 (CRITICAL) : `playerOrder` a été introduit au
-  /// lot 1, deux jours avant celui-ci. `fromJson` (ci-dessus) passe ici un
-  /// `playerOrder` **vide** dès que le champ est absent du JSON ou de
-  /// longueur différente de `players` — exactement le cas de TOUS les
-  /// snapshots écrits par la version installée aujourd'hui. Sans ce repli,
-  /// la boucle ci-dessous ne s'exécute jamais et aucune rotation n'est
-  /// migrée pour la population même que cette migration existe pour
-  /// protéger. Repli : dans ce cas, l'ordre d'affichage EST l'ordre canonique
-  /// de `players` (`playerId` == index), comme le fait déjà
-  /// `_orderedPlayers` (life_counter_page.dart) pour l'affichage lui-même
-  /// quand `playerOrder` ne correspond pas.
-  static List<PlayerState> _migrateLegacyRotation(
-    List<PlayerState> players,
-    List<int> playerOrder,
-  ) {
-    if (players.length <= 1) return players;
-    if (players.any((p) => p.quarterTurns != 0)) return players;
-
-    final seats = seatsFor(players.length);
-    final effectiveOrder = playerOrder.length == players.length
-        ? playerOrder
-        : players.map((p) => p.playerId).toList();
-    final byPlayerId = {for (final p in players) p.playerId: p};
-
-    for (var displayIndex = 0; displayIndex < effectiveOrder.length; displayIndex++) {
-      if (displayIndex >= seats.length) break;
-      final playerId = effectiveOrder[displayIndex];
-      final player = byPlayerId[playerId];
-      if (player == null) continue;
-      byPlayerId[playerId] = player.copyWith(
-        quarterTurns: seats[displayIndex].quarterTurns,
-      );
-    }
-
-    return players.map((p) => byPlayerId[p.playerId] ?? p).toList();
   }
 
   static bool _intListEquals(List<int> a, List<int> b) {

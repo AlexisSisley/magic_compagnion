@@ -5,8 +5,6 @@
 // compteur (life/poison/energy/commanderTax) que la zone V4 n'a plus : le
 // chiffre n'affiche que les PV, les compteurs vivent dans le tiroir.
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/theme/app_colors.dart';
@@ -82,38 +80,8 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
   /// Au-delà de ce déplacement (px) dans un seul geste, la molette accélère.
   static const double wheelAccelerationThreshold = 120.0;
 
-  /// Minuteurs d'animation (50ms) et de retrait (600ms) des nombres flottants
-  /// en vol, indexés par id de nombre. Le notifier POSSÈDE l'état
-  /// (`state.floatingNumbers`) ; il possède donc aussi son nettoyage --
-  /// c'est la correction de la tâche 7 du lot 6. Avant elle, ces `Timer`
-  /// vivaient dans `PlayerZone` (le widget) et étaient gardés par
-  /// `if (!mounted) return;` : si la zone était démontée entre l'affichage
-  /// et les 600ms (changement de cran, de siège, de rotation...), la garde
-  /// empêchait le retrait et le nombre restait dans l'état pour toujours --
-  /// le bug signalé par l'utilisateur. `ref.onDispose` ci-dessous annule ce
-  /// qui reste en vol quand ce notifier lui-même disparaît (partie qui se
-  /// termine, provider recréé) ; ça n'arrive jamais tant que la zone reste
-  /// montée pour un `playerId` donné, mais couvre le cas où la partie entière
-  /// se termine avec un minuteur encore en vol.
-  final Map<int, Timer> _animateTimers = {};
-  final Map<int, Timer> _removeTimers = {};
-
   @override
-  PlayerZoneState build() {
-    ref.onDispose(_cancelFloatingNumberTimers);
-    return const PlayerZoneState();
-  }
-
-  void _cancelFloatingNumberTimers() {
-    for (final timer in _animateTimers.values) {
-      timer.cancel();
-    }
-    for (final timer in _removeTimers.values) {
-      timer.cancel();
-    }
-    _animateTimers.clear();
-    _removeTimers.clear();
-  }
+  PlayerZoneState build() => const PlayerZoneState();
 
   // --- Mode ajustement ---
 
@@ -190,13 +158,12 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
 
   // --- Nombres flottants ---
 
-  /// Ajoute un nombre flottant et programme lui-même son cycle de vie
-  /// complet : animation à 50ms (`animateFloatingNumber`), retrait à 600ms
-  /// (`removeFloatingNumber`). L'appelant (`PlayerZone`) n'a donc plus rien à
-  /// garder ni à annuler -- voir le commentaire de `_animateTimers` ci-dessus
-  /// pour la raison. L'id renvoyé n'a plus besoin d'être conservé par
-  /// l'appelant ; il ne reste utile qu'aux tests qui ciblent directement
-  /// `animateFloatingNumber`/`removeFloatingNumber`.
+  /// Ajoute un nombre flottant et renvoie l'id qui lui a été assigné, pour
+  /// que l'appelant puisse l'animer puis le retirer plus tard (voir
+  /// `animateFloatingNumber`/`removeFloatingNumber`) sans avoir à connaître
+  /// par ailleurs la façon dont cet id est choisi — un `ref.read` séparé sur
+  /// `nextNumberId` juste avant l'appel serait un couplage implicite à cette
+  /// implémentation interne.
   int showFloatingNumber(int delta) {
     final text = delta > 0 ? '+$delta' : '$delta';
     final color = delta > 0 ? AppColors.accentGreen : AppColors.accentRed;
@@ -208,16 +175,6 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
       ],
       nextNumberId: id + 1,
     );
-
-    _animateTimers[id] = Timer(const Duration(milliseconds: 50), () {
-      _animateTimers.remove(id);
-      animateFloatingNumber(id);
-    });
-    _removeTimers[id] = Timer(const Duration(milliseconds: 600), () {
-      _removeTimers.remove(id);
-      removeFloatingNumber(id);
-    });
-
     return id;
   }
 

@@ -1,117 +1,109 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-import 'package:magic_companion/models/table_seat.dart';
-import 'package:magic_companion/widgets/life_counter/layouts/density_tier.dart';
 
-/// Moteur de rendu des zones joueur (spec lot 6 §2.1).
+/// Single layout widget for 2-8 players with a central bar slot.
 ///
-/// Cette classe ne decide plus de la disposition : elle rend les sieges que
-/// `seatsFor` lui donne. Toute question de geometrie se tranche dans
-/// `lib/models/table_seat.dart`, pas ici.
+/// Layout rule (face-to-face table play):
+///   topCount = floor(playerCount / 2) → opponents (rotated 180°)
+///   bottomCount = playerCount - topCount → user's side (upright)
+///
+/// For odd counts the extra player goes to the bottom (user's side):
+///   3 players → 1 top, 2 bottom
+///   5 players → 2 top, 3 bottom
+///   7 players → 3 top, 4 bottom
+///
+/// Special case: 8 players → each half becomes a 2×2 sub-grid.
 class AdaptiveGrid extends StatelessWidget {
+  final List<Widget> playerZones;
+  final Widget centralBar;
+
   const AdaptiveGrid({
     super.key,
     required this.playerZones,
     required this.centralBar,
   });
 
-  final List<Widget> playerZones;
-  final Widget centralBar;
-
-  /// Part de largeur prise par une colonne laterale quand elle existe, sur
-  /// les ecrans assez larges pour que ce ratio suffise a lui seul.
-  ///
-  /// Un siege lateral pivote a 90/270 (tache 3 du lot 6) : `RotatedBox`
-  /// echange largeur et hauteur pour son contenu, donc la largeur de cette
-  /// colonne devient la hauteur DISPONIBLE pour la Column de
-  /// `player_zone.dart` (en-tete 40 + poignee, au moins `kZoneHeightFloor`
-  /// au total). Cette fraction n'est plus, a elle seule, ce qui protege ce
-  /// plancher : tache 4 du lot 6, ruling 13 -- `build()` ci-dessous applique
-  /// `kZoneHeightFloor` (le contrat de densite, `density_tier.dart`) comme
-  /// largeur minimale absolue de la colonne. 0.30 redevient donc un simple
-  /// reglage esthetique pour les ecrans larges, jamais la seule garantie
-  /// contre l'overflow decouvert a la tache 3 sur un telephone de 320 de
-  /// large.
-  static const double sideColumnFraction = 0.30;
-
   @override
   Widget build(BuildContext context) {
-    final seats = seatsFor(playerZones.length);
+    final int playerCount = playerZones.length;
+    final int topCount = playerCount ~/ 2;
 
-    List<Widget> zonesOn(TableSide side) {
-      final indexed = <int>[];
-      for (int i = 0; i < seats.length; i++) {
-        if (seats[i].side == side) indexed.add(i);
-      }
-      indexed.sort((a, b) => seats[a].slot.compareTo(seats[b].slot));
-      return indexed
-          .map((i) => Padding(padding: const EdgeInsets.all(2), child: playerZones[i]))
-          .toList();
-    }
+    final topZones = playerZones.sublist(0, topCount);
+    final bottomZones = playerZones.sublist(topCount);
 
-    final top = zonesOn(TableSide.top);
-    final bottom = zonesOn(TableSide.bottom);
-    final left = zonesOn(TableSide.left);
-    final right = zonesOn(TableSide.right);
-
-    final useSubGrid = playerZones.length == 8;
-
-    final centre = Column(
+    return Column(
       children: [
-        Expanded(child: _half(top, useSubGrid: useSubGrid)),
+        Expanded(
+          child: _buildHalf(
+            zones: topZones,
+            rotate: true,
+            useSubGrid: playerCount == 8,
+          ),
+        ),
         centralBar,
-        Expanded(child: _half(bottom, useSubGrid: useSubGrid)),
+        Expanded(
+          child: _buildHalf(
+            zones: bottomZones,
+            rotate: false,
+            useSubGrid: playerCount == 8,
+          ),
+        ),
       ],
     );
-
-    if (left.isEmpty && right.isEmpty) return centre;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Plancher absolu (tache 4, ruling 13) : quel que soit l'ecran, la
-        // colonne laterale ne doit jamais descendre sous `kZoneHeightFloor`
-        // -- sans quoi, une fois pivotee par `PlayerZone`, elle offre a la
-        // Column (en-tete + poignee) moins que ce dont celle-ci a besoin.
-        final sideWidth = math.max(
-          constraints.maxWidth * sideColumnFraction,
-          kZoneHeightFloor,
-        );
-        return Row(
-          children: [
-            if (left.isNotEmpty)
-              SizedBox(width: sideWidth, child: _column(left)),
-            Expanded(child: centre),
-            if (right.isNotEmpty)
-              SizedBox(width: sideWidth, child: _column(right)),
-          ],
-        );
-      },
-    );
   }
 
-  static Widget _column(List<Widget> zones) {
-    return Column(
-      children: [for (final zone in zones) Expanded(child: zone)],
-    );
-  }
-
-  static Widget _half(List<Widget> zones, {required bool useSubGrid}) {
-    if (zones.isEmpty) return const SizedBox.shrink();
-
+  Widget _buildHalf({
+    required List<Widget> zones,
+    required bool rotate,
+    required bool useSubGrid,
+  }) {
     if (useSubGrid && zones.length == 4) {
       return Column(
         children: [
-          Expanded(child: Row(children: [
-            for (int i = 0; i < 2; i++) Expanded(child: zones[i]),
-          ])),
-          Expanded(child: Row(children: [
-            for (int i = 2; i < 4; i++) Expanded(child: zones[i]),
-          ])),
+          Expanded(
+            child: Row(
+              children: [
+                for (int i = 0; i < 2; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: rotate
+                          ? RotatedBox(quarterTurns: 2, child: zones[i])
+                          : zones[i],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                for (int i = 2; i < 4; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: rotate
+                          ? RotatedBox(quarterTurns: 2, child: zones[i])
+                          : zones[i],
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       );
     }
 
-    return Row(children: [for (final zone in zones) Expanded(child: zone)]);
+    return Row(
+      children: zones
+          .map((zone) => Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: rotate
+                      ? RotatedBox(quarterTurns: 2, child: zone)
+                      : zone,
+                ),
+              ))
+          .toList(),
+    );
   }
 }

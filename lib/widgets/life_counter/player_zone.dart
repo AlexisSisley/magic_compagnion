@@ -2,6 +2,7 @@
 
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,7 +18,6 @@ import 'zone/life_dial.dart';
 import 'zone/conditional_handle.dart';
 import 'zone/player_skin_picker.dart';
 import 'zone/damage_attribution_row.dart';
-import 'layouts/density_tier.dart';
 
 class PlayerZone extends ConsumerStatefulWidget {
   const PlayerZone({
@@ -33,7 +33,6 @@ class PlayerZone extends ConsumerStatefulWidget {
     this.isHighlighted = false,
     this.attributionOpponents,
     this.onAttributeDamage,
-    this.pendingDamage = 0,
   });
 
   final Player player;
@@ -50,26 +49,12 @@ class PlayerZone extends ConsumerStatefulWidget {
   /// Ronde de correction finale (Critical/Important #2) : vit ICI, DANS le
   /// `RotatedBox` de `quarterTurns` ci-dessous -- et non empilée par-dessus
   /// depuis `life_counter_page.dart` comme au premier jet -- pour pivoter
-  /// avec le reste de la zone : mal orientée, elle tomberait au bas de
-  /// l'écran plutôt qu'au bas de la zone telle que le joueur la lit à
-  /// 90°/270°. Même raisonnement, même correction pour `pendingDamage`
-  /// ci-dessous (tâche 6 du lot 6).
+  /// avec le reste de la zone. Contrairement au badge de buffer (décoratif,
+  /// même défaut resté tel quel, voir la note du lot 6), cette rangée est
+  /// une cible tactile : mal orientée, elle tombe au bas de l'écran plutôt
+  /// qu'au bas de la zone telle que le joueur la lit à 90°/270°.
   final List<DamageAttributionOpponent>? attributionOpponents;
   final void Function(int sourcePlayerId)? onAttributeDamage;
-
-  /// Solde du buffer de dégâts de 2s en attente d'application (voir
-  /// `life_counter_page._pendingDamage`) : 0 masque le badge, un signe
-  /// choisit sa couleur (gain vs dégât). État transitoire, pas un compteur
-  /// permanent -- il reste affiché à tous les crans de densité, y compris
-  /// au cran minimal (spec §3.3 : seule la couche d'alerte perce le
-  /// silence du cran minimal, ce badge n'est pas cette couche).
-  ///
-  /// Vit ICI, DANS le `RotatedBox` de `quarterTurns` -- corrigé au lot 6
-  /// tâche 6 : rendu hors de la zone depuis `life_counter_page.dart`
-  /// jusqu'ici, il ne pivotait jamais avec elle, ce qui restait discret
-  /// tant que les rotations non nulles étaient rares. Ce lot place deux
-  /// sièges sur quatre à 90°/270°, ce qui rend le défaut visible.
-  final int pendingDamage;
 
   /// Ouverture du tiroir (tap sur la poignée — voir `ConditionalHandle`, qui
   /// n'expose qu'un `onTap`, aucun glissement) : compteurs, monarque,
@@ -102,6 +87,9 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
 
   Offset _lastLongPressPosition = Offset.zero;
 
+  /// Hauteur réservée à l'en-tête (palette, rotation, nom) au-dessus du
+  /// cadran de vie (spec §2.1 : le chiffre occupe le reste de la zone).
+  static const double _headerHeight = 40.0;
 
   // --- US-14.3 : Animation controllers ---
   late final AnimationController _pulseController;
@@ -201,17 +189,27 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     }
   }
 
-  /// Délègue entièrement au notifier (`showFloatingNumber`) : apparition,
-  /// animation à 50ms et retrait à 600ms. Ce widget n'arme plus de `Timer`
-  /// ni ne garde de `mounted` sur ce chemin -- le notifier possède l'état
-  /// (`state.floatingNumbers`), il possède donc aussi son propre nettoyage
-  /// (voir le commentaire de `PlayerZoneNotifier._animateTimers`). Avant
-  /// cette correction (tâche 7 du lot 6), ces `Timer` vivaient ici, gardés
-  /// par `if (!mounted) return;` : si la zone était démontée entre
-  /// l'affichage et les 600ms, la garde empêchait le retrait et le nombre
-  /// restait affiché indéfiniment -- le bug signalé par l'utilisateur.
+  /// Délègue au notifier (`showFloatingNumber`) l'apparition du nombre, puis
+  /// programme son animation puis son retrait via deux `Timer`, comme avant
+  /// — la seule différence est que l'état vit désormais dans le notifier.
+  ///
+  /// Attention au cycle de vie : ces `Timer` peuvent se déclencher après le
+  /// démontage de la zone (changement de layout, retrait du joueur...). Le
+  /// provider n'est pas `autoDispose`, un appel tardif ne plantera donc pas
+  /// — mais il écrirait dans l'état d'une zone qui n'existe plus. D'où les
+  /// gardes `if (!mounted) return;` avant tout accès à `ref`.
   void _showFloatingNumber(int change) {
-    _notifier.showFloatingNumber(change);
+    final int id = _notifier.showFloatingNumber(change);
+
+    Timer(const Duration(milliseconds: 50), () {
+      if (!mounted) return;
+      _notifier.animateFloatingNumber(id);
+    });
+
+    Timer(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      _notifier.removeFloatingNumber(id);
+    });
   }
 
   void _rotate90Degrees() {
@@ -234,28 +232,6 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final int quarterTurns = widget.player.quarterTurns;
-
-        // Le cran de densite se decide sur la taille DANS LE REPERE DU
-        // JOUEUR (tache 4 du lot 6) : un siege lateral (90/270) est haut et
-        // etroit a l'ecran mais large et bas pour le joueur qui le lit une
-        // fois la zone tournee -- `RotatedBox` echange les axes pour son
-        // enfant. `constraints` ici est mesure AVANT cette rotation (elle
-        // n'est appliquee qu'au `return` ci-dessous), donc on transpose
-        // nous-memes.
-        final Size sizeInPlayerFrame = quarterTurns.isOdd
-            ? Size(constraints.maxHeight, constraints.maxWidth)
-            : Size(constraints.maxWidth, constraints.maxHeight);
-        final DensityTier tier = tierFor(sizeInPlayerFrame);
-
-        return _buildZone(context, tier, quarterTurns);
-      },
-    );
-  }
-
-  Widget _buildZone(BuildContext context, DensityTier tier, int quarterTurns) {
     Color bgColor = Color(widget.player.colorValue);
 
     // Image de fond (ou couleur unie de repli) : voir zone/player_skin_picker.dart.
@@ -309,7 +285,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
             child: Column(
               children: [
                 SizedBox(
-                  height: kZoneHeaderHeight,
+                  height: _headerHeight,
                   child: PlayerHeader(
                     onShowColorPicker: () => showPlayerSkinPicker(
                       context: context,
@@ -332,12 +308,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                       _lastLongPressPosition = details.localPosition;
                       _handleRotationDrag(delta);
                     },
-                    // Cran minimal (tache 4, spec §3.2) : le nom se reduit a
-                    // la pastille de couleur deja portee par le fond de la
-                    // zone -- on n'affiche plus le libelle du PlayerHeader,
-                    // qui n'a pas la place de s'afficher sans deborder.
-                    playerName:
-                        tier == DensityTier.minimal ? null : widget.player.name,
+                    playerName: widget.player.name,
                     onNameTap: widget.onNameTap,
                   ),
                 ),
@@ -366,7 +337,6 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                 ConditionalHandle(
                   summary: counterSummary,
                   onTap: widget.onOpenDrawer,
-                  tier: tier,
                 ),
               ],
             ),
@@ -410,52 +380,17 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
           // ±5/±10 de `LifeDial._stepRow()`. Les deux ne coexistent jamais
           // (l'appelant masque `attributionOpponents` en mode ajustement,
           // ronde de correction finale Critical #1) : plus besoin de
-          // partager le même bas sans se recouvrir.
-          //
-          // La hauteur effective de la poignée dépend désormais du cran
-          // (tâche 4) : en confort elle vaut 48, pas 30 -- ancrer sur
-          // `ConditionalHandle.reservedHeight` (le plancher, invariant)
-          // recouvrirait 18px de la poignée dès 2-3 joueurs. `handleHeightFor`
-          // est la seule source qui connaisse la hauteur réelle.
+          // partager le même 30px du bas sans se recouvrir.
           if (widget.attributionOpponents != null &&
               widget.attributionOpponents!.isNotEmpty)
             Positioned(
               left: 0,
               right: 0,
-              bottom: handleHeightFor(tier),
+              bottom: ConditionalHandle.reservedHeight,
               child: Center(
                 child: DamageAttributionRow(
                   opponents: widget.attributionOpponents!,
                   onAttribute: widget.onAttributeDamage!,
-                ),
-              ),
-            ),
-
-          // Badge de dégâts en attente (voir le doc-comment de
-          // `pendingDamage`) : ancré top/right comme l'icône de galerie de
-          // commandants ci-dessus -- les deux ne se recouvrent qu'au cas
-          // marginal où une galerie ET un buffer sont actifs en même temps
-          // sur le même joueur, préexistant à cette correction et hors
-          // périmètre de la tâche 6.
-          if (widget.pendingDamage != 0)
-            Positioned(
-              key: const ValueKey('pending_damage_badge'),
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: (widget.pendingDamage > 0
-                          ? AppColors.accentGreen
-                          : AppColors.accentRed)
-                      .withAlpha(180),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  widget.pendingDamage > 0
-                      ? '+${widget.pendingDamage}'
-                      : '${widget.pendingDamage}',
-                  style: AppTextStyles.bold(color: AppColors.textPrimary, fontSize: 14),
                 ),
               ),
             ),
@@ -476,7 +411,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     );
 
     return RotatedBox(
-      quarterTurns: quarterTurns,
+      quarterTurns: widget.player.quarterTurns,
       child: content,
     );
   }

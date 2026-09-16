@@ -17,8 +17,6 @@ import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
-import 'package:magic_companion/widgets/life_counter/animations/animation_service.dart';
-import 'package:magic_companion/widgets/life_counter/critical_overlay.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
@@ -87,33 +85,24 @@ Future<void> pumpLifeCounter(
 /// du joueur affiché à `zoneIndex`, avec un `pump()` entre chaque tap pour
 /// laisser chaque geste se résoudre avant le suivant.
 ///
-/// Tape directement sur la moitié négative du cadran de vie du joueur.
-///
-/// zoneIndex est l'index d'affichage (après reorder possible). On trouve d'abord
-/// le LifeDial à cet index, puis on tape sur sa moitié négative par clé.
-/// Flutter gère automatiquement les hit-tests à travers les RotatedBox.
+/// `AdaptiveGrid` pivote à 180° les zones du haut (index < topCount, où
+/// topCount = playerCount ~/ 2 — voir adaptive_grid.dart) : la moitié
+/// GÉOMÉTRIQUE gauche (écran) d'une zone pivotée est alors sa moitié locale
+/// DROITE (+1), et inversement. `totalZones` (le nombre de `LifeDial`
+/// réellement montés) sert à retrouver `topCount` sans le supposer fixe, si
+/// bien que ce calcul reste correct quel que soit le nombre de joueurs de la
+/// session testée.
 Future<void> tapMinusHalf(
   WidgetTester tester,
   int zoneIndex,
-  int count, {
-  ProviderContainer? container,
-}) async {
-  // Obtenir le container et la session pour traduire zoneIndex (ordre d'affichage) → playerId
-  final resolvedContainer = container ?? ProviderScope.containerOf(tester.element(find.byType(LifeCounterPage)));
-  final session = resolvedContainer.read(gameSessionNotifierProvider)!;
-  final playerId = session.playerOrder[zoneIndex];
-
-  // Chercher la zone du joueur par sa clé playerId
-  final zoneFinder = find.byKey(ValueKey('player_zone_$playerId'));
-
-  // Trouver la moitié négative comme descendante
-  final minusHalfFinder = find.descendant(
-    of: zoneFinder,
-    matching: find.byKey(const ValueKey('life_dial_half_minus')),
-  );
-
+  int count,
+) async {
+  final totalZones = find.byType(LifeDial).evaluate().length;
+  final isRotated = zoneIndex < totalZones ~/ 2;
+  final dial = tester.getRect(find.byType(LifeDial).at(zoneIndex));
+  final dx = isRotated ? dial.width * 0.75 : dial.width * 0.25;
   for (var i = 0; i < count; i++) {
-    await tester.tap(minusHalfFinder);
+    await tester.tapAt(Offset(dial.left + dx, dial.center.dy));
     await tester.pump();
   }
 }
@@ -292,24 +281,21 @@ void main() {
 
     // Dégâts en attente sur le joueur 0, affiché en dernière position (index
     // 3) après le swap 0<->3 : 5 vrais taps sur la moitié −1 de son cadran.
-    await tapMinusHalf(tester, 3, 5, container: container);
+    await tapMinusHalf(tester, 3, 5);
     await tester.pump(const Duration(milliseconds: 100));
 
     // Un seul badge, et il doit être celui du joueur 0.
     expect(find.text('-5'), findsOneWidget);
 
     // L'assertion de proximité de centres proposée à l'origine est fragile :
-    // deux zones voisines peuvent avoir des centres géométriquement proches
+    // les zones du haut de la grille sont pivotées à 180° par AdaptiveGrid,
+    // ce qui peut rapprocher géométriquement deux centres de zones distinctes
     // sans qu'elles soient la même zone. On vérifie donc une inclusion
     // géométrique réelle : le centre du badge tombe dans le rectangle de la
-    // zone du joueur 0 — repérée par sa clé `player_zone_0`, pas par sa
-    // position d'affichage (AdaptiveGrid ne pivote plus rien depuis le lot 6 :
-    // c'est PlayerZone qui applique sa propre rotation).
+    // zone du joueur 0, affichée en dernière position après le swap 0<->3
+    // sur ces 4 joueurs.
     final badge = tester.getCenter(find.text('-5'));
-    final zoneRect = tester.getRect(find.descendant(
-      of: find.byKey(const ValueKey('player_zone_0')),
-      matching: find.byType(PlayerZone),
-    ));
+    final zoneRect = tester.getRect(find.byType(PlayerZone).last);
     expect(
       zoneRect.contains(badge),
       isTrue,
@@ -799,13 +785,7 @@ void main() {
   /// `HitTestBehavior` changé, hauteur nulle), ils resteraient verts alors que
   /// les quatre actions redeviendraient injoignables dans l'app.
   Future<void> openDrawerForPlayerZero(WidgetTester tester) async {
-    // Trouver la zone du joueur 0 en utilisant sa clé (playerId=0),
-    // puis y descendre pour trouver sa ConditionalHandle.
-    // Cela rend le test invariant à l'ordre d'affichage (reorder, colonnes latérales).
-    await tester.tap(find.descendant(
-      of: find.byKey(const ValueKey('player_zone_0')),
-      matching: find.byType(ConditionalHandle),
-    ).first);
+    await tester.tap(find.byType(ConditionalHandle).first);
     await tester.pumpAndSettle();
   }
 
@@ -1266,17 +1246,11 @@ void main() {
       (tester) async {
     await pumpWithContainer(tester);
 
-    // Deux taps +1 sur le cadran de Sarah : un gain de vie en attente,
-    // jamais un dégât. Tape la moitié positive par sa clé
-    // (`life_dial_half_plus`), scopée par la clé de sa zone (playerId=2) --
-    // aucun calcul de position, donc valide même une fois les sièges
-    // pivotés (tâche 3).
-    final plusHalf = find.descendant(
-      of: find.byKey(const ValueKey('player_zone_2')),
-      matching: find.byKey(const ValueKey('life_dial_half_plus')),
-    );
+    // Deux taps +1 (moitié droite du cadran de Sarah, non pivoté) : un gain
+    // de vie en attente, jamais un dégât.
+    final dial = tester.getRect(find.byType(LifeDial).at(2));
     for (var i = 0; i < 2; i++) {
-      await tester.tap(plusHalf);
+      await tester.tapAt(Offset(dial.left + dial.width * 0.75, dial.center.dy));
       await tester.pump();
     }
 
@@ -1312,16 +1286,10 @@ void main() {
             'disparition');
 
     // Les deux +1 qui suivent ramènent le buffer net à 0, avant expiration
-    // des 2s. Tape la moitié positive du cadran de Sarah par sa clé
-    // (`life_dial_half_plus`), scopée par la clé de sa zone (playerId=2) --
-    // aucun calcul de position, donc valide même une fois les sièges
-    // pivotés (tâche 3).
-    final plusHalf = find.descendant(
-      of: find.byKey(const ValueKey('player_zone_2')),
-      matching: find.byKey(const ValueKey('life_dial_half_plus')),
-    );
+    // des 2s.
+    final dial = tester.getRect(find.byType(LifeDial).at(2));
     for (var i = 0; i < 2; i++) {
-      await tester.tap(plusHalf);
+      await tester.tapAt(Offset(dial.left + dial.width * 0.75, dial.center.dy));
       await tester.pump();
     }
 
@@ -1456,25 +1424,18 @@ void main() {
       (tester) async {
     final container = await pumpWithContainer(tester);
 
-    // Le cadran de Sarah (playerId=2), repéré par la clé de sa zone, pas par
-    // une position ordinale dans l'arbre.
-    final sarahDial = find.descendant(
-      of: find.byKey(const ValueKey('player_zone_2')),
-      matching: find.byType(LifeDial),
-    );
-
-    // Appui long réel sur le cadran de Sarah : bascule en mode ajustement
-    // (spec §2.5) -- pas d'appel direct au notifier, voir « la leçon des
-    // lots 1 et 2 ».
-    await tester.longPress(sarahDial);
+    // Appui long réel sur le cadran de Sarah (2) : bascule en mode
+    // ajustement (spec §2.5) -- pas d'appel direct au notifier, voir « la
+    // leçon des lots 1 et 2 ».
+    await tester.longPress(find.byType(LifeDial).at(2));
     await tester.pump();
 
-    // Le palier "-5", cherché comme DESCENDANT du cadran de Sarah : dès le
-    // premier tap, un badge de buffer affichant aussi "-5" apparaît ailleurs
-    // dans la zone (hors du LifeDial) -- `find.text('-5')` seul deviendrait
-    // ambigu pour le second tap sans cette portée.
+    // Le palier "-5", cherché comme DESCENDANT du cadran de Sarah (2) :
+    // dès le premier tap, un badge de buffer affichant aussi "-5" apparaît
+    // ailleurs dans la zone (hors du LifeDial) -- `find.text('-5')` seul
+    // deviendrait ambigu pour le second tap sans cette portée.
     Finder stepMinus5() => find.descendant(
-          of: sarahDial,
+          of: find.byType(LifeDial).at(2),
           matching: find.text('-5'),
         );
 
@@ -1509,83 +1470,5 @@ void main() {
     expect(session.players[2].commanderDamageReceived, isEmpty,
         reason: 'aucune attribution ne doit avoir eu lieu : le second tap '
             'devait rester un palier, jamais un avatar recouvrant');
-  });
-
-  testWidgets(
-      'le PIRE dégât de commandant d\'une seule source, pas leur somme, '
-      'décide du niveau d\'alerte', (tester) async {
-    // Ronde de correction 1 (Task 5) : `_buildPlayerZoneWithOverlays` réduit
-    // `commanderDamageReceived.values` par un MAX avant de le passer à
-    // `AnimationService.getCriticalLevel`. Aucun des tests précédents ne
-    // montait la vraie page avec une vraie map à plusieurs sources -- ils
-    // passaient tous `worstCommanderDamage` déjà calculé, ou ne testaient
-    // que la non-absorption de l'overlay. Ce test monte la page avec deux
-    // joueurs à somme IDENTIQUE (18) mais répartition différente : seul un
-    // MAX les distingue, une SOMME confondrait les deux (elle donnerait 18
-    // dans les deux cas, et classerait le joueur 0 "lethal" à tort).
-    final baseSession = GameSession.newGame(
-      format: commanderFormat,
-      playerConfigs: testConfigs,
-    );
-    final players = baseSession.players.map((p) {
-      if (p.playerId == 0) {
-        // Trois sources à 6 : somme 18, mais aucune ne menace seule (max 6).
-        return p.copyWith(commanderDamageReceived: {1: 6, 2: 6, 3: 6});
-      }
-      if (p.playerId == 1) {
-        // Une seule source à 18 : somme identique (18), mais son max de 18
-        // franchit à lui seul le seuil de mort imminente (spec V4 §3.3).
-        return p.copyWith(commanderDamageReceived: {2: 18});
-      }
-      return p;
-    }).toList();
-    final session = baseSession.copyWith(players: players);
-
-    // Pas de `pumpLifeCounter` / `pumpAndSettle` ici : le joueur 1 est en
-    // alerte létale dès le premier rendu (`CriticalOverlay._controller.
-    // repeat()` boucle indéfiniment), ce qui ferait timeout `pumpAndSettle` --
-    // même défaut que documenté pour le glow monarque plus haut dans ce
-    // fichier. Quelques frames bornées suffisent à laisser `_loadGame` (deux
-    // `await` SharedPreferences avant son premier `setState`) restaurer la
-    // session et déclencher le rendu réel des zones.
-    SharedPreferences.setMockInitialValues({
-      'active_game_snapshot': json.encode(session.toJson()),
-    });
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
-        ],
-        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
-      ),
-    );
-    await tester.pump();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-
-    CriticalLevel levelOf(int playerId) {
-      return tester
-          .widget<CriticalOverlay>(
-            find.descendant(
-              of: find.byKey(ValueKey('player_zone_$playerId')),
-              matching: find.byType(CriticalOverlay),
-            ),
-          )
-          .level;
-    }
-
-    expect(
-      levelOf(0),
-      CriticalLevel.safe,
-      reason: 'trois sources à 6 chacune (somme 18) ne menacent personne de '
-          'mort par dégâts de commandant : à pleine vie et sans poison, '
-          'seule une régression du MAX vers une SOMME ferait échouer ce cas',
-    );
-    expect(
-      levelOf(1),
-      CriticalLevel.lethal,
-      reason: 'une seule source à 18 dégâts de commandant doit déclencher '
-          "l'alerte létale, même à pleine vie et sans poison",
-    );
   });
 }
