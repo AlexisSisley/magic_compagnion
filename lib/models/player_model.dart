@@ -20,15 +20,30 @@ class Player {
   /// Lot 5, tâche 4 (câblage manquant) : collection générique des compteurs
   /// actifs de la session pour ce joueur (id de `CounterType` -> valeur),
   /// AJOUTÉE à côté des trois champs nommés ci-dessus plutôt qu'à leur
-  /// place — voir `_toLegacyPlayer` (lib/pages/life_counter/life_counter_page.dart)
-  /// et `PlayerHistorySnapshot` (lib/models/game_history_model.dart, via
-  /// `_finalizeGameSave`) qui lisent encore `poison`/`energy`/
-  /// `commanderCastCount` directement ; ce lot n'a pas mandat de démonter
-  /// le modèle `Player` legacy, seulement de le faire passer les compteurs
-  /// personnalisés. `PlayerZone` résout désormais le résumé de la poignée
+  /// place. `PlayerZone` résout désormais le résumé de la poignée
   /// (`CounterSummary`) à partir de CETTE collection, pas des trois champs
   /// ci-dessus (voir son commentaire) : elle porte tout compteur actif de
   /// la session, intégré ou personnalisé, avec sa valeur — y compris zéro.
+  ///
+  /// Condition VÉRIFIABLE de disparition des trois champs ci-dessus (pas
+  /// un simple « hors mandat de ce lot ») : ils restent tant que
+  /// `PlayerHistorySnapshot` (lib/models/game_history_model.dart), rempli
+  /// par `_finalizeGameSave` (lib/pages/life_counter/life_counter_page.dart),
+  /// les lit directement sur `Player` plutôt que sur `counters` ou sur
+  /// `PlayerState.counters` en amont. Cette lecture relève du découpage de
+  /// `life_counter_page.dart` prévu au lot 7 — c'est cette découpe-là qui
+  /// devra faire disparaître `poison`/`energy`/`commanderCastCount`, pas ce
+  /// lot-ci.
+  ///
+  /// `_toLegacyPlayer` (life_counter_page.dart) dérive désormais les trois
+  /// champs de CETTE collection (déjà filtrée par
+  /// `GameSession.activeCounterIds`), jamais de `PlayerState.counters`
+  /// directement — une seule source, un seul filtre, pour que la poignée
+  /// et l'historique de fin de partie ne racontent jamais deux parties
+  /// différentes pour un même compteur désactivé (ronde de correction 1,
+  /// tâche 4 : un compteur retiré des actifs compte 0 pour tous les
+  /// consommateurs, y compris l'historique, même si `PlayerState.counters`
+  /// conserve sa valeur pour une réactivation ultérieure, décision 1).
   Map<String, int> counters;
 
   /// Gallery of saved commanders — allows quick artwork switching in-game.

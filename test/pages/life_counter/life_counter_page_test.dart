@@ -1649,4 +1649,72 @@ void main() {
     expect(session.players[0].counters['poison'], 3,
         reason: 'décision 1 : la valeur survit au retrait des actifs');
   });
+
+  // --- Ronde de correction 1 (Critical) : la poignée et l'historique ne
+  // racontaient pas la même partie. `_toLegacyPlayer` filtrait `counters`
+  // (générique) par `activeCounterIds`, mais lisait `poison`/`energy`/
+  // `commanderCastCount` DIRECTEMENT dans `ps.counters`, sans ce filtre --
+  // un compteur désactivé (`deactivateCounter`, introduit par cette même
+  // tâche) redevenait donc visible dans `PlayerHistorySnapshot` alors que
+  // la poignée ne le montrait plus depuis son retrait.
+  testWidgets(
+      'un compteur legacy (poison) désactivé compte 0 pour '
+      '_finalizeGameSave, comme pour la poignée -- l\'historique ne doit '
+      'pas raconter une autre partie que ce que le joueur voit à l\'écran',
+      (tester) async {
+    final container = await pumpWithContainer(tester);
+    container
+        .read(gameSessionNotifierProvider.notifier)
+        .updateCounter(0, 'poison', 3);
+    await tester.pump();
+
+    // Avant retrait : la poignée affiche bien 3 -- valeur NON NULLE, sinon
+    // ce test ne distinguerait pas "conservée mais filtrée à l'affichage"
+    // de "jamais écrite".
+    final beforeHandle = tester.widget<ConditionalHandle>(
+      find.byType(ConditionalHandle).first,
+    );
+    expect(
+      beforeHandle.summary.counters
+          .firstWhere((e) => e.key.id == 'poison')
+          .value,
+      3,
+    );
+
+    await openDrawerForPlayerZero(tester);
+    await tester.tap(find.byKey(const ValueKey('counter_row_poison_remove')));
+    await tester.pump();
+    // Ferme le tiroir (tap en dehors du sheet) avant de continuer.
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+
+    // Après retrait : la poignée ne montre plus AUCUNE entrée 'poison'.
+    final afterHandle = tester.widget<ConditionalHandle>(
+      find.byType(ConditionalHandle).first,
+    );
+    expect(
+      afterHandle.summary.counters.where((e) => e.key.id == 'poison'),
+      isEmpty,
+      reason: 'précondition : la poignée doit déjà avoir cessé d\'afficher '
+          'poison après son retrait des actifs',
+    );
+
+    final state = tester.state(find.byType(LifeCounterPage));
+    // ignore: avoid_dynamic_calls
+    await (state as dynamic).finalizeGameSaveForTest(0, 'normal');
+    await tester.pumpAndSettle();
+
+    final history = await GameHistoryService().loadHistory();
+    expect(history, isNotEmpty);
+    expect(
+      history.first.playerStates[0].poison,
+      0,
+      reason: 'l\'historique doit dire la même chose que la poignée : un '
+          'compteur retiré des actifs compte 0 pour TOUS les '
+          'consommateurs, y compris PlayerHistorySnapshot -- pas la '
+          'valeur brute encore portée par PlayerState.counters (décision '
+          '1 : conservée pour une réactivation, jamais pour '
+          'l\'historique)',
+    );
+  });
 }

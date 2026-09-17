@@ -138,16 +138,27 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // Include pending (buffered) damage in displayed life
     final pending = _pendingDamage[ps.playerId] ?? 0;
 
-    // Câblage manquant (lot 5, tâche 4) : `poison`/`energy`/`commanderCastCount`
-    // ci-dessous restent lus tels quels (d'autres consommateurs en dépendent
-    // encore, voir le commentaire de `Player.counters`) mais ne sont plus le
-    // SEUL chemin vers la poignée. `counters` porte maintenant TOUS les
+    // Câblage manquant (lot 5, tâche 4) : `counters` porte TOUS les
     // compteurs actifs de la session (`GameSession.activeCounterIds`), pas
     // trois clés en dur -- même résolution, même exclusion de
     // 'commander_damage' (ce n'est pas une ligne ± comme les autres, c'est
     // l'id qui active la grille de dégâts de commandant reçus), que
     // `_openPlayerDrawer` ci-dessous : un compteur personnalisé actif
     // atteint désormais `PlayerZone` par ce chemin, plutôt que nulle part.
+    //
+    // Ronde de correction 1 (Critical) : `poison`/`energy`/`commanderCastCount`
+    // ci-dessous lisaient `ps.counters[...]` DIRECTEMENT, sans passer par ce
+    // filtre -- la poignée (alimentée par `counters`) et l'historique de fin
+    // de partie (alimenté par ces trois champs via
+    // `_finalizeGameSave`/`PlayerHistorySnapshot`) racontaient alors deux
+    // parties différentes dès qu'un compteur désactivé (`deactivateCounter`,
+    // introduit par cette même tâche) portait encore une valeur non nulle
+    // dans `PlayerState.counters` (décision 1 : cette valeur est CONSERVÉE,
+    // pas effacée, pour une réactivation ultérieure -- mais elle ne doit
+    // compter pour AUCUN consommateur pendant qu'il est désactivé). Une
+    // seule source, un seul filtre : les trois champs legacy sont désormais
+    // dérivés de `activeCounters` (déjà filtré), jamais de `ps.counters`
+    // directement.
     final activeCounters = <String, int>{
       for (final id in _session?.activeCounterIds ?? const <String>[])
         if (id != 'commander_damage') id: ps.counters[id] ?? 0,
@@ -161,9 +172,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       colorValue: ps.config.colorValue,
       backgroundImagePath: ps.config.avatarPath,
       commanderDamageReceived: Map<int, int>.from(ps.commanderDamageReceived),
-      poison: ps.counters['poison'] ?? 0,
-      energy: ps.counters['energy'] ?? 0,
-      commanderCastCount: ps.counters['commander_tax'] ?? 0,
+      poison: activeCounters['poison'] ?? 0,
+      energy: activeCounters['energy'] ?? 0,
+      commanderCastCount: activeCounters['commander_tax'] ?? 0,
       counters: activeCounters,
       isMonarch: ps.isMonarch,
       quarterTurns: ps.quarterTurns,
