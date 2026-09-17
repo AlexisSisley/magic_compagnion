@@ -73,14 +73,19 @@ void main() {
       Offset(dial.left + dial.width * 0.25, dial.center.dy),
     );
     await tester.pump(const Duration(milliseconds: 1500));
+
+    // Vérifié PENDANT la tenue, avant le relâchement : depuis la tâche 7, le
+    // mode ne survit plus au relâchement (relâcher hors des paliers le
+    // ferme), donc l'asserter après `gesture.up()` ne prouverait plus rien.
+    expect(find.text('+10'), findsOneWidget,
+        reason: 'le mode ajustement doit bien avoir été déclenché');
+
     await gesture.up();
     await tester.pumpAndSettle();
 
     expect(deltas, isEmpty,
         reason: 'un maintien immobile assez long pour déclencher le mode '
             'ajustement ne doit jamais émettre de ±1 de répétition');
-    expect(find.text('+10'), findsOneWidget,
-        reason: 'le mode ajustement doit bien avoir été déclenché');
   });
 
   testWidgets(
@@ -125,6 +130,13 @@ void main() {
     await firstFinger.moveBy(const Offset(0, 4));
     await tester.pump(const Duration(milliseconds: 1500));
 
+    // Vérifié PENDANT la tenue, avant les relâchements : depuis la tâche 7,
+    // le mode ne survit plus au relâchement, donc l'asserter après coup ne
+    // prouverait plus rien.
+    expect(find.text('+10'), findsOneWidget,
+        reason: 'le mode ajustement doit tout de même se déclencher pour le '
+            'premier doigt');
+
     await firstFinger.up();
     await secondFinger.up();
     await tester.pumpAndSettle();
@@ -132,9 +144,6 @@ void main() {
     expect(deltas, isEmpty,
         reason: 'un second doigt ne doit jamais faire échouer la détection '
             'd\'appui long du premier');
-    expect(find.text('+10'), findsOneWidget,
-        reason: 'le mode ajustement doit tout de même se déclencher pour le '
-            'premier doigt');
   });
 
   testWidgets(
@@ -194,25 +203,38 @@ void main() {
       expect(find.text('+10'), findsNothing);
     });
 
+    // `tester.longPress()` ne convient plus ici : depuis la tâche 7, son
+    // relâchement intégré (au centre du cadran, hors des paliers) ferme
+    // aussitôt le mode. On garde donc le doigt posé via `startGesture`, et on
+    // vérifie PENDANT la tenue plutôt qu'après un relâchement qui aurait déjà
+    // tout refermé.
     testWidgets('l\'appui long fait apparaître les paliers', (tester) async {
       await pumpDial(tester);
-      await tester.longPress(find.byType(LifeDial));
-      await tester.pumpAndSettle();
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
       expect(find.text('-10'), findsOneWidget);
       expect(find.text('-5'), findsOneWidget);
       expect(find.text('+5'), findsOneWidget);
       expect(find.text('+10'), findsOneWidget);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('un appui long n\'émet aucun delta, et le mode est bien entré',
         (tester) async {
       final deltas = await pumpDial(tester);
-      await tester.longPress(find.byType(LifeDial));
-      await tester.pumpAndSettle();
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
       expect(deltas, isEmpty,
           reason:
               'un appui long ne doit produire aucun ±1 parasite (Critical #1)');
       expect(find.text('+10'), findsOneWidget);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('maintenir le doigt en mode ajustement ne produit aucun ±1',
@@ -242,42 +264,55 @@ void main() {
       final gesture = await tester.startGesture(center);
       await gesture.moveBy(const Offset(0, 4));
       await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
-      await gesture.up();
-      await tester.pumpAndSettle();
 
+      // Vérifié avant le relâchement (voir la note au-dessus du groupe) :
+      // depuis la tâche 7, le relâchement referme aussitôt le mode.
       expect(find.text('+10'), findsOneWidget,
           reason: 'un micro-mouvement de 4px (sous kTouchSlop = 18px) ne '
               'doit pas annuler l\'appui long');
+
+      await gesture.up();
+      await tester.pumpAndSettle();
     });
 
+    // Réécrit pour la tâche 7 (encodait l'ancien modèle) : un palier ne se
+    // « tape » plus par un geste séparé — aucun `GestureDetector` ne reste
+    // posé sur les boutons (voir `_stepRow`). La sélection se fait en
+    // glissant le doigt de l'appui long jusqu'au palier puis en relâchant,
+    // un seul geste continu ; c'est ce que couvre désormais ce test.
     testWidgets('un palier émet son delta', (tester) async {
       final deltas = await pumpDial(tester);
-      await tester.longPress(find.byType(LifeDial));
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      expect(find.text('-10'), findsOneWidget);
+
+      await gesture.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('life_step_-10'))),
+      );
+      await gesture.up();
       await tester.pumpAndSettle();
-      await tester.tap(find.text('-10'));
-      await tester.pumpAndSettle();
+
       expect(deltas, contains(-10));
     });
 
+    // Réécrit pour la tâche 7 (fusion en UN SEUL geste continu) : l'ancienne
+    // version entrait en mode via `tester.longPress()` (qui relâche le doigt
+    // à son terme) PUIS glissait avec un doigt SÉPARÉ. Depuis la tâche 7, le
+    // relâchement de `longPress()` referme aussitôt le mode (spec §5.1), donc
+    // ce second glissement s'exécutait hors mode et n'émettait plus rien.
     testWidgets('le glissement vertical en mode ajustement émet des deltas',
         (tester) async {
       final deltas = await pumpDial(tester);
-      await tester.longPress(find.byType(LifeDial));
-      await tester.pumpAndSettle();
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
 
-      // 8 px par point : 40 px vers le bas = −5. `touchSlop` à zéro pour que
-      // `tester.drag` envoie tout le déplacement en un seul événement — sans
-      // quoi il le scinde par défaut en deux (le seuil de `kDragSlopDefault`
-      // puis le reste), et la molette émettrait deux deltas partiels ([-2,
-      // -3]) au lieu d'un seul, ce qui est un artefact du test, pas du
-      // comportement réel (un glissement continu sur un appareil produit un
-      // flot d'événements bien plus fin que 2 pas).
-      await tester.drag(
-        find.byType(LifeDial),
-        const Offset(0, 40),
-        touchSlopX: 0,
-        touchSlopY: 0,
-      );
+      // 8 px par point : 40 px vers le bas = −5. Un seul `moveBy` envoie tout
+      // le déplacement en un seul événement (pas de scission par touchSlop,
+      // propre à `tester.drag`), donc un seul delta de -5, pas deux partiels.
+      await gesture.moveBy(const Offset(0, 40));
+      await gesture.up();
       await tester.pumpAndSettle();
 
       // Durci (round 2, le test était vert par accident) : avec l'appui long
@@ -287,12 +322,14 @@ void main() {
       expect(deltas, [-5]);
     });
 
+    // Réécrit pour la tâche 7 (fusion en UN SEUL geste continu) : même raison
+    // que le test précédent — la mise en place via `tester.longPress()` puis
+    // un second `startGesture` séparé ne survit plus à la fermeture du mode
+    // au premier relâchement.
     testWidgets(
         'un glissement lent de plus de 500 ms ne perd pas son reste '
         'accumulé (Important #1)', (tester) async {
       final deltas = await pumpDial(tester);
-      await tester.longPress(find.byType(LifeDial));
-      await tester.pumpAndSettle();
 
       // 7px, puis on attend > 500 ms (au-delà du seuil de l'appui long) avant
       // 7px de plus : 7 < 8px ne bouge rien seul, mais 7+7 = 14px doit passer
@@ -302,6 +339,7 @@ void main() {
       // franchir le seuil : le test distingue les deux cas sans ambiguïté.
       final gesture =
           await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
       await gesture.moveBy(const Offset(0, 7));
       await tester.pump(const Duration(milliseconds: 550));
       await gesture.moveBy(const Offset(0, 7));
@@ -324,16 +362,119 @@ void main() {
               'tiroir et à la rotation, pas à la molette');
     });
 
-    testWidgets('un tap hors des paliers sort du mode', (tester) async {
+    // Réécrit pour la tâche 7 (encodait l'ancien modèle) : la version
+    // précédente fermait le mode par un TAP SÉPARÉ, posé après le relâchement
+    // de l'appui long — exactement le geste en deux temps que la tâche 7
+    // supprime (spec §5.1, plus de mode persistant). Il n'existe plus de
+    // geste de fermeture distinct : ici, on vérifie qu'un glissement vers un
+    // point hors des paliers, PUIS un relâchement, ferme le mode dans le même
+    // geste continu que celui qui l'a ouvert.
+    testWidgets(
+        'glisser puis relâcher hors des paliers sort du mode, sans second '
+        'geste', (tester) async {
       await pumpDial(tester);
-      await tester.longPress(find.byType(LifeDial));
-      await tester.pumpAndSettle();
+      final dial = tester.getRect(find.byType(LifeDial));
+      final gesture = await tester.startGesture(dial.center);
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
       expect(find.text('+10'), findsOneWidget);
 
-      final dial = tester.getRect(find.byType(LifeDial));
-      await tester.tapAt(Offset(dial.center.dx, dial.top + 12));
+      await gesture.moveTo(Offset(dial.center.dx, dial.top + 12));
+      await gesture.up();
       await tester.pumpAndSettle();
+
       expect(find.text('+10'), findsNothing);
+    });
+  });
+
+  group('paliers resserrés, fermés au relâchement (tâche 7)', () {
+    testWidgets('l\'appui long ouvre les paliers', (tester) async {
+      await pumpDial(tester);
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+
+      expect(find.text('-10'), findsOneWidget);
+      expect(find.text('-5'), findsOneWidget);
+      expect(find.text('+5'), findsOneWidget);
+      expect(find.text('+10'), findsOneWidget);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets(
+        'relâcher hors des paliers ferme le mode sans rien appliquer',
+        (tester) async {
+      final deltas = await pumpDial(tester);
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      expect(find.text('+10'), findsOneWidget);
+
+      // Relâché exactement là où le doigt s'est posé (centre du cadran),
+      // jamais au-dessus d'un palier (rangée resserrée en bas de zone).
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(deltas, isEmpty,
+          reason: 'un relâchement hors des paliers ne doit rien appliquer');
+      expect(find.text('+10'), findsNothing,
+          reason: 'le mode ne doit pas survivre au relâchement');
+    });
+
+    testWidgets('glisser sur un palier puis relâcher applique CE palier',
+        (tester) async {
+      final deltas = await pumpDial(tester);
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      expect(find.text('-5'), findsOneWidget);
+
+      await gesture.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('life_step_-5'))),
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(deltas, [-5]);
+      expect(find.text('-5'), findsNothing);
+    });
+
+    testWidgets('le mode ne survit pas au relâchement', (tester) async {
+      final deltas = await pumpDial(tester);
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+
+      await gesture.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('life_step_-5'))),
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(deltas, [-5]);
+      expect(find.byKey(const ValueKey('life_step_-5')), findsNothing,
+          reason: 'le mode ajustement ne doit pas survivre au relâchement');
+    });
+
+    testWidgets('la rangée ne prend pas toute la largeur', (tester) async {
+      await pumpDial(tester);
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+
+      final rowWidth =
+          tester.getSize(find.byKey(const ValueKey('life_step_row'))).width;
+      final dialWidth = tester.getSize(find.byType(LifeDial)).width;
+
+      // Propriété de disposition (spec §5.4) : testée par géométrie, pas par
+      // clé, car c'est la position/largeur elle-même qui est sous test.
+      expect(rowWidth, lessThan(dialWidth * 0.7),
+          reason: 'la rangée pleine largeur retombait exactement là où le '
+              'pouce se repose au relâchement — le bug rapporté');
+
+      await gesture.up();
+      await tester.pumpAndSettle();
     });
   });
 }

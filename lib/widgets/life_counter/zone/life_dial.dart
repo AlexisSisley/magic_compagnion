@@ -52,6 +52,14 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// ignore tous les autres jusqu'à ce qu'il se relâche.
   int? _trackedPointer;
 
+  /// Dernière position brute connue du pointeur (mise à jour à chaque
+  /// `onPointerDown`/`onPointerMove` du `Listener` racine, quel que soit le
+  /// mode). Sert de secours à `_endAdjustGesture` quand `onTapCancel` se
+  /// déclenche : contrairement à `onTapUp`, `TapCancelDetails` ne porte
+  /// aucune position, alors que la fermeture du mode ajustement doit tout de
+  /// même pouvoir résoudre le palier survolé.
+  Offset? _lastGlobalPosition;
+
   /// Les deltas dont le tap est en cours (posés, pas encore relâchés), en
   /// attente d'émission à `onTapUp`.
   ///
@@ -68,11 +76,24 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// quatre joueurs.
   final Set<int> _pendingTaps = {};
 
+  /// Fraction de la largeur de la zone laissée libre de chaque côté de la
+  /// rangée de paliers (spec §5.4). La rangée pleine largeur retombait
+  /// exactement là où le pouce arrive au relâchement, ce qui faisait
+  /// modifier les PV par accident — voir le bug rapporté sur cette tâche.
+  static const double _stepRowSideMargin = 0.18;
+
+  /// Une `GlobalKey` par palier, pour retrouver son rectangle à l'écran sans
+  /// jamais calculer sa position à la main (`_stepUnder`).
+  final Map<int, GlobalKey> _stepKeys = {
+    for (final delta in const [-10, -5, 5, 10]) delta: GlobalKey(),
+  };
+
   @override
   void dispose() {
     _longPressTimer?.cancel();
     _trackedPointer = null;
     _downPosition = null;
+    _lastGlobalPosition = null;
     super.dispose();
   }
 
@@ -108,6 +129,36 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     _pendingTaps.clear();
   }
 
+  /// Palier dont le bouton contient [globalPosition], ou `null`.
+  ///
+  /// Les boutons sont retrouvés par leur `GlobalKey` : aucune position n'est
+  /// calculée à la main, ce qui reste juste quelle que soit la rotation du
+  /// siège — un point sur lequel ce projet s'est déjà trompé neuf fois.
+  int? _stepUnder(Offset? globalPosition) {
+    if (globalPosition == null) return null;
+    for (final entry in _stepKeys.entries) {
+      final box = entry.value.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null) continue;
+      final origin = box.localToGlobal(Offset.zero);
+      if ((origin & box.size).contains(globalPosition)) return entry.key;
+    }
+    return null;
+  }
+
+  /// Fin du geste en mode ajustement : on applique le palier survolé, s'il y
+  /// en a un, puis on sort du mode dans tous les cas.
+  ///
+  /// Le mode ne survit pas au doigt (spec §5.1). L'amendement de la spec V4
+  /// §2.5 avait écarté cette fermeture au motif que les paliers deviendraient
+  /// inatteignables — ce qui n'est vrai que s'il faut LEVER le doigt pour
+  /// taper. Avec un glissé-relâché, ils restent atteignables sans jamais
+  /// rompre le contact.
+  void _endAdjustGesture(PlayerZoneNotifier notifier, Offset? globalPosition) {
+    final delta = _stepUnder(globalPosition);
+    if (delta != null) _emit(delta);
+    notifier.exitAdjustMode();
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = widget.textColor ?? AppColors.textPrimary;
@@ -122,88 +173,102 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     // sans jamais leur faire perdre l'arène (un `LongPressGestureRecognizer`
     // concurrent ferait perdre le tap de la moitié dès qu'il gagne, ce qui a
     // cassé le test de maintien à la ronde précédente).
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: (event) {
-        // Round 3 (Critical #1 ressuscité) : un seul pointeur à la fois
-        // arme la veille d'appui long — voir la note sur `_trackedPointer`.
-        if (_trackedPointer != null) return;
-        _trackedPointer = event.pointer;
-        _downPosition = event.position;
-        _startLongPressWatch(notifier);
-      },
-      onPointerMove: (event) {
-        if (event.pointer != _trackedPointer) return;
-        if (isAdjusting) {
-          // Round 2 (Important #1) : un glissement de molette maintenu plus
-          // de 500 ms ré-arme sinon un appui long qui remettrait
-          // `wheelAccumulator` à zéro en plein geste — l'appui long n'a plus
-          // de raison d'être dès qu'on bouge en mode ajustement.
-          _cancelLongPressWatch();
-          final steps = notifier.handleWheelDrag(event.delta.dy);
-          if (steps != 0) _emit(steps);
-        } else {
-          // Round 2 (Critical #2) : un doigt « immobile » sur un écran
-          // capacitif émet en continu des micro-mouvements de 1 à 3 px.
-          // Annuler l'appui long au premier pixel rendrait le mode
-          // ajustement quasi inatteignable sur appareil réel ; on tolère
-          // donc la même marge que `LongPressGestureRecognizer`
-          // ([kTouchSlop]) avant de considérer que c'est un glissement.
-          final downPosition = _downPosition;
-          if (downPosition != null &&
-              (event.position - downPosition).distance > kTouchSlop) {
+    //
+    // `LayoutBuilder` donne à la rangée de paliers sa propre largeur
+    // (`_stepRow` en a besoin pour ses marges latérales, spec §5.4) sans la
+    // faire descendre depuis `PlayerZone` : `LifeDial` la lit lui-même.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (event) {
+            // Round 3 (Critical #1 ressuscité) : un seul pointeur à la fois
+            // arme la veille d'appui long — voir la note sur `_trackedPointer`.
+            _lastGlobalPosition = event.position;
+            if (_trackedPointer != null) return;
+            _trackedPointer = event.pointer;
+            _downPosition = event.position;
+            _startLongPressWatch(notifier);
+          },
+          onPointerMove: (event) {
+            _lastGlobalPosition = event.position;
+            if (event.pointer != _trackedPointer) return;
+            if (isAdjusting) {
+              // Round 2 (Important #1) : un glissement de molette maintenu plus
+              // de 500 ms ré-arme sinon un appui long qui remettrait
+              // `wheelAccumulator` à zéro en plein geste — l'appui long n'a plus
+              // de raison d'être dès qu'on bouge en mode ajustement.
+              _cancelLongPressWatch();
+              // Tâche 7 : tant que le doigt survole un palier, la molette ne
+              // doit pas accumuler en parallèle — sans quoi glisser jusqu'à
+              // « -5 » ferait AUSSI tourner la molette sur tout le trajet, et
+              // le relâchement appliquerait les deux à la fois (contraire à
+              // « un seul geste continu, un seul effet »). La zone des
+              // paliers est une cible de sélection, pas une extension de la
+              // molette.
+              if (_stepUnder(event.position) == null) {
+                final steps = notifier.handleWheelDrag(event.delta.dy);
+                if (steps != 0) _emit(steps);
+              }
+            } else {
+              // Round 2 (Critical #2) : un doigt « immobile » sur un écran
+              // capacitif émet en continu des micro-mouvements de 1 à 3 px.
+              // Annuler l'appui long au premier pixel rendrait le mode
+              // ajustement quasi inatteignable sur appareil réel ; on tolère
+              // donc la même marge que `LongPressGestureRecognizer`
+              // ([kTouchSlop]) avant de considérer que c'est un glissement.
+              final downPosition = _downPosition;
+              if (downPosition != null &&
+                  (event.position - downPosition).distance > kTouchSlop) {
+                _cancelLongPressWatch();
+              }
+            }
+          },
+          // N'arrête ici que l'appui long : le `Listener` racine reçoit le
+          // relâchement *avant* que l'arène de la moitié ne se résolve (son
+          // callback brut s'exécute pendant le routage, alors que `onTapUp` n'est
+          // appelé qu'au balayage de l'arène qui suit) — y annuler aussi le tap
+          // en attente le viderait avant que `_confirmTap` ne puisse l'émettre.
+          // La moitié restant montée en permanence (voir plus bas), c'est elle
+          // qui gère fiablement son propre tap via `onTapUp`/`onTapCancel`, et
+          // désormais aussi la fermeture du mode ajustement (`_endAdjustGesture`).
+          onPointerUp: (event) {
+            if (event.pointer != _trackedPointer) return;
+            _trackedPointer = null;
             _cancelLongPressWatch();
-          }
-        }
-      },
-      // N'arrête ici que l'appui long : le `Listener` racine reçoit le
-      // relâchement *avant* que l'arène de la moitié ne se résolve (son
-      // callback brut s'exécute pendant le routage, alors que `onTapUp` n'est
-      // appelé qu'au balayage de l'arène qui suit) — y annuler aussi le tap
-      // en attente le viderait avant que `_confirmTap` ne puisse l'émettre.
-      // La moitié restant montée en permanence (voir plus bas), c'est elle
-      // qui gère fiablement son propre tap via `onTapUp`/`onTapCancel`.
-      onPointerUp: (event) {
-        if (event.pointer != _trackedPointer) return;
-        _trackedPointer = null;
-        _cancelLongPressWatch();
-      },
-      onPointerCancel: (event) {
-        if (event.pointer != _trackedPointer) return;
-        _trackedPointer = null;
-        _cancelLongPressWatch();
-      },
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Les moitiés restent montées en permanence (jamais retirées de
-          // l'arbre) : les enlever couperait net le pointeur en cours (Flutter
-          // annule un geste quand le widget qu'il touche disparaît), ce qui
-          // interromprait son tap en plein geste dès l'entrée en mode
-          // ajustement. `IgnorePointer` les neutralise sans les démonter.
-          IgnorePointer(
-            ignoring: isAdjusting,
-            child: Row(
-              children: [
-                Expanded(child: _half(-1)),
-                Expanded(child: _half(1)),
-              ],
-            ),
+          },
+          onPointerCancel: (event) {
+            if (event.pointer != _trackedPointer) return;
+            _trackedPointer = null;
+            _cancelLongPressWatch();
+          },
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Les moitiés restent montées en permanence (jamais retirées de
+              // l'arbre) : les enlever couperait net le pointeur en cours (Flutter
+              // annule un geste quand le widget qu'il touche disparaît), ce qui
+              // interromprait son tap en plein geste dès l'entrée en mode
+              // ajustement. `IgnorePointer` les neutralise sans les démonter.
+              IgnorePointer(
+                ignoring: isAdjusting,
+                child: Row(
+                  children: [
+                    Expanded(child: _half(-1, isAdjusting, notifier)),
+                    Expanded(child: _half(1, isAdjusting, notifier)),
+                  ],
+                ),
+              ),
+              IgnorePointer(child: _readout(color)),
+              if (isAdjusting)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _stepRow(constraints.maxWidth),
+                ),
+            ],
           ),
-          IgnorePointer(child: _readout(color)),
-          if (isAdjusting) ...[
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: notifier.exitAdjustMode,
-              child: const SizedBox.expand(),
-            ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: _stepRow(),
-            ),
-          ],
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -219,20 +284,38 @@ class _LifeDialState extends ConsumerState<LifeDial> {
 
   /// Paliers ±5 / ±10 (spec §2.4). Ils couvrent les montants ronds ; la
   /// molette couvre le reste.
-  Widget _stepRow() {
+  ///
+  /// Aucun bouton ne porte plus son propre `GestureDetector` : la sélection
+  /// se fait en glissant le doigt de l'appui long jusqu'ici, sans jamais le
+  /// lever (`_endAdjustGesture` résout le palier survolé via `_stepKeys` au
+  /// relâchement). Chaque bouton ne sert donc que de cible géométrique.
+  Widget _stepRow(double zoneWidth) {
+    final inset = zoneWidth * _stepRowSideMargin;
     return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          for (final delta in const [-10, -5, 5, 10])
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => _emit(delta),
+      // La clé porte sur la `Row`, pas sur ce `Padding` : un `Padding` qui
+      // déflate puis relaie une largeur illimitée à son enfant (une `Row` en
+      // `mainAxisSize.max`, le défaut) reprend exactement la largeur qu'il
+      // vient de retirer — son PROPRE rendu mesure donc toujours la largeur
+      // du parent, quel que soit `inset`. Le test de géométrie (§5.4) doit
+      // mesurer la largeur réellement resserrée, pas celle de ce wrapper.
+      padding: EdgeInsets.fromLTRB(inset, 8, inset, 8),
+      // `IntrinsicHeight` borne la hauteur de la rangée à celle de son
+      // contenu : sans lui, chaque bouton (dont le `Container` a un
+      // `alignment` non nul) s'étire pour remplir toute la hauteur lâche mais
+      // bornée que lui offre l'`Align(bottomCenter)` du `Stack` — soit
+      // quasiment toute la hauteur du cadran, ce qui rendrait n'importe quel
+      // relâchement (même loin du bas visuel) éligible à un palier.
+      child: IntrinsicHeight(
+        child: Row(
+          key: const ValueKey('life_step_row'),
+          children: [
+            for (final delta in const [-10, -5, 5, 10])
+              Expanded(
+                child: Padding(
+                  key: ValueKey('life_step_$delta'),
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
                   child: Container(
+                    key: _stepKeys[delta],
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color: delta < 0
@@ -252,8 +335,8 @@ class _LifeDialState extends ConsumerState<LifeDial> {
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -279,12 +362,30 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     _longPressTimer = null;
   }
 
-  Widget _half(int delta) {
+  /// [isAdjusting] et [notifier] sont capturés au moment du `build()` : la
+  /// moitié restant montée en permanence (voir la note dans [build]), c'est
+  /// le `RawGestureDetectorState` sous-jacent qui met à jour ces callbacks à
+  /// chaque reconstruction, sans jamais perdre le pointeur qu'il suit déjà —
+  /// ce qui permet à `onTapUp`/`onTapCancel` de refléter le mode courant même
+  /// pour un doigt posé avant l'entrée en mode ajustement.
+  Widget _half(int delta, bool isAdjusting, PlayerZoneNotifier notifier) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => _startHold(delta),
-      onTapUp: (_) => _confirmTap(delta),
-      onTapCancel: () => _cancelPress(delta),
+      onTapUp: (details) {
+        if (isAdjusting) {
+          _endAdjustGesture(notifier, details.globalPosition);
+        } else {
+          _confirmTap(delta);
+        }
+      },
+      onTapCancel: () {
+        if (isAdjusting) {
+          _endAdjustGesture(notifier, _lastGlobalPosition);
+        } else {
+          _cancelPress(delta);
+        }
+      },
       child: const SizedBox.expand(),
     );
   }

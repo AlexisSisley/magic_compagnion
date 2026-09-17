@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1646,6 +1647,16 @@ void main() {
   // plus juste : les deux mécanismes servent la même intention -- saisir un
   // montant -- et ne doivent jamais coexister) masque la rangée dès que la
   // zone est en mode ajustement, quel que soit le signe du buffer.
+  // Réécrit pour la tâche 7 (encodait l'ancien modèle) : la version
+  // précédente sélectionnait le palier "-5" par un TAP SÉPARÉ, après le
+  // relâchement de l'appui long -- un mode persistant que la tâche 7
+  // supprime (spec §5.1). Il n'existe plus de tap discret sur un palier : la
+  // sélection se fait en glissant le doigt de l'appui long jusqu'au palier
+  // puis en relâchant (un seul geste continu), qui referme aussitôt le mode.
+  // Les DEUX sélections de "-5" sont donc désormais DEUX gestes continus
+  // complets et séparés (appui long + glissé + relâché), pas un appui long
+  // suivi de deux taps -- ce que ce test vérifie reste inchangé : chaque
+  // sélection doit rester un palier, jamais une attribution silencieuse.
   testWidgets(
       'en mode ajustement, la rangée d\'attribution n\'apparaît jamais '
       '(même sur un buffer négatif) : les paliers ±5/±10 restent seuls '
@@ -1660,35 +1671,49 @@ void main() {
           of: _playerZone(2),
           matching: find.byType(LifeDial),
         );
-    await tester.longPress(sarahDial());
-    await tester.pump();
 
-    // Le palier "-5", cherché comme DESCENDANT du cadran de Sarah : dès le
-    // premier tap, un badge de buffer affichant aussi "-5" apparaît
+    // Le palier "-5", cherché comme DESCENDANT du cadran de Sarah : dès la
+    // première sélection, un badge de buffer affichant aussi "-5" apparaît
     // ailleurs dans la zone (hors du LifeDial) -- `find.text('-5')` seul
-    // deviendrait ambigu pour le second tap sans cette portée.
+    // deviendrait ambigu pour la seconde sélection sans cette portée.
     Finder stepMinus5() => find.descendant(
           of: sarahDial(),
           matching: find.text('-5'),
         );
 
-    // Premier tap sur le palier "-5" : alimente le buffer à -5, négatif,
-    // en format Commander -- les deux conditions qui, sans le garde
-    // `!isAdjusting` du correctif, suffiraient à faire apparaître la
-    // rangée d'attribution.
-    await tester.tap(stepMinus5());
+    // Première sélection de "-5" : alimente le buffer à -5, négatif, en
+    // format Commander. Vérifié PENDANT la tenue, avant le relâchement : les
+    // deux mécanismes ne se recouvrent jamais tant que les paliers sont
+    // affichés (`showAttribution` exige `!isAdjusting`, life_counter_page.dart
+    // ~ligne 1130).
+    var gesture = await tester.startGesture(tester.getCenter(sarahDial()));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    expect(find.byKey(const ValueKey('damage-attribution-0')), findsNothing,
+        reason: 'la rangée ne doit jamais apparaître tant que les paliers '
+            'sont affichés : sur les géométries où elle les recouvrirait, '
+            'elle en volerait le hit-test');
+
+    await gesture.moveTo(tester.getCenter(stepMinus5()));
+    await gesture.up();
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('damage-attribution-0')), findsNothing,
-        reason: 'la rangée ne doit jamais apparaître pendant que la zone '
-            'est en mode ajustement, même sur un buffer négatif : sur les '
-            'géométries où elle recouvre les paliers, elle en volerait le '
-            'hit-test');
+    // Note (tâche 7) : `showAttribution` redevient vrai dès CE relâchement
+    // (`isAdjusting` repasse à `false` dans le même geste qui vient de fixer
+    // le buffer à -5) -- la rangée peut donc apparaître ICI, entre les deux
+    // sélections, ce que l'ancien modèle (mode persistant tant qu'un second
+    // tap distinct ne le fermait pas) empêchait. Ce n'est plus un défaut : les
+    // paliers ont déjà disparu au moment où elle apparaît (même geste, même
+    // frame), donc il n'y a jamais de recouvrement ni de vol de hit-test —
+    // seule l'invariante finale (deux paliers cumulés, aucune attribution)
+    // reste ce que ce test doit garantir.
 
-    // Second tap AU MÊME ENDROIT (le palier n'a pas bougé, aucune rangée
-    // n'a jamais pu prendre sa place) : doit rester un second palier,
-    // jamais une attribution silencieuse à un adversaire.
-    await tester.tap(stepMinus5());
+    // Seconde sélection de "-5", un geste continu SÉPARÉ (le mode s'est
+    // refermé au relâchement précédent, spec §5.1) : doit rester un second
+    // palier, jamais une attribution silencieuse à un adversaire.
+    gesture = await tester.startGesture(tester.getCenter(sarahDial()));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await gesture.moveTo(tester.getCenter(stepMinus5()));
+    await gesture.up();
     await tester.pump();
 
     // Laisse le buffer de 2s s'appliquer normalement.
