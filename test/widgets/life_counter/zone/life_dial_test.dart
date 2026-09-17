@@ -8,6 +8,11 @@ import 'package:magic_companion/widgets/life_counter/zone/life_dial.dart';
 Future<List<int>> pumpDial(
   WidgetTester tester, {
   int life = 40,
+  // Revue finale (Critical #1) : le cadran vit sous le `RotatedBox` de
+  // `PlayerZone`. Aucun des tests d'origine ne le montait pivoté, ce qui a
+  // laissé passer une inversion complète des paliers pour trois sièges sur
+  // quatre. Le harnais accepte donc les quatre orientations.
+  int quarterTurns = 0,
 }) async {
   final deltas = <int>[];
   await tester.pumpWidget(
@@ -17,14 +22,17 @@ Future<List<int>> pumpDial(
           body: SizedBox(
             width: 300,
             height: 300,
-            child: LifeDial(
-              playerId: 0,
-              life: life,
-              // `silent` (round de correction 3) n'affecte que le retour
-              // visuel/haptique, câblé plus haut dans `PlayerZone` -- ce
-              // helper de test isolé sur `LifeDial` continue d'enregistrer
-              // TOUS les deltas, silencieux ou non.
-              onDelta: (delta, {silent = false}) => deltas.add(delta),
+            child: RotatedBox(
+              quarterTurns: quarterTurns,
+              child: LifeDial(
+                playerId: 0,
+                life: life,
+                // `silent` (round de correction 3) n'affecte que le retour
+                // visuel/haptique, câblé plus haut dans `PlayerZone` -- ce
+                // helper de test isolé sur `LifeDial` continue d'enregistrer
+                // TOUS les deltas, silencieux ou non.
+                onDelta: (delta, {silent = false}) => deltas.add(delta),
+              ),
             ),
           ),
         ),
@@ -33,6 +41,20 @@ Future<List<int>> pumpDial(
   );
   await tester.pumpAndSettle();
   return deltas;
+}
+
+/// Vecteur unitaire, dans le repère ÉCRAN, du « vers le bas » du JOUEUR.
+///
+/// Déduit de la géométrie plutôt que d'une table de rotations codée en dur :
+/// la rangée de paliers est ancrée en bas du cadran dans SON repère, donc la
+/// direction qui va du centre du cadran au centre de la rangée EST le bas du
+/// joueur, quelle que soit la rotation du siège. Aucune compensation de
+/// rotation n'est écrite ici : la géométrie rendue est la seule source.
+Offset seatDownDirection(WidgetTester tester) {
+  final center = tester.getCenter(find.byType(LifeDial));
+  final row = tester.getCenter(find.byKey(const ValueKey('life_step_row')));
+  final v = row - center;
+  return v / v.distance;
 }
 
 void main() {
@@ -610,5 +632,79 @@ void main() {
           reason: 'le résidu de molette du premier geste (annulé par '
               'PointerCancel) ne doit pas contaminer la somme du second');
     });
+  });
+
+  // ===========================================================================
+  // Revue finale — Critical #1 : le cadran sous rotation.
+  //
+  // `PlayerZone` monte `LifeDial` dans un `RotatedBox` dont `quarterTurns`
+  // dépend du siège. Les 25 tests précédents montent tous le cadran à plat
+  // (`grep quarterTurns` ne renvoyait rien) : ils ne pouvaient pas voir que
+  // `_stepUnder` composait une origine ÉCRAN avec une taille LOCALE, ni que
+  // la molette lisait un delta écran. Mesuré avant correctif, glissé
+  // descendant réaliste relâché sur « −5 » : 0 → −5, 1 → +1, 2 → +5, 3 → +5.
+  //
+  // Ces deux tests sont paramétrés sur les quatre sièges. Aucune compensation
+  // de rotation n'y est écrite : les cibles sont trouvées par `ValueKey` et
+  // la direction du geste est déduite de la géométrie rendue.
+  // ===========================================================================
+  group('sous rotation du siège (Critical #1)', () {
+    for (final quarterTurns in const [0, 1, 2, 3]) {
+      testWidgets(
+          'quarterTurns=$quarterTurns : un glissé descendant relâché sur '
+          '« −5 » vaut exactement −5', (tester) async {
+        final deltas = await pumpDial(tester, quarterTurns: quarterTurns);
+        final center = tester.getCenter(find.byType(LifeDial));
+
+        final gesture = await tester.startGesture(center);
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+
+        // La cible est repérée par sa `ValueKey`, et sa position lue dans le
+        // repère écran par `getCenter` : c'est exactement le point que le
+        // doigt du joueur atteint, quel que soit son siège.
+        final target =
+            tester.getCenter(find.byKey(const ValueKey('life_step_-5')));
+
+        // Trajet réaliste en dix incréments : le doigt traverse la molette
+        // avant d'arriver sur le palier (ruling 18). Un `moveTo` unique
+        // sauterait ce trajet — le motif « test vert sur un chemin que
+        // personne n'emprunte » que ce lot a déjà payé six fois.
+        const steps = 10;
+        for (var i = 1; i <= steps; i++) {
+          await gesture.moveTo(Offset.lerp(center, target, i / steps)!);
+          await tester.pump();
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(deltas.fold<int>(0, (sum, d) => sum + d), -5,
+            reason: 'le palier relâché doit être le seul effet net du geste, '
+                'pour le siège quarterTurns=$quarterTurns comme pour les '
+                'autres');
+      });
+
+      testWidgets(
+          'quarterTurns=$quarterTurns : tirer vers le bas DU JOUEUR fait '
+          'baisser les PV (molette)', (tester) async {
+        final deltas = await pumpDial(tester, quarterTurns: quarterTurns);
+        final center = tester.getCenter(find.byType(LifeDial));
+
+        final gesture = await tester.startGesture(center);
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+
+        // 8 px par point : 40 px vers le bas du joueur = −5. La direction est
+        // déduite de la géométrie rendue (voir `seatDownDirection`), jamais
+        // d'une table de rotations.
+        final down = seatDownDirection(tester);
+        await gesture.moveBy(down * 40);
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(deltas, [-5],
+            reason: 'la molette doit suivre le repère du joueur, pas celui '
+                'de la dalle : pour le siège quarterTurns=$quarterTurns, '
+                'tirer vers soi doit retirer des PV');
+      });
+    }
   });
 }

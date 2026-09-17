@@ -159,14 +159,24 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// Palier dont le bouton contient [globalPosition], ou `null`.
   ///
   /// Les boutons sont retrouvés par leur `GlobalKey` : aucune position n'est
-  /// calculée à la main, ce qui reste juste quelle que soit la rotation du
-  /// siège — un point sur lequel ce projet s'est déjà trompé neuf fois.
+  /// calculée à la main.
+  ///
+  /// Revue finale (Critical #1) : le test d'appartenance se fait dans le
+  /// repère LOCAL du bouton, jamais dans le repère écran. La version
+  /// précédente composait `box.localToGlobal(Offset.zero)` (une position
+  /// écran, obtenue en traversant le `RotatedBox` du siège) avec `box.size`
+  /// (une taille dans le repère local du bouton) — une composition qui n'est
+  /// valide que sous translation pure. Sous rotation, le rectangle obtenu
+  /// n'est pas celui du bouton : à 180° c'est son miroir, ce qui inversait
+  /// les paliers ±5/±10 pour trois joueurs sur quatre. `globalToLocal`
+  /// traverse la matrice complète (rotation comprise) et rend le point dans
+  /// le repère où `box.size` a un sens.
   int? _stepUnder(Offset globalPosition) {
     for (final entry in _stepKeys.entries) {
       final box = entry.value.currentContext?.findRenderObject() as RenderBox?;
-      if (box == null) continue;
-      final origin = box.localToGlobal(Offset.zero);
-      if ((origin & box.size).contains(globalPosition)) return entry.key;
+      if (box == null || !box.attached) continue;
+      final local = box.globalToLocal(globalPosition);
+      if ((Offset.zero & box.size).contains(local)) return entry.key;
     }
     return null;
   }
@@ -259,7 +269,15 @@ class _LifeDialState extends ConsumerState<LifeDial> {
               // paliers est une cible de sélection, pas une extension de la
               // molette.
               if (_stepUnder(event.position) == null) {
-                final steps = notifier.handleWheelDrag(event.delta.dy);
+                // Revue finale (Critical #1, second défaut) :
+                // `event.localDelta`, pas `event.delta`. `delta` est un
+                // déplacement dans le repère ÉCRAN ; sous le `RotatedBox` du
+                // siège, « vers le bas de l'écran » n'est pas « vers le bas du
+                // point de vue du joueur ». Pour le siège `top`
+                // (`quarterTurns == 2`), tirer vers soi faisait MONTER les PV.
+                // `localDelta` est exprimé dans le repère de ce `Listener`,
+                // donc dans celui du joueur.
+                final steps = notifier.handleWheelDrag(event.localDelta.dy);
                 if (steps != 0) {
                   // Round de correction 3 : chaque pas de molette est émis
                   // `silent: true`. Tant que le geste est en cours, on ne
