@@ -174,8 +174,12 @@ void main() {
     });
 
     test('la traduction n ecrase pas le tirage possede', () async {
-      final dio = _mockDio((options) =>
-          options.path.endsWith('/fr') ? _frCard() : _enCard());
+      final dio = _mockDio((options) {
+        if (options.path.contains('/cards/collection')) {
+          return {'data': [_enCard()], 'not_found': []};
+        }
+        return options.path.endsWith('/fr') ? _frCard() : _enCard();
+      });
       final resolver = CardResolver(api: ScryfallApiService(dio: dio), db: db);
 
       await resolver.resolveEditions([

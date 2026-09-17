@@ -42,14 +42,7 @@ class CardResolver {
 
       try {
         final data = await _api.fetchCollection(identifiers);
-        // Reponse batch normale : {'data': [...]}. Certains appelants (et le
-        // mock de test) peuvent renvoyer une carte isolee sans enveloppe :
-        // on l'accepte comme un resultat a un seul element plutot que de la
-        // perdre silencieusement.
-        final rawData = data['data'];
-        final List<dynamic> found = rawData is List
-            ? rawData
-            : (data['id'] != null ? [data] : const <dynamic>[]);
+        final List<dynamic> found = data['data'] ?? [];
         for (final json in found) {
           final print = ResolvedPrint.fromJson(json as Map<String, dynamic>);
           await _cache(print);
