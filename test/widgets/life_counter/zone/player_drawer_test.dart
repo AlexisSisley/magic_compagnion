@@ -45,6 +45,8 @@ class _Captured {
   var monarchToggled = false;
   var eliminated = false;
   var reset = false;
+  final createdCounters = <CounterType>[];
+  final removedCounterIds = <String>[];
 }
 
 Future<_Captured> _openDrawer(
@@ -55,6 +57,11 @@ Future<_Captured> _openDrawer(
   bool isEliminated = false,
   List<CommanderDamageOpponent> commanderDamage = _defaultCommanderDamage,
   int lethalCommanderDamage = 21,
+  // `null` par défaut : le double se contente de capturer le type et de
+  // simuler un succès -- suffisant pour la plupart des tests. Les tests du
+  // refus (nom usurpant un intégré) fournissent leur propre double en échec.
+  Future<({bool success, String message})> Function(CounterType type)?
+      onCreateCounter,
 }) async {
   final captured = _Captured();
   await tester.pumpWidget(
@@ -78,6 +85,12 @@ Future<_Captured> _openDrawer(
               onCommanderDamageDelta: (sourceId, d) =>
                   captured.commanderDamageDeltas.add((sourceId, d)),
               lethalCommanderDamage: lethalCommanderDamage,
+              onCreateCounter: onCreateCounter ??
+                  (type) async {
+                    captured.createdCounters.add(type);
+                    return (success: true, message: 'Compteur sauvegardé');
+                  },
+              onRemoveCounter: (id) => captured.removedCounterIds.add(id),
             ),
             child: const Text('ouvrir'),
           ),
@@ -317,5 +330,135 @@ void main() {
       (tester) async {
     await _openDrawer(tester, isEliminated: true);
     expect(find.text('Annuler l\'élimination'), findsOneWidget);
+  });
+
+  // --- Lot 5, tâche 4 : créer et retirer un compteur depuis le tiroir.
+
+  testWidgets(
+      'Nouveau compteur : remplir nom et emoji puis valider fait apparaître '
+      'le compteur dans le tiroir, avec son nom et son emoji, et un + sur '
+      'sa ligne émet SON id', (tester) async {
+    final captured = await _openDrawer(tester);
+
+    await tester.tap(find.byKey(const ValueKey('action-create-counter')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_name')), 'Bouclier');
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_emoji')), '🛡️');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('counter_editor_submit')));
+    await tester.pumpAndSettle();
+
+    expect(captured.createdCounters, hasLength(1));
+    expect(captured.createdCounters.single.id, 'bouclier');
+    expect(find.text('Alexis'), findsOneWidget,
+        reason: 'le tiroir doit rester ouvert après la création');
+    expect(find.byKey(const ValueKey('counter_row_bouclier')), findsOneWidget);
+    expect(find.text('Bouclier'), findsOneWidget);
+    expect(find.text('🛡️'), findsOneWidget);
+
+    await tester.tap(
+        find.byKey(const ValueKey('counter_row_bouclier_plus')));
+    await tester.pump();
+
+    expect(captured.counterDeltas, [('bouclier', 1)],
+        reason: 'seul le compteur nouvellement créé doit avoir bougé');
+  });
+
+  testWidgets('annuler le dialogue de création ne crée rien', (tester) async {
+    final captured = await _openDrawer(tester);
+
+    await tester.tap(find.byKey(const ValueKey('action-create-counter')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_name')), 'Bouclier');
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_emoji')), '🛡️');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('counter_editor_cancel')));
+    await tester.pumpAndSettle();
+
+    expect(captured.createdCounters, isEmpty);
+    expect(find.byKey(const ValueKey('counter_row_bouclier')), findsNothing);
+    expect(find.text('Alexis'), findsOneWidget,
+        reason: 'annuler la création ne doit pas fermer le tiroir non plus');
+  });
+
+  testWidgets(
+      'un refus de sauvegarde (ex. nom usurpant un intégré) affiche le '
+      'message ET n\'ajoute aucune ligne -- un refus silencieux est '
+      'precisement ce que ce lot interdit', (tester) async {
+    const refusalMessage =
+        'Impossible de creer ce compteur : id deja pris par un integre';
+    final captured = await _openDrawer(
+      tester,
+      onCreateCounter: (type) async =>
+          (success: false, message: refusalMessage),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('action-create-counter')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_name')), 'Poison');
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_emoji')), '☠️');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('counter_editor_submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.text(refusalMessage), findsOneWidget,
+        reason: 'le message de CounterCatalogNotifier.saveCustomType doit '
+            'être affiché, pas avalé silencieusement');
+    expect(find.byKey(const ValueKey('counter_row_poison')), findsOneWidget,
+        reason: 'la ligne "poison" affichée est celle du compteur intégré '
+            'déjà actif (_defaultActiveCounters), PAS une seconde ligne '
+            'créée par le refus');
+    expect(find.text('Alexis'), findsOneWidget,
+        reason: 'un refus ne doit pas fermer le tiroir : l\'utilisateur '
+            'doit pouvoir corriger');
+    expect(captured.removedCounterIds, isEmpty);
+  });
+
+  testWidgets(
+      'retirer un compteur actif (personnalisé) le fait disparaître du '
+      'tiroir et transmet son id', (tester) async {
+    const custom = CounterType(
+      id: 'custom_heat',
+      name: 'Chaleur',
+      emoji: '🔥',
+      color: 0xFFFF5722,
+    );
+    final captured = await _openDrawer(
+      tester,
+      activeCounters: const [_poison, custom],
+      counters: const {'poison': 0, 'custom_heat': 3},
+    );
+
+    await tester.tap(
+        find.byKey(const ValueKey('counter_row_custom_heat_remove')));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('counter_row_custom_heat')),
+        findsNothing);
+    expect(captured.removedCounterIds, ['custom_heat']);
+    expect(find.text('Alexis'), findsOneWidget,
+        reason: 'retirer un compteur ne doit pas fermer le tiroir');
+  });
+
+  testWidgets(
+      'retirer un compteur intégré des actifs est possible (seul le '
+      'catalogue lui interdit la suppression, pas la partie en cours)',
+      (tester) async {
+    final captured = await _openDrawer(tester);
+
+    await tester.tap(find.byKey(const ValueKey('counter_row_poison_remove')));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('counter_row_poison')), findsNothing);
+    expect(captured.removedCounterIds, ['poison']);
+    // 'energy' n'est pas affecté par le retrait de 'poison'.
+    expect(find.byKey(const ValueKey('counter_row_energy')), findsOneWidget);
   });
 }

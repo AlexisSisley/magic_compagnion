@@ -1166,7 +1166,41 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       lethalCommanderDamage: _currentFormat.maxCommanderDamage,
       onCommanderDamageDelta: (sourcePlayerId, delta) =>
           _onDrawerCommanderDamage(ps.playerId, sourcePlayerId, delta),
+      onCreateCounter: _onDrawerCreateCounter,
+      onRemoveCounter: _onDrawerRemoveCounter,
     );
+  }
+
+  /// Lot 5, tâche 4 : sauvegarde réellement [type] (le tiroir ne fait que
+  /// collecter les champs via `CounterEditorDialog` et afficher le
+  /// résultat, jamais parler à un `Notifier` lui-même). Décision 2 du
+  /// rapport de tâche : un compteur créé est activé IMMÉDIATEMENT dans la
+  /// partie en cours (`isCustom: true`, pour que `customCounterIds` sache
+  /// qu'il s'agit d'un personnalisé) -- on le crée précisément parce qu'on
+  /// en a besoin maintenant. N'active jamais sur un échec (nom usurpant un
+  /// intégré, voir `CounterCatalogNotifier.saveCustomType`) : le message de
+  /// refus, jamais avalé, revient tel quel à l'appelant (le tiroir), qui
+  /// l'affiche.
+  Future<({bool success, String message})> _onDrawerCreateCounter(
+      CounterType type) async {
+    final result =
+        await ref.read(counterCatalogProvider.notifier).saveCustomType(type);
+    if (result.success) {
+      _controller.activateCounter(type.id, isCustom: true);
+      setState(() {});
+      _saveSnapshot();
+    }
+    return (success: result.success, message: result.message);
+  }
+
+  /// Retire [id] des compteurs actifs de la partie en cours (pas du
+  /// catalogue -- voir `GameSessionNotifier.deactivateCounter`, qui
+  /// conserve la valeur de chaque joueur pour ce compteur, décision 1 du
+  /// rapport de tâche).
+  void _onDrawerRemoveCounter(String id) {
+    _controller.deactivateCounter(id);
+    setState(() {});
+    _saveSnapshot();
   }
 
   /// Câblage volontairement dans CE sens (dette D2 du plan) : `targetPlayerId`

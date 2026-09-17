@@ -20,6 +20,7 @@ import 'package:magic_companion/models/counter_type.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'commander_damage_grid.dart';
+import 'counter_editor_dialog.dart';
 
 Future<void> showPlayerDrawer({
   required BuildContext context,
@@ -35,6 +36,22 @@ Future<void> showPlayerDrawer({
   required List<CommanderDamageOpponent> commanderDamage,
   required void Function(int sourcePlayerId, int delta) onCommanderDamageDelta,
   required int lethalCommanderDamage,
+  // Lot 5, tâche 4 : créer et retirer un compteur depuis le tiroir.
+  //
+  // `onCreateCounter` sauvegarde réellement [type] (typiquement via
+  // `CounterCatalogNotifier.saveCustomType`, tâche 1) ET l'active dans la
+  // partie en cours (décision 2 du rapport : un compteur créé est actif
+  // immédiatement) -- ce tiroir ne fait qu'appeler ce callback et afficher
+  // son résultat, jamais parler à un `Notifier` lui-même (comme pour toutes
+  // les autres actions). Un `record` `{success, message}`, pas un type
+  // importé de la couche providers, pour ne pas coupler ce widget de zone à
+  // `CounterCatalogActionResult`.
+  required Future<({bool success, String message})> Function(CounterType type)
+      onCreateCounter,
+  // Retire [counterId] des compteurs actifs de la partie (pas du
+  // catalogue -- un intégré ne peut pas en être supprimé, mais peut être
+  // retiré des actifs comme un personnalisé, voir la contrainte du lot).
+  required void Function(String counterId) onRemoveCounter,
 }) {
   HapticFeedback.selectionClick();
   return showModalBottomSheet<void>(
@@ -69,6 +86,11 @@ Future<void> showPlayerDrawer({
       // chaud, éventuellement plusieurs fois).
       onCommanderDamageDelta: onCommanderDamageDelta,
       lethalCommanderDamage: lethalCommanderDamage,
+      // Même logique que la grille de dégâts de commandant : créer ou
+      // retirer un compteur ne ferme pas le tiroir non plus (on continue
+      // souvent d'y ajuster d'autres compteurs juste après).
+      onCreateCounter: onCreateCounter,
+      onRemoveCounter: onRemoveCounter,
     ),
   );
 }
@@ -87,6 +109,8 @@ class _PlayerDrawerBody extends StatefulWidget {
     required this.commanderDamage,
     required this.onCommanderDamageDelta,
     required this.lethalCommanderDamage,
+    required this.onCreateCounter,
+    required this.onRemoveCounter,
   });
 
   final String playerName;
@@ -105,6 +129,9 @@ class _PlayerDrawerBody extends StatefulWidget {
   final List<CommanderDamageOpponent> commanderDamage;
   final void Function(int sourcePlayerId, int delta) onCommanderDamageDelta;
   final int lethalCommanderDamage;
+  final Future<({bool success, String message})> Function(CounterType type)
+      onCreateCounter;
+  final void Function(String counterId) onRemoveCounter;
 
   @override
   State<_PlayerDrawerBody> createState() => _PlayerDrawerBodyState();
@@ -114,6 +141,13 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
   /// Copie locale : le tiroir reste ouvert pendant qu'on incrémente, et doit
   /// refléter le changement immédiatement sans attendre un rebuild de la page.
   late final Map<String, int> _values = Map<String, int>.from(widget.counters);
+
+  /// Copie locale mutable, elle aussi (même raison) : créer ou retirer un
+  /// compteur doit se refléter dans CE tiroir déjà ouvert, sans attendre un
+  /// rebuild de la page qui l'a ouvert (`widget.activeCounters` reste, lui,
+  /// figé à l'ouverture).
+  late List<CounterType> _activeCounters =
+      List<CounterType>.from(widget.activeCounters);
 
   /// Même raison qu'au-dessus, pour les totaux de la grille de dégâts de
   /// commandant reçus.
@@ -125,6 +159,44 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
       _values[id] = ((_values[id] ?? 0) + delta).clamp(0, 99);
     });
     widget.onCounterDelta(id, delta);
+  }
+
+  /// Ouvre `CounterEditorDialog`, puis -- si l'utilisateur n'a pas annulé --
+  /// délègue la sauvegarde réelle à `widget.onCreateCounter` (typiquement
+  /// `CounterCatalogNotifier.saveCustomType` + activation immédiate dans la
+  /// partie en cours, décision 2 du rapport de tâche).
+  ///
+  /// Le refus n'est jamais silencieux (contrainte du lot) : `result.message`
+  /// est toujours affiché, succès ou échec -- un nom usurpant un intégré
+  /// revient en échec avec un message exploitable (voir
+  /// `CounterCatalogNotifier.saveCustomType`), et l'utilisateur reste dans
+  /// le tiroir pour corriger, exactement comme une annulation.
+  Future<void> _openCreateCounterDialog() async {
+    final type = await CounterEditorDialog.show(context);
+    if (type == null) return; // annulé : rien à créer.
+    final result = await widget.onCreateCounter(type);
+    if (!mounted) return;
+    if (result.success) {
+      setState(() {
+        _activeCounters = [..._activeCounters, type];
+        _values[type.id] = 0;
+      });
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(result.message)),
+    );
+  }
+
+  /// Retire [id] des compteurs actifs affichés par CE tiroir, et transmet
+  /// le retrait à `widget.onRemoveCounter` (qui désactive [id] dans la
+  /// session -- `GameSessionNotifier.deactivateCounter`). Ne ferme pas le
+  /// tiroir, sur le même principe que la grille de dégâts de commandant :
+  /// on continue souvent d'y ajuster d'autres compteurs juste après.
+  void _removeCounter(String id) {
+    setState(() {
+      _activeCounters = _activeCounters.where((t) => t.id != id).toList();
+    });
+    widget.onRemoveCounter(id);
   }
 
   void _bumpCommanderDamage(int sourcePlayerId, int delta) {
@@ -172,7 +244,17 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
               ),
               Text(widget.playerName, style: AppTextStyles.cardTitle()),
               const SizedBox(height: 14),
-              for (final type in widget.activeCounters) _counterRow(type),
+              for (final type in _activeCounters) _counterRow(type),
+              _action(
+                key: const ValueKey('action-create-counter'),
+                icon: Icons.add_circle_outline,
+                label: 'Nouveau compteur',
+                color: AppColors.primary,
+                // Ne ferme pas le tiroir (voir le doc-comment de
+                // `_openCreateCounterDialog`) : appelé directement, pas via
+                // le `Navigator.of(sheetCtx).pop()` des autres actions.
+                onTap: _openCreateCounterDialog,
+              ),
               // Ronde de correction 1 (Important, "seconde porte") : la
               // grille n'etait conditionnee par rien -- ni le seuil letal,
               // ni les compteurs actives par le format -- et s'affichait
@@ -255,6 +337,20 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
             icon: const Icon(Icons.add),
             color: AppColors.textSecondary,
             onPressed: () => _bump(id, 1),
+          ),
+          // Retrait des compteurs ACTIFS de la partie (lot 5, tâche 4) --
+          // pas une suppression du catalogue : un compteur intégré ne peut
+          // pas en être retiré, mais peut être retiré des actifs comme un
+          // personnalisé, ligne comprise (contrainte du lot). La valeur du
+          // joueur pour ce compteur est conservée (décision 1 du rapport,
+          // voir GameSessionNotifier.deactivateCounter) : elle réapparaît
+          // intacte si le compteur est réactivé plus tard.
+          IconButton(
+            key: ValueKey('counter_row_${id}_remove'),
+            icon: const Icon(Icons.close, size: 18),
+            color: AppColors.textMuted,
+            tooltip: 'Retirer ce compteur de la partie',
+            onPressed: () => _removeCounter(id),
           ),
         ],
       ),

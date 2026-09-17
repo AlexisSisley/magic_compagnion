@@ -16,6 +16,7 @@ import 'package:magic_companion/router/app_router.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
+import 'package:magic_companion/services/counter_type_service.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
@@ -821,6 +822,10 @@ void main() {
     final container = await pumpWithContainer(tester);
 
     await openDrawerForPlayerZero(tester);
+    // Lot 5, tâche 4 : la nouvelle ligne "Nouveau compteur" allonge le
+    // tiroir -- même raison que le `ensureVisible` déjà utilisé plus bas
+    // pour "action-reset" (DETTE 4/4).
+    await tester.ensureVisible(find.byKey(const ValueKey('action-eliminate')));
     await tester.tap(find.byKey(const ValueKey('action-eliminate')));
     await tester.pumpAndSettle();
 
@@ -851,6 +856,8 @@ void main() {
     await openDrawerForPlayerZero(tester);
     // Le libellé de l'action bascule sur "Annuler l'élimination" pour un
     // joueur déjà éliminé (voir player_drawer.dart) ; la clé reste la même.
+    // Lot 5, tâche 4 : même raison de `ensureVisible` que ci-dessus.
+    await tester.ensureVisible(find.byKey(const ValueKey('action-eliminate')));
     await tester.tap(find.byKey(const ValueKey('action-eliminate')));
     await tester.pumpAndSettle();
 
@@ -1537,5 +1544,109 @@ void main() {
     expect(session.players[2].commanderDamageReceived, isEmpty,
         reason: 'aucune attribution ne doit avoir eu lieu : le second tap '
             'devait rester un palier, jamais un avatar recouvrant');
+  });
+
+  // --- Lot 5, tâche 4 : créer/retirer un compteur depuis le tiroir, câblage
+  // réel (CounterCatalogNotifier.saveCustomType + GameSessionNotifier).
+  // player_drawer_test.dart couvre déjà la mécanique UI du tiroir avec des
+  // doubles de callback ; les tests ci-dessous vérifient que
+  // `life_counter_page._openPlayerDrawer` les branche bien sur les vrais
+  // notifiers/service, pas sur rien.
+
+  testWidgets(
+      'décision 2 : créer un compteur depuis le tiroir l\'active '
+      'IMMÉDIATEMENT dans la partie en cours', (tester) async {
+    final container = await pumpWithContainer(tester);
+
+    await openDrawerForPlayerZero(tester);
+    await tester.tap(find.byKey(const ValueKey('action-create-counter')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_name')), 'Bouclier');
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_emoji')), '🛡️');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('counter_editor_submit')));
+    await tester.pumpAndSettle();
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.activeCounterIds, contains('bouclier'),
+        reason: 'un compteur créé doit être actif tout de suite, pas '
+            'seulement enregistré dans le catalogue -- on le crée parce '
+            'qu\'on en a besoin maintenant');
+    expect(session.customCounterIds, contains('bouclier'));
+    // La nouvelle ligne est visible dans le MÊME tiroir, sans le rouvrir.
+    expect(find.byKey(const ValueKey('counter_row_bouclier')), findsOneWidget);
+  });
+
+  testWidgets(
+      'le compteur créé est bien PERSISTÉ : un nouveau CounterTypeService '
+      '(pas le notifier déjà chargé) le retrouve', (tester) async {
+    await pumpWithContainer(tester);
+
+    await openDrawerForPlayerZero(tester);
+    await tester.tap(find.byKey(const ValueKey('action-create-counter')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_name')), 'Bouclier');
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_emoji')), '🛡️');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('counter_editor_submit')));
+    await tester.pumpAndSettle();
+
+    // Un service TOUT NEUF, qui n'a jamais vu le notifier de ce test :
+    // preuve que la sauvegarde a bien atteint SharedPreferences, pas
+    // seulement l'état en mémoire de counterCatalogProvider.
+    final freshTypes = await CounterTypeService().loadCustomTypes();
+    expect(freshTypes.map((t) => t.id), contains('bouclier'));
+  });
+
+  testWidgets(
+      'un refus de création (nom "Poison", usurpant l\'intégré) affiche le '
+      'message ET ne change ni activeCounterIds ni customCounterIds',
+      (tester) async {
+    final container = await pumpWithContainer(tester);
+    final before = container.read(gameSessionNotifierProvider)!;
+    final activeBefore = List<String>.from(before.activeCounterIds);
+    final customBefore = List<String>.from(before.customCounterIds);
+
+    await openDrawerForPlayerZero(tester);
+    await tester.tap(find.byKey(const ValueKey('action-create-counter')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_name')), 'Poison');
+    await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_emoji')), '☠️');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('counter_editor_submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Impossible de creer ce compteur'),
+        findsOneWidget,
+        reason: 'CounterCatalogNotifier.saveCustomType refuse cet id -- son '
+            'message doit être affiché, jamais avalé silencieusement');
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.activeCounterIds, activeBefore);
+    expect(session.customCounterIds, customBefore);
+  });
+
+  testWidgets(
+      'retirer un compteur intégré (poison) des actifs depuis le tiroir '
+      'atteint réellement la session (activeCounterIds), tout en gardant '
+      'la valeur du joueur', (tester) async {
+    final container = await pumpWithContainer(tester);
+    container
+        .read(gameSessionNotifierProvider.notifier)
+        .updateCounter(0, 'poison', 3);
+
+    await openDrawerForPlayerZero(tester);
+    await tester.tap(find.byKey(const ValueKey('counter_row_poison_remove')));
+    await tester.pump();
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.activeCounterIds, isNot(contains('poison')));
+    expect(session.players[0].counters['poison'], 3,
+        reason: 'décision 1 : la valeur survit au retrait des actifs');
   });
 }
