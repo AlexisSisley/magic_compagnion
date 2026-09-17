@@ -126,17 +126,37 @@ Future<void> tapMinusHalf(
     of: _playerZone(playerId),
     matching: find.byType(LifeDial),
   );
-  final rotatedAncestor = find.ancestor(
-    of: dialFinder,
-    matching: find.byWidgetPredicate((w) => w is RotatedBox && w.quarterTurns == 2),
-  );
-  final isRotated = rotatedAncestor.evaluate().isNotEmpty;
+  final quarterTurns = _quarterTurnsAbove(dialFinder);
   final dial = tester.getRect(dialFinder);
-  final dx = isRotated ? dial.width * 0.75 : dial.width * 0.25;
+  // `RotatedBox` tourne dans le sens HORAIRE (voir table_seat.dart) : la
+  // moitié décrément (visuellement "gauche" depuis la chaise du joueur) se
+  // trouve à dx inférieur pour 0, dy inférieur pour 1, dx supérieur pour 2,
+  // dy supérieur pour 3. Depuis la tâche 5, un siège latéral peut porter
+  // `quarterTurns == 1` ou `3` (pas seulement 0/2) : le repérage doit donc
+  // couvrir les quatre valeurs, pas seulement détecter un demi-tour.
+  final point = switch (quarterTurns) {
+    1 => Offset(dial.center.dx, dial.top + dial.height * 0.25),
+    2 => Offset(dial.left + dial.width * 0.75, dial.center.dy),
+    3 => Offset(dial.center.dx, dial.top + dial.height * 0.75),
+    _ => Offset(dial.left + dial.width * 0.25, dial.center.dy),
+  };
   for (var i = 0; i < count; i++) {
-    await tester.tapAt(Offset(dial.left + dx, dial.center.dy));
+    await tester.tapAt(point);
     await tester.pump();
   }
+}
+
+/// Le `quarterTurns` réellement appliqué au-dessus de [descendant], déduit
+/// de l'arbre (jamais de l'état) — voir la docstring de `tapMinusHalf`.
+int _quarterTurnsAbove(Finder descendant) {
+  for (final qt in const [1, 2, 3]) {
+    final ancestor = find.ancestor(
+      of: descendant,
+      matching: find.byWidgetPredicate((w) => w is RotatedBox && w.quarterTurns == qt),
+    );
+    if (ancestor.evaluate().isNotEmpty) return qt;
+  }
+  return 0;
 }
 
 /// Impose une taille d'écran logique pour la durée du test (restaurée par

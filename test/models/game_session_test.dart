@@ -201,5 +201,62 @@ void main() {
       expect(restored.players.map((p) => p.playerId).toList(), [0, 1, 2, 3]);
       expect(restored.playerOrder, [3, 1, 2, 0]);
     });
+
+    test('un snapshot écrit par ce code porte le marqueur de migration', () {
+      final session = GameSession.newGame(
+        format: GameFormat.builtInFormats.first,
+        playerConfigs: List.generate(
+          4,
+          (i) => PlayerConfig(
+            id: 'p$i',
+            name: 'Joueur $i',
+            type: i == 0 ? PlayerType.owner : PlayerType.guest,
+          ),
+        ),
+      );
+      expect(session.toJson()['rotationsMigrated'], isTrue);
+    });
+
+    test('un « Même sens » délibéré survit à un aller-retour JSON', () {
+      final session = GameSession.newGame(
+        format: GameFormat.builtInFormats.first,
+        playerConfigs: List.generate(
+          4,
+          (i) => PlayerConfig(
+            id: 'p$i',
+            name: 'Joueur $i',
+            type: i == 0 ? PlayerType.owner : PlayerType.guest,
+          ),
+        ),
+      );
+      final allZero = session.copyWith(
+        players: session.players.map((p) => p.copyWith(quarterTurns: 0)).toList(),
+      );
+      final round = GameSession.fromJson(allZero.toJson());
+      expect(round.players.map((p) => p.quarterTurns).toList(), [0, 0, 0, 0],
+          reason: 'sans le marqueur, l\'heuristique prendrait ce choix délibéré '
+              'pour un ancien snapshot et le réécrirait à chaque rechargement');
+    });
+
+    test('un ancien snapshot SANS marqueur reçoit les rotations de siège', () {
+      final session = GameSession.newGame(
+        format: GameFormat.builtInFormats.first,
+        playerConfigs: List.generate(
+          4,
+          (i) => PlayerConfig(
+            id: 'p$i',
+            name: 'Joueur $i',
+            type: i == 0 ? PlayerType.owner : PlayerType.guest,
+          ),
+        ),
+      );
+      final legacy = Map<String, dynamic>.from(session.toJson())
+        ..remove('rotationsMigrated');
+      legacy['players'] = (legacy['players'] as List)
+          .map((p) => Map<String, dynamic>.from(p as Map)..['quarterTurns'] = 0)
+          .toList();
+      final migrated = GameSession.fromJson(legacy);
+      expect(migrated.players.map((p) => p.quarterTurns).toList(), [2, 3, 0, 1]);
+    });
   });
 }

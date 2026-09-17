@@ -1060,6 +1060,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     order[oldIndex] = order[newIndex];
     order[newIndex] = temp;
     _controller.reorderPlayers(order);
+    // Une zone DÉPLACÉE prend l'orientation par défaut de son nouveau siège
+    // (décision utilisateur). Seules les deux zones permutées changent de
+    // siège : les reposer TOUTES détruisait l'orientation des joueurs que
+    // personne n'avait touchés — un « Même sens » sautait au premier
+    // glisser-déposer sans rapport.
+    final seats = seatsFor(order.length);
+    for (final displayIndex in {oldIndex, newIndex}) {
+      _controller.updateRotation(
+          order[displayIndex], seats[displayIndex].quarterTurns);
+    }
     setState(() {});
     _saveSnapshot();
   }
