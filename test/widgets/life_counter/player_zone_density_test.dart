@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/player_model.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
+import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
 import 'package:magic_companion/widgets/life_counter/zone/player_drawer.dart';
 
@@ -184,5 +185,113 @@ void main() {
     expect(rotatedTo, 1,
         reason: 'taper "Tourner" dans le tiroir doit vraiment déclencher la '
             'rotation (_rotate90Degrees), pas seulement fermer le tiroir');
+  });
+
+  testWidgets(
+      'au cran minimal, "Tourner" reste atteignable même dans la '
+      'configuration la plus longue du tiroir : 7 adversaires, grille de '
+      'dégâts, 3 compteurs (ronde de correction 2, tâche 2)',
+      (tester) async {
+    int? rotatedTo;
+
+    // Le pire cas visé par la correction : 7-8 joueurs, ce qui pousse à la
+    // fois les zones sous le seuil `minimal` (en-tête masqué) ET allonge le
+    // tiroir au maximum (3 compteurs, grille de dégâts à 7 lignes, puis
+    // Tourner / Couleur / Monarque / Éliminer / Réinitialiser).
+    final opponents = [
+      for (var i = 1; i <= 7; i++)
+        CommanderDamageOpponent(
+          playerId: i,
+          name: 'Joueur $i',
+          colorValue: 0xFF000000 + i * 0x111111,
+          damage: i * 3,
+        ),
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => SizedBox(
+                width: 300,
+                height: 72, // cran minimal, comme les tests ci-dessus.
+                child: PlayerZone(
+                  player: _buildPlayer(),
+                  onLifeChanged: (_) {},
+                  onColorChanged: (_) {},
+                  onRotationChanged: (v) => rotatedTo = v,
+                  onOpenDrawer: (onRotate, onShowColorPicker) =>
+                      showPlayerDrawer(
+                    context: context,
+                    playerName: 'Alexis',
+                    counters: const {
+                      'poison': 3,
+                      'energy': 2,
+                      'commander_tax': 1,
+                    },
+                    isMonarch: false,
+                    isEliminated: false,
+                    onCounterDelta: (_, _) {},
+                    onToggleMonarch: () {},
+                    onEliminate: () {},
+                    onResetCounters: () {},
+                    commanderDamage: opponents,
+                    onCommanderDamageDelta: (_, _) {},
+                    // Non nul : active la grille (spec §2.7 point 2 et
+                    // ronde de correction 1 de player_drawer.dart).
+                    lethalCommanderDamage: 21,
+                    onRotate: onRotate,
+                    onShowColorPicker: onShowColorPicker,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(ConditionalHandle));
+    await tester.pumpAndSettle();
+
+    // Confirme qu'on est bien dans la configuration la plus longue, pas
+    // dans un tiroir raccourci qui ne prouverait rien.
+    expect(find.byType(CommanderDamageGrid), findsOneWidget);
+    expect(find.text('Joueur 7'), findsOneWidget);
+
+    // Observation pour le contrôleur (pas une assertion) : combien de
+    // pixels logiques faut-il faire défiler dans ce pire cas pour atteindre
+    // "Tourner" ? Le défilement lui-même est un geste normal -- ce que ce
+    // test prouve, c'est qu'on PEUT y arriver, pas qu'il n'y a rien à faire
+    // défiler.
+    final scrollable = find.byType(Scrollable);
+    expect(scrollable, findsOneWidget,
+        reason: 'un seul Scrollable attendu : celui du corps du tiroir');
+    final position = tester.state<ScrollableState>(scrollable).position;
+    final beforePixels = position.pixels;
+
+    await tester.ensureVisible(find.byKey(const ValueKey('action-rotate')));
+    await tester.pumpAndSettle();
+
+    final afterPixels = position.pixels;
+    // ignore: avoid_print
+    print(
+      'RONDE 2 -- pire cas du tiroir : défilement de $beforePixels à '
+      '$afterPixels px (delta ${afterPixels - beforePixels} px) pour '
+      'atteindre "Tourner" ; maxScrollExtent=${position.maxScrollExtent} px.',
+    );
+
+    expect(find.byKey(const ValueKey('action-rotate')), findsOneWidget,
+        reason: '"Tourner" doit rester atteignable même dans la '
+            'configuration la plus longue du tiroir');
+
+    await tester.tap(find.byKey(const ValueKey('action-rotate')));
+    await tester.pumpAndSettle();
+
+    expect(rotatedTo, 1,
+        reason: 'taper "Tourner" doit vraiment déclencher la rotation, même '
+            'depuis le pire cas du tiroir');
   });
 }

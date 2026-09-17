@@ -457,11 +457,22 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
 
     return RotatedBox(
       quarterTurns: widget.player.quarterTurns,
-      // Le `LayoutBuilder` doit vivre DANS le `RotatedBox` : c'est le seul
-      // endroit où les contraintes sont exprimées dans le repère du joueur
-      // (spec tâche 2). À l'extérieur, largeur et hauteur seraient
-      // interverties pour un siège latéral, et le cran serait faux
-      // exactement sur les sièges qui en ont le plus besoin.
+      // Le `LayoutBuilder` vit DANS le `RotatedBox` pour que la `Size` qu'il
+      // lit soit exprimée dans le repère du joueur (spec tâche 2).
+      //
+      // Ronde de correction 2 : ce placement n'a AUCUN effet observable
+      // aujourd'hui, et aucun test ne peut le garantir. `RenderRotatedBox`
+      // retourne déjà lui-même les contraintes retournées à son enfant
+      // (`constraints.flipped` pour un `quarterTurns` impair), et `tierFor`
+      // ne regarde que `math.min(width, height)`, symétrique par
+      // construction : `min(W, H) == min(H, W)`. Le déplacer hors du
+      // `RotatedBox` ne changerait donc aucun résultat mesurable ici.
+      //
+      // Il tient par convention -- pas par nécessité actuelle -- et ne
+      // deviendrait réellement load-bearing que le jour où `tierFor`
+      // cesserait d'être symétrique (une règle différente selon l'axe,
+      // par exemple). D'ici là, ne le lis pas comme une garantie testée :
+      // c'en est une pour l'avenir, pas pour le présent.
       child: LayoutBuilder(
         builder: (context, constraints) {
           final tier = tierFor(Size(constraints.maxWidth, constraints.maxHeight));
