@@ -110,6 +110,29 @@ void main() {
   });
 
   testWidgets(
+      'ronde de correction 1 — les compteurs intégrés du catalogue réel '
+      '(CounterType.builtInCounters, pas des doublures locales) affichent '
+      'leurs libellés en français, jamais en anglais', (tester) async {
+    // Utilise directement CounterType.builtInCounters (pas _poison/_energy,
+    // des doublures locales à ce fichier) : c'est la seule façon de figer le
+    // vrai nom du catalogue -- une régression sur le `name` du modèle ne
+    // toucherait pas des constantes de test dupliquées.
+    final builtIns = CounterType.builtInCounters
+        .where((t) => t.id == 'energy' || t.id == 'commander_tax')
+        .toList();
+    await _openDrawer(
+      tester,
+      activeCounters: builtIns,
+      counters: {for (final t in builtIns) t.id: 0},
+    );
+
+    expect(find.text('Énergie'), findsOneWidget);
+    expect(find.text('Taxe de commandant'), findsOneWidget);
+    expect(find.text('Energy'), findsNothing);
+    expect(find.text('Commander Tax'), findsNothing);
+  });
+
+  testWidgets(
       'un compteur personnalisé dans les actifs affiche son nom et son emoji',
       (tester) async {
     const custom = CounterType(

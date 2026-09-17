@@ -62,21 +62,26 @@ class CounterType {
     ),
     CounterType(
       id: 'energy',
-      name: 'Energy',
+      // Nom affiché seulement -- l'id ne bouge pas : il est écrit tel quel
+      // dans les snapshots de partie (GameSession.activeCounterIds,
+      // PlayerState.counters) et dans enabledCounterIds des presets de
+      // format (game_format.dart). Le renommer casserait la relecture des
+      // parties déjà sauvegardées.
+      name: 'Énergie',
       emoji: '⚡',
       color: 0xFFFF9800,
       isBuiltIn: true,
     ),
     CounterType(
       id: 'commander_tax',
-      name: 'Commander Tax',
+      name: 'Taxe de commandant',
       emoji: '💰',
       color: 0xFFFFEB3B,
       isBuiltIn: true,
     ),
     CounterType(
       id: 'commander_damage',
-      name: 'Commander Damage',
+      name: 'Dégâts de commandant',
       emoji: '⚔️',
       color: 0xFFF44336,
       isBuiltIn: true,

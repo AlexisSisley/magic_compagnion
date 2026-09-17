@@ -1123,6 +1123,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // avec une ligne de compteur redondante.
     final activeCounters = <CounterType>[];
     for (final id in session?.activeCounterIds ?? const <String>[]) {
+      // Pas une ligne ± comme les autres : cet id active la
+      // CommanderDamageGrid séparée juste plus bas (voir le commentaire
+      // au-dessus) — l'inclure ici la doublonnerait avec une ligne redondante.
       if (id == 'commander_damage') continue;
       final type = ref.read(counterTypeByIdProvider(id));
       if (type != null) activeCounters.add(type);
