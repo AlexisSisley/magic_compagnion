@@ -1,10 +1,14 @@
 // test/providers/game_session_notifier_test.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:magic_companion/models/counter_type.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
+import 'package:magic_companion/providers/counter_catalog_provider.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
+import 'package:magic_companion/providers/service_providers.dart';
 
 void main() {
   late ProviderContainer container;
@@ -19,6 +23,7 @@ void main() {
   ];
 
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     container = ProviderContainer();
   });
 
@@ -253,12 +258,85 @@ void main() {
       expect(player.counters['poison'], 0);
     });
 
-    test('clamps une valeur au-delà de 99', () {
+    // Lot 5, tâche 3a : le plafond vient désormais de `CounterType.maxValue`
+    // (résolu via `counterTypeByIdProvider`), pas d'une constante 99 écrite
+    // dans le notifier. `poison` porte `maxValue: 10`
+    // (`CounterType.builtInCounters`) : il sature à 10, plus à 99.
+    test('poison (maxValue: 10) clampe à 10, pas à 99', () {
       getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
       getNotifier().updateCounter(0, 'poison', 150);
 
       final player = container.read(gameSessionNotifierProvider)!.players[0];
-      expect(player.counters['poison'], 99);
+      expect(player.counters['poison'], 10);
+    });
+
+    // Test DISCRIMINANT (brief tâche 3) : sans lui, remplacer le plafond de
+    // `updateCounter` par une constante 10 (au lieu de lire
+    // `CounterType.maxValue`) passerait inaperçu -- seul ce cas, sur un
+    // compteur SANS `maxValue`, distingue "le plafond suit la définition du
+    // compteur" de "le plafond est une constante 10 écrite ailleurs".
+    // `energy` (`CounterType.builtInCounters`) n'a pas de `maxValue` :
+    // illimité, donc replié sur 99.
+    test(
+        'un compteur sans maxValue (energy) sature toujours à 99 -- test '
+        'discriminant du cas poison ci-dessus', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().updateCounter(0, 'energy', 150);
+
+      final player = container.read(gameSessionNotifierProvider)!.players[0];
+      expect(player.counters['energy'], 99);
+    });
+
+    test(
+        'un compteur personnalisé avec maxValue: 3 sature à 3 (ni 10, ni 99)',
+        () async {
+      const custom = CounterType(
+        id: 'custom_rage',
+        name: 'Rage',
+        emoji: '🔥',
+        color: 0xFF8B0000,
+        maxValue: 3,
+      );
+      await container.read(counterTypeServiceProvider).saveCustomType(custom);
+      await container.read(counterCatalogProvider.notifier).load();
+
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().updateCounter(0, 'custom_rage', 150);
+
+      final player = container.read(gameSessionNotifierProvider)!.players[0];
+      expect(player.counters['custom_rage'], 3);
+    });
+
+    // Le plancher à 0 tient dans les trois cas ci-dessus (avec maxValue 10,
+    // sans maxValue, et avec un maxValue personnalisé à 3) : un plafond
+    // différent ne doit jamais faire dériver le plancher, qui reste
+    // indépendant de `CounterType.maxValue`.
+    test('le plancher à 0 tient aussi pour un compteur sans maxValue', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().updateCounter(0, 'energy', -5);
+
+      final player = container.read(gameSessionNotifierProvider)!.players[0];
+      expect(player.counters['energy'], 0);
+    });
+
+    test(
+        'le plancher à 0 tient aussi pour un compteur personnalisé avec '
+        'maxValue: 3', () async {
+      const custom = CounterType(
+        id: 'custom_rage',
+        name: 'Rage',
+        emoji: '🔥',
+        color: 0xFF8B0000,
+        maxValue: 3,
+      );
+      await container.read(counterTypeServiceProvider).saveCustomType(custom);
+      await container.read(counterCatalogProvider.notifier).load();
+
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().updateCounter(0, 'custom_rage', -1);
+
+      final player = container.read(gameSessionNotifierProvider)!.players[0];
+      expect(player.counters['custom_rage'], 0);
     });
   });
 

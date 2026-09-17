@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
+import 'package:magic_companion/providers/counter_catalog_provider.dart';
 
 /// Source de vérité unique de la partie en cours.
 ///
@@ -45,15 +46,25 @@ class GameSessionNotifier extends Notifier<GameSession?> {
     state = session.copyWith(players: players);
   }
 
-  /// Le clamp `0..99` vit ici, pas côté appelant : `updateCounter` est le
-  /// seul chemin d'écriture des compteurs (poison/énergie/taxe), et le
-  /// tiroir (`showPlayerDrawer`) ne clampe que sa copie locale d'affichage —
-  /// sans ce clamp serveur, un delta négatif sous zéro (ex. tap "−" sur un
-  /// compteur déjà à 0) écrirait une valeur négative en session.
+  /// Le clamp vit ici, pas côté appelant : `updateCounter` est le seul
+  /// chemin d'écriture des compteurs, et le tiroir (`showPlayerDrawer`) ne
+  /// clampe que sa copie locale d'affichage — sans ce clamp serveur, un
+  /// delta négatif sous zéro (ex. tap "−" sur un compteur déjà à 0)
+  /// écrirait une valeur négative en session.
+  ///
+  /// Le plafond vient de `CounterType.maxValue` (lot 5, tâche 3) — résolu
+  /// via `counterTypeByIdProvider`, donc y compris pour un compteur
+  /// personnalisé chargé dans le catalogue — et non plus d'une constante
+  /// écrite ici : `poison` (`maxValue: 10`) sature désormais à 10, pas à
+  /// 99. Un `counterId` sans `CounterType` connu (catalogue pas encore
+  /// chargé, id obsolète) ou dont `maxValue` est `null` (illimité, ex.
+  /// `energy`) retombe sur 99, le plafond historique.
   void updateCounter(int playerId, String counterId, int value) {
     final session = state;
     if (session == null) return;
-    final clamped = value.clamp(0, 99);
+    final maxValue =
+        ref.read(counterTypeByIdProvider(counterId))?.maxValue ?? 99;
+    final clamped = value.clamp(0, maxValue);
     final players = session.players.map((p) {
       if (p.playerId == playerId) {
         final counters = Map<String, int>.from(p.counters);
