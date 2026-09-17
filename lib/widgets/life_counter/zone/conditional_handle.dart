@@ -116,6 +116,19 @@ class ConditionalHandle extends StatelessWidget {
   /// dans les cas usuels.
   static const double _layoutSafetyMargin = 2.0;
 
+  /// Résout le compteur intégré 'commander_damage' du catalogue (revue
+  /// finale, petite chose 3) : le pire dégât de commandant reste représenté
+  /// à part de `summary.counters` (voir le doc-comment de `CounterSummary`
+  /// -- ce n'est pas un compteur de `PlayerState.counters`, c'est un
+  /// maximum calculé sur `commanderDamageReceived`), mais son GLYPHE et sa
+  /// COULEUR n'ont aucune raison de vivre ailleurs que dans le même
+  /// catalogue que tous les autres. `CounterType.builtInCounters` est une
+  /// liste fixe de 4 entrées connues (poison/energy/commander_tax/
+  /// commander_damage) : un `firstWhere` sans `orElse` est sûr ici, même
+  /// principe que `player_zone._builtInCounterType`.
+  CounterType get _commanderDamageType => CounterType.builtInCounters
+      .firstWhere((c) => c.id == 'commander_damage');
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -216,8 +229,18 @@ class ConditionalHandle extends StatelessWidget {
   /// pas le mécanisme, qu'il fallait corriger.
   _ChipsFit _fitChips(double maxWidth, TextScaler textScaler) {
     final entries = <_ChipData>[
+      // Revue finale (petite chose 3) : dérivait un glyphe ('⚔', sans le
+      // sélecteur de variante emoji) et une couleur (`AppColors.accentRed`,
+      // `Colors.redAccent`) écrits en dur ici -- une seconde source pour la
+      // même information que `CounterType.builtInCounters` porte déjà pour
+      // l'id 'commander_damage' (emoji '⚔️', couleur 0xFFF44336), et
+      // divergente de celle-ci. Alignée sur le catalogue.
       if (summary.worstCommanderDamage > 0)
-        _ChipData('⚔', summary.worstCommanderDamage, AppColors.accentRed),
+        _ChipData(
+          _commanderDamageType.emoji,
+          summary.worstCommanderDamage,
+          Color(_commanderDamageType.color),
+        ),
       for (final entry in summary._nonZeroCounters)
         _ChipData(entry.key.emoji, entry.value, Color(entry.key.color)),
     ]..sort((a, b) => b.value.compareTo(a.value));

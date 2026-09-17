@@ -116,10 +116,25 @@ void main() {
     expect(find.textContaining('⚡'), findsNothing);
   });
 
-  testWidgets('la puce du pire dégât de commandant est inchangée',
-      (tester) async {
+  testWidgets(
+      'la puce du pire dégât de commandant utilise l\'emoji et la couleur '
+      'du catalogue (CounterType.builtInCounters), pas un glyphe et une '
+      'couleur écrits en dur ici', (tester) async {
     await pumpHandle(tester, const CounterSummary(worstCommanderDamage: 12));
-    expect(find.text('⚔ 12'), findsOneWidget);
+    // Revue finale (petite chose 3) : la puce dérivait '⚔' (sans le
+    // sélecteur de variante emoji) et `AppColors.accentRed`
+    // (`Colors.redAccent`, 0xFFFF5252), distincts de ce que le catalogue
+    // porte déjà pour 'commander_damage' (emoji '⚔️', couleur 0xFFF44336).
+    expect(find.text('⚔ 12'), findsNothing,
+        reason: 'l\'ancien glyphe écrit en dur (sans le sélecteur de '
+            'variante emoji) ne doit plus apparaître');
+    expect(find.text('⚔️ 12'), findsOneWidget,
+        reason: 'le glyphe doit être celui de '
+            'CounterType.builtInCounters, id "commander_damage"');
+    final textWidget = tester.widget<Text>(find.text('⚔️ 12'));
+    expect(textWidget.style?.color, const Color(0xFFF44336),
+        reason: 'la couleur doit être celle du catalogue, pas '
+            'AppColors.accentRed (Colors.redAccent, 0xFFFF5252)');
   });
 
   testWidgets('la hauteur est identique au repos et en alerte', (tester) async {
@@ -178,7 +193,7 @@ void main() {
     // affichées, les 2 restantes (5, 2) comptées dans un "+2".
     await pumpHandle(tester, summary, maxVisibleChips: 3);
 
-    expect(find.text('⚔ 20'), findsOneWidget);
+    expect(find.text('⚔️ 20'), findsOneWidget);
     expect(find.text('⚡ 9'), findsOneWidget);
     expect(find.text('+2'), findsOneWidget);
     expect(find.text('🔥 5'), findsNothing,
@@ -202,7 +217,7 @@ void main() {
     // constante figée dans ce fichier.
     await pumpHandle(tester, summary, maxVisibleChips: 2);
 
-    expect(find.text('⚔ 5'), findsOneWidget);
+    expect(find.text('⚔️ 5'), findsOneWidget);
     expect(find.text('+2'), findsOneWidget);
     expect(find.text('☠️ 4'), findsNothing);
     expect(find.text('⚡ 3'), findsNothing);
