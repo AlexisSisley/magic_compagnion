@@ -13,6 +13,7 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:math';
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1529,62 +1530,55 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     );
   }
 
+  /// Presets d'orientation, TOUS dérivés de la géométrie (revue finale,
+  /// ruling 20).
+  ///
+  /// Ce qui existait avant : des listes en dur de 2 à 6 joueurs, écrites pour
+  /// une disposition qui n'existe plus. Mesuré à `Size(900, 700)` / 4
+  /// joueurs — l'écran exact des tests de presets — la disposition rendue est
+  /// `[top, right, bottom, left]`, soit `[2, 3, 0, 1]`, colonnes latérales
+  /// actives ; « Face à face » posait `[2, 2, 0, 0]` et AUCUN des cinq presets
+  /// ne produisait l'orientation juste. L'aperçu, lui, dessinait honnêtement
+  /// le résultat faux : libellé et aperçu se contredisaient à l'écran.
+  ///
+  /// Depuis, il n'y a plus qu'une source de géométrie —
+  /// `tableLayoutFor(_measuredGridSize(context), count)` — et aucune liste en
+  /// dur ne peut plus diverger d'elle.
+  ///
+  /// Les trois libellés supprimés — « Côtés », « Triangle », « Cercle » — ne
+  /// décrivaient aucune disposition de sièges : ils ne peuvent pas être
+  /// exprimés honnêtement une fois la géométrie dérivée, et prétendaient
+  /// placer des joueurs là où la grille ne les met pas.
   List<_OrientationPreset> _getOrientationPresets(int count) {
-    if (count == 2) {
-      return [
-        _OrientationPreset('Face à face', [2, 0]),
-        _OrientationPreset('Même sens', [0, 0]),
-        _OrientationPreset('Côte à côte', [1, 3]),
-      ];
-    }
-    if (count == 3) {
-      // Layout: 1 top (index 0), 2 bottom (indices 1, 2)
-      return [
-        _OrientationPreset('Face à face', [2, 0, 0]),
-        _OrientationPreset('Même sens', [0, 0, 0]),
-        _OrientationPreset('Triangle', [2, 1, 3]),
-      ];
-    }
-    if (count == 4) {
-      return [
-        _OrientationPreset('Face à face', [2, 2, 0, 0]),
-        _OrientationPreset('Côtés', [1, 3, 1, 3]),
-        _OrientationPreset('Table', [1, 3, 0, 2]),
-        _OrientationPreset('Cercle', [2, 2, 1, 3]),
-        _OrientationPreset('Même sens', [0, 0, 0, 0]),
-      ];
-    }
-    if (count == 5) {
-      // Layout: 2 top (indices 0-1), 3 bottom (indices 2-4)
-      return [
-        _OrientationPreset('Face à face', [2, 2, 0, 0, 0]),
-        _OrientationPreset('Même sens', [0, 0, 0, 0, 0]),
-      ];
-    }
-    if (count == 6) {
-      return [
-        _OrientationPreset('Face à face', [2, 2, 2, 0, 0, 0]),
-        _OrientationPreset('Côtés', [1, 2, 3, 1, 0, 3]),
-        _OrientationPreset('Même sens', [0, 0, 0, 0, 0, 0]),
-      ];
-    }
-    // Repli pour tout autre effectif (tâche 4, ronde de correction 1) : la
-    // disposition réelle vient de `tableLayoutFor` — jamais d'un topCount
-    // supposé — puisque c'est elle, et elle seule, qui décide où atterrit
-    // chaque siège (colonnes latérales comprises). `TableSeat.quarterTurns`
-    // porte déjà la rotation « face à face » correcte pour un siège donné,
-    // quel que soit son côté (haut/bas/gauche/droite) : pas besoin de la
-    // recalculer ici.
-    //
-    // Ronde de correction 2 (tâche 5) : `_measuredGridSize` lit la taille
-    // RÉELLEMENT occupée par `AdaptiveGrid`, pas celle de l'écran — voir sa
-    // docstring pour la raison (barre de navigation du shell de production).
-    final seats = tableLayoutFor(_measuredGridSize(context), count).seats;
-    final faceToFace = [for (final seat in seats) seat.quarterTurns];
-    final allSame = List.filled(count, 0);
+    // La disposition RÉELLEMENT rendue, colonnes latérales comprises.
+    // `TableSeat.quarterTurns` porte déjà la rotation juste pour un siège
+    // donné : rien à recalculer, aucune compensation.
+    final tableRotations = [
+      for (final seat in tableLayoutFor(_measuredGridSize(context), count).seats)
+        seat.quarterTurns,
+    ];
+
+    // Le repli face-à-face, c'est-à-dire la même géométrie privée de ses
+    // colonnes latérales — et non une liste écrite à la main.
+    final faceToFaceRotations = [
+      for (final seat in seatsFor(count, allowSideColumns: false))
+        seat.quarterTurns,
+    ];
+
     return [
-      _OrientationPreset('Face à face', faceToFace),
-      _OrientationPreset('Même sens', allSame),
+      _OrientationPreset('Table', tableRotations),
+      // Proposé seulement là où il DIFFÈRE de « Table » : sur un écran (ou un
+      // effectif) où la grille ne pose déjà pas de colonnes latérales, les
+      // deux presets sont le même, et offrir deux boutons identiques sous
+      // deux noms ment sur ce qu'ils font.
+      if (!listEquals(faceToFaceRotations, tableRotations))
+        _OrientationPreset('Face à face', faceToFaceRotations),
+      _OrientationPreset('Même sens', List.filled(count, 0)),
+      // Seul preset qui ne décrive pas des SIÈGES : deux joueurs côte à côte
+      // du même bord de l'appareil, chacun tourné d'un quart de tour vers
+      // l'autre. Il n'a de sens qu'à deux, et n'a pas d'équivalent
+      // géométrique à dériver — `seatsFor` ne modélise pas ce placement.
+      if (count == 2) const _OrientationPreset('Côte à côte', [1, 3]),
     ];
   }
 
