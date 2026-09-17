@@ -142,6 +142,89 @@ void main() {
       expect(afterIds, beforeIds);
       expect(afterIds, hasLength(4));
     });
+
+    // Tâche 4, ronde de correction 1 (Important) : jusqu'ici, nommer deux
+    // compteurs PERSONNALISÉS de façon à dériver le même id (même nom, ou
+    // deux noms qui se réduisent au même slug) écrasait silencieusement le
+    // premier -- CounterTypeService.saveCustomType fait un upsert par
+    // conception (voir counter_type_service_test.dart, "remplace au lieu
+    // d'ajouter", verrouillé côté service et volontairement inchangé
+    // ci-dessous). Rien ne se perdait en VALEUR numérique, mais toute
+    // l'identité visuelle du premier (nom, emoji, couleur, borne) partait
+    // sans un mot -- exactement le genre de dégradation silencieuse que ce
+    // lot interdit. La garde vit ici, au point d'entrée UI, pas dans le
+    // service : c'est ce point d'entrée-ci que le dialogue de création
+    // (tâche 4) appelle, et le service reste un upsert générique pour
+    // d'éventuels futurs appelants qui en auraient besoin (ex. une édition).
+    test(
+        'un second saveCustomType avec le même id qu\'un personnalisé '
+        'existant est refusé -- sans cette garde, l\'écrasement silencieux '
+        'remplacerait nom/emoji/couleur/borne du premier sans un mot',
+        () async {
+      const original = CounterType(
+        id: 'custom_shield',
+        name: 'Bouclier',
+        emoji: '🛡️',
+        color: 0xFF2196F3,
+        maxValue: 20,
+      );
+      const impostor = CounterType(
+        id: 'custom_shield',
+        name: 'Autre Nom',
+        emoji: '🔥',
+        color: 0xFF000000,
+        maxValue: 5,
+      );
+
+      final firstResult = await getNotifier().saveCustomType(original);
+      expect(firstResult.success, isTrue);
+
+      final secondResult = await getNotifier().saveCustomType(impostor);
+
+      expect(secondResult.success, isFalse);
+      expect(secondResult.message, isNotEmpty);
+
+      final catalog = container.read(counterCatalogProvider);
+      expect(catalog.where((c) => c.id == 'custom_shield'), hasLength(1),
+          reason: 'toujours une seule entrée pour cet id -- ni doublon ni '
+              'suppression');
+      final entry =
+          catalog.firstWhere((c) => c.id == 'custom_shield');
+      // Preuve de discriminance : nom, emoji, couleur ET borne du PREMIER
+      // sont intacts -- pas seulement son id ou le nombre d'entrées. Un
+      // correctif qui se contenterait de bloquer l'ajout d'une DEUXIÈME
+      // entrée (sans empêcher le remplacement de la première) laisserait
+      // ces quatre champs changer silencieusement.
+      expect(entry.name, 'Bouclier');
+      expect(entry.emoji, '🛡️');
+      expect(entry.color, 0xFF2196F3);
+      expect(entry.maxValue, 20);
+    });
+
+    test(
+        'le refus d\'un homonyme personnalisé n\'affecte pas la création '
+        'd\'un compteur avec un id réellement différent', () async {
+      const original = CounterType(
+        id: 'custom_shield',
+        name: 'Bouclier',
+        emoji: '🛡️',
+        color: 0xFF2196F3,
+      );
+      const other = CounterType(
+        id: 'custom_loyalty',
+        name: 'Loyauté',
+        emoji: '🌀',
+        color: 0xFF9C27B0,
+      );
+
+      await getNotifier().saveCustomType(original);
+      final result = await getNotifier().saveCustomType(other);
+
+      expect(result.success, isTrue);
+      final catalog = container.read(counterCatalogProvider);
+      expect(catalog.map((c) => c.id),
+          containsAll(['custom_shield', 'custom_loyalty']));
+    });
   });
 
   group('resolution id -> CounterType', () {

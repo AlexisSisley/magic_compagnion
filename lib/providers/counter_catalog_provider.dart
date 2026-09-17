@@ -51,7 +51,37 @@ class CounterCatalogNotifier extends Notifier<List<CounterType>> {
   /// [CounterCatalogActionResult] en echec avec un message exploitable,
   /// sur le modele de `GameSetupNotifier.saveProfile` /
   /// `GameSetupActionResult`.
+  ///
+  /// Tache 4, ronde de correction 1 (Important) : refuse aussi -- SANS
+  /// appeler le service -- un `type.id` qui usurpe un compteur
+  /// PERSONNALISE deja existant (pas seulement un integre). Sans cette
+  /// garde, deux compteurs personnalises nommes de facon a deriver le meme
+  /// id (meme nom, deux noms qui se reduisent au meme slug) ecrasaient
+  /// silencieusement l'identite visuelle complete du premier (nom, emoji,
+  /// couleur, borne) -- aucune valeur numerique n'etait perdue, mais le
+  /// premier compteur disparaissait sans un mot, exactement la degradation
+  /// silencieuse que ce lot interdit.
+  ///
+  /// La garde vit ICI, au point d'entree UI, pas dans
+  /// `CounterTypeService.saveCustomType` : ce dernier reste un upsert
+  /// generique par [id] (verrouille par
+  /// `counter_type_service_test.dart`, "remplace au lieu d'ajouter"),
+  /// utilisable par un futur appelant qui aurait reellement besoin de
+  /// remplacer un compteur existant (ex. une edition, hors mandat de cette
+  /// tache) -- seul CE point d'entree, celui que le dialogue de creation
+  /// appelle, doit refuser la creation d'un homonyme plutot que
+  /// l'appliquer en douce.
   Future<CounterCatalogActionResult> saveCustomType(CounterType type) async {
+    final usurpsExistingCustom =
+        state.any((c) => c.id == type.id && !c.isBuiltIn);
+    if (usurpsExistingCustom) {
+      return const CounterCatalogActionResult(
+        success: false,
+        message: 'Impossible de creer ce compteur : ce nom est deja '
+            'utilise par un autre compteur personnalise. Choisissez-en un '
+            'autre.',
+      );
+    }
     try {
       await _service.saveCustomType(type);
       await load();
