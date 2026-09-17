@@ -26,6 +26,12 @@ Player buildPlayer({
     commanderDamageReceived: const {},
     poison: poison,
     energy: energy,
+    // Lot 5, tâche 4 (câblage manquant) : `PlayerZone` construit désormais
+    // `CounterSummary` depuis `Player.counters` (générique), plus depuis
+    // `Player.poison`/`Player.energy` directement -- ce fixture doit donc
+    // porter les mêmes valeurs dans les deux, sans quoi la poignée
+    // resterait toujours muette ici, quel que soit `poison`/`energy` reçus.
+    counters: {'poison': poison, 'energy': energy},
     quarterTurns: quarterTurns,
   );
 }

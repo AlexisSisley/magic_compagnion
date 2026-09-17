@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:magic_companion/models/counter_type.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
@@ -753,9 +754,11 @@ void main() {
   Future<ProviderContainer> pumpWithContainer(
     WidgetTester tester, {
     GameSession? snapshot,
+    Map<String, Object>? extraPrefs,
   }) async {
     SharedPreferences.setMockInitialValues({
       if (snapshot != null) 'active_game_snapshot': json.encode(snapshot.toJson()),
+      ...?extraPrefs,
     });
     final container = ProviderContainer(
       overrides: [
@@ -892,6 +895,70 @@ void main() {
           'compteurs à zéro, jamais la vie (rétrécissement délibéré du '
           "comportement de l'ancien menu radial)",
     );
+  });
+
+  // --- Lot 5, tâche 4 (AJOUT 1, câblage manquant) : avant ce correctif,
+  // `_toLegacyPlayer` ne lisait que `ps.counters['poison']`/`['energy']`/
+  // `['commander_tax']` vers trois champs `int` nommés de `Player`, et
+  // `PlayerZone` ne construisait `CounterSummary` qu'à partir de CES TROIS
+  // champs -- un `ps.counters['custom_shield']` n'avait donc AUCUN chemin
+  // jusqu'à la poignée, bien que `CounterSummary`/`ConditionalHandle`
+  // sachent déjà en afficher un (prouvé par `conditional_handle_test.dart`,
+  // qui construit un `CounterSummary` directement et saute tout ce câblage).
+  // Ce test-ci traverse le VRAI enchaînement, de bout en bout :
+  // `GameSession.activeCounterIds` -> `PlayerState.counters` ->
+  // `_toLegacyPlayer` -> `PlayerZone` -> poignée.
+  testWidgets(
+      'un compteur personnalisé actif dans la session atteint réellement la '
+      'poignée du joueur, de GameSession jusqu\'à ConditionalHandle',
+      (tester) async {
+    const custom = CounterType(
+      id: 'custom_shield',
+      name: 'Bouclier',
+      emoji: '🛡️',
+      color: 0xFF2196F3,
+      isBuiltIn: false,
+    );
+
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+      extraCounterIds: ['custom_shield'],
+    );
+    // Valeur NON NULLE (7) : une valeur à zéro ne distinguerait pas « le
+    // compteur transite et vaut 0 » de « il ne transite pas du tout ».
+    final players = [...baseSession.players];
+    players[0] = players[0].copyWith(counters: {'custom_shield': 7});
+    final session = baseSession.copyWith(players: players);
+
+    await pumpWithContainer(
+      tester,
+      snapshot: session,
+      extraPrefs: {
+        'custom_counter_types': json.encode([custom.toJson()]),
+      },
+    );
+
+    // Preuve de bout en bout : la donnée est bien arrivée jusqu'au
+    // `CounterSummary` que porte la `ConditionalHandle` du joueur 0 (première
+    // de l'arbre, ordre d'affichage == ordre canonique sans reorder).
+    final handle = tester.widget<ConditionalHandle>(
+      find.byType(ConditionalHandle).first,
+    );
+    final shieldEntry = handle.summary.counters
+        .firstWhere((entry) => entry.key.id == 'custom_shield');
+    expect(shieldEntry.value, 7,
+        reason: 'PlayerState.counters["custom_shield"] doit traverser '
+            '_toLegacyPlayer puis PlayerZone jusqu\'au CounterSummary de la '
+            'poignée -- pas seulement être construit directement dans un '
+            'test qui saute ce câblage');
+
+    // Et la puce est bien VISIBLE à l'écran (pas seulement présente dans la
+    // donnée du widget) : c'est elle que le joueur doit voir apparaître.
+    expect(find.text('🛡️ 7'), findsOneWidget,
+        reason: 'le compteur personnalisé actif doit se voir sur la '
+            'poignée, en jeu réel, pas seulement dans un CounterSummary '
+            'construit à la main');
   });
 
   // --- Lot 3, tâche 2 : la grille de dégâts de commandant reçus, dans le

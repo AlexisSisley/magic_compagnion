@@ -137,6 +137,22 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   Player _toLegacyPlayer(int index, PlayerState ps) {
     // Include pending (buffered) damage in displayed life
     final pending = _pendingDamage[ps.playerId] ?? 0;
+
+    // Câblage manquant (lot 5, tâche 4) : `poison`/`energy`/`commanderCastCount`
+    // ci-dessous restent lus tels quels (d'autres consommateurs en dépendent
+    // encore, voir le commentaire de `Player.counters`) mais ne sont plus le
+    // SEUL chemin vers la poignée. `counters` porte maintenant TOUS les
+    // compteurs actifs de la session (`GameSession.activeCounterIds`), pas
+    // trois clés en dur -- même résolution, même exclusion de
+    // 'commander_damage' (ce n'est pas une ligne ± comme les autres, c'est
+    // l'id qui active la grille de dégâts de commandant reçus), que
+    // `_openPlayerDrawer` ci-dessous : un compteur personnalisé actif
+    // atteint désormais `PlayerZone` par ce chemin, plutôt que nulle part.
+    final activeCounters = <String, int>{
+      for (final id in _session?.activeCounterIds ?? const <String>[])
+        if (id != 'commander_damage') id: ps.counters[id] ?? 0,
+    };
+
     return Player(
       // Use the real playerId (not the display index) so callbacks target the correct PlayerState
       id: ps.playerId,
@@ -148,6 +164,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       poison: ps.counters['poison'] ?? 0,
       energy: ps.counters['energy'] ?? 0,
       commanderCastCount: ps.counters['commander_tax'] ?? 0,
+      counters: activeCounters,
       isMonarch: ps.isMonarch,
       quarterTurns: ps.quarterTurns,
       commanderGallery: _playerCommanderGalleries[ps.playerId] ?? [],

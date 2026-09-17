@@ -17,6 +17,20 @@ class Player {
   bool isMonarch;
   int quarterTurns;
 
+  /// Lot 5, tâche 4 (câblage manquant) : collection générique des compteurs
+  /// actifs de la session pour ce joueur (id de `CounterType` -> valeur),
+  /// AJOUTÉE à côté des trois champs nommés ci-dessus plutôt qu'à leur
+  /// place — voir `_toLegacyPlayer` (lib/pages/life_counter/life_counter_page.dart)
+  /// et `PlayerHistorySnapshot` (lib/models/game_history_model.dart, via
+  /// `_finalizeGameSave`) qui lisent encore `poison`/`energy`/
+  /// `commanderCastCount` directement ; ce lot n'a pas mandat de démonter
+  /// le modèle `Player` legacy, seulement de le faire passer les compteurs
+  /// personnalisés. `PlayerZone` résout désormais le résumé de la poignée
+  /// (`CounterSummary`) à partir de CETTE collection, pas des trois champs
+  /// ci-dessus (voir son commentaire) : elle porte tout compteur actif de
+  /// la session, intégré ou personnalisé, avec sa valeur — y compris zéro.
+  Map<String, int> counters;
+
   /// Gallery of saved commanders — allows quick artwork switching in-game.
   List<CommanderEntry> commanderGallery;
 
@@ -31,6 +45,7 @@ class Player {
     this.poison = 0,
     this.energy = 0,
     this.commanderCastCount = 0,
+    this.counters = const {},
     this.isMonarch = false,
     this.quarterTurns = 0,
     this.commanderGallery = const [],

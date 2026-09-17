@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/counter_type.dart';
 import '../../models/player_model.dart';
 import '../../services/local_card_service.dart';
+import '../../providers/counter_catalog_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/player_zone_notifier.dart';
 
@@ -251,25 +252,31 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     //
     // Lot 5, tâche 3b -- `CounterSummary` est désormais générique (une
     // collection de paires `CounterType`/valeur), plus le pire dégât de
-    // commandant à part. RÉSERVE : ce point d'appel ne peut encore fournir
-    // que les trois compteurs que porte le pont `Player` "legacy"
-    // (`poison`/`energy`/`commanderCastCount`, voir
-    // `life_counter_page.dart._toLegacyPlayer`) -- un compteur personnalisé
-    // actif dans `GameSession.activeCounterIds` n'y transite pas encore.
-    // Rien d'autre n'y ferait obstacle : la poignée sait déjà résumer N
-    // compteurs (voir `ConditionalHandle`) ; faire transiter la liste
-    // complète jusqu'ici est hors du périmètre fichiers de cette tâche
-    // (`_toLegacyPlayer` et l'appel à `PlayerZone` vivent dans
-    // `life_counter_page.dart`, non modifié ici).
+    // commandant à part.
+    //
+    // Lot 5, tâche 4 (câblage manquant) : construite depuis
+    // `widget.player.counters` (générique, alimentée par
+    // `_toLegacyPlayer` à partir de `GameSession.activeCounterIds`), pas
+    // des trois champs `Player.poison`/`energy`/`commanderCastCount` --
+    // c'était le trou qui empêchait tout compteur personnalisé actif
+    // d'atteindre la poignée, bien que celle-ci sache déjà en résumer N
+    // (voir `ConditionalHandle`). Un id intégré est résolu localement
+    // (`_builtInCounterType`, pas de dépendance à `ref` pour les trois
+    // historiques) ; un id personnalisé est résolu via le catalogue
+    // (`counterTypeByIdProvider`) -- `null` (catalogue pas encore chargé,
+    // id obsolète) écarte silencieusement l'entrée, comme le fait déjà
+    // `_openPlayerDrawer` pour le tiroir.
+    final counterEntries = <MapEntry<CounterType, int>>[];
+    for (final entry in widget.player.counters.entries) {
+      final isBuiltIn =
+          CounterType.builtInCounters.any((c) => c.id == entry.key);
+      final type = isBuiltIn
+          ? _builtInCounterType(entry.key)
+          : ref.watch(counterTypeByIdProvider(entry.key));
+      if (type != null) counterEntries.add(MapEntry(type, entry.value));
+    }
     final counterSummary = CounterSummary(
-      counters: [
-        MapEntry(_builtInCounterType('poison'), widget.player.poison),
-        MapEntry(_builtInCounterType('energy'), widget.player.energy),
-        MapEntry(
-          _builtInCounterType('commander_tax'),
-          widget.player.commanderCastCount,
-        ),
-      ],
+      counters: counterEntries,
       worstCommanderDamage: widget.player.commanderDamageReceived.values
           .fold<int>(0, (max, v) => v > max ? v : max),
     );
