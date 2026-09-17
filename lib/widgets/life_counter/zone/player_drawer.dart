@@ -189,6 +189,37 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
               Text(widget.playerName, style: AppTextStyles.cardTitle()),
               const SizedBox(height: 14),
               for (final id in _counterLabels.keys) _counterRow(id),
+              const Divider(height: 26),
+              // Ronde de correction 1 (tâche 2) : accès garanti à la
+              // rotation et à la couleur à tous les crans de densité, y
+              // compris `minimal` où `PlayerHeader` (leur seul autre point
+              // d'accès) est masqué.
+              //
+              // Ronde de correction 3 : placées AVANT la grille de dégâts de
+              // commandant (pas après), et juste après les compteurs. Ce
+              // sont les deux seules actions dont le tiroir est l'UNIQUE
+              // point d'entrée au cran minimal -- la rotation, en
+              // particulier, est ce qu'un joueur mal orienté cherche en
+              // premier, la fonction même que cette refonte sert. La grille
+              // est longue par nature et de longueur variable (jusqu'à 7
+              // adversaires) : rien d'essentiel ne doit vivre derrière elle,
+              // sous peine d'exiger un défilement jusqu'au bout du tiroir
+              // pour une action qui n'a QUE ce point d'accès (mesuré : 371px
+              // sur 371px de maxScrollExtent en pire cas avant ce correctif).
+              _action(
+                key: const ValueKey('action-rotate'),
+                icon: Icons.rotate_right,
+                label: 'Tourner',
+                color: AppColors.textSecondary,
+                onTap: widget.onRotate,
+              ),
+              _action(
+                key: const ValueKey('action-color'),
+                icon: Icons.palette,
+                label: 'Couleur',
+                color: AppColors.textSecondary,
+                onTap: widget.onShowColorPicker,
+              ),
               // Ronde de correction 1 (Important, "seconde porte") : la
               // grille n'etait conditionnee par rien -- ni le seuil letal,
               // ni les compteurs actives par le format -- et s'affichait
@@ -205,24 +236,6 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
                 ),
               ],
               const Divider(height: 26),
-              // Ronde de correction 1 (tâche 2) : accès garanti à la
-              // rotation et à la couleur à tous les crans de densité, y
-              // compris `minimal` où `PlayerHeader` (leur seul autre point
-              // d'accès) est masqué.
-              _action(
-                key: const ValueKey('action-rotate'),
-                icon: Icons.rotate_right,
-                label: 'Tourner',
-                color: AppColors.textSecondary,
-                onTap: widget.onRotate,
-              ),
-              _action(
-                key: const ValueKey('action-color'),
-                icon: Icons.palette,
-                label: 'Couleur',
-                color: AppColors.textSecondary,
-                onTap: widget.onShowColorPicker,
-              ),
               _action(
                 key: const ValueKey('action-monarch'),
                 icon: Icons.star,

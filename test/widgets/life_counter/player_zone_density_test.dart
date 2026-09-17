@@ -261,11 +261,14 @@ void main() {
     expect(find.byType(CommanderDamageGrid), findsOneWidget);
     expect(find.text('Joueur 7'), findsOneWidget);
 
-    // Observation pour le contrôleur (pas une assertion) : combien de
-    // pixels logiques faut-il faire défiler dans ce pire cas pour atteindre
-    // "Tourner" ? Le défilement lui-même est un geste normal -- ce que ce
-    // test prouve, c'est qu'on PEUT y arriver, pas qu'il n'y a rien à faire
-    // défiler.
+    // Ronde de correction 3 : ne prouve plus seulement qu'on PEUT atteindre
+    // "Tourner" (un défilement jusqu'au bout du tiroir suffirait à le
+    // prouver, et c'est exactement ce que la ronde 2 a révélé -- 371px sur
+    // 371px de maxScrollExtent, soit la totalité). Ce test durci compare le
+    // défilement réellement nécessaire au maxScrollExtent de la feuille, et
+    // exige qu'il en reste une marge confortable : "Tourner"/"Couleur"
+    // vivent maintenant juste après les compteurs, AVANT la grille de
+    // dégâts de commandant (potentiellement longue et variable), pas après.
     final scrollable = find.byType(Scrollable);
     expect(scrollable, findsOneWidget,
         reason: 'un seul Scrollable attendu : celui du corps du tiroir');
@@ -276,16 +279,29 @@ void main() {
     await tester.pumpAndSettle();
 
     final afterPixels = position.pixels;
+    final maxScrollExtent = position.maxScrollExtent;
     // ignore: avoid_print
     print(
-      'RONDE 2 -- pire cas du tiroir : défilement de $beforePixels à '
+      'RONDE 3 -- pire cas du tiroir : défilement de $beforePixels à '
       '$afterPixels px (delta ${afterPixels - beforePixels} px) pour '
-      'atteindre "Tourner" ; maxScrollExtent=${position.maxScrollExtent} px.',
+      'atteindre "Tourner" ; maxScrollExtent=$maxScrollExtent px '
+      '(${(afterPixels / maxScrollExtent * 100).toStringAsFixed(1)}%).',
     );
 
     expect(find.byKey(const ValueKey('action-rotate')), findsOneWidget,
         reason: '"Tourner" doit rester atteignable même dans la '
             'configuration la plus longue du tiroir');
+
+    // Seuil délibérément serré : si "Tourner"/"Couleur" repassaient après
+    // la grille de dégâts de commandant (fin de liste, comme avant cette
+    // ronde de correction), le défilement nécessaire remonterait à environ
+    // 93 % du maxScrollExtent (371/397 mesuré avant ce correctif) -- très
+    // au-dessus de ce seuil. Une action juste après les compteurs, elle,
+    // reste largement en dessous.
+    expect(afterPixels, lessThan(maxScrollExtent * 0.75),
+        reason: '"Tourner" doit être atteignable SANS défiler jusqu\'au '
+            'bout du tiroir -- seule preuve qu\'elle vit avant la grille de '
+            'dégâts de commandant, pas derrière elle');
 
     await tester.tap(find.byKey(const ValueKey('action-rotate')));
     await tester.pumpAndSettle();
