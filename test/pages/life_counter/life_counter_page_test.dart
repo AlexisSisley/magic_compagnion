@@ -19,6 +19,7 @@ import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/counter_type_service.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
+import 'package:magic_companion/widgets/life_counter/death_confirmation_overlay.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
@@ -1716,5 +1717,57 @@ void main() {
           '1 : conservée pour une réactivation, jamais pour '
           'l\'historique)',
     );
+  });
+
+  // --- Revue finale, Critical 1 : `_getDeathReason` lisait
+  // `player.counters['poison']` directement, sans le filtre
+  // `activeCounterIds` -- la même asymétrie de lecture corrigée en tâche 4
+  // sur `_toLegacyPlayer`, à un troisième site que cette ronde n'avait pas
+  // couvert.
+
+  testWidgets(
+      'Critical 1 : un poison RETIRÉ des actifs ne tue plus le joueur après '
+      'un tap de vie ordinaire', (tester) async {
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    final players = [...baseSession.players];
+    // Valeur au-delà du seuil létal (maxPoison par défaut : 10) -- sans
+    // quoi ce test ne distinguerait pas "le poison ne tue plus parce qu'il
+    // est retiré" de "le poison ne tue plus parce qu'il n'atteint pas le
+    // seuil".
+    players[0] = players[0].copyWith(counters: {'poison': 10});
+    final session = baseSession.copyWith(
+      players: players,
+      // Poison RETIRÉ des actifs -- décision 1 : la valeur (10) reste dans
+      // PlayerState.counters, seule son appartenance à activeCounterIds
+      // change.
+      activeCounterIds:
+          baseSession.activeCounterIds.where((id) => id != 'poison').toList(),
+    );
+
+    await pumpWithContainer(tester, snapshot: session);
+
+    // Un tap de vie ORDINAIRE (pas sur le compteur poison) -- exactement le
+    // scénario rapporté : le joueur ne touche plus jamais à un compteur
+    // qu'il ne voit plus nulle part.
+    await tapMinusHalf(tester, 0, 1);
+    // Laisse le buffer de dégâts s'appliquer (fenêtre de 2 s) : bornés,
+    // jamais `pumpAndSettle` -- si ce test échouait faute de correctif, la
+    // zone entrerait en overlay de confirmation de mort, dont les boutons
+    // n'ont aucune animation bouclée, mais on reste sur le même principe
+    // que le reste de ce fichier.
+    await tester.pump(const Duration(seconds: 2));
+    // Laisse le minuteur de confirmation de mort (2 s de plus) se
+    // déclencher s'il devait l'être.
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(find.byType(DeathConfirmationOverlay), findsNothing,
+        reason: 'un compteur qui n\'existe plus dans la partie (retiré des '
+            'actifs) ne doit jamais pouvoir déclencher une mort -- la '
+            'valeur conservée dans PlayerState.counters n\'est pas '
+            'consultable par le joueur, qui ne peut pas la corriger');
+    expect(find.textContaining('Poison'), findsNothing);
   });
 }

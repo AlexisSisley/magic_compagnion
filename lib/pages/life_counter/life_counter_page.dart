@@ -458,7 +458,20 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       return 'life';
     }
     // Poison check
-    final poison = player.counters['poison'] ?? 0;
+    //
+    // Correction (revue finale, Critical 1) : lisait `player.counters['poison']`
+    // DIRECTEMENT, sans le filtre `activeCounterIds` -- la même asymétrie de
+    // lecture corrigée en tâche 4 sur `_toLegacyPlayer` (poignée/historique),
+    // ici sur un troisième site que cette ronde n'avait pas couvert. Un
+    // joueur qui retire le compteur Poison de sa partie (`deactivateCounter`,
+    // décision 1 : la VALEUR est conservée, pas effacée, pour une
+    // réactivation ultérieure) continuait d'être tué par un compteur qui
+    // n'existe plus nulle part dans sa partie -- ni sur la poignée, ni dans
+    // le tiroir, ni dans l'historique -- et qu'il ne peut plus réactiver pour
+    // corriger.
+    final poisonActive =
+        _session?.activeCounterIds.contains('poison') ?? false;
+    final poison = poisonActive ? (player.counters['poison'] ?? 0) : 0;
     if (_currentFormat.maxPoison > 0 && poison >= _currentFormat.maxPoison) {
       return 'poison';
     }
