@@ -126,6 +126,51 @@ class GameSessionNotifier extends Notifier<GameSession?> {
     state = session.copyWith(players: players);
   }
 
+  /// Active [id] dans la partie en cours (lot 5, tâche 4) : l'ajoute à
+  /// `activeCounterIds` -- idempotent, un id déjà actif n'est pas dupliqué.
+  ///
+  /// [isCustom] ajoute aussi [id] à `customCounterIds` : c'est le chemin
+  /// emprunté par la création depuis le tiroir (décision 2 du rapport de
+  /// tâche : créer un compteur l'active immédiatement dans la partie en
+  /// cours), PAS par la réactivation d'un compteur intégré déjà membre du
+  /// catalogue -- son défaut `false` évite qu'une réactivation banale
+  /// (`commander_tax` retiré puis remis) ne le fasse passer pour
+  /// personnalisé.
+  void activateCounter(String id, {bool isCustom = false}) {
+    final session = state;
+    if (session == null) return;
+    if (session.activeCounterIds.contains(id)) return;
+    state = session.copyWith(
+      activeCounterIds: [...session.activeCounterIds, id],
+      customCounterIds:
+          isCustom ? [...session.customCounterIds, id] : session.customCounterIds,
+    );
+  }
+
+  /// Retire [id] des compteurs actifs de la partie en cours (lot 5, tâche
+  /// 4) -- et de `customCounterIds` s'il y était, pour que ce dernier reste
+  /// un sous-ensemble cohérent du premier.
+  ///
+  /// Décision 1 du rapport de tâche (préférence du brief) : NE TOUCHE PAS
+  /// à `PlayerState.counters` -- la valeur de chaque joueur pour ce
+  /// compteur est conservée, pas effacée, pour être retrouvée intacte si le
+  /// même id est réactivé plus tard dans la même partie. L'effacement
+  /// serait destructif et irréversible en cours de partie ; la conservation
+  /// ne coûte que quelques octets dans le snapshot.
+  ///
+  /// Ne lève pas si [id] est absent (no-op) -- même contrat que
+  /// `CounterTypeService.deleteCustomType`.
+  void deactivateCounter(String id) {
+    final session = state;
+    if (session == null) return;
+    state = session.copyWith(
+      activeCounterIds:
+          session.activeCounterIds.where((c) => c != id).toList(),
+      customCounterIds:
+          session.customCounterIds.where((c) => c != id).toList(),
+    );
+  }
+
   void eliminatePlayer(int playerId, {required Duration atDuration}) {
     final session = state;
     if (session == null) return;

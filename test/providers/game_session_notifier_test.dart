@@ -228,6 +228,117 @@ void main() {
 
   // --- Cas de couverture migrés depuis GameSessionController ---
 
+  // Lot 5, tâche 4 : de quoi activer/désactiver un compteur dans la partie
+  // en cours, appelé depuis le tiroir (création -> activation immédiate,
+  // décision 2 ; retrait -> désactivation, décision produit du rapport).
+  group('activateCounter / deactivateCounter', () {
+    test('activateCounter ajoute un id inconnu à activeCounterIds', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().activateCounter('custom_shield');
+
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect(session.activeCounterIds, contains('custom_shield'));
+    });
+
+    test(
+        'activateCounter(isCustom: true) ajoute aussi l\'id à '
+        'customCounterIds -- décision 2 : un compteur créé est actif '
+        'immédiatement dans la partie en cours', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().activateCounter('custom_shield', isCustom: true);
+
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect(session.activeCounterIds, contains('custom_shield'));
+      expect(session.customCounterIds, contains('custom_shield'));
+    });
+
+    test(
+        'activateCounter sans isCustom (défaut) n\'ajoute PAS à '
+        'customCounterIds -- réactiver un intégré ne doit pas le faire '
+        'passer pour un compteur personnalisé', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().activateCounter('commander_tax');
+
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect(session.activeCounterIds, contains('commander_tax'));
+      expect(session.customCounterIds, isNot(contains('commander_tax')));
+    });
+
+    test(
+        'activateCounter est idempotent : un id déjà actif n\'est pas '
+        'dupliqué dans activeCounterIds', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      // 'poison' est déjà actif via enabledCounterIds du format Commander.
+      getNotifier().activateCounter('poison');
+
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect(
+        session.activeCounterIds.where((id) => id == 'poison').length,
+        1,
+      );
+    });
+
+    test('activateCounter sans session ne lève pas et ne crée pas de session',
+        () {
+      getNotifier().activateCounter('custom_shield');
+      expect(container.read(gameSessionNotifierProvider), isNull);
+    });
+
+    test('deactivateCounter retire l\'id de activeCounterIds', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().deactivateCounter('commander_tax');
+
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect(session.activeCounterIds, isNot(contains('commander_tax')));
+      // Le reste des compteurs actifs du format n'est pas touché.
+      expect(session.activeCounterIds, contains('poison'));
+    });
+
+    test(
+        'deactivateCounter retire aussi l\'id de customCounterIds s\'il y '
+        'était', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().activateCounter('custom_shield', isCustom: true);
+      getNotifier().deactivateCounter('custom_shield');
+
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect(session.activeCounterIds, isNot(contains('custom_shield')));
+      expect(session.customCounterIds, isNot(contains('custom_shield')));
+    });
+
+    // Décision 1 du rapport de tâche (préférence du brief : conserver) --
+    // valeur NON NULLE avant retrait, sinon ce test ne distinguerait pas
+    // "la valeur est conservée" de "elle a été effacée puis on ne le voit
+    // pas parce qu'elle était déjà à zéro".
+    test(
+        'deactivateCounter CONSERVE la valeur du compteur chez les joueurs '
+        '(décision 1 : retirer un compteur actif n\'efface pas sa valeur)',
+        () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().updateCounter(0, 'commander_tax', 4);
+
+      getNotifier().deactivateCounter('commander_tax');
+
+      final player = container.read(gameSessionNotifierProvider)!.players[0];
+      expect(player.counters['commander_tax'], 4,
+          reason: 'la valeur doit survivre au retrait, pour être retrouvée '
+              'intacte si le compteur est réactivé plus tard');
+    });
+
+    test('deactivateCounter sur un id absent ne lève pas (no-op)', () {
+      getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
+      getNotifier().deactivateCounter('does_not_exist');
+
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect(session.activeCounterIds, isNotEmpty);
+    });
+
+    test('deactivateCounter sans session ne lève pas', () {
+      getNotifier().deactivateCounter('poison');
+      expect(container.read(gameSessionNotifierProvider), isNull);
+    });
+  });
+
   group('updateCounter', () {
     test('sets counter value', () {
       getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
