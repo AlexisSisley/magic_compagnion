@@ -1770,4 +1770,50 @@ void main() {
             'consultable par le joueur, qui ne peut pas la corriger');
     expect(find.textContaining('Poison'), findsNothing);
   });
+
+  // --- Revue finale, Critical 2 : `_resetPlayerCounters` itérait sur une
+  // liste écrite à la main (`['poison', 'energy', 'commander_tax']`), pas
+  // sur `activeCounterIds` -- un compteur personnalisé actif survivait donc
+  // à "Réinitialiser les compteurs".
+
+  testWidgets(
+      'Critical 2 : "Réinitialiser les compteurs" remet aussi à zéro un '
+      'compteur personnalisé actif, pas seulement les trois intégrés '
+      'historiques', (tester) async {
+    const rage = CounterType(
+      id: 'rage',
+      name: 'Rage',
+      emoji: '🔥',
+      color: 0xFFFF5722,
+      isBuiltIn: false,
+    );
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+      extraCounterIds: ['rage'],
+    );
+    final players = [...baseSession.players];
+    players[0] = players[0].copyWith(counters: {'rage': 3, 'poison': 4});
+    final session = baseSession.copyWith(players: players);
+
+    final container = await pumpWithContainer(
+      tester,
+      snapshot: session,
+      extraPrefs: {'custom_counter_types': json.encode([rage.toJson()])},
+    );
+
+    await openDrawerForPlayerZero(tester);
+    await tester.ensureVisible(find.byKey(const ValueKey('action-reset')));
+    await tester.tap(find.byKey(const ValueKey('action-reset')));
+    await tester.pump();
+
+    final updated =
+        container.read(gameSessionNotifierProvider)!.players[0].counters;
+    expect(updated['poison'], 0);
+    expect(updated['rage'], 0,
+        reason: '"Réinitialiser les compteurs" doit remettre à zéro TOUS '
+            'les compteurs actifs de la session, personnalisés compris -- '
+            'pas seulement les trois intégrés historiques codés en dur '
+            '(exactement la liste figée que ce lot existe pour supprimer)');
+  });
 }

@@ -1333,8 +1333,25 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   /// et les trois compteurs à zéro dans une closure inline. Décision prise
   /// pour la V4 (voir le rapport de tâche) : `onResetCounters` ne touche
   /// plus qu'aux compteurs — la vie reste hors de portée de cette action.
+  /// Correction (revue finale, Critical 2) : itérait sur une liste écrite à
+  /// la main (`['poison', 'energy', 'commander_tax']`) -- la liste figée que
+  /// ce lot existe pour supprimer, ici dans le fichier même que vise le
+  /// critère de sortie du lot, à trois lignes des compteurs que la tâche 2 a
+  /// rendus génériques. Un compteur personnalisé actif (ou n'importe quel
+  /// intégré retiré/ajouté de `activeCounterIds`) survivait donc à
+  /// "Réinitialiser les compteurs" sans qu'aucun signal ne le dise. Itère
+  /// maintenant sur `activeCounterIds`, comme `_toLegacyPlayer` et
+  /// `_openPlayerDrawer` le font déjà -- 'commander_damage' exclu pour la
+  /// même raison qu'eux : ce n'est pas une ligne ± comme les autres, c'est
+  /// l'id qui active la grille de dégâts de commandant reçus (remise à zéro
+  /// séparément, hors mandat de cette action -- voir son doc-comment
+  /// ci-dessus : "la vie reste hors de portée de cette action", même
+  /// principe appliqué aux dégâts de commandant reçus).
   void _resetPlayerCounters(int playerId) {
-    for (final counterId in const ['poison', 'energy', 'commander_tax']) {
+    final session = _session;
+    if (session == null) return;
+    for (final counterId in session.activeCounterIds) {
+      if (counterId == 'commander_damage') continue;
       _controller.updateCounter(playerId, counterId, 0);
     }
     setState(() {});
