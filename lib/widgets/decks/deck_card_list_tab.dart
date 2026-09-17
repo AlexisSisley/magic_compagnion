@@ -74,6 +74,15 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
   /// arrive, est silencieux.
   Map<String, CardDisplay> _displays = {};
 
+  /// Jeton de sequence pour `_loadDisplays` : incremente a chaque lancement,
+  /// capture en debut d'appel. `didUpdateWidget` peut relancer une
+  /// resolution avant que la precedente n'ait fini (deck modifie deux fois
+  /// rapidement, import qui rafraichit la liste...) ; rien ne garantit
+  /// l'ordre de resolution des Future. Au moment de publier, un appel ne
+  /// pose son resultat que si son jeton est toujours le plus recent -- le
+  /// dernier lancement gagne, jamais un retour tardif d'un appel perime.
+  int _loadSeq = 0;
+
   @override
   void initState() {
     super.initState();
@@ -97,6 +106,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
   /// `LOCAL:` sans tirage Scryfall...) la carte est simplement absente de la
   /// map et la tuile continue d'afficher `card.name`.
   Future<void> _loadDisplays() async {
+    final seq = ++_loadSeq;
     final db = ref.read(appDatabaseProvider);
     final prefs = await SharedPreferences.getInstance();
     final preferredLang = prefs.getString('glossaryLang') ?? 'fr';
@@ -113,7 +123,9 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
       );
     }
 
-    if (!mounted) return;
+    // Le dernier lancement gagne : un appel demarre avant mais qui repond
+    // apres ne publie pas son resultat s'il n'est plus le plus recent.
+    if (!mounted || seq != _loadSeq) return;
     setState(() => _displays = resolved);
   }
 

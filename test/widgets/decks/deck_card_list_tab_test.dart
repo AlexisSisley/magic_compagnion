@@ -9,6 +9,15 @@
 // s'affiche immediatement (jamais de spinner), puis la traduction le
 // remplace silencieusement une fois la resolution terminee (t=2s), sans
 // jamais passer par un etat de chargement visible.
+//
+// Round de correction 2 : `_loadDisplays` n'avait ni jeton de sequence ni
+// annulation. `didUpdateWidget` peut en declencher un second avant que le
+// premier n'ait fini (deck modifie deux fois rapidement, import qui
+// rafraichit la liste...) ; rien ne garantissait l'ordre de resolution des
+// Future, donc un appel demarre en premier mais qui repond en dernier
+// pouvait ecraser une projection fraiche par une perimee.
+
+import 'dart:async';
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +29,37 @@ import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/deck_service.dart';
 import 'package:magic_companion/widgets/decks/deck_card_list_tab.dart';
+
+/// AppDatabase de test capable de retarder, sur commande, le PROCHAIN appel
+/// a `getCardPrint` pour un `scryfallId` donne -- un seul cran : les appels
+/// suivants au meme id ne sont plus retardes. Sert a forcer deterministe le
+/// chevauchement de deux resolutions dans `_DeckCardListTabState`.
+class _DelayableDb extends AppDatabase {
+  _DelayableDb(super.executor);
+
+  String? _delayedScryfallId;
+  Completer<void>? _gate;
+
+  void delayNextCardPrint(String scryfallId) {
+    _delayedScryfallId = scryfallId;
+    _gate = Completer<void>();
+  }
+
+  void releaseDelayedCardPrint() {
+    _gate?.complete();
+  }
+
+  @override
+  Future<DbCardPrint?> getCardPrint(String scryfallId) async {
+    if (scryfallId == _delayedScryfallId) {
+      final gate = _gate!;
+      // Un seul cran : on ne re-retarde pas un appel ulterieur au meme id.
+      _delayedScryfallId = null;
+      await gate.future;
+    }
+    return super.getCardPrint(scryfallId);
+  }
+}
 
 DbCardPrint _print({
   required String scryfallId,
@@ -52,9 +92,9 @@ void main() {
 
   tearDown(() async => db.close());
 
-  Widget buildTab(List<DeckCard> cardList) {
+  Widget buildTabWithDb(List<DeckCard> cardList, AppDatabase database) {
     return ProviderScope(
-      overrides: [appDatabaseProvider.overrideWithValue(db)],
+      overrides: [appDatabaseProvider.overrideWithValue(database)],
       child: MaterialApp(
         home: Scaffold(
           body: DeckCardListTab(
@@ -68,6 +108,8 @@ void main() {
       ),
     );
   }
+
+  Widget buildTab(List<DeckCard> cardList) => buildTabWithDb(cardList, db);
 
   testWidgets(
       'remplace silencieusement le nom possede par la traduction en cache, sans spinner',
@@ -128,5 +170,90 @@ void main() {
 
     expect(find.text('Dreadbore'), findsOneWidget);
     expect(find.text('EN · pas de VF'), findsOneWidget);
+  });
+
+  group('_loadDisplays — jeton de sequence', () {
+    testWidgets(
+        'un chargement demarre en premier mais qui repond en dernier n ecrase pas le resultat du chargement le plus recent',
+        (tester) async {
+      final delayableDb = _DelayableDb(NativeDatabase.memory());
+      addTearDown(() => delayableDb.close());
+
+      // Etat initial : seule "card-a" existe, en anglais, pas de traduction.
+      await delayableDb.upsertCardPrint(_print(
+        scryfallId: 'card-a',
+        lang: 'en',
+        printedName: 'CardA v1',
+        oracleId: 'oracle-a',
+        oracleName: 'CardA',
+      ));
+
+      // Le PROCHAIN appel a getCardPrint('card-a') sera bloque jusqu'a
+      // liberation explicite -- il simule le premier chargement, lent.
+      delayableDb.delayNextCardPrint('card-a');
+
+      final cardList1 = [
+        DeckCard(scryfallId: 'card-a', name: 'CardA fallback', quantity: 1),
+      ];
+
+      await tester.pumpWidget(buildTabWithDb(cardList1, delayableDb));
+      // Laisse le premier chargement demarrer et se bloquer sur le gate.
+      await tester.pump();
+
+      // Le deck est modifie pendant que le premier chargement est bloque :
+      // "card-a" est mise a jour (nouveau nom) et "card-b" apparait. C'est
+      // exactement le scenario cite par la revue : deck modifie deux fois
+      // rapidement / import qui rafraichit la liste.
+      await delayableDb.upsertCardPrint(_print(
+        scryfallId: 'card-a',
+        lang: 'en',
+        printedName: 'CardA v2',
+        oracleId: 'oracle-a',
+        oracleName: 'CardA',
+      ));
+      await delayableDb.upsertCardPrint(_print(
+        scryfallId: 'card-b',
+        lang: 'en',
+        printedName: 'CardB-projected',
+        oracleId: 'oracle-b',
+        oracleName: 'CardB',
+      ));
+
+      final cardList2 = [
+        DeckCard(scryfallId: 'card-a', name: 'CardA fallback', quantity: 1),
+        DeckCard(scryfallId: 'card-b', name: 'CardB-original', quantity: 1),
+      ];
+
+      // Signature de cardList differente de cardList1 -> didUpdateWidget
+      // relance un second chargement (plus rapide : rien ne le retarde).
+      await tester.pumpWidget(buildTabWithDb(cardList2, delayableDb));
+
+      // Laisse le second chargement (le plus recent) se terminer completement
+      // pendant que le premier reste bloque sur son gate.
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+
+      expect(find.text('CardA v2'), findsOneWidget);
+      expect(find.text('CardB-projected'), findsOneWidget);
+      expect(find.text('CardA fallback'), findsNothing);
+      expect(find.text('CardB-original'), findsNothing);
+
+      // Le premier chargement (perime) est enfin libere et se termine APRES
+      // le second. Sans jeton de sequence, son resultat -- construit sur la
+      // liste a un seul element qu'il avait capturee au demarrage --
+      // ecraserait la map et ferait disparaitre la projection de "card-b".
+      delayableDb.releaseDelayedCardPrint();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+
+      // Le dernier lancement gagne : la projection de card-b doit survivre
+      // au retour tardif du premier chargement.
+      expect(find.text('CardA v2'), findsOneWidget);
+      expect(find.text('CardB-projected'), findsOneWidget);
+      expect(find.text('CardB-original'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
   });
 }
