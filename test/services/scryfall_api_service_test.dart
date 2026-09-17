@@ -265,4 +265,46 @@ void main() {
       expect(api.dio.options.baseUrl, 'https://custom.api.com');
     });
   });
+
+  group('ScryfallApiService - langue', () {
+    test('sans lang, la route reste /cards/{set}/{cn}', () async {
+      late String capturedPath;
+      final dio = _createMockDio((options) {
+        capturedPath = options.uri.path;
+        return {'id': 'en-id', 'lang': 'en'};
+      });
+
+      await ScryfallApiService(dio: dio).getCardBySetAndNumber('eld', '146');
+
+      expect(capturedPath, '/cards/eld/146');
+    });
+
+    test('avec lang, la langue est un segment de route', () async {
+      late String capturedPath;
+      final dio = _createMockDio((options) {
+        capturedPath = options.uri.path;
+        return {'id': 'fr-id', 'lang': 'fr', 'printed_name': 'Frisson de probabilité'};
+      });
+
+      final data =
+          await ScryfallApiService(dio: dio).getCardBySetAndNumber('eld', '146', lang: 'fr');
+
+      expect(capturedPath, '/cards/eld/146/fr');
+      expect(data['printed_name'], 'Frisson de probabilité');
+    });
+
+    test('deux langues de la meme carte ne partagent pas la meme entree de cache', () async {
+      int calls = 0;
+      final dio = _createMockDio((options) {
+        calls++;
+        return {'id': 'x', 'lang': options.uri.path.endsWith('/fr') ? 'fr' : 'en'};
+      });
+
+      final api = ScryfallApiService(dio: dio);
+      await api.getCardBySetAndNumber('eld', '146');
+      await api.getCardBySetAndNumber('eld', '146', lang: 'fr');
+
+      expect(calls, 2);
+    });
+  });
 }
