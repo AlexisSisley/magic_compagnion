@@ -77,8 +77,8 @@ class CounterCatalogNotifier extends Notifier<List<CounterType>> {
     if (usurpsExistingCustom) {
       return const CounterCatalogActionResult(
         success: false,
-        message: 'Impossible de creer ce compteur : ce nom est deja '
-            'utilise par un autre compteur personnalise. Choisissez-en un '
+        message: 'Impossible de créer ce compteur : ce nom est déjà '
+            'utilisé par un autre compteur personnalisé. Choisissez-en un '
             'autre.',
       );
     }
@@ -87,12 +87,12 @@ class CounterCatalogNotifier extends Notifier<List<CounterType>> {
       await load();
       return const CounterCatalogActionResult(
         success: true,
-        message: 'Compteur sauvegarde',
+        message: 'Compteur sauvegardé',
       );
     } on ArgumentError catch (e) {
       return CounterCatalogActionResult(
         success: false,
-        message: 'Impossible de creer ce compteur : ${e.message}',
+        message: 'Impossible de créer ce compteur : ${e.message}',
       );
     } catch (_) {
       return const CounterCatalogActionResult(

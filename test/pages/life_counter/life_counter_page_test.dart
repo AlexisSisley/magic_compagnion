@@ -1623,10 +1623,19 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('counter_editor_submit')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Impossible de creer ce compteur'),
+    // Revue finale (I1) : le message doit être accentué, comme le reste de
+    // l'écran ("Réinitialiser les compteurs", "Éliminer"), et ne plus
+    // contenir le jargon "usurper l'id" -- il n'y a pas de champ id dans ce
+    // dialogue, et ce mot ne dit pas au joueur quoi faire.
+    expect(
+        find.text(
+            'Impossible de créer ce compteur : Ce nom est déjà utilisé '
+            'par un compteur intégré. Choisissez-en un autre.'),
         findsOneWidget,
         reason: 'CounterCatalogNotifier.saveCustomType refuse cet id -- son '
-            'message doit être affiché, jamais avalé silencieusement');
+            'message doit être affiché, jamais avalé silencieusement, '
+            'accentué et compréhensible par un joueur');
+    expect(find.textContaining('usurper'), findsNothing);
     final session = container.read(gameSessionNotifierProvider)!;
     expect(session.activeCounterIds, activeBefore);
     expect(session.customCounterIds, customBefore);

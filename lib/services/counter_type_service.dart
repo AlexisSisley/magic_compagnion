@@ -57,10 +57,16 @@ class CounterTypeService {
     final isBuiltInId =
         CounterType.builtInCounters.any((builtIn) => builtIn.id == type.id);
     if (isBuiltInId) {
+      // Revue finale (I1) : ce message atteint bien l'écran (via la
+      // SnackBar de `CounterCatalogNotifier.saveCustomType`), malgré le
+      // statut de garde interne documenté ci-dessus -- "usurper l'id" ne
+      // veut rien dire pour un joueur (aucun champ id dans le dialogue de
+      // création) et ne lui dit pas quoi faire. Formulé pour lui, pas pour
+      // le modèle.
       throw ArgumentError.value(
         type.id,
         'type.id',
-        'Un compteur personnalise ne peut pas usurper l\'id d\'un compteur integre',
+        'Ce nom est déjà utilisé par un compteur intégré. Choisissez-en un autre.',
       );
     }
 
