@@ -32,6 +32,12 @@ const _custom = CounterType(
   color: 0xFF8B0000,
 );
 
+/// Deux compteurs personnalisés de plus, pour le cas combiné (ronde de
+/// correction 2, Mineur 3) qui a besoin de plus d'entrées distinctes que
+/// `_poison`/`_energy`/`_custom` seuls n'en fournissent.
+const _alpha = CounterType(id: 'alpha', name: 'Alpha', emoji: '◆', color: 0xFF00FF00);
+const _beta = CounterType(id: 'beta', name: 'Beta', emoji: '◇', color: 0xFF0000FF);
+
 Future<void> pumpHandle(
   WidgetTester tester,
   CounterSummary summary, {
@@ -284,5 +290,173 @@ void main() {
     expect(visibleChipsCount + hiddenCount, 4,
         reason: 'le "+N" doit compter TOUTES les puces manquantes, pas '
             'seulement celles que maxVisibleChips aurait écartées');
+  });
+
+  // --- Ronde de correction 2, Critical 1 : la boucle de réduction protège
+  // la transition VERS le "+N", mais rien ne vérifiait que le "+N" LUI-MÊME
+  // tienne dans maxWidth une fois qu'il est le seul contenu restant. Deux
+  // reproductions distinctes, toutes deux données par la revue.
+
+  testWidgets(
+      'même quand le "+N" lui-même ne tiendrait pas (largeur extrême, '
+      'plusieurs entrées), aucun débordement ne se produit -- un marqueur '
+      'minimal non textuel prend le relais', (tester) async {
+    const summary = CounterSummary(
+      counters: [
+        MapEntry(_poison, 9),
+        MapEntry(_energy, 8),
+        MapEntry(_custom, 7),
+      ],
+      worstCommanderDamage: 6,
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 5,
+              child: ConditionalHandle(summary: summary),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull,
+        reason: 'aucun débordement, à AUCUNE largeur -- même quand il n\'y a '
+            'plus la place de compter, "+N" compris');
+    expect(find.byKey(ConditionalHandle.overflowMarkerKey), findsOneWidget,
+        reason: 'un contenu qui ne tient nulle part ne doit ni déborder ni '
+            'disparaître sans rien signaler : un marqueur minimal, non '
+            'textuel, prend le relais du "+N" quand celui-ci ne tient plus');
+  });
+
+  testWidgets(
+      'même quand le "+N" lui-même ne tiendrait pas (une seule entrée à '
+      'valeur énorme, largeur très étroite), aucun débordement ne se '
+      'produit', (tester) async {
+    const summary = CounterSummary(
+      counters: [MapEntry(_poison, 999999999)],
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 20,
+              child: ConditionalHandle(summary: summary),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull,
+        reason: 'la puce cède la place au "+1", qui ne doit pas déborder à '
+            'son tour');
+    expect(find.byKey(ConditionalHandle.overflowMarkerKey), findsOneWidget);
+  });
+
+  // --- Ronde de correction 2, Critical 2 : TextPainter mesurait à l\'échelle
+  // 1.0 alors que les Text réellement rendus héritent du TextScaler ambiant
+  // (MediaQuery) -- un réglage d\'accessibilité "grand texte" débordait donc
+  // même quand la mesure à l\'échelle 1.0 affirmait que ça tenait.
+
+  testWidgets(
+      'sous un TextScaler agrandi (réglage d\'accessibilité "grand texte"), '
+      'aucun débordement ne se produit', (tester) async {
+    const summary = CounterSummary(
+      counters: [MapEntry(_poison, 3)],
+      worstCommanderDamage: 9,
+    );
+
+    await tester.pumpWidget(
+      const MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(2.0)),
+        child: MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 100,
+                child: ConditionalHandle(summary: summary),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull,
+        reason: 'la mesure des puces doit suivre le TextScaler ambiant -- '
+            'un TextPainter mesuré à l\'échelle 1.0 alors que le texte '
+            'rendu est agrandi sous-estime la largeur réelle et laisse '
+            'passer un débordement');
+  });
+
+  // --- Ronde de correction 2, Mineur 3 : le test de débordement par largeur
+  // fixait maxVisibleChips à une valeur inopérante (10), donc ne prouvait
+  // que la troncature par largeur SEULE. Cas combiné : assez d'entrées pour
+  // que maxVisibleChips coupe d'abord, puis une largeur qui coupe encore --
+  // et vérifie que le compte total reste juste (pas de double comptage).
+
+  testWidgets(
+      'cas combiné : maxVisibleChips coupe d\'abord, la largeur coupe '
+      'encore ensuite -- le compte du "+N" reste juste (pas de double '
+      'comptage)', (tester) async {
+    // 6 entrées non nulles, maxVisibleChips: 4 -> maxVisibleChips coupe
+    // d'abord à 3 puces affichées + "+3". Une largeur encore plus étroite
+    // que ce que ces 3 puces + "+3" nécessitent force une seconde coupe.
+    const summary = CounterSummary(
+      counters: [
+        MapEntry(_poison, 90),
+        MapEntry(_energy, 80),
+        MapEntry(_custom, 70),
+        MapEntry(_alpha, 60),
+        MapEntry(_beta, 50),
+      ],
+      worstCommanderDamage: 100,
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 90,
+              child: ConditionalHandle(summary: summary, maxVisibleChips: 4),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+
+    final overflowFinder = find.textContaining('+');
+    expect(overflowFinder, findsOneWidget);
+    final overflowText = tester.widget<Text>(overflowFinder).data!;
+    final hiddenCount = int.parse(overflowText.substring(1));
+
+    // Total : commanderDamage + poison + energy + custom + alpha + beta = 6.
+    final visibleChipsCount =
+        tester.widgetList<Text>(find.byType(Text)).length - 1; // - le "+N"
+    expect(visibleChipsCount + hiddenCount, 6,
+        reason: 'le compte doit rester juste même quand les deux causes de '
+            'troncature (maxVisibleChips ET largeur) jouent ensemble');
+    expect(hiddenCount, greaterThan(3),
+        reason: 'maxVisibleChips seul aurait caché 3 entrées ("+3") ; si '
+            'hiddenCount vaut encore 3 ici, c\'est que la coupe par largeur '
+            'n\'a pas eu lieu -- ce test ne prouverait alors que le cas '
+            'maxVisibleChips déjà couvert par un autre test');
   });
 }

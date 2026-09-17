@@ -89,6 +89,13 @@ class ConditionalHandle extends StatelessWidget {
   /// constante.
   static const double reservedHeight = 30.0;
 
+  /// Clé du marqueur minimal non textuel (voir `_overflowMarker`) rendu à la
+  /// place du "+N" quand même celui-ci ne tient plus dans la largeur
+  /// disponible (ronde de correction 2, Critical 1). Publique pour que les
+  /// tests puissent le distinguer d'une puce normale sans dépendre d'un type
+  /// privé.
+  static const overflowMarkerKey = ValueKey('conditional_handle_overflow_marker');
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -121,12 +128,22 @@ class ConditionalHandle extends StatelessWidget {
     // largeur réelle -- un `RenderFlex overflowed`, silencieux en release
     // (clipping), dès qu'une session monte `maxVisibleChips` pour un cran de
     // densité plus dense que ce que `maxVisibleChips` seul anticipait.
-    // `LayoutBuilder` donne la largeur réellement disponible à
-    // `_visibleChips`, qui l'utilise pour réduire encore le nombre de puces
-    // RENDUES si besoin (voir son doc-comment) -- jamais pour les faire
-    // défiler ni rétrécir sous le seuil lisible.
+    // `LayoutBuilder` donne la largeur réellement disponible à `_fitChips`,
+    // qui l'utilise pour réduire encore le nombre de puces RENDUES si
+    // besoin (voir son doc-comment) -- jamais pour les faire défiler ni
+    // rétrécir sous le seuil lisible.
+    //
+    // Ronde de correction 2, Critical 2 : `MediaQuery.textScalerOf(context)`
+    // -- pas l'échelle 1.0 implicite d'un `TextPainter` par défaut -- est
+    // transmis à la mesure, pour qu'un réglage d'accessibilité "grand
+    // texte" (parfaitement ordinaire) ne fasse pas mentir la mesure sur ce
+    // qui tient réellement à l'écran.
     return LayoutBuilder(
       builder: (context, constraints) {
+        final fit = _fitChips(
+          constraints.maxWidth,
+          MediaQuery.textScalerOf(context),
+        );
         return Container(
           decoration: BoxDecoration(
             // greyShade800 est un getter (app_colors.dart:180), pas une
@@ -134,11 +151,13 @@ class ConditionalHandle extends StatelessWidget {
             border: Border(top: BorderSide(color: AppColors.greyShade800)),
           ),
           alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: _visibleChips(constraints.maxWidth),
-          ),
+          child: fit.useMarker
+              ? _overflowMarker(constraints.maxWidth)
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: fit.chips,
+                ),
         );
       },
     );
@@ -157,10 +176,19 @@ class ConditionalHandle extends StatelessWidget {
   /// -- puces affichées + `"+N"` le cas échéant -- ne tient toujours pas
   /// dans `maxWidth`, les puces les moins graves cèdent une à une leur
   /// place au `"+N"`, qui recompte alors TOUTES celles qui manquent (pas
-  /// seulement celles que `maxVisibleChips` avait écartées). Jamais de
-  /// défilement, jamais de puce rétrécie sous le seuil lisible : la seule
-  /// variable qui cède est combien de puces sont effectivement rendues.
-  List<Widget> _visibleChips(double maxWidth) {
+  /// seulement celles que `maxVisibleChips` avait écartées).
+  ///
+  /// Ronde de correction 2, Critical 1 : cette boucle protège la
+  /// TRANSITION vers le "+N", jamais le "+N" lui-même une fois qu'il est le
+  /// seul contenu restant -- une largeur assez extrême (peu de place, ou
+  /// une seule valeur énorme) peut faire déborder le "+N" à son tour. Le
+  /// dernier contrôle ci-dessous couvre ce cas : si même `"+N"` seul ne
+  /// tient pas, on rend un marqueur minimal non textuel (`_overflowMarker`)
+  /// plutôt que de laisser déborder -- jamais de défilement, jamais de
+  /// puce rétrécie sous le seuil lisible : la seule variable qui cède est
+  /// COMBIEN de puces sont effectivement rendues, et en dernier recours,
+  /// s'il faut même renoncer à dire combien.
+  _ChipsFit _fitChips(double maxWidth, TextScaler textScaler) {
     final entries = <_ChipData>[
       if (summary.worstCommanderDamage > 0)
         _ChipData('⚔', summary.worstCommanderDamage, AppColors.accentRed),
@@ -176,30 +204,42 @@ class ConditionalHandle extends StatelessWidget {
     var hiddenCount = entries.length - shown.length;
 
     if (maxWidth.isFinite) {
-      while (shown.isNotEmpty && _rowWidth(shown, hiddenCount) > maxWidth) {
+      while (shown.isNotEmpty &&
+          _rowWidth(shown, hiddenCount, textScaler) > maxWidth) {
         shown = shown.sublist(0, shown.length - 1);
         hiddenCount = entries.length - shown.length;
       }
+
+      // Le "+N" seul peut encore déborder : la boucle ci-dessus s'arrête
+      // dès que `shown` est vide sans jamais vérifier que le "+N" restant,
+      // seul, tient dans `maxWidth`.
+      if (hiddenCount > 0 &&
+          _rowWidth(const [], hiddenCount, textScaler) > maxWidth) {
+        return const _ChipsFit.marker();
+      }
     }
 
-    return [
+    return _ChipsFit.chips([
       for (final e in shown) _chip(e.glyph, e.value, e.color),
       if (hiddenCount > 0) _overflowChip(hiddenCount),
-    ];
+    ]);
   }
 
   /// Largeur totale qu'occuperait la bande pour ces puces (padding
   /// horizontal des `Padding` de `_chip`/`_overflowChip` inclus), en comptant
-  /// le "+N" s'il y en a un -- c'est cette largeur que `_visibleChips`
-  /// compare à `maxWidth` pour décider si une puce de plus doit céder sa
-  /// place.
-  double _rowWidth(List<_ChipData> shown, int hiddenCount) {
+  /// le "+N" s'il y en a un -- c'est cette largeur que `_fitChips` compare
+  /// à `maxWidth` pour décider si une puce de plus doit céder sa place.
+  double _rowWidth(
+    List<_ChipData> shown,
+    int hiddenCount,
+    TextScaler textScaler,
+  ) {
     var total = 0.0;
     for (final e in shown) {
-      total += _chipTextWidth('${e.glyph} ${e.value}');
+      total += _chipTextWidth('${e.glyph} ${e.value}', textScaler);
     }
     if (hiddenCount > 0) {
-      total += _chipTextWidth('+$hiddenCount');
+      total += _chipTextWidth('+$hiddenCount', textScaler);
     }
     return total;
   }
@@ -209,12 +249,48 @@ class ConditionalHandle extends StatelessWidget {
   /// texte, donc la couleur par défaut de `lifeHandleChip` suffit ici),
   /// plus les 12px de `Padding` horizontal (6 de chaque côté) qui
   /// l'entourent dans la puce réelle.
-  double _chipTextWidth(String text) {
+  ///
+  /// `textScaler` DOIT être celui de `MediaQuery.textScalerOf(context)`,
+  /// pas la valeur par défaut (échelle 1.0) d'un `TextPainter` -- sans quoi
+  /// cette mesure sous-estime la largeur d'un `Text` réellement rendu sous
+  /// un réglage d'accessibilité "grand texte" (ronde de correction 2,
+  /// Critical 2), et laisse passer un débordement que la mesure affirmait
+  /// pourtant impossible.
+  double _chipTextWidth(String text, TextScaler textScaler) {
     final painter = TextPainter(
       text: TextSpan(text: text, style: AppTextStyles.lifeHandleChip()),
       textDirection: TextDirection.ltr,
+      textScaler: textScaler,
     )..layout();
     return painter.width + 12;
+  }
+
+  /// Marqueur minimal NON textuel, rendu quand même le "+N" ne tient plus
+  /// dans `maxWidth` (ronde de correction 2, Critical 1).
+  ///
+  /// Décision consignée dans le rapport de cette ronde : à cette largeur,
+  /// il n'y a littéralement plus la place de COMPTER -- la règle du lot
+  /// (« un contenu qui ne tient pas se compte, il ne se cache pas ») ne
+  /// peut plus être tenue à la lettre. Ce point ne prétend dire ni quoi ni
+  /// combien ; il signale seulement « il se passe quelque chose ici », ce
+  /// qui reste honnête là où un texte tronqué ou un vide silencieux
+  /// mentirait par excès ou par omission. Sa taille est explicitement
+  /// bornée par `maxWidth` (`clamp`), jamais par sa seule taille
+  /// préférée : un `Container`/`Align` ne lève pas l'assertion
+  /// `RenderFlex overflowed` comme une `Row`, mais peindrait quand même
+  /// hors de ses limites sans ce `clamp` -- la même famille de défaut que
+  /// ce que cette ronde corrige.
+  Widget _overflowMarker(double maxWidth) {
+    final size = maxWidth.isFinite ? maxWidth.clamp(0.0, 8.0) : 8.0;
+    return Container(
+      key: overflowMarkerKey,
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        color: AppColors.accentRed,
+        shape: BoxShape.circle,
+      ),
+    );
   }
 
   Widget _chip(String glyph, int value, Color color) {
@@ -243,4 +319,18 @@ class _ChipData {
   final String glyph;
   final int value;
   final Color color;
+}
+
+/// Résultat de `_fitChips` : soit une liste de puces (éventuellement suivie
+/// du "+N") qui tient dans `maxWidth`, soit -- dernier recours, ronde de
+/// correction 2 -- le marqueur minimal non textuel quand même le "+N" seul
+/// ne tiendrait pas.
+class _ChipsFit {
+  const _ChipsFit.chips(this.chips) : useMarker = false;
+  const _ChipsFit.marker()
+      : chips = const [],
+        useMarker = true;
+
+  final List<Widget> chips;
+  final bool useMarker;
 }
