@@ -50,10 +50,9 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
 
     try {
       final data = await _apiService.searchCards(
-        'oracle_id:${widget.oracleId}',
+        'oracleid:${widget.oracleId}',
         unique: 'prints',
-        order: 'released',
-        dir: 'desc',
+        includeMultilingual: true,
       );
       final List<dynamic> dataList = data['data'] ?? [];
 
