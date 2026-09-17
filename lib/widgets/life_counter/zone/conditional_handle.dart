@@ -86,11 +86,18 @@ class ConditionalHandle extends StatelessWidget {
   /// sauterait — visible surtout à 8 joueurs sur petit écran.
   ///
   /// NE PAS CHANGER cette valeur sans concertation : le chantier de
-  /// disposition de la table (lot 6) en dérive `kZoneShortEdgeFloor`
-  /// (en-tête 40 + poignée 30 = 70), qui gouverne à son tour si une zone
-  /// peut recevoir une colonne latérale. Si le contenu de la poignée manque
-  /// de place, la réponse est `maxVisibleChips` ci-dessus, jamais cette
-  /// constante.
+  /// disposition de la table en dérive `kZoneShortEdgeFloor`, qui gouverne à
+  /// son tour si une zone peut recevoir une colonne latérale.
+  ///
+  /// Volontairement, ce commentaire ne recopie NI la somme NI le total : ces
+  /// valeurs vivent là-bas et y ont déjà bougé une fois (l'en-tête est passé
+  /// de 40 à 48, mesuré sur la cible minimale d'un `IconButton` Material,
+  /// donc le plancher de 70 à 78). Un nombre recopié ici se périmerait en
+  /// silence — c'est exactement le défaut qui a valu au lot 6 de devoir
+  /// dériver `kZoneShortEdgeFloor` au lieu de le figer.
+  ///
+  /// Si le contenu de la poignée manque de place, la réponse est
+  /// `maxVisibleChips` ci-dessus, jamais cette constante.
   static const double reservedHeight = 30.0;
 
   /// Clé du marqueur minimal non textuel (voir `_overflowMarker`) rendu à la
