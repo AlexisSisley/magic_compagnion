@@ -159,17 +159,17 @@ unitaire, qui reste nécessaire pour l'import et le scan.
 
 ## Règles d'affichage
 
-0. **Un nom de carte tient sur une ligne.** Troncature avec points de
+1. **Un nom de carte tient sur une ligne.** Troncature avec points de
    suspension au-delà. La hauteur de ligne ne varie jamais, quelle que soit la
    langue : c'est ce qui garde la liste de deck régulière et balayable au
    pouce. Conséquence assumée : les noms français les plus longs sont coupés.
-1. **Jamais de spinner sur un nom de carte.** Le résolveur rend toujours
+2. **Jamais de spinner sur un nom de carte.** Le résolveur rend toujours
    quelque chose immédiatement : la traduction si elle est en cache, sinon le
    tirage réellement possédé. La traduction est un remplacement silencieux,
    pas un état de chargement.
-2. **Le prix ne suit jamais la projection.** Même quand l'affichage bascule en
+3. **Le prix ne suit jamais la projection.** Même quand l'affichage bascule en
    français, la valeur reste calculée sur le `scryfallId` possédé.
-3. **Repli explicite.** Quand aucune traduction n'existe, la carte s'affiche
+4. **Repli explicite.** Quand aucune traduction n'existe, la carte s'affiche
    dans la langue du tirage possédé, sans message d'erreur.
 
 ## Tests
