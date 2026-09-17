@@ -1057,10 +1057,20 @@ void main() {
     );
 
     // Preuve de bout en bout : la donnée est bien arrivée jusqu'au
-    // `CounterSummary` que porte la `ConditionalHandle` du joueur 0 (première
-    // de l'arbre, ordre d'affichage == ordre canonique sans reorder).
+    // `CounterSummary` que porte la `ConditionalHandle` DU JOUEUR 0.
+    //
+    // Repéré par identité (`_playerZone(0)`), jamais par `.first` : depuis
+    // la table v2, `AdaptiveGrid` place les zones selon
+    // `tableLayoutFor`/`seatsFor`, et l'ordre dans l'arbre ne suit plus ni
+    // l'ordre d'affichage ni l'ordre canonique. `.first` désignait ici la
+    // poignée d'un autre joueur -- dont le compteur vaut bien 0, ce qui
+    // rendait l'échec parfaitement crédible sans rien dire du câblage
+    // testé.
     final handle = tester.widget<ConditionalHandle>(
-      find.byType(ConditionalHandle).first,
+      find.descendant(
+        of: _playerZone(0),
+        matching: find.byType(ConditionalHandle),
+      ),
     );
     final shieldEntry = handle.summary.counters
         .firstWhere((entry) => entry.key.id == 'custom_shield');
@@ -1097,6 +1107,19 @@ void main() {
 
     // La grille liste les trois autres joueurs (1, 2, 3) comme sources.
     // On tape sur la ligne du joueur 2 (Sarah).
+    //
+    // `ensureVisible` d'abord : le tiroir s'est allongé des deux côtés de la
+    // fusion (« Tourner », « Couleur » et « Historique du joueur » de la
+    // table v2 ; les lignes de compteur du lot 5), et la grille de dégâts de
+    // commandant, qui vient APRÈS elles, n'entre plus dans la feuille sans
+    // défiler à cette taille d'écran -- même raison que pour
+    // « action-monarch » et « action-reset » plus haut. Le tap reste un vrai
+    // tap sur le vrai bouton ; seul le défilement qu'un doigt ferait de
+    // lui-même est rendu explicite.
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('commander-damage-2-plus')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('commander-damage-2-plus')));
     await tester.pump();
     // Laisse le minuteur du flash de dégâts de commandant (600ms) se purger
@@ -2028,8 +2051,17 @@ void main() {
     // Avant retrait : la poignée affiche bien 3 -- valeur NON NULLE, sinon
     // ce test ne distinguerait pas "conservée mais filtrée à l'affichage"
     // de "jamais écrite".
+    // Repéré par identité (`_playerZone(0)`), jamais par `.first` : depuis
+    // la table v2, l'ordre des zones dans l'arbre suit
+    // `tableLayoutFor`/`seatsFor` et non l'ordre canonique -- `.first`
+    // lisait la poignée d'un joueur SANS poison, ce qui faisait échouer la
+    // précondition ci-dessous et, pire, aurait rendu l'assertion `isEmpty`
+    // d'après retrait vraie sans rien prouver.
     final beforeHandle = tester.widget<ConditionalHandle>(
-      find.byType(ConditionalHandle).first,
+      find.descendant(
+        of: _playerZone(0),
+        matching: find.byType(ConditionalHandle),
+      ),
     );
     expect(
       beforeHandle.summary.counters
@@ -2047,7 +2079,10 @@ void main() {
 
     // Après retrait : la poignée ne montre plus AUCUNE entrée 'poison'.
     final afterHandle = tester.widget<ConditionalHandle>(
-      find.byType(ConditionalHandle).first,
+      find.descendant(
+        of: _playerZone(0),
+        matching: find.byType(ConditionalHandle),
+      ),
     );
     expect(
       afterHandle.summary.counters.where((e) => e.key.id == 'poison'),
