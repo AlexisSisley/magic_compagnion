@@ -260,7 +260,16 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
   /// on continue souvent d'y ajuster d'autres compteurs juste après.
   void _removeCounter(String id) {
     setState(() {
+      final removed = _activeCounters.where((t) => t.id == id).toList();
       _activeCounters = _activeCounters.where((t) => t.id != id).toList();
+      // Bascule symetrique de `_reactivateCounter` : sans elle, un joueur qui
+      // tape le retrait par erreur ne voit rien lui proposer d'annuler, et doit
+      // deviner qu'il faut refermer puis rouvrir le tiroir pour que la ligne
+      // « Reactiver » apparaisse. Le retour est offert la ou l'erreur vient
+      // d'etre commise.
+      if (removed.isNotEmpty && widget.onActivateCounter != null) {
+        _inactiveCounters = [..._inactiveCounters, ...removed];
+      }
     });
     widget.onRemoveCounter(id);
   }

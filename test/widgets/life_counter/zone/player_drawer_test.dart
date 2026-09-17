@@ -68,6 +68,11 @@ Future<_Captured> _openDrawer(
   // refus (nom usurpant un intégré) fournissent leur propre double en échec.
   Future<({bool success, String message})> Function(CounterType type)?
       onCreateCounter,
+  // Compteurs du catalogue non actifs dans la partie (Critical 3, revue
+  // finale). `onActivateCounter` reste `null` par defaut : les tests qui ne
+  // s'en servent pas montent le tiroir exactement comme avant.
+  List<CounterType> inactiveCounters = const [],
+  Future<int> Function(CounterType type)? onActivateCounter,
 }) async {
   final captured = _Captured();
   await tester.pumpWidget(
@@ -97,6 +102,8 @@ Future<_Captured> _openDrawer(
                     return (success: true, message: 'Compteur sauvegardé');
                   },
               onRemoveCounter: (id) => captured.removedCounterIds.add(id),
+              inactiveCounters: inactiveCounters,
+              onActivateCounter: onActivateCounter,
             ),
             child: const Text('ouvrir'),
           ),
@@ -110,6 +117,40 @@ Future<_Captured> _openDrawer(
 }
 
 void main() {
+  // Re-revue de la vague finale, N4. `_removeCounter` retirait de
+  // `_activeCounters` sans rien ajouter a `_inactiveCounters`, alors que
+  // `_reactivateCounter` fait la bascule dans l'autre sens. Un joueur qui
+  // tape le retrait par erreur ne voyait rien lui proposer d'annuler : il
+  // devait deviner qu'il faut refermer puis rouvrir le tiroir.
+  testWidgets(
+      'retirer un compteur propose immediatement de le reactiver, sans avoir '
+      'a refermer le tiroir', (tester) async {
+    await _openDrawer(
+      tester,
+      activeCounters: _defaultActiveCounters,
+      onActivateCounter: (type) async => 0,
+    );
+
+    // Avant : la ligne de reactivation de poison n'existe pas, poison est actif.
+    expect(find.byKey(const ValueKey('counter_reactivate_poison')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('counter_row_poison_remove')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('counter_row_poison')),
+      findsNothing,
+      reason: 'la ligne du compteur retire disparait',
+    );
+    expect(
+      find.byKey(const ValueKey('counter_reactivate_poison')),
+      findsOneWidget,
+      reason: "le retour est offert la ou l'erreur vient d'etre commise, "
+          "dans le tiroir encore ouvert -- sans quoi le joueur doit deviner "
+          "qu'il faut le refermer et le rouvrir",
+    );
+  });
+
   testWidgets(
       'régression Standard — un tiroir monté avec les seuls compteurs actifs '
       'poison et énergie affiche exactement ces deux lignes, jamais la taxe '
