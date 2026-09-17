@@ -10,6 +10,7 @@ DbCardPrint _print({
   required String scryfallId,
   required String lang,
   String oracleId = 'oracle-thrill',
+  String oracleName = 'Thrill of Possibility',
   String? printedName,
 }) {
   return DbCardPrint(
@@ -18,6 +19,7 @@ DbCardPrint _print({
     setCode: 'eld',
     collectorNumber: '146',
     lang: lang,
+    oracleName: oracleName,
     printedName: printedName,
     printedText: null,
     imageUri: null,

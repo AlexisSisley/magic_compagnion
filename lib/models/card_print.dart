@@ -60,3 +60,33 @@ class ResolvedPrint {
     );
   }
 }
+
+/// Resultat d'une resolution d'editions en lot.
+///
+/// Un lot peut echouer sans condamner les autres : ce qui a ete resolu est
+/// rendu, et ce qui ne l'a pas ete est nomme, avec sa cause. L'appelant decide
+/// quoi faire d'un import partiel — il ne peut pas le decider s'il l'ignore.
+class EditionResolution {
+  /// Les tirages effectivement identifies.
+  final List<ResolvedPrint> resolved;
+
+  /// Les requetes que Scryfall a explicitement declarees introuvables
+  /// (champ `not_found` de la reponse).
+  final List<PrintRequest> notFound;
+
+  /// Les requetes d'un lot qui n'a pas abouti (reseau, 5xx, 429).
+  final List<PrintRequest> failed;
+
+  /// Un message par lot en echec, pour le diagnostic.
+  final List<String> errors;
+
+  const EditionResolution({
+    this.resolved = const [],
+    this.notFound = const [],
+    this.failed = const [],
+    this.errors = const [],
+  });
+
+  /// Vrai quand toutes les requetes ont trouve leur tirage.
+  bool get isComplete => notFound.isEmpty && failed.isEmpty;
+}

@@ -6292,6 +6292,17 @@ class $CardPrintsTable extends CardPrints
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _oracleNameMeta = const VerificationMeta(
+    'oracleName',
+  );
+  @override
+  late final GeneratedColumn<String> oracleName = GeneratedColumn<String>(
+    'oracle_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _printedNameMeta = const VerificationMeta(
     'printedName',
   );
@@ -6343,6 +6354,7 @@ class $CardPrintsTable extends CardPrints
     setCode,
     collectorNumber,
     lang,
+    oracleName,
     printedName,
     printedText,
     imageUri,
@@ -6402,6 +6414,14 @@ class $CardPrintsTable extends CardPrints
       );
     } else if (isInserting) {
       context.missing(_langMeta);
+    }
+    if (data.containsKey('oracle_name')) {
+      context.handle(
+        _oracleNameMeta,
+        oracleName.isAcceptableOrUnknown(data['oracle_name']!, _oracleNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_oracleNameMeta);
     }
     if (data.containsKey('printed_name')) {
       context.handle(
@@ -6464,6 +6484,10 @@ class $CardPrintsTable extends CardPrints
         DriftSqlType.string,
         data['${effectivePrefix}lang'],
       )!,
+      oracleName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}oracle_name'],
+      )!,
       printedName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}printed_name'],
@@ -6495,6 +6519,10 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
   final String setCode;
   final String collectorNumber;
   final String lang;
+
+  /// Le nom oracle (anglais), stable a travers toutes les traductions.
+  /// Distinct de [printedName], qui porte le nom localise de CE tirage.
+  final String oracleName;
   final String? printedName;
   final String? printedText;
   final String? imageUri;
@@ -6505,6 +6533,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
     required this.setCode,
     required this.collectorNumber,
     required this.lang,
+    required this.oracleName,
     this.printedName,
     this.printedText,
     this.imageUri,
@@ -6518,6 +6547,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
     map['set_code'] = Variable<String>(setCode);
     map['collector_number'] = Variable<String>(collectorNumber);
     map['lang'] = Variable<String>(lang);
+    map['oracle_name'] = Variable<String>(oracleName);
     if (!nullToAbsent || printedName != null) {
       map['printed_name'] = Variable<String>(printedName);
     }
@@ -6538,6 +6568,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
       setCode: Value(setCode),
       collectorNumber: Value(collectorNumber),
       lang: Value(lang),
+      oracleName: Value(oracleName),
       printedName: printedName == null && nullToAbsent
           ? const Value.absent()
           : Value(printedName),
@@ -6562,6 +6593,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
       setCode: serializer.fromJson<String>(json['setCode']),
       collectorNumber: serializer.fromJson<String>(json['collectorNumber']),
       lang: serializer.fromJson<String>(json['lang']),
+      oracleName: serializer.fromJson<String>(json['oracleName']),
       printedName: serializer.fromJson<String?>(json['printedName']),
       printedText: serializer.fromJson<String?>(json['printedText']),
       imageUri: serializer.fromJson<String?>(json['imageUri']),
@@ -6577,6 +6609,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
       'setCode': serializer.toJson<String>(setCode),
       'collectorNumber': serializer.toJson<String>(collectorNumber),
       'lang': serializer.toJson<String>(lang),
+      'oracleName': serializer.toJson<String>(oracleName),
       'printedName': serializer.toJson<String?>(printedName),
       'printedText': serializer.toJson<String?>(printedText),
       'imageUri': serializer.toJson<String?>(imageUri),
@@ -6590,6 +6623,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
     String? setCode,
     String? collectorNumber,
     String? lang,
+    String? oracleName,
     Value<String?> printedName = const Value.absent(),
     Value<String?> printedText = const Value.absent(),
     Value<String?> imageUri = const Value.absent(),
@@ -6600,6 +6634,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
     setCode: setCode ?? this.setCode,
     collectorNumber: collectorNumber ?? this.collectorNumber,
     lang: lang ?? this.lang,
+    oracleName: oracleName ?? this.oracleName,
     printedName: printedName.present ? printedName.value : this.printedName,
     printedText: printedText.present ? printedText.value : this.printedText,
     imageUri: imageUri.present ? imageUri.value : this.imageUri,
@@ -6616,6 +6651,9 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
           ? data.collectorNumber.value
           : this.collectorNumber,
       lang: data.lang.present ? data.lang.value : this.lang,
+      oracleName: data.oracleName.present
+          ? data.oracleName.value
+          : this.oracleName,
       printedName: data.printedName.present
           ? data.printedName.value
           : this.printedName,
@@ -6635,6 +6673,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
           ..write('setCode: $setCode, ')
           ..write('collectorNumber: $collectorNumber, ')
           ..write('lang: $lang, ')
+          ..write('oracleName: $oracleName, ')
           ..write('printedName: $printedName, ')
           ..write('printedText: $printedText, ')
           ..write('imageUri: $imageUri, ')
@@ -6650,6 +6689,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
     setCode,
     collectorNumber,
     lang,
+    oracleName,
     printedName,
     printedText,
     imageUri,
@@ -6664,6 +6704,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
           other.setCode == this.setCode &&
           other.collectorNumber == this.collectorNumber &&
           other.lang == this.lang &&
+          other.oracleName == this.oracleName &&
           other.printedName == this.printedName &&
           other.printedText == this.printedText &&
           other.imageUri == this.imageUri &&
@@ -6676,6 +6717,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
   final Value<String> setCode;
   final Value<String> collectorNumber;
   final Value<String> lang;
+  final Value<String> oracleName;
   final Value<String?> printedName;
   final Value<String?> printedText;
   final Value<String?> imageUri;
@@ -6687,6 +6729,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
     this.setCode = const Value.absent(),
     this.collectorNumber = const Value.absent(),
     this.lang = const Value.absent(),
+    this.oracleName = const Value.absent(),
     this.printedName = const Value.absent(),
     this.printedText = const Value.absent(),
     this.imageUri = const Value.absent(),
@@ -6699,6 +6742,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
     required String setCode,
     required String collectorNumber,
     required String lang,
+    required String oracleName,
     this.printedName = const Value.absent(),
     this.printedText = const Value.absent(),
     this.imageUri = const Value.absent(),
@@ -6709,6 +6753,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
        setCode = Value(setCode),
        collectorNumber = Value(collectorNumber),
        lang = Value(lang),
+       oracleName = Value(oracleName),
        fetchedAt = Value(fetchedAt);
   static Insertable<DbCardPrint> custom({
     Expression<String>? scryfallId,
@@ -6716,6 +6761,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
     Expression<String>? setCode,
     Expression<String>? collectorNumber,
     Expression<String>? lang,
+    Expression<String>? oracleName,
     Expression<String>? printedName,
     Expression<String>? printedText,
     Expression<String>? imageUri,
@@ -6728,6 +6774,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
       if (setCode != null) 'set_code': setCode,
       if (collectorNumber != null) 'collector_number': collectorNumber,
       if (lang != null) 'lang': lang,
+      if (oracleName != null) 'oracle_name': oracleName,
       if (printedName != null) 'printed_name': printedName,
       if (printedText != null) 'printed_text': printedText,
       if (imageUri != null) 'image_uri': imageUri,
@@ -6742,6 +6789,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
     Value<String>? setCode,
     Value<String>? collectorNumber,
     Value<String>? lang,
+    Value<String>? oracleName,
     Value<String?>? printedName,
     Value<String?>? printedText,
     Value<String?>? imageUri,
@@ -6754,6 +6802,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
       setCode: setCode ?? this.setCode,
       collectorNumber: collectorNumber ?? this.collectorNumber,
       lang: lang ?? this.lang,
+      oracleName: oracleName ?? this.oracleName,
       printedName: printedName ?? this.printedName,
       printedText: printedText ?? this.printedText,
       imageUri: imageUri ?? this.imageUri,
@@ -6779,6 +6828,9 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
     }
     if (lang.present) {
       map['lang'] = Variable<String>(lang.value);
+    }
+    if (oracleName.present) {
+      map['oracle_name'] = Variable<String>(oracleName.value);
     }
     if (printedName.present) {
       map['printed_name'] = Variable<String>(printedName.value);
@@ -6806,6 +6858,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
           ..write('setCode: $setCode, ')
           ..write('collectorNumber: $collectorNumber, ')
           ..write('lang: $lang, ')
+          ..write('oracleName: $oracleName, ')
           ..write('printedName: $printedName, ')
           ..write('printedText: $printedText, ')
           ..write('imageUri: $imageUri, ')
@@ -11600,6 +11653,7 @@ typedef $$CardPrintsTableCreateCompanionBuilder =
       required String setCode,
       required String collectorNumber,
       required String lang,
+      required String oracleName,
       Value<String?> printedName,
       Value<String?> printedText,
       Value<String?> imageUri,
@@ -11613,6 +11667,7 @@ typedef $$CardPrintsTableUpdateCompanionBuilder =
       Value<String> setCode,
       Value<String> collectorNumber,
       Value<String> lang,
+      Value<String> oracleName,
       Value<String?> printedName,
       Value<String?> printedText,
       Value<String?> imageUri,
@@ -11651,6 +11706,11 @@ class $$CardPrintsTableFilterComposer
 
   ColumnFilters<String> get lang => $composableBuilder(
     column: $table.lang,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get oracleName => $composableBuilder(
+    column: $table.oracleName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11709,6 +11769,11 @@ class $$CardPrintsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get oracleName => $composableBuilder(
+    column: $table.oracleName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get printedName => $composableBuilder(
     column: $table.printedName,
     builder: (column) => ColumnOrderings(column),
@@ -11757,6 +11822,11 @@ class $$CardPrintsTableAnnotationComposer
 
   GeneratedColumn<String> get lang =>
       $composableBuilder(column: $table.lang, builder: (column) => column);
+
+  GeneratedColumn<String> get oracleName => $composableBuilder(
+    column: $table.oracleName,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get printedName => $composableBuilder(
     column: $table.printedName,
@@ -11811,6 +11881,7 @@ class $$CardPrintsTableTableManager
                 Value<String> setCode = const Value.absent(),
                 Value<String> collectorNumber = const Value.absent(),
                 Value<String> lang = const Value.absent(),
+                Value<String> oracleName = const Value.absent(),
                 Value<String?> printedName = const Value.absent(),
                 Value<String?> printedText = const Value.absent(),
                 Value<String?> imageUri = const Value.absent(),
@@ -11822,6 +11893,7 @@ class $$CardPrintsTableTableManager
                 setCode: setCode,
                 collectorNumber: collectorNumber,
                 lang: lang,
+                oracleName: oracleName,
                 printedName: printedName,
                 printedText: printedText,
                 imageUri: imageUri,
@@ -11835,6 +11907,7 @@ class $$CardPrintsTableTableManager
                 required String setCode,
                 required String collectorNumber,
                 required String lang,
+                required String oracleName,
                 Value<String?> printedName = const Value.absent(),
                 Value<String?> printedText = const Value.absent(),
                 Value<String?> imageUri = const Value.absent(),
@@ -11846,6 +11919,7 @@ class $$CardPrintsTableTableManager
                 setCode: setCode,
                 collectorNumber: collectorNumber,
                 lang: lang,
+                oracleName: oracleName,
                 printedName: printedName,
                 printedText: printedText,
                 imageUri: imageUri,

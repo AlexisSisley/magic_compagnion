@@ -226,6 +226,10 @@ class CardPrints extends Table {
   TextColumn get setCode => text()();
   TextColumn get collectorNumber => text()();
   TextColumn get lang => text()();
+
+  /// Le nom oracle (anglais), stable a travers toutes les traductions.
+  /// Distinct de [printedName], qui porte le nom localise de CE tirage.
+  TextColumn get oracleName => text()();
   TextColumn get printedName => text().nullable()();
   TextColumn get printedText => text().nullable()();
   TextColumn get imageUri => text().nullable()();

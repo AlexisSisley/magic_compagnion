@@ -23,8 +23,16 @@ class CardResolver {
         _db = db;
 
   /// Temps 1 : fixe l'edition de chaque requete, cache compris.
-  Future<List<ResolvedPrint>> resolveEditions(List<PrintRequest> requests) async {
+  ///
+  /// Un lot en echec (reseau, 5xx, 429) ne condamne pas les autres lots :
+  /// ses requetes sont nommees dans [EditionResolution.failed] plutot que de
+  /// disparaitre silencieusement. Une carte que Scryfall declare introuvable
+  /// (champ `not_found`) est nommee dans [EditionResolution.notFound].
+  Future<EditionResolution> resolveEditions(List<PrintRequest> requests) async {
     final List<ResolvedPrint> resolved = [];
+    final List<PrintRequest> notFound = [];
+    final List<PrintRequest> failed = [];
+    final List<String> errors = [];
     final List<PrintRequest> toFetch = [];
 
     for (final request in requests) {
@@ -48,12 +56,27 @@ class CardResolver {
           await _cache(print);
           resolved.add(print);
         }
-      } on DioException {
-        // Lot injoignable : les cartes restent non resolues, l'appelant decide.
+
+        final List<dynamic> notFoundIdentifiers = data['not_found'] ?? [];
+        for (final identifier in notFoundIdentifiers) {
+          final match = _matchRequest(slice, identifiers, identifier as Map<String, dynamic>);
+          if (match != null) notFound.add(match);
+        }
+      } on DioException catch (e) {
+        // Lot injoignable : ses requetes sont nommees, pas perdues. On ne
+        // propage pas l'exception — un seul lot en echec ne doit pas tuer
+        // les autres lots deja resolus.
+        failed.addAll(slice);
+        errors.add(e.message ?? 'Erreur reseau sur un lot de ${slice.length} carte(s)');
       }
     }
 
-    return resolved;
+    return EditionResolution(
+      resolved: resolved,
+      notFound: notFound,
+      failed: failed,
+      errors: errors,
+    );
   }
 
   /// Temps 2 : recupere la traduction d'un tirage, ou null s'il n'en existe pas.
@@ -98,13 +121,39 @@ class CardResolver {
     return row == null ? null : _fromRow(row);
   }
 
+  /// Retrouve, parmi [slice], la requete dont l'identifiant Scryfall envoye
+  /// correspond a un identifiant `not_found` rendu par l'API (comparaison
+  /// structurelle : meme cles, memes valeurs).
+  PrintRequest? _matchRequest(
+    List<PrintRequest> slice,
+    List<Map<String, dynamic>> identifiers,
+    Map<String, dynamic> identifier,
+  ) {
+    for (var i = 0; i < identifiers.length; i++) {
+      if (_identifierEquals(identifiers[i], identifier)) return slice[i];
+    }
+    return null;
+  }
+
+  bool _identifierEquals(Map<String, dynamic> a, Map<String, dynamic> b) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
+  }
+
+  /// [DbCardPrint.oracleName] porte le nom oracle (anglais), stable a travers
+  /// les traductions. [DbCardPrint.printedName] porte le nom localise de CE
+  /// tirage precis, et reste nul quand il n'y en a pas (cas anglais) — jamais
+  /// de repli sur l'un ou l'autre, sous peine de confondre les deux champs.
   ResolvedPrint _fromRow(DbCardPrint row) => ResolvedPrint(
         scryfallId: row.scryfallId,
         oracleId: row.oracleId,
         setCode: row.setCode,
         collectorNumber: row.collectorNumber,
         lang: row.lang,
-        name: row.printedName ?? '',
+        name: row.oracleName,
         printedName: row.printedName,
         printedText: row.printedText,
         imageUri: row.imageUri,
@@ -116,7 +165,8 @@ class CardResolver {
         setCode: print.setCode,
         collectorNumber: print.collectorNumber,
         lang: print.lang,
-        printedName: print.printedName ?? print.name,
+        oracleName: print.name,
+        printedName: print.printedName,
         printedText: print.printedText,
         imageUri: print.imageUri,
         fetchedAt: DateTime.now(),

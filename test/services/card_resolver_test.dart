@@ -61,14 +61,15 @@ void main() {
       final dio = _mockDio((_) => {'data': [_enCard()], 'not_found': []});
       final resolver = CardResolver(api: ScryfallApiService(dio: dio), db: db);
 
-      final results = await resolver.resolveEditions([
+      final result = await resolver.resolveEditions([
         const PrintRequest(name: 'Thrill of Possibility', setCode: 'eld', collectorNumber: '146'),
       ]);
 
-      expect(results, hasLength(1));
-      expect(results.first.scryfallId, _enId);
-      expect(results.first.oracleId, _oracleId);
-      expect(results.first.setCode, 'eld');
+      expect(result.resolved, hasLength(1));
+      expect(result.resolved.first.scryfallId, _enId);
+      expect(result.resolved.first.oracleId, _oracleId);
+      expect(result.resolved.first.setCode, 'eld');
+      expect(result.isComplete, isTrue);
     });
 
     test('met le tirage resolu en cache', () async {
@@ -99,6 +100,56 @@ void main() {
       await resolver.resolveEditions([request]);
 
       expect(calls, callsAfterFirst);
+    });
+
+    test(
+        'un lot en echec ne condamne pas les autres lots : ses requetes vont '
+        'dans failed', () async {
+      int callCount = 0;
+      final dio = _mockDio((_) {
+        callCount++;
+        // Premier lot (75 requetes) : succes. Second lot (1 requete) : 500.
+        if (callCount == 1) {
+          return {'data': [_enCard()], 'not_found': []};
+        }
+        return 500;
+      });
+      final resolver = CardResolver(api: ScryfallApiService(dio: dio), db: db);
+
+      // 76 requetes fraiches (aucune en cache) forcent exactement deux lots
+      // avec _batchSize = 75 : le premier de 75, le second d'une seule.
+      final requests = [
+        const PrintRequest(name: 'Thrill of Possibility', setCode: 'eld', collectorNumber: '146'),
+        for (var i = 0; i < 75; i++)
+          PrintRequest(name: 'Filler $i', setCode: 'fil', collectorNumber: '$i'),
+      ];
+
+      final result = await resolver.resolveEditions(requests);
+
+      expect(result.resolved, hasLength(1));
+      expect(result.resolved.first.scryfallId, _enId);
+      expect(result.failed, hasLength(1));
+      expect(result.errors, hasLength(1));
+      expect(result.isComplete, isFalse);
+    });
+
+    test('une carte que Scryfall declare introuvable atterit dans notFound', () async {
+      final dio = _mockDio((_) => {
+            'data': [],
+            'not_found': [
+              {'set': 'xyz', 'collector_number': '999'}
+            ],
+          });
+      final resolver = CardResolver(api: ScryfallApiService(dio: dio), db: db);
+
+      final result = await resolver.resolveEditions([
+        const PrintRequest(name: 'Carte Fantome', setCode: 'xyz', collectorNumber: '999'),
+      ]);
+
+      expect(result.resolved, isEmpty);
+      expect(result.notFound, hasLength(1));
+      expect(result.notFound.first.name, 'Carte Fantome');
+      expect(result.isComplete, isFalse);
     });
   });
 
@@ -193,6 +244,28 @@ void main() {
       final owned = await db.getCardPrint(_enId);
       expect(owned!.lang, 'en');
       expect(owned.scryfallId, _enId);
+    });
+
+    test(
+        'une traduction relue depuis le cache distingue le nom oracle du '
+        'nom imprime', () async {
+      final dio = _mockDio((options) =>
+          options.path.endsWith('/fr') ? _frCard() : _enCard());
+      final resolver = CardResolver(api: ScryfallApiService(dio: dio), db: db);
+
+      await resolver.resolveTranslation(
+        scryfallId: _enId, oracleId: _oracleId,
+        setCode: 'eld', collectorNumber: '146', lang: 'fr',
+      ); // remplit le cache
+
+      final cached = await resolver.resolveTranslation(
+        scryfallId: _enId, oracleId: _oracleId,
+        setCode: 'eld', collectorNumber: '146', lang: 'fr',
+      ); // relu depuis le cache, aucune requete
+
+      expect(cached, isNotNull);
+      expect(cached!.name, 'Thrill of Possibility');
+      expect(cached.printedName, 'Frisson de probabilité');
     });
   });
 }
