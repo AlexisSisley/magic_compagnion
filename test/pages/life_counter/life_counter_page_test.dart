@@ -1141,7 +1141,13 @@ void main() {
         reason: 'son total déjà reçu reste consultable');
 
     // Le total reste corrigeable : un tap sur sa ligne l'incrémente comme
-    // n'importe quel autre adversaire.
+    // n'importe quel autre adversaire. « Historique du joueur » (revue
+    // finale, IMPORTANT #1) a allongé le tiroir d'une entrée : la grille
+    // passe sous le pli sur cette taille de fenêtre, il faut défiler avant
+    // de taper, comme un vrai doigt le ferait.
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('commander-damage-3-plus')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('commander-damage-3-plus')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));

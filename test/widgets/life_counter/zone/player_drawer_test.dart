@@ -24,6 +24,7 @@ class _Captured {
   var reset = false;
   var rotated = false;
   var colorPickerOpened = false;
+  var historyOpened = false;
 }
 
 Future<_Captured> _openDrawer(
@@ -57,6 +58,7 @@ Future<_Captured> _openDrawer(
               lethalCommanderDamage: lethalCommanderDamage,
               onRotate: () => captured.rotated = true,
               onShowColorPicker: () => captured.colorPickerOpened = true,
+              onShowHistory: () => captured.historyOpened = true,
             ),
             child: const Text('ouvrir'),
           ),
@@ -95,6 +97,11 @@ void main() {
 
   testWidgets('l\'action monarque appelle son callback', (tester) async {
     final captured = await _openDrawer(tester);
+    // « Historique du joueur » (revue finale, IMPORTANT #1) pousse Monarque
+    // sous le pli dans ce test à petite fenêtre, comme Tourner et Couleur
+    // l'avaient fait pour Éliminer : il faut défiler avant de taper, comme
+    // un vrai doigt le ferait.
+    await tester.ensureVisible(find.byKey(const ValueKey('action-monarch')));
     await tester.tap(find.byKey(const ValueKey('action-monarch')));
     await tester.pumpAndSettle();
     expect(captured.monarchToggled, isTrue);
@@ -132,6 +139,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(captured.colorPickerOpened, isTrue);
     expect(captured.rotated, isFalse);
+  });
+
+  // Revue finale (IMPORTANT #1) : `PlayerHistorySheet` n'avait qu'un point
+  // d'entrée, `onNameTap` sur `PlayerHeader`, masqué au cran `minimal` --
+  // l'historique PAR JOUEUR devenait injoignable à 8 joueurs sur téléphone.
+  // L'action « Historique » de la bande et du hub ouvre l'historique GLOBAL,
+  // pas celui-ci.
+  testWidgets('l\'action historique du joueur appelle onShowHistory',
+      (tester) async {
+    final captured = await _openDrawer(tester);
+    await tester.tap(find.byKey(const ValueKey('action-player-history')));
+    await tester.pumpAndSettle();
+    expect(captured.historyOpened, isTrue);
+    expect(captured.rotated, isFalse);
+    expect(captured.colorPickerOpened, isFalse);
   });
 
   testWidgets('l\'action réinitialiser appelle son callback', (tester) async {
@@ -188,6 +210,7 @@ void main() {
   testWidgets('une action ferme le tiroir', (tester) async {
     await _openDrawer(tester);
     expect(find.text('Alexis'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('action-monarch')));
     await tester.tap(find.byKey(const ValueKey('action-monarch')));
     await tester.pumpAndSettle();
     expect(find.text('Alexis'), findsNothing,

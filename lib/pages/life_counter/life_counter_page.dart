@@ -1205,6 +1205,12 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           _onDrawerCommanderDamage(ps.playerId, sourcePlayerId, delta),
       onRotate: onRotate,
       onShowColorPicker: onShowColorPicker,
+      // Revue finale (IMPORTANT #1) : second point d'entrée de l'historique
+      // PAR JOUEUR, garanti à tous les crans de densité. `onNameTap` sur
+      // `PlayerHeader` reste le premier, mais l'en-tête disparaît au cran
+      // `minimal` (7-8 joueurs sur téléphone) et la fonction devenait alors
+      // injoignable pour toute la partie.
+      onShowHistory: () => _showPlayerHistory(ps.playerId),
     );
   }
 

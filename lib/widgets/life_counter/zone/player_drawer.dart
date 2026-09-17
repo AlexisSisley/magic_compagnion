@@ -46,6 +46,16 @@ Future<void> showPlayerDrawer({
   // dupliquer leur logique.
   required VoidCallback onRotate,
   required VoidCallback onShowColorPicker,
+  // Revue finale (IMPORTANT #1) : `PlayerHistorySheet` n'avait qu'un seul
+  // point d'entrée, `onNameTap` sur `PlayerHeader` -- lui-même remplacé par
+  // un `SizedBox.shrink()` au cran `minimal`. À 8 joueurs sur téléphone,
+  // l'historique par joueur était donc mort pour toute la partie, et
+  // l'action « Historique » de la bande et du hub ouvre l'historique GLOBAL,
+  // pas celui du joueur. Troisième fois dans ce lot qu'une réorganisation
+  // d'affichage supprime une fonction sans supprimer son code (rulings 7 et
+  // 15) : même remède, le tiroir, dont la poignée est garantie à tous les
+  // crans.
+  required VoidCallback onShowHistory,
 }) {
   HapticFeedback.selectionClick();
   return showModalBottomSheet<void>(
@@ -87,6 +97,10 @@ Future<void> showPlayerDrawer({
         Navigator.of(sheetCtx).pop();
         onShowColorPicker();
       },
+      onShowHistory: () {
+        Navigator.of(sheetCtx).pop();
+        onShowHistory();
+      },
     ),
   );
 }
@@ -106,6 +120,7 @@ class _PlayerDrawerBody extends StatefulWidget {
     required this.lethalCommanderDamage,
     required this.onRotate,
     required this.onShowColorPicker,
+    required this.onShowHistory,
   });
 
   final String playerName;
@@ -121,6 +136,7 @@ class _PlayerDrawerBody extends StatefulWidget {
   final int lethalCommanderDamage;
   final VoidCallback onRotate;
   final VoidCallback onShowColorPicker;
+  final VoidCallback onShowHistory;
 
   @override
   State<_PlayerDrawerBody> createState() => _PlayerDrawerBodyState();
@@ -219,6 +235,18 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
                 label: 'Couleur',
                 color: AppColors.textSecondary,
                 onTap: widget.onShowColorPicker,
+              ),
+              // Revue finale (IMPORTANT #1) : placée ICI, avec « Tourner » et
+              // « Couleur » et AVANT la grille de dégâts de commandant, pour
+              // la même raison que le ruling 10 -- ce qui n'est joignable que
+              // par le tiroir ne doit pas vivre derrière une liste longue et
+              // de taille variable.
+              _action(
+                key: const ValueKey('action-player-history'),
+                icon: Icons.history,
+                label: 'Historique du joueur',
+                color: AppColors.textSecondary,
+                onTap: widget.onShowHistory,
               ),
               // Ronde de correction 1 (Important, "seconde porte") : la
               // grille n'etait conditionnee par rien -- ni le seuil letal,
