@@ -1,0 +1,3 @@
+tags:
+  capture:
+    skip: "Captures visuelles (goldens) -- sensibles au rendu de police d'une machine a l'autre. Exclues de `flutter test` par defaut ; produites explicitement via `flutter test --tags capture --run-skipped --update-goldens`."
