@@ -5,12 +5,23 @@
 // appliqué après un tel réordonnancement doit se poser dans l'ordre
 // d'AFFICHAGE courant, pas dans l'ordre canonique (`playerId` croissant).
 //
-// Les deux tests jouent le vrai geste de `DraggablePlayerZone`
+// Les trois tests jouent le vrai geste de `DraggablePlayerZone`
 // (`LongPressDraggable` + `DragTarget`, delay 1s) plutôt qu'une mutation
 // directe du provider : c'est la seule façon de prouver que le câblage réel
 // (mode édition -> appui long -> glissement -> relâchement -> callback)
 // produit l'effet attendu, pas seulement la logique de `_onReorderPlayers`
 // prise isolément.
+//
+// Ronde de correction 1 (tâche 5) : `_onReorderPlayers` posait ses sièges via
+// `seatsFor(order.length)` en direct, sans jamais `allowSideColumns: false` —
+// alors que la disposition RÉELLEMENT rendue est décidée par
+// `tableLayoutFor(size, playerCount)`, qui replie en face-à-face quand
+// l'écran ne peut pas payer de colonne latérale (téléphone en portrait,
+// §3.3). Deux sources de vérité sur la géométrie qui divergeaient — la même
+// classe de défaut que le double-pivotement du lot 6. Le troisième test
+// verrouille la correction : sur un écran portrait étroit, où la grille
+// replie en face-à-face, les rotations posées par un reorder ne doivent
+// jamais être 1 ni 3 (colonnes latérales), seulement 0 ou 2.
 
 import 'dart:convert';
 
@@ -201,5 +212,55 @@ void main() {
           'ordre canonique aurait donné [2,2,0,0], le résultat d\'avant '
           'réordonnancement',
     );
+  });
+
+  testWidgets(
+      'sur un écran portrait étroit (repli face-à-face), un reorder ne '
+      'pose jamais de siège latéral (1 ou 3)', (tester) async {
+    // Mode édition activé pendant que la bande est visible (écran large) :
+    // c'est le seul endroit où vit le bouton "build" tant que le hub
+    // d'actions (tâche 6) n'existe pas -- l'état `_isEditMode` survit
+    // ensuite au redimensionnement, indépendant de `barKind`.
+    final container = await _pumpFourPlayerTable(tester);
+    await _toggleEditMode(tester);
+
+    // Redimensionne vers un téléphone en portrait étroit : 390×844, plus
+    // petit côté sous `kLargeScreenShortEdge` (600) ET portrait (largeur <
+    // hauteur), donc `tableLayoutFor` replie en face-à-face — la grille
+    // affiche réellement [haut, haut, bas, bas], jamais des colonnes
+    // latérales gauche/droite.
+    _setScreenSize(tester, const Size(390, 844));
+    await tester.pumpAndSettle();
+
+    // Échange les positions 1 et 3 : avec l'ancien `seatsFor(4)` en colonnes
+    // (top, right, bottom, left), la position 1 aurait pris `right` (3) et
+    // la position 3 aurait pris `left` (1) -- les deux valeurs que ce test
+    // interdit. Avec le repli face-à-face réellement affiché, la position 1
+    // est `top` (2) et la position 3 est `bottom` (0).
+    await _dragReorder(tester, fromPlayerId: 1, toPlayerId: 3);
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    expect(session.playerOrder, [0, 3, 2, 1]);
+
+    final rotations = [
+      for (int id = 0; id < 4; id++)
+        session.players.firstWhere((p) => p.playerId == id).quarterTurns
+    ];
+
+    expect(
+      rotations,
+      everyElement(anyOf(0, 2)),
+      reason: 'la grille affichée replie en face-à-face (repli portrait '
+          'étroit) : aucune zone n\'est réellement dans une colonne '
+          'latérale, donc aucune rotation posée par le reorder ne doit '
+          'valoir 1 ou 3 -- lire les sièges via `seatsFor` en direct, sans '
+          'passer par `tableLayoutFor`, poserait 1 et 3 ici (deux sources '
+          'de vérité sur la géométrie qui divergent, comme le '
+          'double-pivotement du lot 6)',
+    );
+    expect(rotations, [0, 0, 0, 2],
+        reason: 'joueur 3 (déplacé en position 1, "top" du repli) prend 2 ; '
+            'joueur 1 (déplacé en position 3, "bottom" du repli) prend 0 ; '
+            'joueurs 0 et 2, non déplacés, restent à 0');
   });
 }

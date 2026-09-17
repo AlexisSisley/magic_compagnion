@@ -1065,7 +1065,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // siège : les reposer TOUTES détruisait l'orientation des joueurs que
     // personne n'avait touchés — un « Même sens » sautait au premier
     // glisser-déposer sans rapport.
-    final seats = seatsFor(order.length);
+    //
+    // Ronde de correction 1 (tâche 5) : `seatsFor(order.length)` appelé en
+    // direct ignorait le repli face-à-face que `tableLayoutFor` applique
+    // quand l'écran ne peut pas payer de colonne latérale (téléphone en
+    // portrait, §3.3) — deux sources de vérité sur la géométrie qui
+    // divergeaient, la même classe de défaut que le double-pivotement du lot
+    // 6. Il faut lire les sièges dans la MÊME disposition que celle que
+    // `AdaptiveGrid` a réellement rendue, donc via `tableLayoutFor`.
+    final seats =
+        tableLayoutFor(MediaQuery.sizeOf(context), order.length).seats;
     for (final displayIndex in {oldIndex, newIndex}) {
       _controller.updateRotation(
           order[displayIndex], seats[displayIndex].quarterTurns);
