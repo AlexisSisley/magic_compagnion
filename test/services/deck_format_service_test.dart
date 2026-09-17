@@ -213,6 +213,15 @@ Side Board
       expect(result.mainboard.first.setCode, 'MH2');
       expect(result.mainboard.first.collectorNumber, '42a');
     });
+
+    test('le marqueur *F* non-terminal est retiré du nom', () {
+      final result = DeckFormatService.parseDecklistText('1 Sol Ring *F* extra text');
+
+      final entry = result.mainboard.first;
+      expect(entry.isFoil, isTrue);
+      expect(entry.name, 'Sol Ring extra text');
+      expect(entry.name, isNot(contains('*F*')));
+    });
   });
 
   // =================================================================

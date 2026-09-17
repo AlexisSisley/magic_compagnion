@@ -129,8 +129,11 @@ class DeckFormatService {
       final String? collectorNumber = printMatch?.group(2);
       final bool isFoil = _foilRegex.hasMatch(rawName);
       // Retirer les infos de tirage du nom avant le nettoyage
-      final String nameForCleaning =
-          printMatch != null ? rawName.replaceAll(printMatch.group(0)!, '') : rawName;
+      var nameForCleaning = printMatch != null ? rawName.replaceAll(printMatch.group(0)!, '') : rawName;
+      // Retirer aussi le marqueur foil s'il n'est pas à la fin
+      nameForCleaning = nameForCleaning.replaceAll(_foilRegex, '');
+      // Nettoyer les espaces multiples
+      nameForCleaning = nameForCleaning.replaceAll(RegExp(r'\s+'), ' ').trim();
       String name = _cleanCardName(nameForCleaning);
 
       switch (section) {
