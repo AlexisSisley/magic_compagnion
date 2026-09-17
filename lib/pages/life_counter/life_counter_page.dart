@@ -1009,24 +1009,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
       Widget zone = _buildPlayerZoneWithOverlays(player, playerState, index);
 
-      // Lot 5, tâche 5 : enveloppe chaque zone d'une clé fondée sur l'identité
-      // du joueur (`player.id`), pas sur sa position dans cette liste --
-      // l'ordre de rendu suit l'ordre d'AFFICHAGE (`_orderedPlayers`, que
-      // `reorderPlayers` permute), qui n'est plus l'ordre canonique dès qu'un
-      // reorder a eu lieu. Sans cette clé, un test (ou une future feature)
-      // qui désigne "le joueur N" par sa position dans l'arbre désignerait en
-      // réalité le joueur affiché à cette position, pas le joueur N -- la
-      // même famille de défaut que le bug du lot 4 sur le bouton "−" (bon
-      // nombre de lignes, mauvais joueur), ici appliqué aux zones plutôt
-      // qu'aux compteurs. Récupérée du lot 6 (revert pour un défaut de
-      // disposition sans rapport, voir 6e147c7) : ce `KeyedSubtree` ne
-      // déplace aucun pixel, il ne fait qu'identifier un sous-arbre déjà
-      // construit.
-      zone = KeyedSubtree(
-        key: ValueKey('player_zone_${player.id}'),
-        child: zone,
-      );
-
       if (_isEditMode) {
         zone = DraggablePlayerZone(
           index: index,
@@ -1035,14 +1017,24 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         );
       }
 
-      // Clé d'identité stable par joueur CANONIQUE (playerState.playerId),
-      // pas par position d'affichage : depuis la tâche 4, AdaptiveGrid place
-      // les zones selon `tableLayoutFor`/`seatsFor`, dont l'ordre dans
-      // l'arbre ne suit ni l'ordre d'affichage ni l'ordre canonique de façon
-      // fixe (colonnes latérales, sous-grille 8 joueurs...). Un test qui a
-      // besoin de retrouver LE joueur 0, quel que soit l'endroit où il est
-      // rendu, doit pouvoir le faire sans reposer sur `.first`/`.at(n)` —
-      // c'est tout l'objet de cette clé.
+      // Clé d'identité stable par joueur CANONIQUE (playerState.playerId ==
+      // player.id), pas par position d'affichage : depuis la tâche 4,
+      // AdaptiveGrid place les zones selon `tableLayoutFor`/`seatsFor`, dont
+      // l'ordre dans l'arbre ne suit ni l'ordre d'affichage ni l'ordre
+      // canonique de façon fixe (colonnes latérales, sous-grille 8
+      // joueurs...). Un test qui a besoin de retrouver LE joueur 0, quel que
+      // soit l'endroit où il est rendu, doit pouvoir le faire sans reposer
+      // sur `.first`/`.at(n)` — c'est tout l'objet de cette clé.
+      //
+      // ⚠️ UNE SEULE clé `player_zone_<playerId>` par joueur dans l'arbre.
+      // Le lot 5 (tâche 5) avait introduit un `KeyedSubtree` de même clé
+      // SOUS le `DraggablePlayerZone` ; la fusion avec la table v2, qui
+      // porte celui-ci, en a laissé deux identiques et tout `find.byKey`
+      // est devenu ambigu. Cette enveloppe-ci est la bonne : elle est
+      // l'élément que `AdaptiveGrid` reçoit, donc la seule dont l'identité
+      // fasse suivre l'état de `_PlayerZoneState` au JOUEUR lors d'un
+      // réordonnancement (re-parentage au lieu d'une mise à jour en place).
+      // N'en ajoute pas une seconde plus bas dans l'arbre.
       return KeyedSubtree(
         key: ValueKey('player_zone_${playerState.playerId}'),
         child: zone,
