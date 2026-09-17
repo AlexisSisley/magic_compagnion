@@ -51,8 +51,8 @@ void main() {
       color: 0xFF9C27B0,
       maxValue: null,
     );
-    await service.saveCustomType(shield);
-    await service.saveCustomType(loyalty);
+    await service.upsertCustomType(shield);
+    await service.upsertCustomType(loyalty);
 
     await getNotifier().load();
     final catalog = container.read(counterCatalogProvider);
@@ -243,7 +243,7 @@ void main() {
         color: 0xFF2196F3,
         maxValue: 20,
       );
-      await service.saveCustomType(shield);
+      await service.upsertCustomType(shield);
       await getNotifier().load();
 
       final resolved = container.read(counterTypeByIdProvider('custom_shield'));

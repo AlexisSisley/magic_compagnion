@@ -42,7 +42,7 @@ class CounterCatalogNotifier extends Notifier<List<CounterType>> {
   /// Point d'entree pour l'UI (ex. le dialogue de creation de compteur,
   /// tache 4) : sauvegarde [type] et recharge le catalogue.
   ///
-  /// Ronde de correction 1 : `CounterTypeService.saveCustomType` leve en
+  /// Ronde de correction 1 : `CounterTypeService.upsertCustomType` leve en
   /// interne (derniere ligne de defense) quand `type.id` usurpe un
   /// compteur integre -- un dialogue derive l'id du nom saisi, donc un
   /// joueur qui nomme son compteur "Poison" declenche ce cas depuis un
@@ -63,7 +63,7 @@ class CounterCatalogNotifier extends Notifier<List<CounterType>> {
   /// silencieuse que ce lot interdit.
   ///
   /// La garde vit ICI, au point d'entree UI, pas dans
-  /// `CounterTypeService.saveCustomType` : ce dernier reste un upsert
+  /// `CounterTypeService.upsertCustomType` : ce dernier reste un upsert
   /// generique par [id] (verrouille par
   /// `counter_type_service_test.dart`, "remplace au lieu d'ajouter"),
   /// utilisable par un futur appelant qui aurait reellement besoin de
@@ -83,7 +83,7 @@ class CounterCatalogNotifier extends Notifier<List<CounterType>> {
       );
     }
     try {
-      await _service.saveCustomType(type);
+      await _service.upsertCustomType(type);
       await load();
       return const CounterCatalogActionResult(
         success: true,

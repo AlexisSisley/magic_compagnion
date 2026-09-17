@@ -10,7 +10,7 @@ void main() {
   });
 
   group('CounterTypeService', () {
-    test('saveCustomType puis loadCustomTypes conserve id/name/emoji/color/maxValue (maxValue non nul)', () async {
+    test('upsertCustomType puis loadCustomTypes conserve id/name/emoji/color/maxValue (maxValue non nul)', () async {
       final service = CounterTypeService();
       const type = CounterType(
         id: 'custom_shield',
@@ -20,7 +20,7 @@ void main() {
         maxValue: 20,
       );
 
-      await service.saveCustomType(type);
+      await service.upsertCustomType(type);
       final loaded = await service.loadCustomTypes();
 
       expect(loaded, hasLength(1));
@@ -31,7 +31,7 @@ void main() {
       expect(loaded.single.maxValue, 20);
     });
 
-    test('saveCustomType puis loadCustomTypes conserve un maxValue nul (illimite)', () async {
+    test('upsertCustomType puis loadCustomTypes conserve un maxValue nul (illimite)', () async {
       final service = CounterTypeService();
       const type = CounterType(
         id: 'custom_loyalty',
@@ -41,7 +41,7 @@ void main() {
         maxValue: null,
       );
 
-      await service.saveCustomType(type);
+      await service.upsertCustomType(type);
       final loaded = await service.loadCustomTypes();
 
       expect(loaded, hasLength(1));
@@ -49,7 +49,7 @@ void main() {
       expect(loaded.single.maxValue, isNull);
     });
 
-    test('saveCustomType deux fois avec le meme id remplace au lieu d\'ajouter', () async {
+    test('upsertCustomType deux fois avec le meme id remplace au lieu d\'ajouter', () async {
       final service = CounterTypeService();
       const original = CounterType(
         id: 'custom_shield',
@@ -66,8 +66,8 @@ void main() {
         maxValue: 30,
       );
 
-      await service.saveCustomType(original);
-      await service.saveCustomType(updated);
+      await service.upsertCustomType(original);
+      await service.upsertCustomType(updated);
       final loaded = await service.loadCustomTypes();
 
       expect(loaded, hasLength(1));
@@ -84,7 +84,7 @@ void main() {
         color: 0xFF2196F3,
         maxValue: 20,
       );
-      await service.saveCustomType(type);
+      await service.upsertCustomType(type);
 
       await service.deleteCustomType('custom_shield');
       final loaded = await service.loadCustomTypes();
@@ -127,7 +127,7 @@ void main() {
       expect(loaded, isEmpty);
     });
 
-    test('saveCustomType avec l\'id d\'un integre est refuse', () async {
+    test('upsertCustomType avec l\'id d\'un integre est refuse', () async {
       final service = CounterTypeService();
       const impostor = CounterType(
         id: 'poison',
@@ -137,14 +137,14 @@ void main() {
         maxValue: 999,
       );
 
-      await expectLater(service.saveCustomType(impostor), throwsArgumentError);
+      await expectLater(service.upsertCustomType(impostor), throwsArgumentError);
 
       // Le catalogue de types personnalises ne contient toujours rien : le
       // refus n'a pas ete silencieusement accepte.
       expect(await service.loadCustomTypes(), isEmpty);
     });
 
-    test('saveCustomType refuse chacun des quatre ids integres', () async {
+    test('upsertCustomType refuse chacun des quatre ids integres', () async {
       final service = CounterTypeService();
       for (final builtIn in CounterType.builtInCounters) {
         final impostor = CounterType(
@@ -154,7 +154,7 @@ void main() {
           color: 0xFF123456,
         );
         await expectLater(
-          service.saveCustomType(impostor),
+          service.upsertCustomType(impostor),
           throwsArgumentError,
           reason: 'id integre usurpe : ${builtIn.id}',
         );

@@ -408,7 +408,7 @@ void main() {
         color: 0xFF8B0000,
         maxValue: 3,
       );
-      await container.read(counterTypeServiceProvider).saveCustomType(custom);
+      await container.read(counterTypeServiceProvider).upsertCustomType(custom);
       await container.read(counterCatalogProvider.notifier).load();
 
       getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);
@@ -440,7 +440,7 @@ void main() {
         color: 0xFF8B0000,
         maxValue: 3,
       );
-      await container.read(counterTypeServiceProvider).saveCustomType(custom);
+      await container.read(counterTypeServiceProvider).upsertCustomType(custom);
       await container.read(counterCatalogProvider.notifier).load();
 
       getNotifier().startNewGame(format: commanderFormat, playerConfigs: configs);

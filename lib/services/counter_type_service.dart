@@ -48,7 +48,12 @@ class CounterTypeService {
   /// (`lib/providers/counter_catalog_provider.dart`), qui attrape cette
   /// exception et rend un `CounterCatalogActionResult` en echec au lieu de
   /// la laisser remonter jusqu'a un `onPressed`.
-  Future<void> saveCustomType(CounterType type) async {
+  /// Le nom dit ce qu'elle fait : un **upsert** brut, qui ecrase sans
+  /// prevenir un type personnalise de meme id. Ce n'est pas un point
+  /// d'entree sur pour l'interface, et le nom est la pour que personne ne
+  /// s'y trompe en ajoutant un second appelant sans lire ce commentaire :
+  /// la garde contre l'ecrasement d'un homonyme vit au notifier, pas ici.
+  Future<void> upsertCustomType(CounterType type) async {
     final isBuiltInId =
         CounterType.builtInCounters.any((builtIn) => builtIn.id == type.id);
     if (isBuiltInId) {
