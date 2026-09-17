@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_session.dart';
+import 'package:magic_companion/models/last_table.dart';
 import 'package:magic_companion/models/player_config.dart';
 import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/widgets/life_counter/snapshot_writer.dart';
@@ -27,6 +28,17 @@ class _RecordingService implements GameSessionService {
 
   @override
   Future<void> clearSnapshot() async => cleared++;
+
+  // `SnapshotWriter` ne touche jamais a l'enregistrement de derniere table :
+  // ces trois membres n'existent que pour satisfaire l'interface.
+  @override
+  Future<void> saveLastTable(LastTable table) async {}
+
+  @override
+  Future<LastTable?> loadLastTable() async => null;
+
+  @override
+  Future<void> clearLastTable() async {}
 }
 
 GameSession sessionWithLife(int life) {
