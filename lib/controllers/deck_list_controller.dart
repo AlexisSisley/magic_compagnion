@@ -1,18 +1,18 @@
 // Fichier : lib/controllers/deck_list_controller.dart
 // Controller pour DeckListPage - extrait la logique metier de la page.
 
-import 'dart:developer';
-
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/secondary_breakfast.dart';
+import '../models/card_print.dart';
 import '../models/deck_model.dart';
-import '../models/scryfall_card_model.dart';
 import '../providers/service_providers.dart';
 import '../utils/price_helper.dart';
+import '../services/collection_service.dart';
+import '../services/deck_format_service.dart';
 import '../services/deck_service.dart';
 import '../services/local_card_service.dart';
-import '../services/scryfall_api_service.dart';
 
 // --- RESULT OBJECT pour les actions ---
 
@@ -86,9 +86,7 @@ class DeckListState {
 class DeckListController extends StateNotifier<DeckListState> {
   final DeckService _deckService;
   final LocalCardService _localCardService;
-  final ScryfallApiService _apiService;
-
-  static final RegExp decklistRegex = RegExp(r'^(\d+)x?\s+(.+)$');
+  final CollectionService _collectionService;
 
   static const Map<String, Map<String, List<String>>> colorFamilies = {
     'Mono': {
@@ -114,10 +112,10 @@ class DeckListController extends StateNotifier<DeckListState> {
   DeckListController({
     required DeckService deckService,
     required LocalCardService localCardService,
-    required ScryfallApiService apiService,
+    required CollectionService collectionService,
   })  : _deckService = deckService,
         _localCardService = localCardService,
-        _apiService = apiService,
+        _collectionService = collectionService,
         super(const DeckListState()) {
     loadDecks();
   }
@@ -232,75 +230,126 @@ class DeckListController extends StateNotifier<DeckListState> {
     return (deckName, decklistText);
   }
 
+  /// Importe une decklist (texte ou CSV) en deck.
+  ///
+  /// Le decoupage en lignes/sections passe par [DeckFormatService] (TXT et
+  /// CSV, Commander/Sideboard/Considering...) : plus de parser en doublon ici.
+  /// La resolution passe par [CollectionService.resolveImportedEntries], donc
+  /// par [CardResolver] : chaque carte est identifiee par son edition exacte
+  /// (set + numero) quand la ligne la precise, et non par une recherche floue
+  /// par nom qui rend une impression arbitraire. Aucun plafond arbitraire
+  /// n'est applique : `resolveEditions` decoupe deja en lots en interne.
+  ///
+  /// Un import partiel n'est jamais silencieux : le message rendu a
+  /// l'utilisateur nomme le nombre de cartes non identifiees.
   Future<DeckListActionResult> importDeck(String deckName, String decklistText) async {
     state = state.copyWith(isImporting: true, isLoading: true);
 
-    List<Map<String, dynamic>> parsedMain = [];
-    List<Map<String, dynamic>> parsedSide = [];
-    String? commanderName;
-    List<String> ids = [];
-    String section = 'main';
+    final parseResult = DeckFormatService.autoDetectAndParse(decklistText);
+    final List<DecklistEntry> allEntries = [
+      ...parseResult.mainboard,
+      ...parseResult.sideboard,
+    ];
 
-    for (var line in decklistText.split('\n')) {
-      line = line.trim();
-      if (line.toLowerCase().startsWith('commander')) { section = 'cmd'; continue; }
-      if (line.toLowerCase().startsWith('deck')) { section = 'main'; continue; }
-      if (line.toLowerCase().startsWith('sideboard')) { section = 'side'; continue; }
-      final match = decklistRegex.firstMatch(line);
-      if (match != null) {
-        int qty = int.parse(match.group(1)!);
-        String name = match.group(2)!.trim().split('//')[0].trim();
-        if (!ids.contains(name)) ids.add(name);
-        if (section == 'cmd') {
-          commanderName = name;
-        } else if (section == 'side') {
-          parsedSide.add({'name': name, 'quantity': qty});
-        } else {
-          parsedMain.add({'name': name, 'quantity': qty});
-        }
+    EditionResolution resolution = const EditionResolution();
+    final Map<String, List<ResolvedPrint>> printsByKey = {};
+
+    if (allEntries.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      final preferredLang = prefs.getString('glossaryLang') ?? 'fr';
+
+      resolution = await _collectionService.resolveImportedEntries(
+        allEntries,
+        preferredLang: preferredLang,
+      );
+
+      for (final print in resolution.resolved) {
+        printsByKey.putIfAbsent(_printKey(print.name), () => []).add(print);
       }
     }
 
-    List<ScryfallCard> scryfallData = [];
-    if (ids.isNotEmpty) {
-      final query = ids.take(75).map((n) => '!"$n"').join(' OR ');
-      try {
-        final data = await _apiService.searchCards(query, unique: 'cards');
-        scryfallData = (data['data'] as List).map((j) => ScryfallCard.fromJson(j)).toList();
-      } catch (e) { log('Erreur import: $e'); }
+    // Couleur d'identite : propriete de la carte oracle, independante du
+    // tirage choisi -- on la lit dans les donnees locales par nom plutot que
+    // par scryfallId (le tirage resolu n'est pas forcement celui que la
+    // base locale (oracle-cards) indexe).
+    final Set<String> deckColors = {};
+    for (final entry in allEntries) {
+      final local = _localCardService.getCardByName(entry.name);
+      if (local != null) deckColors.addAll(local.colorIdentity);
     }
+    const order = {'W': 0, 'U': 1, 'B': 2, 'R': 3, 'G': 4, 'C': 5};
+    final sortedColors = deckColors.toList()
+      ..sort((a, b) => (order[a] ?? 9).compareTo(order[b] ?? 9));
 
-    Set<String> deckColors = {};
-    for (var sc in scryfallData) { deckColors.addAll(sc.colorIdentity); }
-    final order = {'W':0, 'U':1, 'B':2, 'R':3, 'G':4, 'C':5};
-    final sortedColors = deckColors.toList()..sort((a,b) => (order[a]??9).compareTo(order[b]??9));
+    DeckCard toDeckCard(DecklistEntry entry) => DeckCard(
+          scryfallId: _consumeScryfallId(printsByKey, entry),
+          name: entry.name,
+          quantity: entry.quantity,
+          isFoil: entry.isFoil,
+        );
 
     await _deckService.createNewDeck(deckName);
     final decks = await _deckService.loadDecks();
     Deck newDeck = decks.where((d) => d.name == deckName).first;
     newDeck.colors = sortedColors;
-    newDeck.format = commanderName != null ? 'Commander' : 'Standard';
-    newDeck.mainboard = parsedMain.map((p) => DeckCard(scryfallId: _findId(scryfallData, p['name']), name: p['name'], quantity: p['quantity'])).toList();
-    newDeck.sideboard = parsedSide.map((p) => DeckCard(scryfallId: _findId(scryfallData, p['name']), name: p['name'], quantity: p['quantity'])).toList();
+    newDeck.format = parseResult.commanderName != null ? 'Commander' : 'Standard';
+    newDeck.mainboard = parseResult.mainboard.map(toDeckCard).toList();
+    newDeck.sideboard = parseResult.sideboard.map(toDeckCard).toList();
 
-    if (commanderName != null) {
-      String cid = _findId(scryfallData, commanderName);
-      newDeck.commanderScryfallId = cid;
-      if (!newDeck.mainboard.any((c) => c.name == commanderName)) {
-        newDeck.mainboard.add(DeckCard(scryfallId: cid, name: commanderName, quantity: 1));
-      }
+    if (parseResult.commanderName != null) {
+      final commanderCard = newDeck.mainboard
+          .where((c) => c.name == parseResult.commanderName)
+          .firstOrNull;
+      newDeck.commanderScryfallId =
+          commanderCard?.scryfallId ?? 'LOCAL:${parseResult.commanderName}';
     }
+
     await _deckService.updateDeck(newDeck);
     state = state.copyWith(isImporting: false, isLoading: false);
     await loadDecks();
 
-    return const DeckListActionResult(message: 'Deck importé avec succès.');
+    final unresolved = resolution.notFound.length + resolution.failed.length;
+    final message = resolution.isComplete
+        ? 'Deck importé avec succès.'
+        : 'Deck importé : $unresolved carte(s) sur ${allEntries.length} n\'ont pas '
+            'pu être identifiées.';
+
+    return DeckListActionResult(success: resolution.isComplete, message: message);
   }
 
   // --- HELPERS ---
 
-  String _findId(List<ScryfallCard> data, String name) {
-    return data.where((s) => s.name.toLowerCase() == name.toLowerCase()).firstOrNull?.id ?? 'LOCAL:$name';
+  /// Cle d'association entre un [DecklistEntry] et le [ResolvedPrint] qui lui
+  /// correspond. Par nom, pas par set+numero : un [ResolvedPrint] porte
+  /// toujours une edition concrete (celle que Scryfall a rendue), meme quand
+  /// la ligne d'origine n'en precisait aucune -- cle par set+numero cote
+  /// tirage et par nom cote entree ne matcheraient alors jamais. Le nom, lui,
+  /// est stable entre les deux cotes (Scryfall rend le nom demande a
+  /// l'identique, que la requete ait ete faite par nom ou par edition).
+  ///
+  /// Deux entrees de meme nom (rare : editions distinctes de la meme carte
+  /// sur deux lignes) partagent alors la meme cle et se voient attribuer un
+  /// tirage chacune par consommation FIFO -- pas necessairement celui
+  /// demande par chacune. C'est le meme compromis, deja assume et documente,
+  /// que celui de `CardResolver._identifierMatches`/`_consumeMatch` : non
+  /// corrige ici, non plus.
+  String _printKey(String name) => name.toLowerCase();
+
+  /// Consomme, dans [printsByKey], le tirage resolu correspondant a [entry].
+  /// Sans correspondance (carte non resolue : `notFound`, `failed`, ou file
+  /// deja epuisee pour ce nom), rend un identifiant `LOCAL:<nom>` -- le meme
+  /// sentinel que le reste de l'app utilise deja pour signaler une carte sans
+  /// identite Scryfall connue (voir `legality_service.dart`,
+  /// `deck_stats_controller.dart`...).
+  String _consumeScryfallId(
+    Map<String, List<ResolvedPrint>> printsByKey,
+    DecklistEntry entry,
+  ) {
+    final bucket = printsByKey[_printKey(entry.name)];
+    if (bucket != null && bucket.isNotEmpty) {
+      return bucket.removeAt(0).scryfallId;
+    }
+    return 'LOCAL:${entry.name}';
   }
 
   String getSortLabel(String code) {
@@ -320,12 +369,12 @@ final deckListControllerProvider = StateNotifierProvider.autoDispose<DeckListCon
   (ref) {
     final deckService = ref.watch(deckServiceProvider);
     final localCardService = ref.watch(localCardServiceProvider);
-    final apiService = ref.watch(scryfallApiServiceProvider);
+    final collectionService = ref.watch(collectionServiceProvider);
 
     return DeckListController(
       deckService: deckService,
       localCardService: localCardService,
-      apiService: apiService,
+      collectionService: collectionService,
     );
   },
 );

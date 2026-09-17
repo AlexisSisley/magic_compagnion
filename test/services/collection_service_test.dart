@@ -9,7 +9,6 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:magic_companion/data/database/app_database.dart';
-import 'package:magic_companion/models/card_print.dart';
 import 'package:magic_companion/services/card_resolver.dart';
 import 'package:magic_companion/services/collection_service.dart';
 import 'package:magic_companion/services/deck_format_service.dart';
@@ -517,61 +516,6 @@ void main() {
   // 12. resolveImportedEntries() : import par edition, traductions enfilees
   // ---------------------------------------------------------------------------
   group('resolveImportedEntries', () {
-    test('l import resout par edition et n attend pas les traductions', () async {
-      int collectionCalls = 0;
-      int unitaryCalls = 0;
-      final dio = _mockDio((options) {
-        if (options.path.contains('/cards/collection')) {
-          collectionCalls++;
-          return {
-            'data': [
-              {
-                'id': 'ltc-284-en',
-                'oracle_id': 'oracle-sol-ring',
-                'name': 'Sol Ring',
-                'set': 'ltc',
-                'collector_number': '284',
-                'lang': 'en',
-              }
-            ],
-            'not_found': [],
-          };
-        }
-        unitaryCalls++;
-        return {'id': 'ltc-284-fr', 'oracle_id': 'oracle-sol-ring', 'lang': 'fr'};
-      });
-
-      final db = AppDatabase(NativeDatabase.memory());
-      addTearDown(db.close);
-      final resolver = CardResolver(api: ScryfallApiService(dio: dio), db: db);
-
-      final entries = DeckFormatService.parseDecklistText('1 Sol Ring (LTC) 284 *F*').mainboard;
-      final resolution = await resolver.resolveEditions(entries
-          .map((e) => PrintRequest(
-                name: e.name,
-                setCode: e.setCode,
-                collectorNumber: e.collectorNumber,
-              ))
-          .toList());
-
-      for (final print in resolution.resolved) {
-        await db.enqueueTranslation(
-          scryfallId: print.scryfallId,
-          setCode: print.setCode,
-          collectorNumber: print.collectorNumber,
-          lang: 'fr',
-        );
-      }
-
-      // Temps 1 seulement : l'edition est exacte, aucune requete unitaire n'a eu lieu.
-      expect(resolution.resolved.single.scryfallId, 'ltc-284-en');
-      expect(resolution.resolved.single.setCode, 'ltc');
-      expect(resolution.isComplete, isTrue);
-      expect(collectionCalls, 1);
-      expect(unitaryCalls, 0);
-      expect(await db.nextTranslationTasks(), hasLength(1));
-    });
-
     test('CollectionService.resolveImportedEntries branche le resolveur et enfile la traduction', () async {
       int collectionCalls = 0;
       int unitaryCalls = 0;
@@ -649,6 +593,55 @@ void main() {
       await importService.resolveImportedEntries(entries, preferredLang: 'fr');
 
       expect(await db.nextTranslationTasks(), isEmpty);
+    });
+
+    test('une resolution partielle est propagee telle quelle, pas silencieusement filtree', () async {
+      final dio = _mockDio((options) {
+        return {
+          'data': [
+            {
+              'id': 'ltc-284-en',
+              'oracle_id': 'oracle-sol-ring',
+              'name': 'Sol Ring',
+              'set': 'ltc',
+              'collector_number': '284',
+              'lang': 'en',
+            }
+          ],
+          // Le second identifiant demande (xyz/999) est explicitement
+          // declare introuvable par Scryfall.
+          'not_found': [
+            {'set': 'xyz', 'collector_number': '999'}
+          ],
+        };
+      });
+
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final resolver = CardResolver(api: ScryfallApiService(dio: dio), db: db);
+      final importService = CollectionService(database: db, resolver: resolver);
+
+      final entries = DeckFormatService.parseDecklistText(
+        '1 Sol Ring (LTC) 284\n1 Carte Fantome (XYZ) 999',
+      ).mainboard;
+
+      final resolution = await importService.resolveImportedEntries(
+        entries,
+        preferredLang: 'fr',
+      );
+
+      // L'appelant recoit l'EditionResolution complete : la carte resolue
+      // ET celle declaree introuvable, pas seulement un sous-ensemble filtre.
+      expect(resolution.resolved, hasLength(1));
+      expect(resolution.resolved.single.scryfallId, 'ltc-284-en');
+      expect(resolution.notFound, hasLength(1));
+      expect(resolution.notFound.single.setCode, 'XYZ');
+      expect(resolution.isComplete, isFalse);
+
+      // Seule la carte effectivement resolue enfile une traduction.
+      final tasks = await db.nextTranslationTasks();
+      expect(tasks, hasLength(1));
+      expect(tasks.single.scryfallId, 'ltc-284-en');
     });
   });
 }

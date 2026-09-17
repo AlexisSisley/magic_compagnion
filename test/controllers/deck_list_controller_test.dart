@@ -1,11 +1,65 @@
 // Tests unitaires pour DeckListController (Sprint 10, Phase 2)
 // Teste la logique d'etat, les helpers et le parsing d'import.
 
+import 'package:dio/dio.dart';
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:magic_companion/controllers/deck_list_controller.dart';
+import 'package:magic_companion/data/database/app_database.dart';
+import 'package:magic_companion/services/card_resolver.dart';
+import 'package:magic_companion/services/collection_service.dart';
 import 'package:magic_companion/services/deck_format_service.dart';
+import 'package:magic_companion/services/deck_service.dart';
+import 'package:magic_companion/services/local_card_service.dart';
+import 'package:magic_companion/services/scryfall_api_service.dart';
+
+/// Dio mocke : [handler] rend soit une Map (200), soit un int (code d'erreur
+/// HTTP), soit un DioException tout construit. Recopie de
+/// test/services/card_resolver_test.dart (pas de helper Dio partage).
+Dio _mockDio(Object Function(RequestOptions) handler) {
+  final dio = Dio(BaseOptions(baseUrl: ScryfallApiService.baseUrl));
+  dio.interceptors.add(InterceptorsWrapper(onRequest: (options, h) {
+    final result = handler(options);
+    if (result is DioException) {
+      h.reject(result);
+      return;
+    }
+    if (result is int) {
+      h.reject(DioException(
+        requestOptions: options,
+        response: Response(requestOptions: options, statusCode: result),
+        type: DioExceptionType.badResponse,
+      ));
+      return;
+    }
+    h.resolve(Response(requestOptions: options, statusCode: 200, data: result));
+  }));
+  return dio;
+}
+
+/// Construit un DeckListController branche sur un CollectionService reel
+/// (CardResolver + AppDatabase en memoire), Dio mocke, DeckService en repli
+/// SharedPreferences -- meme pattern que les autres controllers testes ici
+/// (ex. deck_suggestions_controller_test.dart pour LocalCardService()).
+DeckListController _createImportController({
+  required Dio dio,
+  required AppDatabase db,
+}) {
+  final resolver = CardResolver(api: ScryfallApiService(dio: dio), db: db);
+  final collectionService = CollectionService(database: db, resolver: resolver);
+  return DeckListController(
+    deckService: DeckService(),
+    localCardService: LocalCardService(),
+    collectionService: collectionService,
+  );
+}
 
 void main() {
+  // Requis par LocalCardService.loadLocalData() (rootBundle) : importDeck()
+  // charge les donnees locales via le controller dans les tests plus bas.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   // =================================================================
   // DeckListState - Tests unitaires purs sur l'etat immutable
   // =================================================================
@@ -192,6 +246,114 @@ Random text here
     test('Guilde contains 10 guilds', () {
       final guilds = DeckListController.colorFamilies['Guilde (2)']!;
       expect(guilds.length, 10);
+    });
+  });
+
+  // =================================================================
+  // importDeck : branche sur CollectionService/CardResolver (round 2)
+  // =================================================================
+  group('DeckListController.importDeck', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    test(
+        'une ligne avec edition produit un DeckCard dont le scryfallId est '
+        'celui du tirage indique, pas une impression arbitraire', () async {
+      final dio = _mockDio((options) {
+        return {
+          'data': [
+            {
+              'id': 'ltc-284-en',
+              'oracle_id': 'oracle-sol-ring',
+              'name': 'Sol Ring',
+              'set': 'ltc',
+              'collector_number': '284',
+              'lang': 'en',
+            }
+          ],
+          'not_found': [],
+        };
+      });
+
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final controller = _createImportController(dio: dio, db: db);
+
+      final result = await controller.importDeck('Deck Edition', '1 Sol Ring (LTC) 284');
+
+      expect(result.success, isTrue);
+      final deck = controller.state.decks.firstWhere((d) => d.name == 'Deck Edition');
+      expect(deck.mainboard, hasLength(1));
+      expect(deck.mainboard.single.scryfallId, 'ltc-284-en');
+    });
+
+    test('une decklist de plus de 75 cartes ne perd aucune carte', () async {
+      // Le resolveur decoupe deja en lots de 75 en interne : le mock echoe
+      // une carte par identifiant recu, quel que soit le lot, pour prouver
+      // qu'aucune carte n'est perdue au-dela d'un plafond arbitraire cote
+      // controller (le bug corrige par ce round : `ids.take(75)`).
+      final dio = _mockDio((options) {
+        final body = options.data as Map;
+        final identifiers = (body['identifiers'] as List).cast<Map<String, dynamic>>();
+        final cards = identifiers.map((id) {
+          final name = id['name'] as String;
+          return {
+            'id': 'id-${name.hashCode}',
+            'oracle_id': 'oracle-${name.hashCode}',
+            'name': name,
+            'set': 'tst',
+            'collector_number': '1',
+            'lang': 'en',
+          };
+        }).toList();
+        return {'data': cards, 'not_found': []};
+      });
+
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final controller = _createImportController(dio: dio, db: db);
+
+      const cardCount = 80;
+      final decklistText = List.generate(cardCount, (i) => '1 Filler Card $i').join('\n');
+
+      final result = await controller.importDeck('Gros Deck', decklistText);
+
+      expect(result.success, isTrue);
+      final deck = controller.state.decks.firstWhere((d) => d.name == 'Gros Deck');
+      expect(deck.mainboard, hasLength(cardCount));
+      // Aucune carte repliee sur le sentinel LOCAL: (donc aucune perdue en route).
+      expect(deck.mainboard.every((c) => !c.scryfallId.startsWith('LOCAL:')), isTrue);
+      // Chaque carte a bien recu SON tirage propre, pas celui d'une autre.
+      for (final card in deck.mainboard) {
+        expect(card.scryfallId, 'id-${card.name.hashCode}');
+      }
+    });
+
+    test('une resolution partielle rend success=false et nomme le nombre de cartes non identifiees', () async {
+      final dio = _mockDio((options) {
+        return {
+          'data': [],
+          'not_found': [
+            {'name': 'Carte Fantome'}
+          ],
+        };
+      });
+
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final controller = _createImportController(dio: dio, db: db);
+
+      final result = await controller.importDeck('Deck Incomplet', '1 Carte Fantome');
+
+      // Pas de succes silencieux : l'echec partiel est visible dans le
+      // resultat, avec le decompte, pas juste "Deck importe avec succes."
+      expect(result.success, isFalse);
+      expect(result.message, isNot('Deck importé avec succès.'));
+      expect(result.message, contains('1'));
+
+      final deck = controller.state.decks.firstWhere((d) => d.name == 'Deck Incomplet');
+      expect(deck.mainboard.single.scryfallId, 'LOCAL:Carte Fantome');
     });
   });
 }
