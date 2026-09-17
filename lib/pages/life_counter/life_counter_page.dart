@@ -37,6 +37,7 @@ import 'package:magic_companion/widgets/life_counter/player_history_sheet.dart';
 import '../../widgets/life_counter/zone/player_drawer.dart';
 import '../../widgets/life_counter/zone/commander_damage_grid.dart';
 import '../../widgets/life_counter/zone/damage_attribution_row.dart';
+import '../../widgets/life_counter/zone/action_hub.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
 import '../../widgets/life_counter/layouts/adaptive_grid.dart';
@@ -980,8 +981,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       key: _gridKey,
       playerZones: playerZones,
       centralBar: _buildCentralBar(),
-      // TODO(task 6): remplacer par le vrai hub d'actions.
-      actionHub: const SizedBox.shrink(),
+      actionHub: ActionHub(actions: _gameActions),
     );
   }
 
@@ -1291,52 +1291,92 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _saveSnapshot();
   }
 
+  /// Les huit actions de partie, dans l'ordre où la bande les affichait déjà.
+  ///
+  /// Source UNIQUE, consommée à la fois par `_buildCentralBar` (la bande,
+  /// grand écran) et par `ActionHub` (le hub, petit écran) : deux listes qui
+  /// divergeraient rendraient une action joignable dans une forme et pas dans
+  /// l'autre — précisément le défaut que la tâche 6 existe pour éliminer.
+  List<GameAction> get _gameActions => [
+        GameAction(
+          icon: Icons.screen_rotation_alt,
+          label: 'Orientation',
+          onPressed: _showOrientationPresets,
+        ),
+        GameAction(
+          icon: Icons.refresh,
+          label: 'Recommencer',
+          onPressed: () => _resetGame(),
+        ),
+        GameAction(
+          icon: Icons.casino,
+          label: 'Dé',
+          onPressed: _showDiceSelector,
+        ),
+        GameAction(
+          icon: _isGameActive ? Icons.stop : Icons.play_arrow,
+          label: _isGameActive
+              ? 'Terminer la partie'
+              : 'Désigner le premier joueur',
+          onPressed: _isGameActive ? _endGame : _pickStartingPlayer,
+        ),
+        GameAction(
+          icon: Icons.history,
+          label: 'Historique',
+          onPressed: _showDamageHistory,
+        ),
+        GameAction(
+          icon: Icons.table_chart_outlined,
+          label: 'Vue table',
+          onPressed: _showTableView,
+        ),
+        GameAction(
+          icon: Icons.build,
+          label: _isEditMode ? 'Terminer l\'édition' : 'Réorganiser les joueurs',
+          onPressed: () => setState(() => _isEditMode = !_isEditMode),
+        ),
+        GameAction(
+          icon: Icons.people,
+          label: 'Joueurs',
+          onPressed: _showGameSetupDialog,
+        ),
+      ];
+
   Widget _buildCentralBar() {
+    final actions = _gameActions;
+    // La bande n'est plus rendue que lorsque `tableLayoutFor` a vérifié
+    // qu'elle tient (voir `TableLayout.barKind`, `kBandNeed`) : un
+    // `SingleChildScrollView` qui masquerait silencieusement des actions est
+    // interdit par la spec, donc plus de scroll ici -- sous ce seuil,
+    // `AdaptiveGrid` monte le hub à la place.
     return Container(
       height: 60,
       color: AppColors.textOnPrimary,
-      // Tache 4 (ronde de correction 1) : la barre comptait deja 7 enfants
-      // de taille fixe avant le bouton "vue table" (le 8e) -- sur un
-      // telephone etroit, `Row(spaceEvenly)` seul depasse et leve une
-      // erreur de rendu (RenderFlex overflow), invisible sur un simulateur
-      // large. `LayoutBuilder` fournit la largeur disponible reelle ;
-      // `ConstrainedBox(minWidth: ...)` a l'interieur d'un
-      // `SingleChildScrollView` horizontal force le `Row` (mainAxisSize.min)
-      // a occuper au moins toute la largeur quand ca rentre -- ce qui
-      // preserve exactement le `spaceEvenly` d'origine -- et le laisse
-      // grandir a sa taille naturelle, scrollable, quand ca ne rentre pas.
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: constraints.maxWidth),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
           // Quick orientation presets (tap) / Game info (long press)
           GestureDetector(
             onLongPress: _showGameInfoSheet,
             child: IconButton(
               key: const ValueKey('action-orientation-presets'),
-              icon: const Icon(Icons.screen_rotation_alt, color: AppColors.textSecondary),
-              onPressed: _showOrientationPresets,
+              icon: Icon(actions[0].icon, color: AppColors.textSecondary),
+              onPressed: actions[0].onPressed,
             ),
           ),
           // Reset
           IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
-            onPressed: () => _resetGame(),
+            icon: Icon(actions[1].icon, color: AppColors.textSecondary),
+            onPressed: actions[1].onPressed,
           ),
           // Dice
           IconButton(
-            icon: const Icon(Icons.casino, color: AppColors.textSecondary),
-            onPressed: _showDiceSelector,
+            icon: Icon(actions[2].icon, color: AppColors.textSecondary),
+            onPressed: actions[2].onPressed,
           ),
           // Timer / Pick starter / End game
           InkWell(
-            onTap: _isGameActive ? _endGame : _pickStartingPlayer,
+            onTap: actions[3].onPressed,
             borderRadius: BorderRadius.circular(50),
             child: Container(
               width: 50, height: 50,
@@ -1361,43 +1401,39 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                         ),
                       ),
                     )
-                  : const Icon(Icons.play_arrow, color: AppColors.primary),
+                  : Icon(actions[3].icon, color: AppColors.primary),
             ),
           ),
           // History (NEW)
           IconButton(
-            icon: const Icon(Icons.history, color: AppColors.textSecondary),
-            onPressed: _showDamageHistory,
+            icon: Icon(actions[4].icon, color: AppColors.textSecondary),
+            onPressed: actions[4].onPressed,
           ),
           // Vue table (tache 4) : bouton dedie, pas de geste a deux doigts
           // sur les zones -- voir table_view_page.dart pour la justification.
           IconButton(
             key: const ValueKey('action-table-view'),
-            icon: const Icon(Icons.table_chart_outlined, color: AppColors.textSecondary),
-            onPressed: _showTableView,
+            icon: Icon(actions[5].icon, color: AppColors.textSecondary),
+            onPressed: actions[5].onPressed,
           ),
           // Edit mode toggle (NEW)
           IconButton(
             icon: Icon(
-              Icons.build,
+              actions[6].icon,
               color: _isEditMode ? AppColors.primary : AppColors.textSecondary,
             ),
             style: _isEditMode
                 ? IconButton.styleFrom(backgroundColor: AppColors.primary.withAlpha(40))
                 : null,
-            onPressed: () => setState(() => _isEditMode = !_isEditMode),
+            onPressed: actions[6].onPressed,
           ),
           // Game setup
           IconButton(
             key: const ValueKey('action-game-setup'),
-            icon: const Icon(Icons.people, color: AppColors.textSecondary),
-            onPressed: _showGameSetupDialog,
+            icon: Icon(actions[7].icon, color: AppColors.textSecondary),
+            onPressed: actions[7].onPressed,
           ),
-                ],
-              ),
-            ),
-          );
-        },
+        ],
       ),
     );
   }
