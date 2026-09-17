@@ -268,10 +268,15 @@ void main() {
           .map((p) => Map<String, dynamic>.from(p as Map)..['quarterTurns'] = 0)
           .toList();
       final migrated = GameSession.fromJson(legacy);
-      expect(migrated.players.map((p) => p.quarterTurns).toList(), [2, 3, 0, 1],
+      // Revue finale (ruling 21) : la migration pose le REPLI
+      // (`allowSideColumns: false`), parce que le modèle ne connaît pas
+      // l'écran. `seatsFor(4)` sans drapeau donnerait [2,3,0,1], soit 90° et
+      // 270° dans des cases horizontales sur un téléphone en portrait.
+      // `_faceToFace(4)` = [top,top,bottom,bottom] -> [2,2,0,0].
+      expect(migrated.players.map((p) => p.quarterTurns).toList(), [2, 2, 0, 0],
           reason: 'playerOrder absent -> effectiveOrder retombe sur l\'ordre '
-              'canonique des playerId ([0,1,2,3]) -> seatsFor(4) '
-              '(top,right,bottom,left) donne [2,3,0,1]');
+              'canonique des playerId ([0,1,2,3]) -> le repli face-à-face '
+              'donne [2,2,0,0], lisible sur tous les écrans');
     });
 
     test(
@@ -305,14 +310,16 @@ void main() {
           .map((p) => Map<String, dynamic>.from(p as Map)..['quarterTurns'] = 0)
           .toList();
       final migrated = GameSession.fromJson(legacy);
-      // seatsFor(4) : [top,right,bottom,left] -> quarterTurns [2,3,0,1].
+      // Revue finale (ruling 21) : repli face-à-face,
+      // `seatsFor(4, allowSideColumns: false)` = [top,top,bottom,bottom] ->
+      // quarterTurns [2,2,0,0] par POSITION d'affichage.
       // effectiveOrder = playerOrder = [3,1,2,0] : position0(joueur3)->2,
-      // position1(joueur1)->3, position2(joueur2)->0, position3(joueur0)->1.
-      // Résultat en ordre canonique playerId [0,1,2,3] : [1,3,0,2] --
-      // différent du [2,3,0,1] qu'aurait donné un calcul en ordre canonique
+      // position1(joueur1)->2, position2(joueur2)->0, position3(joueur0)->0.
+      // Résultat en ordre canonique playerId [0,1,2,3] : [0,2,0,2] --
+      // différent du [2,2,0,0] qu'aurait donné un calcul en ordre canonique
       // (le résultat du test précédent), preuve que ce chemin lit bien
       // `playerOrder`.
-      expect(migrated.players.map((p) => p.quarterTurns).toList(), [1, 3, 0, 2]);
+      expect(migrated.players.map((p) => p.quarterTurns).toList(), [0, 2, 0, 2]);
     });
   });
 }

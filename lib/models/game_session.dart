@@ -311,7 +311,18 @@ class GameSession {
     final effectiveOrder = playerOrder.length == players.length
         ? playerOrder
         : players.map((p) => p.playerId).toList();
-    final seats = seatsFor(effectiveOrder.length);
+    // Revue finale (ruling 21) : `allowSideColumns: false`, explicitement.
+    // Le modèle n'a pas accès à la taille de l'écran, et `seatsFor` sans
+    // drapeau pose des sièges latéraux — c'est exactement ce que le ruling 12
+    // a interdit ailleurs (deux sources de vérité sur la géométrie qui
+    // divergent). Un snapshot hérité ouvert sur téléphone en PORTRAIT poserait
+    // alors 90° et 270° dans des cases horizontales dès le premier lancement
+    // après mise à jour : texte couché pour deux joueurs sur quatre.
+    //
+    // Le repli face-à-face est le seul choix lisible sur TOUS les écrans. Si
+    // la géométrie réelle veut des colonnes latérales, le joueur la retrouve
+    // en un tap sur le preset « Table », qui, lui, connaît l'écran.
+    final seats = seatsFor(effectiveOrder.length, allowSideColumns: false);
     final byId = {for (final p in players) p.playerId: p};
     for (int i = 0; i < effectiveOrder.length; i++) {
       final id = effectiveOrder[i];
