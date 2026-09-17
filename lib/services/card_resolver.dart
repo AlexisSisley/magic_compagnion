@@ -29,21 +29,29 @@ class CardResolver {
   /// disparaitre silencieusement. Une carte que Scryfall declare introuvable
   /// (champ `not_found`) est nommee dans [EditionResolution.notFound].
   ///
-  /// Invariant : aucune requete ne disparait. Toute requete passee a
-  /// [resolveEditions] se retrouve dans exactement un seau (resolved,
-  /// notFound ou failed). En particulier, deux [PrintRequest] d'un meme lot
-  /// peuvent porter un identifiant structurel identique (deux requetes par
-  /// nom seul, ou deux exemplaires de la meme carte listes ligne a ligne
-  /// dans une decklist) : l'appariement se fait donc par consommation d'une
-  /// liste de travail des requetes non encore attribuees pour le lot
-  /// courant (une requete en est retiree a chaque appariement, qu'il
-  /// provienne d'une carte rendue ou d'une entree `not_found`), jamais par
-  /// simple recherche de "la premiere qui correspond" — une recherche
+  /// Invariant : aucune requete ne disparait, et rien ne s'ajoute qui n'en
+  /// ait consomme une. Toute requete passee a [resolveEditions] se retrouve
+  /// dans exactement un seau (resolved, notFound ou failed) : au sortir de
+  /// cette methode, `resolved.length + notFound.length + failed.length`
+  /// vaut exactement `requests.length`. En particulier, deux [PrintRequest]
+  /// d'un meme lot peuvent porter un identifiant structurel identique (deux
+  /// requetes par nom seul, ou deux exemplaires de la meme carte listes
+  /// ligne a ligne dans une decklist) : l'appariement se fait donc par
+  /// consommation d'une liste de travail des requetes non encore attribuees
+  /// pour le lot courant (une requete en est retiree a chaque appariement,
+  /// qu'il provienne d'une carte rendue ou d'une entree `not_found`), jamais
+  /// par simple recherche de "la premiere qui correspond" — une recherche
   /// attribuerait la meme requete a chaque doublon et en perdrait d'autres
   /// silencieusement. Toute requete du lot restee non attribuee a la fin
   /// (ni rendue, ni declaree `not_found` par Scryfall) rejoint notFound :
   /// elle n'a pas trouve son tirage, c'est un fait, et c'est infiniment
-  /// preferable a son effacement.
+  /// preferable a son effacement. Symetriquement, une carte rendue par
+  /// Scryfall qui ne consomme aucune requete restante (l'inverse du cas
+  /// precedent : quelque chose en trop, plutot que quelque chose en moins)
+  /// ne rejoint pas [EditionResolution.resolved] — sous peine de faire
+  /// grossir ce seau sans qu'aucune requete n'en soit la source, ce qui
+  /// romprait l'egalite ci-dessus tout aussi surement qu'une disparition.
+  /// Elle est alors nommee dans [EditionResolution.errors] a la place.
   Future<EditionResolution> resolveEditions(List<PrintRequest> requests) async {
     final List<ResolvedPrint> resolved = [];
     final List<PrintRequest> notFound = [];
@@ -72,13 +80,21 @@ class CardResolver {
         final List<dynamic> found = data['data'] ?? [];
         for (final json in found) {
           final cardJson = json as Map<String, dynamic>;
+          // La carte rendue porte, en plus des siens, les champs de
+          // l'identifiant envoye : on consomme la requete correspondante
+          // pour qu'elle ne soit pas comptee deux fois. Si aucune requete
+          // restante ne correspond, cette carte est en trop : elle ne doit
+          // pas rejoindre resolved sans avoir consomme personne, sous peine
+          // de faire grossir ce seau sans requete source (voir l'invariant
+          // documente au-dessus de cette methode).
+          final index = _consumeMatch(unassigned, identifiers, cardJson);
+          if (index == null) {
+            errors.add(_describeUnexpectedCard(cardJson));
+            continue;
+          }
           final print = ResolvedPrint.fromJson(cardJson);
           await _cache(print);
           resolved.add(print);
-          // La carte rendue porte, en plus des siens, les champs de
-          // l'identifiant envoye : on consomme la requete correspondante
-          // pour qu'elle ne soit pas comptee deux fois.
-          _consumeMatch(unassigned, identifiers, cardJson);
         }
 
         final List<dynamic> notFoundIdentifiers = data['not_found'] ?? [];
@@ -126,6 +142,21 @@ class CardResolver {
       if (e.message != null) 'message=${e.message}',
     ];
     return parts.join(', ');
+  }
+
+  /// Message nommant une carte rendue par Scryfall dans `data` mais
+  /// qu'aucune requete restante du lot ne demandait (voir l'invariant
+  /// documente au-dessus de [resolveEditions]). Ne devrait normalement pas
+  /// arriver — Scryfall ne rend que ce qu'on lui demande — mais si le
+  /// contrat change ou qu'un bug d'appariement survient, mieux vaut la
+  /// nommer que la faire grossir silencieusement [EditionResolution.resolved].
+  String _describeUnexpectedCard(Map<String, dynamic> cardJson) {
+    final id = cardJson['id'] ?? '?';
+    final set = cardJson['set'] ?? '?';
+    final collectorNumber = cardJson['collector_number'] ?? '?';
+    final name = cardJson['name'] ?? '?';
+    return 'carte rendue sans requete correspondante restante dans le lot : '
+        'id=$id, set=$set, collector_number=$collectorNumber, name=$name';
   }
 
   /// Temps 2 : recupere la traduction d'un tirage, ou null s'il n'en existe pas.

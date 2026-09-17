@@ -137,6 +137,16 @@ void main() {
       expect(result.failed, hasLength(1));
       expect(result.errors, hasLength(1));
       expect(result.isComplete, isFalse);
+      // Le premier lot (75 requetes) ne rend qu'une seule carte : les 74
+      // filler restants ne sont ni rendus ni declares not_found par le mock
+      // et doivent donc rejoindre notFound plutot que de disparaitre. C'est
+      // le filet qui attrape une regression de l'invariant "aucune requete
+      // ne se perd, rien ne s'ajoute sans en consommer une".
+      expect(result.notFound, hasLength(74));
+      expect(
+        result.resolved.length + result.notFound.length + result.failed.length,
+        requests.length,
+      );
     });
 
     test('une carte que Scryfall declare introuvable atterit dans notFound', () async {
@@ -156,6 +166,48 @@ void main() {
       expect(result.notFound, hasLength(1));
       expect(result.notFound.first.name, 'Carte Fantome');
       expect(result.isComplete, isFalse);
+    });
+
+    test(
+        'une carte rendue sans requete correspondante ne rejoint pas '
+        'resolved', () async {
+      // Scryfall rend la carte demandee ET, en plus, une carte qu'aucune
+      // requete du lot ne demandait (contrat rompu ou bug d'appariement).
+      final dio = _mockDio((_) => {
+            'data': [
+              _enCard(),
+              {
+                'id': 'ghost-id',
+                'oracle_id': 'ghost-oracle',
+                'name': 'Carte Fantome Inattendue',
+                'set': 'xyz',
+                'collector_number': '000',
+                'lang': 'en',
+              },
+            ],
+            'not_found': [],
+          });
+      final resolver = CardResolver(api: ScryfallApiService(dio: dio), db: db);
+
+      final requests = [
+        const PrintRequest(
+            name: 'Thrill of Possibility', setCode: 'eld', collectorNumber: '146'),
+      ];
+      final result = await resolver.resolveEditions(requests);
+
+      // Invariant : resolved + notFound + failed == requests, dans les deux
+      // sens. La carte fantome ne doit ni disparaitre une requete (elle n'y
+      // correspond a aucune) ni se glisser dans resolved sans en consommer
+      // une : elle doit rester sans effet sur ce compte, et etre nommee
+      // ailleurs (errors) plutot que d'etre passee sous silence.
+      expect(
+        result.resolved.length + result.notFound.length + result.failed.length,
+        requests.length,
+      );
+      expect(result.resolved, hasLength(1));
+      expect(result.resolved.first.scryfallId, _enId);
+      expect(result.errors, isNotEmpty);
+      expect(result.errors.first, contains('ghost-id'));
     });
 
     test(
