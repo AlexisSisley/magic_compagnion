@@ -106,7 +106,11 @@ void main() {
     // Verrouille la mise en scène elle-même : si cette assertion échouait,
     // le reste du test ne prouverait rien sur l'indépendance à l'ordre
     // d'affichage qu'il prétend vérifier.
-    final zone1Rect = tester.getRect(find.byKey(_playerZoneKey(1)));
+    // Revue finale (petite chose 1) : `expect(zone1Rect, isNotNull)`
+    // portait sur un `Rect` non nullable -- assertion vide, aucune mutation
+    // ne l'aurait rougie. Retirée : la comparaison ci-dessous
+    // (`zone1HandleRect` contre `firstHandleRect`) est la seule qui prouve
+    // réellement la précondition de mise en scène.
     final firstHandleRect =
         tester.getRect(find.byType(ConditionalHandle).first);
     final zone1HandleRect = tester.getRect(find.descendant(
@@ -117,7 +121,6 @@ void main() {
         reason: 'mise en scène : la poignée du joueur 1 ne doit pas être la '
             'première de l\'arbre, sans quoi ce test retomberait sur le '
             'même raccourci de position que celui qu\'il évite');
-    expect(zone1Rect, isNotNull);
 
     // --- 1. Ouvre le tiroir du JOUEUR 1, désigné par sa clé d'identité ---
     await tester.tap(find.descendant(
