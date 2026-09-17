@@ -1190,6 +1190,18 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       if (type != null) activeCounters.add(type);
     }
 
+    // Critical 3 (revue finale) : le catalogue persistant (tâche 1,
+    // `CounterTypeService`) était écrit et jamais relu -- un compteur créé
+    // n'était activable qu'une fois, dans la partie où il avait été créé.
+    // `inactiveCounters` propose ici tout ce que le catalogue connaît et
+    // que CETTE partie n'a pas actif ('commander_damage' exclu pour la même
+    // raison que ci-dessus : ce n'est pas une ligne ± comme les autres).
+    final activeIds = session?.activeCounterIds.toSet() ?? const <String>{};
+    final inactiveCounters = ref
+        .read(counterCatalogProvider)
+        .where((t) => t.id != 'commander_damage' && !activeIds.contains(t.id))
+        .toList();
+
     showPlayerDrawer(
       context: context,
       playerName: ps.config.name,
@@ -1210,7 +1222,29 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           _onDrawerCommanderDamage(ps.playerId, sourcePlayerId, delta),
       onCreateCounter: _onDrawerCreateCounter,
       onRemoveCounter: _onDrawerRemoveCounter,
+      inactiveCounters: inactiveCounters,
+      onActivateCounter: (type) =>
+          _onDrawerActivateCounter(ps.playerId, type),
     );
+  }
+
+  /// Critical 3 (revue finale) : réactive [type] dans la partie en cours --
+  /// seul appelant de `activateCounter` en dehors de la création
+  /// (`_onDrawerCreateCounter`). `isCustom: !type.isBuiltIn` (pas un
+  /// défaut à `false`) : un compteur personnalisé réactivé doit rester
+  /// identifié comme tel dans `customCounterIds`, exactement comme s'il
+  /// venait d'être créé -- un intégré retiré puis réactivé ne doit, lui,
+  /// jamais y apparaître. Rend la valeur RÉELLE déjà portée par ce joueur
+  /// pour ce compteur (décision 1 du lot 4 : conservée au retrait, pas
+  /// effacée), pour que le tiroir déjà ouvert l'affiche immédiatement sans
+  /// attendre un rebuild externe.
+  Future<int> _onDrawerActivateCounter(int playerId, CounterType type) async {
+    _controller.activateCounter(type.id, isCustom: !type.isBuiltIn);
+    setState(() {});
+    _saveSnapshot();
+    final player =
+        _session?.players.where((p) => p.playerId == playerId).firstOrNull;
+    return player?.counters[type.id] ?? 0;
   }
 
   /// Lot 5, tâche 4 : sauvegarde réellement [type] (le tiroir ne fait que

@@ -1816,4 +1816,73 @@ void main() {
             'pas seulement les trois intégrés historiques codés en dur '
             '(exactement la liste figée que ce lot existe pour supprimer)');
   });
+
+  // --- Revue finale, Critical 3 : un compteur personnalisé créé est
+  // écrit dans le catalogue (`custom_counter_types`) mais AUCUNE interface
+  // ne permet de l'activer une seconde fois -- il n'est utilisable que
+  // pendant la partie où il a été créé, jamais après. Ce test simule
+  // exactement ça : le catalogue porte déjà "Rage" (comme l'aurait laissé
+  // une partie précédente), mais la SESSION COURANTE (une partie neuve,
+  // `GameSession.newGame` sans `extraCounterIds`) ne l'a jamais activé.
+  testWidgets(
+      'Critical 3 : un compteur du catalogue, inactif dans la partie '
+      'courante, est réactivable depuis le tiroir -- récupérable dans la '
+      'partie suivante, pas seulement dans celle où il a été créé',
+      (tester) async {
+    const rage = CounterType(
+      id: 'rage',
+      name: 'Rage',
+      emoji: '🔥',
+      color: 0xFFFF5722,
+      isBuiltIn: false,
+    );
+    // Partie neuve : `GameSession.newGame` SANS `extraCounterIds` --
+    // `rage` n'est ni dans `activeCounterIds` ni dans `customCounterIds`,
+    // exactement l'état d'une partie qui n'a jamais vu ce compteur.
+    final session = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    expect(session.activeCounterIds, isNot(contains('rage')),
+        reason: 'précondition : la partie ne doit PAS déjà connaître Rage, '
+            'sans quoi ce test ne prouverait rien sur la réactivation');
+
+    final container = await pumpWithContainer(
+      tester,
+      snapshot: session,
+      // Simule le catalogue persisté par une partie ANTÉRIEURE : c'est la
+      // seule trace qui doit survivre entre deux parties (décision D-1 de
+      // la spec), la session elle-même reparaît neuve.
+      extraPrefs: {'custom_counter_types': json.encode([rage.toJson()])},
+    );
+
+    await openDrawerForPlayerZero(tester);
+
+    expect(find.byKey(const ValueKey('counter_reactivate_rage')),
+        findsOneWidget,
+        reason: 'un compteur du catalogue non actif dans CETTE partie doit '
+            'être proposé pour réactivation -- sinon le catalogue '
+            'persistant est écrit et jamais relu par personne');
+
+    await tester.ensureVisible(
+        find.byKey(const ValueKey('counter_reactivate_rage')));
+    await tester.tap(find.byKey(const ValueKey('counter_reactivate_rage')));
+    await tester.pump();
+
+    final restoredSession = container.read(gameSessionNotifierProvider)!;
+    expect(restoredSession.activeCounterIds, contains('rage'),
+        reason: 'réactiver depuis le tiroir doit atteindre réellement la '
+            'session, pas seulement l\'affichage local du tiroir');
+    expect(restoredSession.customCounterIds, contains('rage'),
+        reason: 'un compteur réactivé reste identifié comme personnalisé '
+            '(isCustom déduit de !type.isBuiltIn, pas d\'un défaut à '
+            'false qui le ferait passer pour un intégré)');
+    // La ligne apparaît dans CE tiroir déjà ouvert, sans avoir à le
+    // refermer et le rouvrir (même principe que la création, tâche 4).
+    expect(find.byKey(const ValueKey('counter_row_rage')), findsOneWidget);
+    expect(find.byKey(const ValueKey('counter_reactivate_rage')),
+        findsNothing,
+        reason: 'un compteur réactivé ne doit plus apparaître dans la '
+            'liste des compteurs à réactiver');
+  });
 }

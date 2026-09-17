@@ -52,6 +52,24 @@ Future<void> showPlayerDrawer({
   // catalogue -- un intégré ne peut pas en être supprimé, mais peut être
   // retiré des actifs comme un personnalisé, voir la contrainte du lot).
   required void Function(String counterId) onRemoveCounter,
+  // Revue finale (Critical 3) : le catalogue persistant (`CounterTypeService`)
+  // était écrit et jamais relu -- un compteur créé n'était utilisable
+  // qu'une fois, dans la partie où il avait été créé, sans aucun chemin
+  // pour le réactiver ensuite (`activateCounter` n'avait qu'un seul
+  // appelant, à la création). `inactiveCounters` liste les compteurs du
+  // CATALOGUE (résolu par l'appelant, tâche 1) qui ne sont pas actifs dans
+  // CETTE partie -- personnalisés ou intégrés retirés, mêmes principes que
+  // `activeCounters` ci-dessus. Défauts par défaut vides/`null` : un
+  // appelant qui n'a rien à proposer (ex. catalogue vide) n'a rien de plus
+  // à fournir.
+  List<CounterType> inactiveCounters = const [],
+  // Réactive [type] dans la partie en cours (typiquement
+  // `GameSessionNotifier.activateCounter(type.id, isCustom: !type.isBuiltIn)`)
+  // et rend la valeur RÉELLE déjà portée par ce joueur pour ce compteur
+  // (décision 1 du lot 4 : conservée, pas effacée, au retrait) -- pour que
+  // ce tiroir déjà ouvert l'affiche immédiatement sans attendre un rebuild
+  // externe.
+  Future<int> Function(CounterType type)? onActivateCounter,
 }) {
   HapticFeedback.selectionClick();
   return showModalBottomSheet<void>(
@@ -91,6 +109,8 @@ Future<void> showPlayerDrawer({
       // souvent d'y ajuster d'autres compteurs juste après).
       onCreateCounter: onCreateCounter,
       onRemoveCounter: onRemoveCounter,
+      inactiveCounters: inactiveCounters,
+      onActivateCounter: onActivateCounter,
     ),
   );
 }
@@ -111,6 +131,8 @@ class _PlayerDrawerBody extends StatefulWidget {
     required this.lethalCommanderDamage,
     required this.onCreateCounter,
     required this.onRemoveCounter,
+    this.inactiveCounters = const [],
+    this.onActivateCounter,
   });
 
   final String playerName;
@@ -133,6 +155,11 @@ class _PlayerDrawerBody extends StatefulWidget {
       onCreateCounter;
   final void Function(String counterId) onRemoveCounter;
 
+  /// Compteurs du catalogue non actifs dans CETTE partie (Critical 3, revue
+  /// finale) -- voir le doc-comment de `showPlayerDrawer`.
+  final List<CounterType> inactiveCounters;
+  final Future<int> Function(CounterType type)? onActivateCounter;
+
   @override
   State<_PlayerDrawerBody> createState() => _PlayerDrawerBodyState();
 }
@@ -148,6 +175,12 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
   /// figé à l'ouverture).
   late List<CounterType> _activeCounters =
       List<CounterType>.from(widget.activeCounters);
+
+  /// Même raison qu'au-dessus (Critical 3, revue finale) : réactiver un
+  /// compteur doit le retirer de CETTE liste locale immédiatement, sans
+  /// attendre la fermeture/réouverture du tiroir.
+  late List<CounterType> _inactiveCounters =
+      List<CounterType>.from(widget.inactiveCounters);
 
   /// Même raison qu'au-dessus, pour les totaux de la grille de dégâts de
   /// commandant reçus.
@@ -196,6 +229,28 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(result.message)),
     );
+  }
+
+  /// Réactive [type] (Critical 3, revue finale) : délègue à
+  /// `widget.onActivateCounter` (typiquement
+  /// `GameSessionNotifier.activateCounter(type.id, isCustom: !type.isBuiltIn)`),
+  /// qui rend la valeur RÉELLE déjà portée par ce joueur pour ce compteur --
+  /// pas un 0 arbitraire, sans quoi une réactivation dans la même partie où
+  /// le compteur a été retiré (décision 1 du lot 4 : la valeur est
+  /// conservée, pas effacée) réapparaîtrait à zéro dans CE tiroir jusqu'à sa
+  /// fermeture/réouverture. Ne ferme pas le tiroir, même principe que la
+  /// création et le retrait : on continue souvent d'y ajuster d'autres
+  /// compteurs juste après.
+  Future<void> _reactivateCounter(CounterType type) async {
+    final onActivate = widget.onActivateCounter;
+    if (onActivate == null) return;
+    final value = await onActivate(type);
+    if (!mounted) return;
+    setState(() {
+      _inactiveCounters = _inactiveCounters.where((t) => t.id != type.id).toList();
+      _activeCounters = [..._activeCounters, type];
+      _values[type.id] = value;
+    });
   }
 
   /// Retire [id] des compteurs actifs affichés par CE tiroir, et transmet
@@ -266,6 +321,12 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
                 // le `Navigator.of(sheetCtx).pop()` des autres actions.
                 onTap: _openCreateCounterDialog,
               ),
+              // Critical 3 (revue finale) : les compteurs du catalogue non
+              // actifs dans CETTE partie -- sans cette liste, un compteur
+              // personnalisé créé ailleurs (ou un intégré retiré) restait
+              // écrit dans `custom_counter_types` sans jamais être relu par
+              // personne.
+              for (final type in _inactiveCounters) _reactivateRow(type),
               // Ronde de correction 1 (Important, "seconde porte") : la
               // grille n'etait conditionnee par rien -- ni le seuil letal,
               // ni les compteurs actives par le format -- et s'affichait
@@ -365,6 +426,20 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Ligne de réactivation d'un compteur du catalogue non actif dans cette
+  /// partie (Critical 3, revue finale) -- voir `_reactivateCounter`. Clé
+  /// publique du brief pour les tests (`counter_reactivate_<id>`), même
+  /// convention que `counter_row_<id>`.
+  Widget _reactivateRow(CounterType type) {
+    return _action(
+      key: ValueKey('counter_reactivate_${type.id}'),
+      icon: Icons.replay,
+      label: 'Réactiver ${type.emoji} ${type.name}',
+      color: AppColors.textSecondary,
+      onTap: () => _reactivateCounter(type),
     );
   }
 
