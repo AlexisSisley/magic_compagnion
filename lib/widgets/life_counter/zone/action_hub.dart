@@ -4,10 +4,22 @@ import 'package:magic_companion/theme/app_colors.dart';
 /// Une action de partie, telle que le hub la présente.
 class GameAction {
   const GameAction({
+    required this.id,
     required this.icon,
     required this.label,
     required this.onPressed,
   });
+
+  /// Identité stable de l'action, indépendante de sa position dans la liste.
+  ///
+  /// Revue finale (IMPORTANT #3) : la bande câblait ses neuf boutons À
+  /// L'INDEX (`actions[0]` … `actions[8]`) tandis que le hub itérait. Une
+  /// dixième action aurait donc été affichée par le hub, ignorée par la
+  /// bande, et sous-estimée par `kBandNeed` — les deux mécaniques exactes du
+  /// défaut d'origine, réarmées. Les deux formes itèrent désormais sur la
+  /// même liste, et cet `id` sert à la fois de clé de test (`action-<id>`) et
+  /// de sélecteur pour les trois rendus bespoke de la bande.
+  final String id;
 
   final IconData icon;
   final String label;
@@ -68,6 +80,7 @@ class ActionHub extends StatelessWidget {
               children: [
                 for (final action in actions)
                   ListTile(
+                    key: ValueKey('hub-action-${action.id}'),
                     leading: Icon(action.icon, color: AppColors.textSecondary),
                     title: Text(action.label),
                     onTap: () {

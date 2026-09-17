@@ -18,6 +18,7 @@ import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
+import 'package:magic_companion/widgets/life_counter/layouts/table_layout.dart';
 import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
 import 'package:magic_companion/widgets/life_counter/zone/life_dial.dart';
@@ -1584,6 +1585,77 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+  });
+
+  // ===========================================================================
+  // Revue finale, IMPORTANT #3 — le LIEN entre les trois choses qui devaient
+  // rester d'accord et que rien ne reliait : `kActionCount` (saisi à la main
+  // dans `table_layout.dart`, et dont `kBandNeed` dérive), `_gameActions` (la
+  // source unique), et la bande (qui câblait neuf boutons À L'INDEX).
+  //
+  // Scénario du défaut réarmé : quelqu'un ajoute une dixième action. Le hub
+  // l'affiche (il itère), la bande l'ignore (elle s'arrêtait à l'index 8), et
+  // `kBandNeed` sous-estime la largeur — les deux mécaniques exactes du
+  // défaut d'origine (rulings 15 et 16).
+  //
+  // `kActionCount` ne peut pas être dérivé de `_gameActions` : il vit dans
+  // `table_layout.dart`, que la page importe et qui ne peut pas importer la
+  // page en retour. Ces tests SONT le lien.
+  // ===========================================================================
+  group('la bande, le hub et kActionCount comptent la même chose (IMPORTANT #3)',
+      () {
+    testWidgets(
+        'la bande rend exactement kActionCount boutons, et autant que le hub '
+        'rend d entrées', (tester) async {
+      final baseSession = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: testConfigs,
+      );
+
+      // --- La bande (taille de test par défaut : shortEdge 600, donc bande).
+      await pumpLifeCounter(tester, snapshot: baseSession);
+      final band = find.byKey(const ValueKey('action_band'));
+      expect(band, findsOneWidget,
+          reason: 'précondition : sans bande, ce test ne dit rien');
+
+      // Repérage par `ValueKey('action-<id>')` : chaque action de
+      // `_gameActions` en pose une, y compris les trois rendus bespoke.
+      // Aucun repérage ordinal, et aucun comptage par type de widget (le
+      // chrono n est pas un `IconButton`).
+      final bandButtons = find.descendant(
+        of: band,
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w.key is ValueKey<String> &&
+              (w.key as ValueKey<String>).value.startsWith('action-'),
+        ),
+      );
+      final bandCount = bandButtons.evaluate().length;
+      expect(bandCount, kActionCount,
+          reason: 'la bande rend $bandCount boutons pour kActionCount='
+              '$kActionCount : si elles divergent, kBandNeed calcule la '
+              'largeur de la bande sur un compte faux');
+
+      // --- Le hub, sur petit écran, sur la MÊME liste d actions.
+      _setScreenSize(tester, const Size(400, 700));
+      await pumpLifeCounter(tester, snapshot: baseSession);
+      expect(find.byKey(const ValueKey('action_hub')), findsOneWidget,
+          reason: 'précondition : sur cet écran, le hub remplace la bande');
+      await tester.tap(find.byKey(const ValueKey('action_hub_button')));
+      await tester.pumpAndSettle();
+
+      final hubEntries = find.byWidgetPredicate(
+        (w) =>
+            w.key is ValueKey<String> &&
+            (w.key as ValueKey<String>).value.startsWith('hub-action-'),
+      );
+      final hubCount = hubEntries.evaluate().length;
+      expect(hubCount, bandCount,
+          reason: 'le hub rend $hubCount entrées et la bande $bandCount '
+              'boutons : une action joignable dans une forme et pas dans '
+              'l autre est exactement le défaut que la tâche 6 existe pour '
+              'éliminer');
+    });
   });
 
   testWidgets(

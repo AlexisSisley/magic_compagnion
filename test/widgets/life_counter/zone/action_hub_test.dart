@@ -12,6 +12,7 @@ List<GameAction> _buildActions(List<int> calls) {
   return [
     for (var i = 0; i < 8; i++)
       GameAction(
+        id: 'action-$i',
         icon: Icons.circle,
         label: 'Action $i',
         onPressed: () => calls[i]++,

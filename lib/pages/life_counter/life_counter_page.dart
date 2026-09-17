@@ -1328,21 +1328,29 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   /// n'est plus le seul chemin.
   List<GameAction> get _gameActions => [
         GameAction(
+          id: 'orientation-presets',
           icon: Icons.screen_rotation_alt,
           label: 'Orientation',
           onPressed: _showOrientationPresets,
         ),
         GameAction(
+          // `restart-game`, pas `reset` : le tiroir du joueur porte déjà une
+          // `ValueKey('action-reset')` (réinitialiser SES compteurs), et deux
+          // widgets montés en même temps sous la même clé rendent tout
+          // repérage ambigu.
+          id: 'restart-game',
           icon: Icons.refresh,
           label: 'Recommencer',
           onPressed: () => _resetGame(),
         ),
         GameAction(
+          id: 'dice',
           icon: Icons.casino,
           label: 'Dé',
           onPressed: _showDiceSelector,
         ),
         GameAction(
+          id: 'timer',
           icon: _isGameActive ? Icons.stop : Icons.play_arrow,
           label: _isGameActive
               ? 'Terminer la partie'
@@ -1350,32 +1358,50 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           onPressed: _isGameActive ? _endGame : _pickStartingPlayer,
         ),
         GameAction(
+          id: 'history',
           icon: Icons.history,
           label: 'Historique',
           onPressed: _showDamageHistory,
         ),
         GameAction(
+          id: 'table-view',
           icon: Icons.table_chart_outlined,
           label: 'Vue table',
           onPressed: _showTableView,
         ),
         GameAction(
+          id: 'edit-mode',
           icon: Icons.build,
           label: _isEditMode ? 'Terminer l\'édition' : 'Réorganiser les joueurs',
           onPressed: () => setState(() => _isEditMode = !_isEditMode),
         ),
         GameAction(
+          id: 'game-setup',
           icon: Icons.people,
           label: 'Joueurs',
           onPressed: _showGameSetupDialog,
         ),
         GameAction(
+          id: 'game-info',
           icon: Icons.info_outline,
           label: 'Infos de partie',
           onPressed: _showGameInfoSheet,
         ),
       ];
 
+  /// La bande d'actions (grand écran).
+  ///
+  /// Revue finale (IMPORTANT #3) : construite par ITÉRATION sur
+  /// `_gameActions`, jamais plus à l'index. La version précédente câblait neuf
+  /// boutons en dur (`actions[0]` … `actions[8]`) tandis que le hub itérait :
+  /// une dixième action aurait été affichée par le hub, ignorée par la bande,
+  /// et sous-estimée par `kBandNeed` — les deux mécaniques exactes du défaut
+  /// d'origine (une action joignable dans une forme et pas dans l'autre, une
+  /// largeur calculée sur un compte faux), réarmées.
+  ///
+  /// Les trois rendus bespoke qui subsistent sont sélectionnés par l'`id` de
+  /// l'action, pas par sa position : ajouter, retirer ou réordonner une
+  /// action ne peut plus en déplacer un sur la mauvaise.
   Widget _buildCentralBar() {
     final actions = _gameActions;
     // La bande n'est plus rendue que lorsque `tableLayoutFor` a vérifié
@@ -1389,97 +1415,85 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Quick orientation presets (tap). Raccourci en plus : appui long
-          // pour les infos de partie -- mais ce n'est plus leur seul chemin,
-          // voir l'action "Infos de partie" plus bas.
-          GestureDetector(
-            onLongPress: _showGameInfoSheet,
-            child: IconButton(
-              key: const ValueKey('action-orientation-presets'),
-              icon: Icon(actions[0].icon, color: AppColors.textSecondary),
-              onPressed: actions[0].onPressed,
-            ),
-          ),
-          // Reset
-          IconButton(
-            icon: Icon(actions[1].icon, color: AppColors.textSecondary),
-            onPressed: actions[1].onPressed,
-          ),
-          // Dice
-          IconButton(
-            icon: Icon(actions[2].icon, color: AppColors.textSecondary),
-            onPressed: actions[2].onPressed,
-          ),
-          // Timer / Pick starter / End game
-          InkWell(
-            onTap: actions[3].onPressed,
-            borderRadius: BorderRadius.circular(50),
-            child: Container(
-              width: 50, height: 50,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.textOnPrimary,
-                border: Border.all(
-                  color: _isGameActive ? AppColors.accentRed : AppColors.primaryShade800,
-                  width: 2,
-                ),
-              ),
-              child: _isGameActive
-                  ? FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        _formatDuration(_gameDuration),
-                        style: GoogleFonts.robotoMono(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    )
-                  : Icon(actions[3].icon, color: AppColors.primary),
-            ),
-          ),
-          // History (NEW)
-          IconButton(
-            icon: Icon(actions[4].icon, color: AppColors.textSecondary),
-            onPressed: actions[4].onPressed,
-          ),
-          // Vue table (tache 4) : bouton dedie, pas de geste a deux doigts
-          // sur les zones -- voir table_view_page.dart pour la justification.
-          IconButton(
-            key: const ValueKey('action-table-view'),
-            icon: Icon(actions[5].icon, color: AppColors.textSecondary),
-            onPressed: actions[5].onPressed,
-          ),
-          // Edit mode toggle (NEW)
-          IconButton(
-            icon: Icon(
-              actions[6].icon,
-              color: _isEditMode ? AppColors.primary : AppColors.textSecondary,
-            ),
-            style: _isEditMode
-                ? IconButton.styleFrom(backgroundColor: AppColors.primary.withAlpha(40))
-                : null,
-            onPressed: actions[6].onPressed,
-          ),
-          // Game setup
-          IconButton(
-            key: const ValueKey('action-game-setup'),
-            icon: Icon(actions[7].icon, color: AppColors.textSecondary),
-            onPressed: actions[7].onPressed,
-          ),
-          // Infos de partie (ronde de correction 1, tâche 6) : un tap
-          // ordinaire, plus un appui long caché sur un autre bouton -- voir
-          // le commentaire de `_gameActions`.
-          IconButton(
-            key: const ValueKey('action-game-info'),
-            icon: Icon(actions[8].icon, color: AppColors.textSecondary),
-            onPressed: actions[8].onPressed,
-          ),
+          for (final action in actions) _bandButton(action),
         ],
       ),
     );
+  }
+
+  /// Le bouton de bande d'une action. Le cas général est un `IconButton`
+  /// Material nu — celui dont `kActionWidth` mesure la taille (ruling 16).
+  Widget _bandButton(GameAction action) {
+    final key = ValueKey('action-${action.id}');
+    switch (action.id) {
+      // Raccourci en plus : appui long pour les infos de partie -- mais ce
+      // n'est plus leur seul chemin, voir l'action `game-info`.
+      case 'orientation-presets':
+        return GestureDetector(
+          onLongPress: _showGameInfoSheet,
+          child: IconButton(
+            key: key,
+            icon: Icon(action.icon, color: AppColors.textSecondary),
+            onPressed: action.onPressed,
+          ),
+        );
+
+      // Chrono : style bespoke (cercle de 50x50, minuterie en Roboto Mono),
+      // reporté par la revue finale. Il reste ici une branche de ce switch,
+      // donc toujours UN élément de la bande par action, ni plus ni moins.
+      case 'timer':
+        return InkWell(
+          key: key,
+          onTap: action.onPressed,
+          borderRadius: BorderRadius.circular(50),
+          child: Container(
+            width: 50, height: 50,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.textOnPrimary,
+              border: Border.all(
+                color: _isGameActive ? AppColors.accentRed : AppColors.primaryShade800,
+                width: 2,
+              ),
+            ),
+            child: _isGameActive
+                ? FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _formatDuration(_gameDuration),
+                      style: GoogleFonts.robotoMono(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  )
+                : Icon(action.icon, color: AppColors.primary),
+          ),
+        );
+
+      // Surlignage du mode édition : également bespoke, également reporté.
+      case 'edit-mode':
+        return IconButton(
+          key: key,
+          icon: Icon(
+            action.icon,
+            color: _isEditMode ? AppColors.primary : AppColors.textSecondary,
+          ),
+          style: _isEditMode
+              ? IconButton.styleFrom(backgroundColor: AppColors.primary.withAlpha(40))
+              : null,
+          onPressed: action.onPressed,
+        );
+
+      default:
+        return IconButton(
+          key: key,
+          icon: Icon(action.icon, color: AppColors.textSecondary),
+          onPressed: action.onPressed,
+        );
+    }
   }
 
   void _showOrientationPresets() {
