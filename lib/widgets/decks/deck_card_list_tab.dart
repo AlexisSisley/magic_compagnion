@@ -7,12 +7,12 @@ import 'package:flutter/services.dart'; // Pour Clipboard
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:magic_companion/widgets/cards/versions_selector_sheet.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../providers/card_display_provider.dart';
+import '../../providers/preferred_language_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../router/app_router.dart';
 import '../../services/deck_service.dart'; // Pour DeckBoard enum
@@ -108,8 +108,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
   Future<void> _loadDisplays() async {
     final seq = ++_loadSeq;
     final db = ref.read(appDatabaseProvider);
-    final prefs = await SharedPreferences.getInstance();
-    final preferredLang = prefs.getString('glossaryLang') ?? 'fr';
+    final preferredLang = await readPreferredLanguage();
 
     final Map<String, CardDisplay> resolved = {};
     for (final card in widget.cardList) {

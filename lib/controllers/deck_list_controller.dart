@@ -2,11 +2,11 @@
 // Controller pour DeckListPage - extrait la logique metier de la page.
 
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/secondary_breakfast.dart';
 import '../models/card_print.dart';
 import '../models/deck_model.dart';
+import '../providers/preferred_language_provider.dart';
 import '../providers/service_providers.dart';
 import '../utils/price_helper.dart';
 import '../services/collection_service.dart';
@@ -255,8 +255,7 @@ class DeckListController extends StateNotifier<DeckListState> {
     final Map<String, List<ResolvedPrint>> printsByKey = {};
 
     if (allEntries.isNotEmpty) {
-      final prefs = await SharedPreferences.getInstance();
-      final preferredLang = prefs.getString('glossaryLang') ?? 'fr';
+      final preferredLang = await readPreferredLanguage();
 
       resolution = await _collectionService.resolveImportedEntries(
         allEntries,

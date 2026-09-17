@@ -22,21 +22,24 @@ import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/glossary_data.dart'; // Importer notre modèle (Keyword)
+import '../../providers/preferred_language_provider.dart';
+import '../../providers/service_providers.dart';
 import '../../router/app_router.dart';
 
-class GlossaryPage extends StatefulWidget {
+class GlossaryPage extends ConsumerStatefulWidget {
   const GlossaryPage({super.key});
 
   @override
-  State<GlossaryPage> createState() => _GlossaryPageState();
+  ConsumerState<GlossaryPage> createState() => _GlossaryPageState();
 }
 
-class _GlossaryPageState extends State<GlossaryPage> {
+class _GlossaryPageState extends ConsumerState<GlossaryPage> {
   final TextEditingController _searchController = TextEditingController();
   
   List<Keyword> _displayedTerms = [];
@@ -61,15 +64,19 @@ class _GlossaryPageState extends State<GlossaryPage> {
   // --- GESTION DES DONNÉES (Inchangée) ---
 
   Future<void> _loadPreferencesAndData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String savedLang = prefs.getString('glossaryLang') ?? 'fr';
+    final String savedLang = await readPreferredLanguage();
     await _loadGlossaryData(savedLang);
   }
 
   Future<void> _toggleLanguage() async {
-    final prefs = await SharedPreferences.getInstance();
     final String newLang = (_currentLang == 'fr') ? 'en' : 'fr';
-    await prefs.setString('glossaryLang', newLang);
+    final db = ref.read(appDatabaseProvider);
+    final translationWorker = ref.read(translationWorkerProvider);
+
+    await writePreferredLanguage(db, newLang);
+    await enqueueOwnedCardsForLanguage(db: db, lang: newLang);
+    unawaited(translationWorker.drain()); // ne bloque pas le changement de langue
+
     await _loadGlossaryData(newLang);
   }
 

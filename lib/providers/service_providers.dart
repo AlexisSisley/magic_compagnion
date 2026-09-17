@@ -29,6 +29,7 @@ import '../services/scan_history_service.dart';
 import '../services/scryfall_api_service.dart';
 import '../services/set_service.dart';
 import '../services/game_session_service.dart';
+import '../services/translation_worker.dart';
 import '../services/wishlist_service.dart';
 
 // --- Database singleton ---
@@ -83,6 +84,12 @@ final gameHistoryServiceProvider = Provider<GameHistoryService>((ref) {
 final scanHistoryServiceProvider = Provider<ScanHistoryService>((ref) {
   final db = ref.watch(appDatabaseProvider);
   return ScanHistoryService(database: db);
+});
+
+final translationWorkerProvider = Provider<TranslationWorker>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  final resolver = ref.watch(cardResolverProvider);
+  return TranslationWorker(resolver: resolver, db: db);
 });
 
 // --- Services sans dépendance à la base ---
