@@ -218,6 +218,47 @@ class PlayerConfigCommanders extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// Cache des tirages Scryfall (une ligne par impression, langue comprise).
+@DataClassName('DbCardPrint')
+class CardPrints extends Table {
+  TextColumn get scryfallId => text()();
+  TextColumn get oracleId => text()();
+  TextColumn get setCode => text()();
+  TextColumn get collectorNumber => text()();
+  TextColumn get lang => text()();
+  TextColumn get printedName => text().nullable()();
+  TextColumn get printedText => text().nullable()();
+  TextColumn get imageUri => text().nullable()();
+  DateTimeColumn get fetchedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {scryfallId};
+}
+
+/// Couples (carte, langue) dont Scryfall a confirme qu'aucune traduction
+/// n'existe. Un 404 est une reponse definitive, pas une panne.
+@DataClassName('DbTranslationAbsent')
+class TranslationAbsences extends Table {
+  TextColumn get oracleId => text()();
+  TextColumn get lang => text()();
+
+  @override
+  Set<Column> get primaryKey => {oracleId, lang};
+}
+
+/// File persistante des traductions a recuperer en tache de fond.
+@DataClassName('DbTranslationTask')
+class TranslationTasks extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get scryfallId => text()();
+  TextColumn get setCode => text()();
+  TextColumn get collectorNumber => text()();
+  TextColumn get lang => text()();
+  IntColumn get attempts => integer().withDefault(const Constant(0))();
+  TextColumn get lastError => text().nullable()();
+  DateTimeColumn get nextAttemptAt => dateTime()();
+}
+
 // ============================================================
 // DATABASE
 // ============================================================
@@ -237,12 +278,15 @@ class PlayerConfigCommanders extends Table {
   CounterTypes,
   PlayerConfigs,
   PlayerConfigCommanders,
+  CardPrints,
+  TranslationAbsences,
+  TranslationTasks,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration {
@@ -263,6 +307,16 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 3) {
           await m.addColumn(profiles, profiles.commanderGalleryJson);
+        }
+        if (from < 4) {
+          await m.createTable(cardPrints);
+          await m.createTable(translationAbsences);
+          await m.createTable(translationTasks);
+          await m.createIndex(Index(
+            'idx_card_prints_oracle_lang',
+            'CREATE INDEX IF NOT EXISTS idx_card_prints_oracle_lang '
+            'ON card_prints (oracle_id, lang)',
+          ));
         }
       },
     );
@@ -717,5 +771,84 @@ class AppDatabase extends _$AppDatabase {
     } catch (_) {
       return [];
     }
+  }
+
+  // ============================================================
+  // CACHE DE TIRAGES / TRADUCTIONS
+  // ============================================================
+
+  Future<DbCardPrint?> getCardPrint(String scryfallId) =>
+      (select(cardPrints)..where((p) => p.scryfallId.equals(scryfallId)))
+          .getSingleOrNull();
+
+  Future<DbCardPrint?> findTranslation(String oracleId, String lang) =>
+      (select(cardPrints)
+            ..where((p) => p.oracleId.equals(oracleId) & p.lang.equals(lang))
+            ..limit(1))
+          .getSingleOrNull();
+
+  Future<void> upsertCardPrint(DbCardPrint print) =>
+      into(cardPrints).insertOnConflictUpdate(print);
+
+  Future<bool> isTranslationAbsent(String oracleId, String lang) async {
+    final row = await (select(translationAbsences)
+          ..where((a) => a.oracleId.equals(oracleId) & a.lang.equals(lang)))
+        .getSingleOrNull();
+    return row != null;
+  }
+
+  Future<void> markTranslationAbsent(String oracleId, String lang) =>
+      into(translationAbsences).insertOnConflictUpdate(
+        DbTranslationAbsent(oracleId: oracleId, lang: lang),
+      );
+
+  Future<void> enqueueTranslation({
+    required String scryfallId,
+    required String setCode,
+    required String collectorNumber,
+    required String lang,
+  }) async {
+    final existing = await (select(translationTasks)
+          ..where((t) => t.scryfallId.equals(scryfallId) & t.lang.equals(lang)))
+        .getSingleOrNull();
+    if (existing != null) return;
+
+    await into(translationTasks).insert(TranslationTasksCompanion.insert(
+      scryfallId: scryfallId,
+      setCode: setCode,
+      collectorNumber: collectorNumber,
+      lang: lang,
+      nextAttemptAt: DateTime.now(),
+    ));
+  }
+
+  /// Taches prêtes a etre rejouees, les plus anciennes d'abord.
+  Future<List<DbTranslationTask>> nextTranslationTasks({int limit = 20}) =>
+      (select(translationTasks)
+            ..where((t) => t.nextAttemptAt.isSmallerOrEqualValue(DateTime.now()))
+            ..orderBy([(t) => OrderingTerm.asc(t.id)])
+            ..limit(limit))
+          .get();
+
+  Future<void> completeTranslationTask(int id) =>
+      (delete(translationTasks)..where((t) => t.id.equals(id))).go();
+
+  /// Recule la tache d'un backoff exponentiel plafonne a une heure.
+  Future<void> failTranslationTask(int id, String error) async {
+    final task = await (select(translationTasks)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (task == null) return;
+
+    final attempts = task.attempts + 1;
+    final delaySeconds = (1 << (attempts - 1)) * 30;
+    final capped = delaySeconds > 3600 ? 3600 : delaySeconds;
+
+    await (update(translationTasks)..where((t) => t.id.equals(id))).write(
+      TranslationTasksCompanion(
+        attempts: Value(attempts),
+        lastError: Value(error),
+        nextAttemptAt: Value(DateTime.now().add(Duration(seconds: capped))),
+      ),
+    );
   }
 }
