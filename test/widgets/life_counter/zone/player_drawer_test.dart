@@ -25,9 +25,15 @@ const _poison = CounterType(
   isBuiltIn: true,
   maxValue: 10,
 );
+// Revue finale (petite chose 2) : portait `name: 'Energy'` (anglais) --
+// la couverture réelle du nom français vit dans le test "ronde de
+// correction 1" ci-dessous (`CounterType.builtInCounters`, pas une
+// doublure), mais cette doublure anglicisée invitait le prochain lecteur à
+// réintroduire l'anglais en s'en inspirant pour un futur test. Alignée sur
+// le vrai nom du catalogue (`CounterType.builtInCounters`, énergie).
 const _energy = CounterType(
   id: 'energy',
-  name: 'Energy',
+  name: 'Énergie',
   emoji: '⚡',
   color: 0xFFFF9800,
   isBuiltIn: true,
@@ -114,7 +120,7 @@ void main() {
     expect(find.byKey(const ValueKey('counter_row_poison')), findsOneWidget);
     expect(find.byKey(const ValueKey('counter_row_energy')), findsOneWidget);
     expect(find.text('Poison'), findsOneWidget);
-    expect(find.text('Energy'), findsOneWidget);
+    expect(find.text('Énergie'), findsOneWidget);
     // Le défaut exact que cette tâche corrige : le tiroir affichait la taxe
     // de commandant même quand le format ne l'active pas (Standard).
     expect(find.text('Commander Tax'), findsNothing);
