@@ -998,12 +998,40 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       child: zone,
     );
 
-    // Commander damage flash overlay (Bug 3)
-    if (_commanderDamageFlash.contains(playerState.playerId)) {
-      zone = Stack(
-        children: [
-          zone,
+    final pending = _pendingDamage[playerState.playerId] ?? 0;
+    final pendingText = pending > 0 ? '+$pending' : '$pending';
+    final pendingColor =
+        pending > 0 ? AppColors.accentGreen : AppColors.accentRed;
+
+    // Ronde de correction 4 de la tache 7 -- CAUSE RACINE d'un defaut de
+    // geste, pas un nettoyage cosmetique. Ces trois surcouches
+    // (flash de degats de commandant, badge de buffer, overlay de mort)
+    // ETAIENT trois `if` qui ENVELOPPAIENT `zone` dans un `Stack`
+    // supplementaire. Envelopper, c'est INSERER UN NIVEAU dans l'arbre :
+    // a la frame ou `pending` passe de 0 a -1 (le tout premier pas de
+    // molette d'un geste d'ajustement), l'enfant de `KeyedSubtree` change
+    // de type (`EliminationOverlay` -> `Stack`). Flutter ne peut plus
+    // apparier l'Element, detruit tout le sous-arbre et le reconstruit :
+    // le `State` de `LifeDial` est recree EN PLEIN GESTE (`_trackedPointer`
+    // remis a `null`, veille d'appui long perdue, `_wheelSumSinceAdjust`
+    // perdu). Le doigt continuait de bouger, plus rien ne l'ecoutait, et le
+    // relachement n'appliquait meme pas le palier. Mesure : `initState` /
+    // `dispose` de `_LifeDialState` instrumentes -- deux recreations par
+    // geste, la premiere avec `tracked=1` (pointeur encore pose).
+    //
+    // Le `Stack` est donc desormais INCONDITIONNEL : sa profondeur ne
+    // depend plus d'aucun etat de la page, seuls ses enfants apparaissent
+    // et disparaissent. Chaque enfant porte une `ValueKey` pour que
+    // l'appariement du premier (la zone elle-meme, qui porte le cadran)
+    // ne depende pas non plus de son index parmi ses freres.
+    return Stack(
+      children: [
+        KeyedSubtree(key: const ValueKey('zone_body'), child: zone),
+
+        // Commander damage flash overlay (Bug 3)
+        if (_commanderDamageFlash.contains(playerState.playerId))
           Positioned.fill(
+            key: const ValueKey('zone_commander_damage_flash'),
             child: AnimatedOpacity(
               opacity: 0.5,
               duration: const Duration(milliseconds: 300),
@@ -1017,19 +1045,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
               ),
             ),
           ),
-        ],
-      );
-    }
 
-    // Pending damage buffer indicator (Bug 4)
-    final pending = _pendingDamage[playerState.playerId] ?? 0;
-    if (pending != 0) {
-      final pendingText = pending > 0 ? '+$pending' : '$pending';
-      final pendingColor = pending > 0 ? AppColors.accentGreen : AppColors.accentRed;
-      zone = Stack(
-        children: [
-          zone,
+        // Pending damage buffer indicator (Bug 4)
+        if (pending != 0)
           Positioned(
+            key: const ValueKey('zone_pending_badge'),
             top: 8,
             right: 8,
             child: Container(
@@ -1044,24 +1064,19 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
               ),
             ),
           ),
-        ],
-      );
-    }
 
-    // Rangee d'attribution a la volee (spec S2.6) : voir `_buildPlayerZone`,
-    // qui calcule sa visibilite et la passe a `PlayerZone` en donnees.
-    //
-    // Ronde de correction finale (Critical/Important #2) : elle ne vit plus
-    // ici, empilee PAR-DESSUS la zone -- ce Stack est hors du `RotatedBox`
-    // de `quarterTurns` de `PlayerZone`, donc la rangee ne pivotait jamais
-    // avec la zone (90deg/270deg). Deplacee DANS `PlayerZone` pour pivoter
-    // avec le reste.
+        // Rangee d'attribution a la volee (spec S2.6) : voir `_buildPlayerZone`,
+        // qui calcule sa visibilite et la passe a `PlayerZone` en donnees.
+        //
+        // Ronde de correction finale (Critical/Important #2) : elle ne vit plus
+        // ici, empilee PAR-DESSUS la zone -- ce Stack est hors du `RotatedBox`
+        // de `quarterTurns` de `PlayerZone`, donc la rangee ne pivotait jamais
+        // avec la zone (90deg/270deg). Deplacee DANS `PlayerZone` pour pivoter
+        // avec le reste.
 
-    if (_showDeathOverlay.contains(playerState.playerId)) {
-      zone = Stack(
-        children: [
-          zone,
+        if (_showDeathOverlay.contains(playerState.playerId))
           Positioned.fill(
+            key: const ValueKey('zone_death_overlay'),
             child: DeathConfirmationOverlay(
               playerName: player.name,
               currentLife: player.life,
@@ -1070,11 +1085,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
               onConfirmElimination: () => _confirmElimination(playerState.playerId),
             ),
           ),
-        ],
-      );
-    }
-
-    return zone;
+      ],
+    );
   }
 
   void _onReorderPlayers(int oldIndex, int newIndex) {

@@ -1739,6 +1739,68 @@ void main() {
         reason: 'aucune attribution ne doit avoir eu lieu : le second tap '
             'devait rester un palier, jamais un avatar recouvrant');
   });
+  // --- Ronde de correction 4 : LE test qui manquait. Tous les tests du geste
+  // d'ajustement (life_dial_test.dart) montaient un harnais minimal — un
+  // parent jouet avec un `setState` — jamais la PAGE RÉELLE avec sa grille.
+  // Sur `LifeCounterPage`, chaque delta émis par la molette passe par
+  // `onLifeChanged` -> `_updateLife` -> `setState()` de toute la page, ce qui
+  // reconstruit les quatre zones. Le geste complet (appui long, glissé
+  // descendant EN PLUSIEURS incréments avec un `pump()` par pas — c'est-à-dire
+  // avec un vrai rendu entre chaque événement, comme sur un appareil —, puis
+  // relâchement sur un palier) n'était donc joué nulle part là où cette
+  // cascade de rebuilds existe. Il ne marchait pas.
+  testWidgets(
+      'sur la page réelle à 4 joueurs, un appui long puis un glissé descendant '
+      'en plusieurs incréments vers le palier "-5", relâché dessus, retire '
+      'exactement 5 PV', (tester) async {
+    final container = await pumpWithContainer(tester);
+
+    // Repérage par identité (voir `_playerZone`), jamais ordinal.
+    Finder dial() => find.descendant(
+          of: _playerZone(0),
+          matching: find.byType(LifeDial),
+        );
+    Finder stepMinus5() => find.descendant(
+          of: dial(),
+          matching: find.byKey(const ValueKey('life_step_-5')),
+        );
+
+    final lifeBefore = container.read(gameSessionNotifierProvider)!
+        .players
+        .firstWhere((p) => p.playerId == 0)
+        .life;
+
+    // Appui long au centre du cadran : entrée en mode ajustement.
+    final gesture = await tester.startGesture(tester.getCenter(dial()));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    expect(stepMinus5(), findsOneWidget,
+        reason: 'précondition : l\'appui long doit avoir ouvert les paliers');
+
+    // Glissé DESCENDANT réaliste vers le palier, en 10 incréments, avec un
+    // rendu entre chaque : la rangée est ancrée en bas, donc le trajet
+    // traverse la molette et déclenche la cascade de `setState` de la page.
+    final start = tester.getCenter(dial());
+    final target = tester.getCenter(stepMinus5());
+    for (var i = 1; i <= 10; i++) {
+      await gesture.moveTo(Offset.lerp(start, target, i / 10)!);
+      await tester.pump();
+    }
+
+    await gesture.up();
+    await tester.pump();
+
+    // Laisse le buffer de 2 s s'appliquer.
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    final after = container.read(gameSessionNotifierProvider)!
+        .players
+        .firstWhere((p) => p.playerId == 0)
+        .life;
+    expect(after, lifeBefore - 5,
+        reason: 'le palier relâché doit être le SEUL effet net du geste, '
+            'molette traversée en route comprise');
+  });
 
   // --- Ronde de correction 1 de la tâche 4 (Critical #1) : les presets
   // d'orientation posent des `quarterTurns` finaux, SANS compensation.
