@@ -40,6 +40,8 @@ import '../../widgets/life_counter/zone/damage_attribution_row.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
 import '../../widgets/life_counter/layouts/adaptive_grid.dart';
+import '../../widgets/life_counter/layouts/table_layout.dart';
+import '../../models/table_seat.dart';
 import '../../widgets/life_counter/critical_overlay.dart';
 import '../../widgets/life_counter/elimination_overlay.dart';
 import '../../widgets/life_counter/death_confirmation_overlay.dart';
@@ -931,7 +933,18 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         );
       }
 
-      return zone;
+      // Clé d'identité stable par joueur CANONIQUE (playerState.playerId),
+      // pas par position d'affichage : depuis la tâche 4, AdaptiveGrid place
+      // les zones selon `tableLayoutFor`/`seatsFor`, dont l'ordre dans
+      // l'arbre ne suit ni l'ordre d'affichage ni l'ordre canonique de façon
+      // fixe (colonnes latérales, sous-grille 8 joueurs...). Un test qui a
+      // besoin de retrouver LE joueur 0, quel que soit l'endroit où il est
+      // rendu, doit pouvoir le faire sans reposer sur `.first`/`.at(n)` —
+      // c'est tout l'objet de cette clé.
+      return KeyedSubtree(
+        key: ValueKey('player_zone_${playerState.playerId}'),
+        child: zone,
+      );
     }).toList();
 
     return AdaptiveGrid(
@@ -1252,6 +1265,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           GestureDetector(
             onLongPress: _showGameInfoSheet,
             child: IconButton(
+              key: const ValueKey('action-orientation-presets'),
               icon: const Icon(Icons.screen_rotation_alt, color: AppColors.textSecondary),
               onPressed: _showOrientationPresets,
             ),
@@ -1321,6 +1335,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           ),
           // Game setup
           IconButton(
+            key: const ValueKey('action-game-setup'),
             icon: const Icon(Icons.people, color: AppColors.textSecondary),
             onPressed: _showGameSetupDialog,
           ),
@@ -1426,32 +1441,40 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         _OrientationPreset('Même sens', [0, 0, 0, 0, 0, 0]),
       ];
     }
-    // Fallback for any count — top half = floor(count/2) to match AdaptiveGrid
-    final halfUp = List.generate(count, (i) => i < count ~/ 2 ? 2 : 0);
+    // Repli pour tout autre effectif (tâche 4, ronde de correction 1) : la
+    // disposition réelle vient de `tableLayoutFor` — jamais d'un topCount
+    // supposé — puisque c'est elle, et elle seule, qui décide où atterrit
+    // chaque siège (colonnes latérales comprises). `TableSeat.quarterTurns`
+    // porte déjà la rotation « face à face » correcte pour un siège donné,
+    // quel que soit son côté (haut/bas/gauche/droite) : pas besoin de la
+    // recalculer ici.
+    final seats =
+        tableLayoutFor(MediaQuery.of(context).size, count).seats;
+    final faceToFace = [for (final seat in seats) seat.quarterTurns];
     final allSame = List.filled(count, 0);
     return [
-      _OrientationPreset('Face à face', halfUp),
+      _OrientationPreset('Face à face', faceToFace),
       _OrientationPreset('Même sens', allSame),
     ];
   }
 
   void _applyOrientationPreset(List<int> rotations) {
     if (_session == null) return;
-    // Les presets décrivent une position visuelle (haut/bas de la grille) :
-    // il faut donc les appliquer dans l'ordre d'affichage, pas dans l'ordre
-    // canonique, sous peine de tourner le mauvais joueur après un reorder.
+    // Les presets décrivent une position visuelle (haut/bas/côtés de la
+    // grille) : il faut donc les appliquer dans l'ordre d'affichage, pas
+    // dans l'ordre canonique, sous peine de tourner le mauvais joueur après
+    // un reorder.
+    //
+    // Depuis la tâche 4, `AdaptiveGrid` ne pivote plus jamais rien lui-même
+    // (voir adaptive_grid.dart) : les `quarterTurns` d'un preset sont donc
+    // déjà la rotation finale à poser, sans aucune compensation. Le retrait
+    // de deux quarts de tour qui vivait ici avant cette correction
+    // supposait encore l'ancienne grille, qui pivotait la moitié haute de
+    // 180° elle-même — 180° − 180° = 0°, le défaut symétrique de celui que
+    // la tâche 4 interdit (180° + 180° = 360°).
     final players = _orderedPlayers;
-    final topCount = players.length ~/ 2;
     for (int i = 0; i < players.length && i < rotations.length; i++) {
-      // AdaptiveGrid wraps the top half in RotatedBox(quarterTurns: 2),
-      // so we must compensate: subtract 2 quarter turns for top-row zones
-      // to get the intended visual orientation.
-      int effectiveRotation = rotations[i];
-      if (i < topCount) {
-        effectiveRotation = (rotations[i] - 2) % 4;
-        if (effectiveRotation < 0) effectiveRotation += 4;
-      }
-      _controller.updateRotation(players[i].playerId, effectiveRotation);
+      _controller.updateRotation(players[i].playerId, rotations[i]);
     }
     setState(() {});
     _saveSnapshot();
@@ -1459,45 +1482,65 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   Widget _buildOrientationPreview(List<int> rotations, int count) {
-    // Mirror the AdaptiveGrid layout: topCount = floor(count/2), bottomCount = count - topCount
-    final topCount = count ~/ 2;
-    final bottomCount = count - topCount;
-    final rows = topCount == 0 ? 1 : 2;
-    final maxCols = topCount > bottomCount ? topCount : bottomCount;
+    // Aligné sur la vraie géométrie (tâche 4, ronde de correction 1) :
+    // `tableLayoutFor` décide seule des côtés, `AdaptiveGrid` ne fait qu'y
+    // obéir. Un topCount supposé (moitié haute / moitié basse) est faux dès
+    // que des colonnes latérales entrent en jeu : à 4 joueurs, les index 1
+    // et 3 finissent à droite et à gauche, pas en bas.
+    final seats = tableLayoutFor(MediaQuery.of(context).size, count).seats;
 
-    return LayoutBuilder(builder: (ctx, constraints) {
-      final cellW = constraints.maxWidth / maxCols;
-      final cellH = constraints.maxHeight / rows;
-      return Stack(
-        children: List.generate(count, (i) {
-          final bool isTop = i < topCount;
-          final int row = isTop ? 0 : (rows - 1);
-          final int col = isTop ? i : (i - topCount);
-          final int rowCols = isTop ? topCount : bottomCount;
-          // Center the row if it has fewer items than maxCols
-          final double offsetX = (maxCols - rowCols) * cellW / 2;
-          final rotation = rotations[i];
-          final arrow = _arrowForRotation(rotation);
-          return Positioned(
-            left: offsetX + col * cellW,
-            top: row * cellH,
-            width: cellW,
-            height: cellH,
-            child: Container(
-              margin: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: AppColors.primaryShade800.withAlpha(60),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: AppColors.borderMedium, width: 0.5),
-              ),
-              child: Center(
-                child: Text(arrow, style: const TextStyle(fontSize: 16, color: AppColors.textPrimary)),
-              ),
-            ),
-          );
-        }),
+    List<int> indicesOn(TableSide side) {
+      final indices = <int>[];
+      for (int i = 0; i < seats.length && i < count; i++) {
+        if (seats[i].side == side) indices.add(i);
+      }
+      indices.sort((a, b) => seats[a].slot.compareTo(seats[b].slot));
+      return indices;
+    }
+
+    Widget cellFor(int i) {
+      final arrow = _arrowForRotation(rotations[i]);
+      return Container(
+        margin: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: AppColors.primaryShade800.withAlpha(60),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: AppColors.borderMedium, width: 0.5),
+        ),
+        child: Center(
+          child: Text(arrow, style: const TextStyle(fontSize: 16, color: AppColors.textPrimary)),
+        ),
       );
-    });
+    }
+
+    Widget rowOf(List<int> indices) => indices.isEmpty
+        ? const SizedBox.shrink()
+        : Row(children: [for (final i in indices) Expanded(child: cellFor(i))]);
+    Widget columnOf(List<int> indices) => indices.isEmpty
+        ? const SizedBox.shrink()
+        : Column(children: [for (final i in indices) Expanded(child: cellFor(i))]);
+
+    final top = indicesOn(TableSide.top);
+    final bottom = indicesOn(TableSide.bottom);
+    final left = indicesOn(TableSide.left);
+    final right = indicesOn(TableSide.right);
+
+    final centre = Column(
+      children: [
+        Expanded(child: rowOf(top)),
+        Expanded(child: rowOf(bottom)),
+      ],
+    );
+
+    if (left.isEmpty && right.isEmpty) return centre;
+
+    return Row(
+      children: [
+        if (left.isNotEmpty) Expanded(child: columnOf(left)),
+        Expanded(flex: 2, child: centre),
+        if (right.isNotEmpty) Expanded(child: columnOf(right)),
+      ],
+    );
   }
 
   String _arrowForRotation(int quarterTurns) {

@@ -98,20 +98,31 @@ void main() {
       expect(rightDx, greaterThan(leftDx));
     });
 
-    testWidgets(
-        'la largeur de colonne rendue est celle que tableLayoutFor a '
-        'décidée', (tester) async {
-      const size = Size(1180, 820);
-      _setScreenSize(tester, size);
-      await tester.pumpWidget(_buildTestGrid(playerCount: 4));
-      await tester.pumpAndSettle();
+    // Ronde de correction 1 (Critical #2) : à Size(1180, 820) seul,
+    // `layout.sideWidth` (= max(96, min(0.17×1180, 428)) = 200.6) coïncide
+    // EXACTEMENT avec la fraction naïve 0.17×largeur — la grille redevenue
+    // décisionnaire (régression du lot 6) y produirait le même nombre, donc
+    // n'importe quel test contre cette seule taille ne peut pas les
+    // distinguer. Size(500, 400) est choisie précisément parce que le
+    // plancher y mord : la décision correcte vaut max(96, min(85, 170)) =
+    // 96, mais 0.17×500 = 85 < 96 -- une grille qui recalculerait elle-même
+    // la fraction rendrait un nombre différent, sous le plancher.
+    for (final size in [const Size(1180, 820), const Size(500, 400)]) {
+      testWidgets(
+          'la largeur de colonne rendue est celle que tableLayoutFor a '
+          'décidée (${size.width.toInt()}x${size.height.toInt()})',
+          (tester) async {
+        _setScreenSize(tester, size);
+        await tester.pumpWidget(_buildTestGrid(playerCount: 4));
+        await tester.pumpAndSettle();
 
-      final expectedWidth = tableLayoutFor(size, 4).sideWidth;
-      final renderedWidth =
-          tester.getSize(find.byKey(const ValueKey('grid_slot_3'))).width;
+        final expectedWidth = tableLayoutFor(size, 4).sideWidth;
+        final renderedWidth =
+            tester.getSize(find.byKey(const ValueKey('grid_slot_3'))).width;
 
-      expect(renderedWidth, closeTo(expectedWidth, 1.0));
-    });
+        expect(renderedWidth, closeTo(expectedWidth, 1.0));
+      });
+    }
 
     testWidgets(
         'la bande centrale est rendue sur tablette, le hub sur téléphone',
