@@ -67,6 +67,7 @@ langues, pèse environ 2 Go : exclu sur mobile.
 | 5 | Réglage de langue | `glossaryLang` promu en préférence de langue des cartes |
 | 6 | Coût de l'import | Import rendu immédiatement, traductions en tâche de fond |
 | 7 | Portée du backfill | Decks et collection uniquement |
+| 8 | Noms français longs | Troncature sur une ligne, hauteur de ligne constante |
 
 ## Modèle d'identité
 
@@ -158,6 +159,10 @@ unitaire, qui reste nécessaire pour l'import et le scan.
 
 ## Règles d'affichage
 
+0. **Un nom de carte tient sur une ligne.** Troncature avec points de
+   suspension au-delà. La hauteur de ligne ne varie jamais, quelle que soit la
+   langue : c'est ce qui garde la liste de deck régulière et balayable au
+   pouce. Conséquence assumée : les noms français les plus longs sont coupés.
 1. **Jamais de spinner sur un nom de carte.** Le résolveur rend toujours
    quelque chose immédiatement : la traduction si elle est en cache, sinon le
    tirage réellement possédé. La traduction est un remplacement silencieux,
@@ -194,9 +199,7 @@ Règle pour ce chantier, non négociable :
 
 1. **Maquette validée avant d'écrire le code d'affichage.** Liste de deck et
    fiche carte, en français et en anglais, côte à côte.
-   Maquette du 2026-09-17 : https://claude.ai/artifact/6hnNC9MM1fH112ptf8oMoQ
-   Elle laisse une décision ouverte : troncature sur une ligne (A) ou retour
-   à la ligne sur deux lignes (B) pour les noms français longs.
+   Maquette du 2026-09-17, validée : https://claude.ai/artifact/6hnNC9MM1fH112ptf8oMoQ
 2. **Capture d'écran avant merge**, sur les mêmes écrans, validée par
    l'utilisateur.
 
