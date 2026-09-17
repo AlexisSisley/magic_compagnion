@@ -1758,4 +1758,68 @@ void main() {
           tester, container, 'Face à face', [2, 2, 2, 0, 0, 0, 0]);
     });
   });
+
+  // --- Ronde de correction 3 (tâche 5) : `tapMinusHalf` sait depuis la
+  // ronde 1 calculer son point de tap pour les quatre valeurs de
+  // `quarterTurns` (0/1/2/3, voir sa docstring et `_quarterTurnsAbove`),
+  // mais tous les appels existants du fichier portent sur des sessions à
+  // `quarterTurns == 0` (le défaut de `GameSession.newGame`) : les branches
+  // 1 et 3 de la table n'étaient donc exercées par AUCUN test -- seule
+  // l'algèbre avait été relue, pas la couverture. Les deux tests
+  // ci-dessous posent explicitement la rotation AVANT de taper, pour que
+  // `_quarterTurnsAbove` retourne réellement 1 puis 3.
+  group('tapMinusHalf couvre les quatre quarterTurns (ronde de correction 3)',
+      () {
+    testWidgets(
+        'quarterTurns == 1 (siège "left") : le tap sur la moitié '
+        'décrément (dy inférieur) baisse la vie de 1', (tester) async {
+      final baseSession = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: testConfigs,
+      );
+      final rotated = baseSession.copyWith(
+        players: [
+          baseSession.players[0].copyWith(quarterTurns: 1),
+          ...baseSession.players.sublist(1),
+        ],
+      );
+      final container = await pumpWithContainer(tester, snapshot: rotated);
+
+      await tapMinusHalf(tester, 0, 1);
+      // Laisse le buffer de 2s s'appliquer, comme les autres tests de PV.
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+
+      expect(container.read(gameSessionNotifierProvider)!.players[0].life, 39,
+          reason: 'un tap sur la moitié décrément doit baisser la vie de 1, '
+              'même à quarterTurns == 1 : sans une table à quatre branches '
+              'réellement exercées, ce point de tap pouvait tomber sur la '
+              'mauvaise moitié (incrément) et faire monter la vie au lieu '
+              'de la baisser');
+    });
+
+    testWidgets(
+        'quarterTurns == 3 (siège "right") : le tap sur la moitié '
+        'décrément (dy supérieur) baisse la vie de 1', (tester) async {
+      final baseSession = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: testConfigs,
+      );
+      final rotated = baseSession.copyWith(
+        players: [
+          baseSession.players[0].copyWith(quarterTurns: 3),
+          ...baseSession.players.sublist(1),
+        ],
+      );
+      final container = await pumpWithContainer(tester, snapshot: rotated);
+
+      await tapMinusHalf(tester, 0, 1);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+
+      expect(container.read(gameSessionNotifierProvider)!.players[0].life, 39,
+          reason: 'même exigence qu\'à quarterTurns == 1, pour la moitié '
+              'symétrique (dy supérieur)');
+    });
+  });
 }
