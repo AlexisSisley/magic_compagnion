@@ -183,6 +183,38 @@ Side Board
     });
   });
 
+  group('DeckFormatService - identité de tirage', () {
+    test('une ligne Moxfield conserve set, numéro et foil', () {
+      final result = DeckFormatService.parseDecklistText('1 Sol Ring (LTC) 284 *F*');
+
+      expect(result.mainboard, hasLength(1));
+      final entry = result.mainboard.first;
+      expect(entry.name, 'Sol Ring');
+      expect(entry.quantity, 1);
+      expect(entry.setCode, 'LTC');
+      expect(entry.collectorNumber, '284');
+      expect(entry.isFoil, isTrue);
+    });
+
+    test('une ligne sans édition laisse les champs nuls', () {
+      final result = DeckFormatService.parseDecklistText('3 Lightning Bolt');
+
+      final entry = result.mainboard.first;
+      expect(entry.name, 'Lightning Bolt');
+      expect(entry.quantity, 3);
+      expect(entry.setCode, isNull);
+      expect(entry.collectorNumber, isNull);
+      expect(entry.isFoil, isFalse);
+    });
+
+    test('le numéro de collection peut porter un suffixe de lettre', () {
+      final result = DeckFormatService.parseDecklistText('1 Brainstorm (MH2) 42a');
+
+      expect(result.mainboard.first.setCode, 'MH2');
+      expect(result.mainboard.first.collectorNumber, '42a');
+    });
+  });
+
   // =================================================================
   // parseDecklistCsv - Format Archidekt / generique
   // =================================================================

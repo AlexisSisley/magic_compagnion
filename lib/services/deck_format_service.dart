@@ -41,16 +41,35 @@ class DecklistEntry {
   final int quantity;
   final String section; // 'mainboard', 'sideboard', 'commander'
 
+  /// Code d'edition lu sur la ligne (ex: 'LTC'). Null si absent.
+  final String? setCode;
+
+  /// Numero de collection lu sur la ligne (ex: '284'). Null si absent.
+  final String? collectorNumber;
+
+  /// Marqueur foil Moxfield/MTGO (`*F*`).
+  final bool isFoil;
+
   const DecklistEntry({
     required this.name,
     required this.quantity,
     required this.section,
+    this.setCode,
+    this.collectorNumber,
+    this.isFoil = false,
   });
 }
 
 /// Service de parsing/generation de decklists multi-format.
 class DeckFormatService {
   static final RegExp _cardLineRegex = RegExp(r'^(\d+)x?\s+(.+)$');
+
+  /// Capture `(SET) 284` ou `[SET] 284` en fin de nom, numero optionnellement suffixe.
+  static final RegExp _printRegex =
+      RegExp(r'[\(\[]([A-Za-z0-9]{2,6})[\)\]]\s*([0-9]{1,4}[a-z]?)?', caseSensitive: false);
+
+  /// Capture le marqueur foil MTGO/Moxfield.
+  static final RegExp _foilRegex = RegExp(r'\*F\*', caseSensitive: false);
 
   /// Parse une decklist au format texte (Moxfield/MTGO compatible).
   /// Supporte les sections Commander, Deck/Mainboard, Sideboard.
@@ -104,19 +123,47 @@ class DeckFormatService {
       }
 
       final qty = int.parse(match.group(1)!);
-      // Nettoyer le nom : retirer set codes entre parentheses, face arriere, foil MTGO
-      String name = _cleanCardName(match.group(2)!);
+      final String rawName = match.group(2)!;
+      final printMatch = _printRegex.firstMatch(rawName);
+      final String? setCode = printMatch?.group(1)?.toUpperCase();
+      final String? collectorNumber = printMatch?.group(2);
+      final bool isFoil = _foilRegex.hasMatch(rawName);
+      // Retirer les infos de tirage du nom avant le nettoyage
+      final String nameForCleaning =
+          printMatch != null ? rawName.replaceAll(printMatch.group(0)!, '') : rawName;
+      String name = _cleanCardName(nameForCleaning);
 
       switch (section) {
         case 'commander':
           commanderName = name;
-          mainboard.add(DecklistEntry(name: name, quantity: qty, section: 'mainboard'));
+          mainboard.add(DecklistEntry(
+            name: name,
+            quantity: qty,
+            section: 'mainboard',
+            setCode: setCode,
+            collectorNumber: collectorNumber,
+            isFoil: isFoil,
+          ));
           break;
         case 'sideboard':
-          sideboard.add(DecklistEntry(name: name, quantity: qty, section: 'sideboard'));
+          sideboard.add(DecklistEntry(
+            name: name,
+            quantity: qty,
+            section: 'sideboard',
+            setCode: setCode,
+            collectorNumber: collectorNumber,
+            isFoil: isFoil,
+          ));
           break;
         default:
-          mainboard.add(DecklistEntry(name: name, quantity: qty, section: 'mainboard'));
+          mainboard.add(DecklistEntry(
+            name: name,
+            quantity: qty,
+            section: 'mainboard',
+            setCode: setCode,
+            collectorNumber: collectorNumber,
+            isFoil: isFoil,
+          ));
       }
     }
 
