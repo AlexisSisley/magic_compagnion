@@ -31,6 +31,37 @@ void main() {
       );
     }
 
+    // Revue finale, Critical #2 : la profondeur de l arbre rendu par
+    // `EliminationOverlay` doit être INVARIANTE. La version précédente
+    // renvoyait `widget.child` nu tant que le joueur n était pas éliminé et
+    // l enveloppait dans un `Stack` ensuite : basculer détruisait puis
+    // recréait tout le sous-arbre, donc le `State` de `LifeDial`.
+    //
+    // Aucun geste ne traverse cette bascule dans l application AUJOURD HUI
+    // (l élimination passe par une confirmation explicite, jamais par un
+    // seuil franchi en plein glissé) : ce test garde la propriété
+    // structurelle, pas un scénario utilisateur observé.
+    testWidgets(
+        'basculer isEliminated ne recrée PAS le State de son enfant '
+        '(profondeur de l arbre invariante)', (tester) async {
+      var inits = 0;
+      await tester.pumpWidget(buildWidget(
+        isEliminated: false,
+        child: _StateProbe(onInit: () => inits++),
+      ));
+      expect(inits, 1, reason: 'précondition : une seule création au montage');
+
+      await tester.pumpWidget(buildWidget(
+        isEliminated: true,
+        child: _StateProbe(onInit: () => inits++),
+      ));
+      await tester.pump();
+
+      expect(inits, 1,
+          reason: 'la bascule ne doit insérer ni retirer aucun niveau '
+              'au-dessus de son enfant');
+    });
+
     testWidgets('non-eliminated state shows child', (tester) async {
       await tester.pumpWidget(buildWidget(isEliminated: false));
       expect(find.byKey(const Key('child')), findsOneWidget);
@@ -176,4 +207,28 @@ void main() {
       );
     });
   });
+}
+
+/// Enfant sonde : compte les créations de `State`. Si un ancêtre change la
+/// PROFONDEUR de l arbre au-dessus de lui, Flutter ne peut plus apparier son
+/// `Element`, détruit le sous-arbre et recrée ce `State` — ce compteur le
+/// voit. C est exactement ce qui tuait le geste en cours dans `LifeDial`
+/// (revue finale, Critical #2).
+class _StateProbe extends StatefulWidget {
+  const _StateProbe({required this.onInit});
+  final VoidCallback onInit;
+  @override
+  State<_StateProbe> createState() => _StateProbeState();
+}
+
+class _StateProbeState extends State<_StateProbe> {
+  @override
+  void initState() {
+    super.initState();
+    widget.onInit();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      const SizedBox(key: Key('child'), width: 100, height: 100);
 }

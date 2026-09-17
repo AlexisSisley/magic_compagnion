@@ -1802,6 +1802,107 @@ void main() {
             'molette traversée en route comprise');
   });
 
+  // --- Revue finale, Critical #2 : LE test qui manquait ENCORE. Le test
+  // ci-dessus part de 40 PV en format Commander : la descente de 5 points
+  // reste entièrement au-dessus du seuil `safe` (ratio > 0.50, soit > 20 PV),
+  // donc `CriticalOverlay` ne change jamais de branche pendant le geste et le
+  // défaut restait invisible.
+  //
+  // `CriticalOverlay` et `EliminationOverlay` portaient le MÊME motif
+  // d'enveloppement conditionnel que la ronde 4 avait retiré de la page :
+  // `if (safe) return child;` d'un côté, `AnimatedBuilder(...)` de l'autre.
+  // Franchir un seuil en plein geste change donc la profondeur de l'arbre,
+  // Flutter détruit le sous-arbre, et le `State` de `LifeDial` est recréé
+  // avec le doigt encore posé.
+  //
+  // Mesuré avant correctif, même geste, seule la vie de départ change :
+  // 40 -> 35 (attendu 35), 21 -> 20 (attendu 16), 11 -> 6 (attendu 6). La
+  // ligne 11 prouve le mécanisme : `warning -> danger` ne change pas la
+  // profondeur, le geste survit ; `safe -> warning` la change, il meurt.
+  //
+  // Les trois vies de départ sont donc jouées, pas seulement celle qui
+  // franchit : le test dirait autrement « le geste marche à 21 » sans dire
+  // pourquoi il marchait déjà ailleurs.
+  for (final startLife in const [40, 21, 11]) {
+    testWidgets(
+        'sur la page réelle, un glissé vers "-5" depuis $startLife PV retire '
+        'exactement 5 PV — y compris quand la descente franchit un seuil '
+        'critique (Critical #2)', (tester) async {
+      final baseSession = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: testConfigs,
+      );
+      final seeded = baseSession.copyWith(
+        players: [
+          baseSession.players[0].copyWith(life: startLife),
+          ...baseSession.players.sublist(1),
+        ],
+      );
+      // Montage à pompage BORNÉ plutôt que `pumpWithContainer` : à 11 PV la
+      // zone est déjà au cran `danger` au chargement, donc la bordure pulse
+      // en boucle et le `pumpAndSettle` de ce helper ne rendrait jamais la
+      // main.
+      SharedPreferences.setMockInitialValues({
+        'active_game_snapshot': json.encode(seeded.toJson()),
+      });
+      final container = ProviderContainer(
+        overrides: [
+          gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+        ),
+      );
+      await tester.pump();
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      Finder dial() => find.descendant(
+            of: _playerZone(0),
+            matching: find.byType(LifeDial),
+          );
+      Finder stepMinus5() => find.descendant(
+            of: dial(),
+            matching: find.byKey(const ValueKey('life_step_-5')),
+          );
+
+      final gesture = await tester.startGesture(tester.getCenter(dial()));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      expect(stepMinus5(), findsOneWidget,
+          reason: 'précondition : l’appui long doit avoir ouvert les paliers');
+
+      final start = tester.getCenter(dial());
+      final target = tester.getCenter(stepMinus5());
+      for (var i = 1; i <= 10; i++) {
+        await gesture.moveTo(Offset.lerp(start, target, i / 10)!);
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pump();
+      // Pompage BORNÉ, pas `pumpAndSettle` : sous le seuil `safe`, la bordure
+      // de `CriticalOverlay` pulse en boucle infinie (`_controller.repeat()`),
+      // et `pumpAndSettle` ne rendrait jamais la main pour les vies de départ
+      // qui franchissent justement le seuil que ce test existe pour éprouver.
+      await tester.pump(const Duration(seconds: 3));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      final after = container.read(gameSessionNotifierProvider)!
+          .players
+          .firstWhere((p) => p.playerId == 0)
+          .life;
+      expect(after, startLife - 5,
+          reason: 'le geste ne doit pas mourir parce que la zone a changé de '
+              'niveau critique pendant la descente');
+    });
+  }
+
   // --- Ronde de correction 1 de la tâche 4 (Critical #1) : les presets
   // d'orientation posent des `quarterTurns` finaux, SANS compensation.
   // Avant ce correctif, `_applyOrientationPreset` retranchait 2 quarts de

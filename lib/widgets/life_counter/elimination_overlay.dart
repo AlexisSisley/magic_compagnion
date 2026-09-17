@@ -134,13 +134,22 @@ class _EliminationOverlayState extends State<EliminationOverlay>
     super.dispose();
   }
 
+  /// Revue finale (Critical #2) : la PROFONDEUR de l'arbre rendu ici est
+  /// INVARIANTE — le `Stack` est toujours monté, et `widget.child` occupe
+  /// toujours sa première position. Seules les trois phases décoratives
+  /// varient, et elles sont déjà inconditionnelles (chacune décide à
+  /// l'intérieur de son `AnimatedBuilder` de ne rien peindre).
+  ///
+  /// La version précédente renvoyait `widget.child` nu tant que le joueur
+  /// n'était pas éliminé. Même cause racine que dans `critical_overlay.dart`
+  /// et que celle documentée dans `life_counter_page.dart` : envelopper
+  /// conditionnellement insère un niveau, Flutter détruit puis recrée le
+  /// sous-arbre, et le `State` de `LifeDial` repart de zéro avec le doigt
+  /// encore posé — le geste en cours meurt.
+  ///
+  /// Toute évolution de ce `build` doit conserver cette propriété.
   @override
   Widget build(BuildContext context) {
-    // Not eliminated — just render the child
-    if (!widget.isEliminated && !_controller.isAnimating && !_animationComplete) {
-      return widget.child;
-    }
-
     return Stack(
       fit: StackFit.expand,
       children: [
