@@ -2,7 +2,6 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/table_seat.dart';
-import 'package:magic_companion/widgets/life_counter/layouts/density_tier.dart';
 import 'package:magic_companion/widgets/life_counter/layouts/table_layout.dart';
 
 const phonePortrait = Size(390, 844);
@@ -27,6 +26,11 @@ void main() {
     test('tablette en paysage : colonnes latérales', () {
       expect(tableLayoutFor(tabletLandscape, 4).useSideColumns, isTrue);
     });
+
+    test('5 et 6 joueurs ont aussi des colonnes latérales', () {
+      expect(tableLayoutFor(tabletLandscape, 5).useSideColumns, isTrue);
+      expect(tableLayoutFor(tabletLandscape, 6).useSideColumns, isTrue);
+    });
   });
 
   group('on renonce, on ne rétrécit pas (spec §3.3)', () {
@@ -39,7 +43,7 @@ void main() {
     });
 
     test('une colonne rendue n\'est JAMAIS sous le plancher', () {
-      for (final size in [phoneLandscape, Size(400, 380), tabletPortrait, tabletLandscape]) {
+      for (final size in [phoneLandscape, const Size(400, 380), tabletPortrait, tabletLandscape]) {
         for (int n = 2; n <= 8; n++) {
           final layout = tableLayoutFor(size, n);
           if (layout.useSideColumns) {
@@ -52,9 +56,10 @@ void main() {
     });
 
     test('un écran trop étroit pour le budget renonce aux côtés', () {
-      // 320 de large : 2 x 96 = 192, il resterait 128 au centre, sous les 160
-      // dont le hub a besoin.
-      expect(tableLayoutFor(const Size(320, 700), 4).useSideColumns, isFalse);
+      // 340 de large en paysage (340 > 300) : petit côté 300 < 600, donc hub
+      // (centreNeed = 160). Budget : 340 - 192 = 148 < 160, donc repli par
+      // le budget et par lui seul.
+      expect(tableLayoutFor(const Size(340, 300), 4).useSideColumns, isFalse);
     });
   });
 
@@ -75,6 +80,15 @@ void main() {
         final centre = size.width - 2 * layout.sideWidth;
         expect(centre, greaterThanOrEqualTo(kBandNeed), reason: '$size');
       }
+    });
+
+    test('au seuil exact de grand écran, la bande est choisie et tient', () {
+      // Size(600, 600) : petit côté = 600, donc shortEdge >= kLargeScreenShortEdge
+      // → barKind = band. Budget : 600 - 192 = 408 > kBandNeed (324), donc OK.
+      final layout = tableLayoutFor(const Size(600, 600), 4);
+      expect(layout.barKind, ActionBarKind.band);
+      final centre = 600.0 - 2 * layout.sideWidth;
+      expect(centre, greaterThanOrEqualTo(kBandNeed));
     });
   });
 
