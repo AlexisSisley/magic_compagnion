@@ -501,24 +501,23 @@ void main() {
     // masque le bug : `_stepUnder` voit tout de suite la position finale).
     // Un vrai doigt émet des dizaines d'événements de suivi.
     //
-    // Le glissement part d'une position déjà au NIVEAU VERTICAL de la rangée
-    // (mais hors de tout bouton, à droite de "+10") plutôt que du centre du
-    // cadran : sur un trajet purement horizontal (dy=0 à chaque événement),
-    // la molette -- un mécanisme distinct et volontaire, pas un bug -- n'a
-    // rien à accumuler, ce qui isole proprement la propriété sous test (la
-    // résolution du palier au relâchement, pas l'interaction avec la
-    // molette, déjà couverte par le test suivant).
+    // Round de correction 2 (Critical, découvert par la revue) : la première
+    // version de ce test partait d'un point déjà au niveau vertical de la
+    // rangée pour glisser À PLAT (dy=0) jusqu'à "-5" -- un trajet qu'un doigt
+    // réel ne fait jamais, puisque la rangée est ANCRÉE EN BAS du cadran :
+    // pour l'atteindre depuis le centre (là où un appui long se pose
+    // naturellement), il faut DESCENDRE d'environ 80px, exactement la
+    // direction de la molette (8px/point). Ce test descend donc réellement
+    // du centre du cadran jusqu'au bouton, traversant la zone "molette" en
+    // chemin -- et vérifie que le geste reste néanmoins atomique : le
+    // palier est le SEUL effet net, la molette croisée en route est annulée
+    // (spec, round de correction 2 : « le geste est atomique, doigt posé au
+    // doigt levé, pour le résultat aussi »).
     testWidgets(
-        'un glissement en plusieurs événements vers un palier applique CE '
-        'palier, pas un autre ni rien d\'autre', (tester) async {
+        'un glissement descendant réaliste, en plusieurs événements, vers un '
+        'palier applique CE palier, sans perte au passage', (tester) async {
       final deltas = await pumpDial(tester);
-      final dial = tester.getRect(find.byType(LifeDial));
-
-      // Empiriquement hors de tout bouton (rangée mesurée à environ
-      // [dial.bottom - 62, dial.bottom - 8]) et à droite du dernier palier
-      // ("+10") : un point de départ plausible pour un pouce qui glissera
-      // ensuite vers la gauche jusqu'à "-5".
-      final start = Offset(dial.right - 10, dial.bottom - 30);
+      final start = tester.getCenter(find.byType(LifeDial));
       final gesture = await tester.startGesture(start);
       await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
       expect(find.text('-5'), findsOneWidget);
@@ -526,15 +525,14 @@ void main() {
       final target =
           tester.getCenter(find.byKey(const ValueKey('life_step_-5')));
 
-      // Au moins 8 incréments, en gardant la même ordonnée que le point de
-      // départ (glissement purement horizontal) : chaque `PointerMoveEvent`
-      // a un dy nul, donc n'a rien à apporter à la molette, quel que soit
-      // l'endroit du trajet.
+      // Au moins 8 incréments, en descendant réellement du centre du cadran
+      // vers le bouton (interpolation linéaire, dy != 0 à chaque pas) :
+      // chaque pas croise la zone active de la molette avant d'entrer dans
+      // celle du bouton.
       const steps = 10;
       for (var i = 1; i <= steps; i++) {
         final t = i / steps;
-        final x = start.dx + (target.dx - start.dx) * t;
-        await gesture.moveTo(Offset(x, start.dy));
+        await gesture.moveTo(Offset.lerp(start, target, t)!);
         // Un `pump()` par pas : un vrai doigt fait avancer des frames au fur
         // et à mesure, ce qui laisse l'arbre se reconstruire si le mode a
         // basculé en cours de route (c'est précisément ce qu'une fermeture
@@ -545,12 +543,15 @@ void main() {
       await gesture.up();
       await tester.pumpAndSettle();
 
-      // Égalité stricte : avec l'ancien câblage (résolution sur
-      // `onTapUp`/`onTapCancel` du `GestureDetector`), `onTapCancel` partait
-      // dès que le pointeur dépassait `kTouchSlop` (18px, soit dès le second
-      // incrément ici), bien avant d'atteindre "-5" — le mode se serait
-      // refermé sans rien appliquer, ou sur un mauvais palier.
-      expect(deltas, [-5]);
+      // Somme stricte : sans l'annulation de la molette croisée en route
+      // (round de correction 2), ce même trajet cumulerait environ -15 (le
+      // palier -5, PLUS une dizaine de points de molette pris pendant la
+      // descente vers la rangée) au lieu de -5 net.
+      expect(deltas.fold<int>(0, (sum, d) => sum + d), -5,
+          reason: 'le geste est atomique : un glissement vers un palier ne '
+              'doit faire perdre aucun point de vie supplémentaire au '
+              'passage, même s\'il traverse la zone de la molette en '
+              'chemin');
     });
 
     // Round de correction 1 : symétrique du test précédent, côté molette.

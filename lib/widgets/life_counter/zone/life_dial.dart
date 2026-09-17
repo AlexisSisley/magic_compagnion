@@ -80,11 +80,30 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     for (final delta in const [-10, -5, 5, 10]) delta: GlobalKey(),
   };
 
+  /// Somme des deltas de molette émis depuis l'entrée en mode ajustement
+  /// courante (remise à zéro par `_startLongPressWatch` à chaque nouvelle
+  /// entrée).
+  ///
+  /// Round de correction 2 : la rangée de paliers est ANCRÉE EN BAS du
+  /// cadran, donc tout glissé vers un palier est un glissé VERS LE BAS —
+  /// exactement la direction de la molette (`wheelPixelsPerUnit` = 8px). Le
+  /// garde `_stepUnder(event.position) == null` de la tâche 7 ne suspend la
+  /// molette QUE pendant le survol du bouton, jamais pendant le TRAJET qui y
+  /// mène (~80px sur un cadran de 300px, soit une dizaine de points émis en
+  /// route). Le geste est pourtant censé être atomique (« du doigt posé au
+  /// doigt levé ») : si le relâchement tombe sur un palier, ce palier doit
+  /// être le SEUL effet du geste. On accumule donc tout ce que la molette a
+  /// émis pendant le geste, pour l'annuler dans `_endAdjustGesture` si (et
+  /// seulement si) le relâchement atterrit sur un palier — le buffer de la
+  /// page ne montre que la somme courante, donc rien ne clignote.
+  int _wheelSumSinceAdjust = 0;
+
   @override
   void dispose() {
     _longPressTimer?.cancel();
     _trackedPointer = null;
     _downPosition = null;
+    _wheelSumSinceAdjust = 0;
     super.dispose();
   }
 
@@ -152,9 +171,19 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// plein glissement — bien avant que le doigt n'atteigne un palier. Le
   /// relâchement brut (`PointerUpEvent`) est le seul événement qui coïncide
   /// avec le vrai lever du doigt.
+  ///
+  /// Round de correction 2 : un relâchement sur un palier annule d'abord tout
+  /// ce que la molette a émis PENDANT ce même geste (voir le doc-comment de
+  /// `_wheelSumSinceAdjust`), pour que le palier reste le seul effet net —
+  /// un relâchement hors palier, lui, laisse la molette telle quelle (son
+  /// usage normal).
   void _endAdjustGesture(PlayerZoneNotifier notifier, Offset globalPosition) {
     final delta = _stepUnder(globalPosition);
-    if (delta != null) _emit(delta);
+    if (delta != null) {
+      if (_wheelSumSinceAdjust != 0) _emit(-_wheelSumSinceAdjust);
+      _emit(delta);
+    }
+    _wheelSumSinceAdjust = 0;
     notifier.exitAdjustMode();
   }
 
@@ -205,7 +234,13 @@ class _LifeDialState extends ConsumerState<LifeDial> {
               // molette.
               if (_stepUnder(event.position) == null) {
                 final steps = notifier.handleWheelDrag(event.delta.dy);
-                if (steps != 0) _emit(steps);
+                if (steps != 0) {
+                  _emit(steps);
+                  // Round de correction 2 : mémorisé pour être annulé si le
+                  // geste se termine sur un palier (voir le doc-comment de
+                  // `_wheelSumSinceAdjust`).
+                  _wheelSumSinceAdjust += steps;
+                }
               }
             } else {
               // Round 2 (Critical #2) : un doigt « immobile » sur un écran
@@ -356,6 +391,9 @@ class _LifeDialState extends ConsumerState<LifeDial> {
       // sur l'une ou l'autre moitié, est annulé avant de basculer, pour
       // qu'aucun ±1 ne fuite au moment de l'entrée en mode ajustement.
       _cancelAllPendingTaps();
+      // Round de correction 2 : nouvelle entrée en mode ajustement, nouveau
+      // geste à comptabiliser depuis zéro (voir `_wheelSumSinceAdjust`).
+      _wheelSumSinceAdjust = 0;
       HapticFeedback.mediumImpact();
       notifier.enterAdjustMode();
     });
