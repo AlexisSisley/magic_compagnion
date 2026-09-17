@@ -127,7 +127,11 @@ void main() {
       find.byType(ConditionalHandle),
     );
     expect(handle.summary.isCalm, isFalse);
-    expect(handle.summary.poison, 3);
+    // Lot 5, tâche 3b : `CounterSummary` n'a plus de champ nommé `poison` --
+    // le résumé porte désormais une collection (CounterType, valeur).
+    final poisonEntry = handle.summary.counters
+        .firstWhere((entry) => entry.key.id == 'poison');
+    expect(poisonEntry.value, 3);
   });
 
   testWidgets('la hauteur du chiffre ne change pas quand un compteur apparaît',

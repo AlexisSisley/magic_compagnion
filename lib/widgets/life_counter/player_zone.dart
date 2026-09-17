@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/counter_type.dart';
 import '../../models/player_model.dart';
 import '../../services/local_card_service.dart';
 import '../../providers/service_providers.dart';
@@ -18,6 +19,14 @@ import 'zone/life_dial.dart';
 import 'zone/conditional_handle.dart';
 import 'zone/player_skin_picker.dart';
 import 'zone/damage_attribution_row.dart';
+
+/// Résout un compteur intégré par id (voir le doc-comment de la
+/// construction de `CounterSummary` dans `_PlayerZoneState.build` ci-dessous
+/// pour le pourquoi). `CounterType.builtInCounters` est une liste fixe de 4
+/// entrées : un `firstWhere` sans `orElse` est sûr ici, seulement pour ces
+/// trois ids connus (poison/energy/commander_tax).
+CounterType _builtInCounterType(String id) =>
+    CounterType.builtInCounters.firstWhere((c) => c.id == id);
 
 class PlayerZone extends ConsumerStatefulWidget {
   const PlayerZone({
@@ -239,10 +248,28 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
 
     // Résumé des compteurs pour la poignée conditionnelle (spec §2.2) : le
     // "pire" dégât de commandant, pas le total, est ce qui menace vraiment.
+    //
+    // Lot 5, tâche 3b -- `CounterSummary` est désormais générique (une
+    // collection de paires `CounterType`/valeur), plus le pire dégât de
+    // commandant à part. RÉSERVE : ce point d'appel ne peut encore fournir
+    // que les trois compteurs que porte le pont `Player` "legacy"
+    // (`poison`/`energy`/`commanderCastCount`, voir
+    // `life_counter_page.dart._toLegacyPlayer`) -- un compteur personnalisé
+    // actif dans `GameSession.activeCounterIds` n'y transite pas encore.
+    // Rien d'autre n'y ferait obstacle : la poignée sait déjà résumer N
+    // compteurs (voir `ConditionalHandle`) ; faire transiter la liste
+    // complète jusqu'ici est hors du périmètre fichiers de cette tâche
+    // (`_toLegacyPlayer` et l'appel à `PlayerZone` vivent dans
+    // `life_counter_page.dart`, non modifié ici).
     final counterSummary = CounterSummary(
-      poison: widget.player.poison,
-      energy: widget.player.energy,
-      commanderTax: widget.player.commanderCastCount,
+      counters: [
+        MapEntry(_builtInCounterType('poison'), widget.player.poison),
+        MapEntry(_builtInCounterType('energy'), widget.player.energy),
+        MapEntry(
+          _builtInCounterType('commander_tax'),
+          widget.player.commanderCastCount,
+        ),
+      ],
       worstCommanderDamage: widget.player.commanderDamageReceived.values
           .fold<int>(0, (max, v) => v > max ? v : max),
     );
