@@ -191,9 +191,21 @@ Sont conservés tels quels : les presets d'orientation, `EliminationOverlay` et 
 
 ### 3.5 Compteurs personnalisés
 
-`CounterType` est modélisé et testé mais inutilisé : les compteurs sont manipulés par clés `String` codées en dur (`'poison'`, `'energy'`, `'commander_tax'`), et `GameSession.activeCounterIds` / `customCounterIds` ne sont jamais lus par l'UI.
+> **Amendé par le lot 5** (`2026-09-17-life-counter-v4-lot5-compteurs-personnalises/`) : cette section décrivait au futur un branchement qui n'existait pas encore. Elle décrit maintenant ce qui a été réellement livré, et les quatre décisions qui en découlent — un lecteur doit pouvoir les trouver ici, sans lire le plan du lot ni ses journaux.
 
-La V4 branche `CounterType` et rend les compteurs personnalisés créables depuis le tiroir. Ce travail arrive **en dernier** : le tiroir doit exister d'abord pour leur donner un endroit où vivre.
+`CounterType` était modélisé et testé mais inutilisé avant ce lot : les compteurs étaient manipulés par clés `String` codées en dur (`'poison'`, `'energy'`, `'commander_tax'`), et `GameSession.activeCounterIds` / `customCounterIds` n'étaient jamais lus par l'UI — une partie Standard affichait donc quand même la taxe de commandant, que son propre format exclut.
+
+Le lot branche `CounterType` de bout en bout : le tiroir affiche désormais les compteurs actifs de la session (résolus depuis `GameSession.activeCounterIds`, dans cet ordre — pas l'ordre du catalogue), et un compteur personnalisé se crée et se retire depuis ce même tiroir.
+
+**D-1 — Persistance globale, pas par partie.** Les types de compteurs personnalisés (`CounterType`) persistent dans `shared_preferences`, sous la clé `custom_counter_types` (`CounterTypeService`), **indépendamment de toute partie**. `GameSession.customCounterIds` n'est pas ce catalogue : c'est la liste des ids **actifs dans cette partie précise**, un sous-ensemble d'`activeCounterIds` qui distingue seulement « créé/activé pendant cette partie » de « intégré ». Un compteur personnalisé créé dans une partie reste donc disponible (dans le catalogue) pour toutes les parties suivantes, même s'il n'est actif que dans celle où il a été créé.
+
+**D-2 — Le tiroir affiche les actifs de la session, pas le catalogue complet.** C'est ce qui corrige le défaut ouvrant ce paragraphe : un preset Standard (`enabledCounterIds: ['poison', 'energy']`) n'active jamais `commander_tax`, donc le tiroir d'une partie Standard ne le montre plus, quel que soit le nombre de compteurs personnalisés par ailleurs enregistrés dans le catalogue global.
+
+**D-3 — Les compteurs personnalisés ne sont pas archivés dans l'historique de partie.** `PlayerHistorySnapshot` garde ses champs fixes (`poison`, `energy`, `commanderCastCount`, ...) : les rendre génériques est une migration de modèle persisté (format de l'historique déjà écrit sur les appareils existants) que ce lot n'a pas mandat de faire. **C'est une limite réelle** : un compteur personnalisé créé en partie n'apparaît nulle part dans `GameHistoryItem` une fois la partie terminée, seulement pendant qu'elle est en cours.
+
+**D-4 — L'icône d'un compteur est un emoji (`String`), pas une `IconData`.** Une `IconData` ne se sérialise pas proprement (son `codePoint` dépend de la police liée au moment de la compilation) et aurait imposé un sélecteur d'icônes dédié pour la création par l'utilisateur. L'émoji est une donnée de plus dans `CounterType.emoji`, saisie au clavier comme le nom, et rendue par un simple `Text` partout (tiroir, poignée).
+
+**Provisoire — priorisation des puces en cas de débordement.** `ConditionalHandle.maxVisibleChips` (défaut 4) borne le nombre de puces rendues sur la poignée avant troncature en « +N » ; au-delà, la priorisation retient les valeurs les plus graves (tri par valeur décroissante, dégât de commandant inclus) et bascule vers une troncature progressive puis un marqueur minimal si même le « +N » ne tient plus. Cette stratégie **n'est pas figée** : elle sera réévaluée par la refonte de disposition en cours dans une session parallèle (le lot 6, table multijoueur, a été reverté pour un défaut de disposition sans rapport avec ce mécanisme — voir §3.4 — mais c'est cette même refonte qui doit trancher combien de puces tiennent réellement à chaque cran de densité).
 
 ---
 

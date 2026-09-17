@@ -963,6 +963,24 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
       Widget zone = _buildPlayerZoneWithOverlays(player, playerState, index);
 
+      // Lot 5, tâche 5 : enveloppe chaque zone d'une clé fondée sur l'identité
+      // du joueur (`player.id`), pas sur sa position dans cette liste --
+      // l'ordre de rendu suit l'ordre d'AFFICHAGE (`_orderedPlayers`, que
+      // `reorderPlayers` permute), qui n'est plus l'ordre canonique dès qu'un
+      // reorder a eu lieu. Sans cette clé, un test (ou une future feature)
+      // qui désigne "le joueur N" par sa position dans l'arbre désignerait en
+      // réalité le joueur affiché à cette position, pas le joueur N -- la
+      // même famille de défaut que le bug du lot 4 sur le bouton "−" (bon
+      // nombre de lignes, mauvais joueur), ici appliqué aux zones plutôt
+      // qu'aux compteurs. Récupérée du lot 6 (revert pour un défaut de
+      // disposition sans rapport, voir 6e147c7) : ce `KeyedSubtree` ne
+      // déplace aucun pixel, il ne fait qu'identifier un sous-arbre déjà
+      // construit.
+      zone = KeyedSubtree(
+        key: ValueKey('player_zone_${player.id}'),
+        child: zone,
+      );
+
       if (_isEditMode) {
         zone = DraggablePlayerZone(
           index: index,

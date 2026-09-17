@@ -154,11 +154,22 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
   late final List<CommanderDamageOpponent> _commanderDamage =
       List<CommanderDamageOpponent>.from(widget.commanderDamage);
 
-  void _bump(String id, int delta) {
+  /// Lot 5, tâche 5 (défaut trouvé par le test d'intégration) : plafonnait
+  /// à 99 en dur, jamais à `type.maxValue` -- `GameSessionNotifier.updateCounter`
+  /// (la vraie source de vérité) sature bien à la borne du compteur, mais
+  /// cette copie locale d'affichage continuait de monter au-delà tant que ce
+  /// tiroir restait ouvert : un compteur "Poison" (borne 10) affichait 11,
+  /// 12... après saturation, avant de retomber à sa valeur réelle au
+  /// prochain rebuild externe. Le joueur voyait donc un nombre qui ne
+  /// correspondait à rien, dans le seul endroit où il s'attend à voir
+  /// l'effet immédiat de son tap. `type` porte déjà cette borne : pas besoin
+  /// d'un paramètre supplémentaire, seulement de le lire au lieu du 99 fixe.
+  void _bump(CounterType type, int delta) {
+    final maxValue = type.maxValue ?? 99;
     setState(() {
-      _values[id] = ((_values[id] ?? 0) + delta).clamp(0, 99);
+      _values[type.id] = ((_values[type.id] ?? 0) + delta).clamp(0, maxValue);
     });
-    widget.onCounterDelta(id, delta);
+    widget.onCounterDelta(type.id, delta);
   }
 
   /// Ouvre `CounterEditorDialog`, puis -- si l'utilisateur n'a pas annulé --
@@ -322,7 +333,7 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
             key: ValueKey('counter_row_${id}_minus'),
             icon: const Icon(Icons.remove),
             color: AppColors.textSecondary,
-            onPressed: () => _bump(id, -1),
+            onPressed: () => _bump(type, -1),
           ),
           SizedBox(
             width: 32,
@@ -336,7 +347,7 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
             key: ValueKey('counter_row_${id}_plus'),
             icon: const Icon(Icons.add),
             color: AppColors.textSecondary,
-            onPressed: () => _bump(id, 1),
+            onPressed: () => _bump(type, 1),
           ),
           // Retrait des compteurs ACTIFS de la partie (lot 5, tâche 4) --
           // pas une suppression du catalogue : un compteur intégré ne peut
