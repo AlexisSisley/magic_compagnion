@@ -75,7 +75,26 @@ class CardResolver {
       final identifiers = slice.map(_toIdentifier).toList();
       // Liste de travail : indices (dans slice/identifiers) des requetes du
       // lot pas encore attribuees a un seau. Consommee, jamais recherchee.
-      final unassigned = List<int>.generate(slice.length, (i) => i);
+      //
+      // Ordonnee par SPECIFICITE DECROISSANTE (id, puis set+collector_number,
+      // puis name) : l'appariement de [_identifierMatches] se fait par
+      // inclusion, donc une carte rendue pour la ligne "1 Sol Ring (LTC) 284"
+      // correspond aussi bien a l'identifiant `{name: Sol Ring}` d'une autre
+      // ligne sans edition. Servie dans l'ordre du lot, elle consommerait la
+      // requete par nom, laisserait la requete par edition non attribuee, et
+      // celle-ci finirait dans `notFound` : l'utilisateur lirait "1 carte n'a
+      // pas pu etre identifiee" sur un import parfaitement reussi. En servant
+      // d'abord les identifiants les plus specifiques, chaque carte consomme
+      // la requete qui la decrit le plus precisement, et l'inclusion ne peut
+      // plus voler une requete a une autre. A egalite de specificite, l'ordre
+      // du lot est conserve (tri stable), ce qui preserve la consommation
+      // FIFO entre doublons exacts.
+      final unassigned = List<int>.generate(slice.length, (i) => i)
+        ..sort((a, b) {
+          final byRank = _identifierRank(identifiers[b])
+              .compareTo(_identifierRank(identifiers[a]));
+          return byRank != 0 ? byRank : a.compareTo(b);
+        });
 
       try {
         final data = await _api.fetchCollection(identifiers);
@@ -107,8 +126,10 @@ class CardResolver {
         }
 
         // Toute requete du lot ni rendue ni declaree not_found par Scryfall
-        // rejoint notFound plutot que de disparaitre.
-        for (final index in unassigned) {
+        // rejoint notFound plutot que de disparaitre. Remise dans l'ordre du
+        // lot : `unassigned` est trie par specificite, ce qui ne doit pas
+        // transparaitre dans l'ordre des seaux rendus a l'appelant.
+        for (final index in unassigned.toList()..sort()) {
           notFound.add(slice[index]);
         }
       } on DioException catch (e) {
@@ -197,6 +218,34 @@ class CardResolver {
     return {'name': request.name};
   }
 
+  /// Specificite d'un identifiant envoye a Scryfall, du plus precis au moins
+  /// precis : `id` (2) > `set`+`collector_number` (1) > `name` (0). Sert a
+  /// ordonner la liste de travail de [resolveEditions] -- voir le commentaire
+  /// a l'endroit du tri.
+  int _identifierRank(Map<String, dynamic> identifier) {
+    if (identifier.containsKey('id')) return 2;
+    if (identifier.containsKey('collector_number')) return 1;
+    return 0;
+  }
+
+  /// Met en cache un tirage a partir du JSON Scryfall complet d'une carte.
+  ///
+  /// Point d'entree des chemins qui tiennent deja ce JSON en main sans passer
+  /// par [resolveEditions] -- le scan (identification precise par
+  /// edition/numero) et le selecteur de versions. Sans cela, une carte
+  /// ajoutee par l'un de ces deux chemins n'aurait JAMAIS de ligne
+  /// `card_prints` ([PrintBackfillService.runOnce] ne s'executant qu'une fois
+  /// dans la vie de l'app) : invisible pour `resolveDisplay` comme pour
+  /// `enqueueOwnedCardsForLanguage`, silencieusement et definitivement.
+  ///
+  /// N'ecrit QUE le cache : aucune ligne de deck ou de collection n'est
+  /// touchee, le scryfallId possede reste la verite.
+  Future<ResolvedPrint> cachePrintFromJson(Map<String, dynamic> json) async {
+    final print = ResolvedPrint.fromJson(json);
+    await _cache(print);
+    return print;
+  }
+
   Future<ResolvedPrint?> _fromCache(PrintRequest request) async {
     if (request.scryfallId == null) return null;
     final row = await _db.getCardPrint(request.scryfallId!);
@@ -239,10 +288,31 @@ class CardResolver {
     Map<String, dynamic> candidate,
   ) {
     for (final entry in identifier.entries) {
+      if (entry.key == 'name') {
+        // Le nom est le seul champ que les deux cotes n'ecrivent pas de la
+        // meme facon. `DeckFormatService._cleanCardName` coupe les noms sur
+        // `//` (la ligne "1 Fire // Ice" produit l'entree `Fire`), alors que
+        // Scryfall rend toujours le nom complet `Fire // Ice`. Compares
+        // caractere a caractere, ces deux-la ne se rencontrent JAMAIS : pour
+        // toute carte split ou recto-verso demandee par nom, la carte rendue
+        // n'appariait aucune requete (elle finissait dans `errors`) et la
+        // requete finissait dans `notFound` -- un import parfaitement reussi
+        // annoncant "1 carte n'a pas pu etre identifiee". On compare donc les
+        // faces avant, insensiblement a la casse.
+        if (_frontFace(entry.value) != _frontFace(candidate[entry.key])) {
+          return false;
+        }
+        continue;
+      }
       if (candidate[entry.key] != entry.value) return false;
     }
     return true;
   }
+
+  /// Face avant d'un nom de carte, normalisee : "Fire // Ice" et "fire "
+  /// rendent tous deux "fire". `null` reste `null` (aucun nom ne l'apparie).
+  String? _frontFace(Object? name) =>
+      name?.toString().split('//').first.trim().toLowerCase();
 
   /// [DbCardPrint.oracleName] porte le nom oracle (anglais), stable a travers
   /// les traductions. [DbCardPrint.printedName] porte le nom localise de CE

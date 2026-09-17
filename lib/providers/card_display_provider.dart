@@ -49,9 +49,23 @@ Future<CardDisplay> resolveDisplay({
     );
   }
 
+  // `findTranslation` rendant `null` ne dit PAS "il n'y a pas de version dans
+  // cette langue" : il dit "je n'en ai pas en cache". Deux etats opposes s'y
+  // cachent -- "Scryfall a confirme qu'il n'existe pas de VF" et "on n'a pas
+  // encore demande". Badger le second reviendrait a afficher "EN · pas de VF"
+  // sur CHAQUE ligne d'un deck fraichement importe, y compris les cartes qui
+  // ont une VF et dont la traduction est simplement encore en file. Un badge
+  // qui ment est pire que pas de badge : seule l'absence CONFIRMEE
+  // ([AppDatabase.markTranslationAbsent], posee sur un 404 de la route de
+  // traduction) le justifie. Sinon, repli silencieux -- le tirage possede
+  // s'affiche sans rien annoncer, et le badge apparaitra le jour ou l'absence
+  // sera reellement etablie.
+  final confirmedAbsent =
+      await db.isTranslationAbsent(owned.oracleId, preferredLang);
+
   return CardDisplay(
     name: _displayName(owned),
     lang: owned.lang,
-    isFallback: true,
+    isFallback: confirmedAbsent,
   );
 }

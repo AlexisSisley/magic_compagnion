@@ -1,6 +1,8 @@
 // Fichier : lib/controllers/deck_list_controller.dart
 // Controller pour DeckListPage - extrait la logique metier de la page.
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../data/secondary_breakfast.dart';
@@ -13,6 +15,7 @@ import '../services/collection_service.dart';
 import '../services/deck_format_service.dart';
 import '../services/deck_service.dart';
 import '../services/local_card_service.dart';
+import '../services/translation_worker.dart';
 
 // --- RESULT OBJECT pour les actions ---
 
@@ -88,6 +91,12 @@ class DeckListController extends StateNotifier<DeckListState> {
   final LocalCardService _localCardService;
   final CollectionService _collectionService;
 
+  /// Vide la file de traduction apres un import. Sans ce declencheur, un
+  /// utilisateur qui importe un deck accumule N taches qui ne partiront
+  /// jamais : le seul autre appelant de `drain` est le bouton de langue du
+  /// glossaire, que rien n'oblige a visiter.
+  final TranslationWorker _translationWorker;
+
   static const Map<String, Map<String, List<String>>> colorFamilies = {
     'Mono': {
       'Blanc': ['W'], 'Bleu': ['U'], 'Noir': ['B'], 'Rouge': ['R'], 'Vert': ['G'], 'Incolore': []
@@ -113,9 +122,11 @@ class DeckListController extends StateNotifier<DeckListState> {
     required DeckService deckService,
     required LocalCardService localCardService,
     required CollectionService collectionService,
+    required TranslationWorker translationWorker,
   })  : _deckService = deckService,
         _localCardService = localCardService,
         _collectionService = collectionService,
+        _translationWorker = translationWorker,
         super(const DeckListState()) {
     loadDecks();
   }
@@ -320,6 +331,12 @@ class DeckListController extends StateNotifier<DeckListState> {
     state = state.copyWith(isImporting: false, isLoading: false);
     await loadDecks();
 
+    // Temps 2 : les traductions enfilees par la resolution ci-dessus partent
+    // maintenant, sans etre attendues -- l'import a deja rendu la main et la
+    // liste est deja a l'ecran. Sans ce declencheur, la file d'un import
+    // restait pleine jusqu'a un hypothetique passage par le glossaire.
+    unawaited(_translationWorker.drain());
+
     final unresolved = resolution.notFound.length + resolution.failed.length;
     final message = resolution.isComplete
         ? 'Deck importé avec succès.'
@@ -345,7 +362,16 @@ class DeckListController extends StateNotifier<DeckListState> {
   /// demande par chacune. C'est le meme compromis, deja assume et documente,
   /// que celui de `CardResolver._identifierMatches`/`_consumeMatch` : non
   /// corrige ici, non plus.
-  String _printKey(String name) => name.toLowerCase();
+  ///
+  /// Seule la face avant entre dans la cle : `DeckFormatService._cleanCardName`
+  /// coupe les noms sur `//` (la ligne "1 Fire // Ice" devient l'entree
+  /// `Fire`), alors que Scryfall rend le nom complet `Fire // Ice`. Comparer
+  /// les deux tels quels ne matcherait JAMAIS pour une carte recto-verso ou
+  /// split : le tirage resolu etait jete, la carte retombait sur l'identifiant
+  /// local `LOCAL:<nom>` -- et `isComplete` restait vrai, donc l'utilisateur
+  /// n'etait prevenu de rien. Normaliser les deux cotes de la meme facon
+  /// (face avant, espaces retires, minuscules) referme ce trou.
+  String _printKey(String name) => name.split('//').first.trim().toLowerCase();
 
   /// Consomme, dans [printsByKey], le tirage resolu correspondant a [entry].
   /// Rend `null` sans correspondance (carte non resolue : `notFound`,
@@ -382,11 +408,13 @@ final deckListControllerProvider = StateNotifierProvider.autoDispose<DeckListCon
     final deckService = ref.watch(deckServiceProvider);
     final localCardService = ref.watch(localCardServiceProvider);
     final collectionService = ref.watch(collectionServiceProvider);
+    final translationWorker = ref.watch(translationWorkerProvider);
 
     return DeckListController(
       deckService: deckService,
       localCardService: localCardService,
       collectionService: collectionService,
+      translationWorker: translationWorker,
     );
   },
 );

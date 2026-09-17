@@ -1,6 +1,7 @@
 // Fichier : lib/controllers/card_detail_controller.dart
 // Controller pour RecognitionResultPage - extrait la logique metier de la page.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 
@@ -16,11 +17,13 @@ import '../models/scan_history_model.dart';
 import '../models/scryfall_card_model.dart';
 import '../models/scryfall_ruling.dart';
 import '../providers/service_providers.dart';
+import '../services/card_resolver.dart';
 import '../services/collection_service.dart';
 import '../services/deck_service.dart';
 import '../services/local_card_service.dart';
 import '../services/scan_history_service.dart';
 import '../services/scryfall_api_service.dart';
+import '../services/translation_worker.dart';
 import '../services/wishlist_service.dart';
 
 // --- ENUM (reutilise depuis la page) ---
@@ -227,6 +230,8 @@ class CardDetailController extends StateNotifier<CardDetailState> {
   final WishlistService _wishlistService;
   final LocalCardService _localCardService;
   final ScryfallApiService _apiService;
+  final CardResolver _cardResolver;
+  final TranslationWorker _translationWorker;
   final CardDetailParams _params;
 
   CardDetailController({
@@ -236,6 +241,8 @@ class CardDetailController extends StateNotifier<CardDetailState> {
     required WishlistService wishlistService,
     required LocalCardService localCardService,
     required ScryfallApiService apiService,
+    required CardResolver cardResolver,
+    required TranslationWorker translationWorker,
     required CardDetailParams params,
   })  : _deckService = deckService,
         _collectionService = collectionService,
@@ -243,6 +250,8 @@ class CardDetailController extends StateNotifier<CardDetailState> {
         _wishlistService = wishlistService,
         _localCardService = localCardService,
         _apiService = apiService,
+        _cardResolver = cardResolver,
+        _translationWorker = translationWorker,
         _params = params,
         super(CardDetailState()) {
     _initializeAndSearch();
@@ -391,13 +400,34 @@ class CardDetailController extends StateNotifier<CardDetailState> {
 
   // --- FETCHING ---
 
+  /// Identification precise d'une carte par son edition et son numero de
+  /// collection : l'etape du scan une fois le bas de carte lu.
+  ///
+  /// Publique pour etre testable : le chemin normal y arrive par l'OCR d'une
+  /// photo, qu'un test `flutter_test` ne peut pas jouer.
+  Future<bool> fetchExactCard(String set, String cn, {String? lang}) =>
+      _fetchExactCard(set, cn, lang: lang);
+
   Future<bool> _fetchExactCard(String set, String cn, {String? lang}) async {
     state = state.copyWith(
       statusMessage: 'Identification précise ($set #$cn)...',
     );
     try {
       final data = await _apiService.getCardBySetAndNumber(set, cn, lang: lang);
+      // Le scan tient le JSON Scryfall complet : il ecrit le tirage dans le
+      // cache `card_prints`. Sans cela, une carte identifiee par scan (puis
+      // ajoutee a la collection) n'aurait jamais de ligne `card_prints` --
+      // `PrintBackfillService.runOnce` ne s'executant qu'une seule fois dans
+      // la vie de l'app --, donc resterait invisible pour `resolveDisplay`
+      // comme pour `enqueueOwnedCardsForLanguage`, definitivement.
+      // Une panne d'ecriture du cache ne doit pas faire echouer
+      // l'identification elle-meme : elle se consigne (voir _cachePrint).
+      await _cachePrint(data);
       selectCard(ScryfallCard.fromJson(data));
+      // Temps 2 : un scan reussi est l'un des trois declencheurs de vidage de
+      // la file de traduction prevus par la spec. Sans `await` : l'affichage
+      // de la carte ne l'attend pas.
+      unawaited(_translationWorker.drain());
       return true;
     } catch (e) {
       // Une traduction absente rend 404 sur cette route (isMissingTranslation) :
@@ -411,6 +441,17 @@ class CardDetailController extends StateNotifier<CardDetailState> {
       }
     }
     return false;
+  }
+
+  /// Ecrit un tirage dans le cache sans jamais lever : une panne base ne doit
+  /// pas transformer une identification reussie en echec affiche.
+  Future<void> _cachePrint(Map<String, dynamic> json) async {
+    try {
+      await _cardResolver.cachePrintFromJson(json);
+    } catch (e) {
+      log('Mise en cache du tirage scanne impossible: $e',
+          name: 'CardDetailController');
+    }
   }
 
   Future<void> searchForCandidates(String query) async {
@@ -644,6 +685,8 @@ final cardDetailControllerProvider = StateNotifierProvider.autoDispose
     final wishlistService = ref.watch(wishlistServiceProvider);
     final localCardService = ref.watch(localCardServiceProvider);
     final apiService = ref.watch(scryfallApiServiceProvider);
+    final cardResolver = ref.watch(cardResolverProvider);
+    final translationWorker = ref.watch(translationWorkerProvider);
 
     return CardDetailController(
       deckService: deckService,
@@ -652,6 +695,8 @@ final cardDetailControllerProvider = StateNotifierProvider.autoDispose
       wishlistService: wishlistService,
       localCardService: localCardService,
       apiService: apiService,
+      cardResolver: cardResolver,
+      translationWorker: translationWorker,
       params: params,
     );
   },

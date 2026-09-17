@@ -1,8 +1,37 @@
 import 'package:dio/dio.dart';
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/controllers/card_detail_controller.dart';
+import 'package:magic_companion/data/database/app_database.dart';
+import 'package:magic_companion/services/card_resolver.dart';
+import 'package:magic_companion/services/collection_service.dart';
+import 'package:magic_companion/services/deck_service.dart';
+import 'package:magic_companion/services/local_card_service.dart';
+import 'package:magic_companion/services/scan_history_service.dart';
+import 'package:magic_companion/services/scryfall_api_service.dart';
+import 'package:magic_companion/services/translation_worker.dart';
+import 'package:magic_companion/services/wishlist_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+Dio _mockDio(Object Function(RequestOptions) handler) {
+  final dio = Dio(BaseOptions(baseUrl: ScryfallApiService.baseUrl));
+  dio.interceptors.add(InterceptorsWrapper(onRequest: (options, h) {
+    final result = handler(options);
+    if (result is int) {
+      h.reject(DioException(
+        requestOptions: options,
+        response: Response(requestOptions: options, statusCode: result),
+        type: DioExceptionType.badResponse,
+      ));
+      return;
+    }
+    h.resolve(Response(requestOptions: options, statusCode: 200, data: result));
+  }));
+  return dio;
+}
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('parsePrintFooter', () {
     test('lit set, numero et langue sur un bas de carte francais', () {
       final parsed = parsePrintFooter('146/280 C ELD FR');
@@ -116,6 +145,63 @@ void main() {
 
     test('faux pour une exception qui n est pas un DioException', () {
       expect(isMissingTranslation(Exception('boom')), isFalse);
+    });
+  });
+
+  // =================================================================
+  // Constat 4 de la revue finale : le scan ecrit le tirage en cache.
+  // =================================================================
+
+  group('identification precise par edition (chemin du scan)', () {
+    setUp(() => SharedPreferences.setMockInitialValues({}));
+
+    test(
+        'une identification reussie ecrit le tirage dans card_prints : sans '
+        'cela, la carte scannee reste invisible pour la projection '
+        'd\'affichage et pour le backfill de langue, definitivement',
+        () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      final dio = _mockDio((_) => {
+            'id': 'eld-146-en',
+            'oracle_id': 'oracle-thrill',
+            'name': 'Thrill of Possibility',
+            'set': 'eld',
+            'collector_number': '146',
+            'lang': 'en',
+            'color_identity': ['R'],
+          });
+      final api = ScryfallApiService(dio: dio);
+      final resolver = CardResolver(api: api, db: db);
+
+      final controller = CardDetailController(
+        deckService: DeckService(database: db),
+        collectionService: CollectionService(database: db, resolver: resolver),
+        historyService: ScanHistoryService(database: db),
+        wishlistService: WishlistService(database: db),
+        localCardService: LocalCardService(),
+        apiService: api,
+        cardResolver: resolver,
+        translationWorker: TranslationWorker(resolver: resolver, db: db),
+        params: const CardDetailParams(),
+      );
+      addTearDown(controller.dispose);
+
+      expect(await db.getCardPrint('eld-146-en'), isNull);
+
+      final ok = await controller.fetchExactCard('eld', '146');
+
+      expect(ok, isTrue);
+      final cached = await db.getCardPrint('eld-146-en');
+      expect(cached, isNotNull);
+      expect(cached!.oracleId, 'oracle-thrill');
+      expect(cached.setCode, 'eld');
+      expect(cached.collectorNumber, '146');
+      expect(cached.lang, 'en');
+      // Le tirage possede n'est pas reecrit par une projection : seul le
+      // cache a ete touche.
+      expect(cached.scryfallId, 'eld-146-en');
     });
   });
 }

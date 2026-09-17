@@ -3,8 +3,12 @@
 
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
+import 'dart:async';
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/card_print.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../services/scryfall_api_service.dart';
 import '../../providers/service_providers.dart';
@@ -30,6 +34,14 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
   ScryfallApiService get _apiService => ref.read(scryfallApiServiceProvider);
 
   List<ScryfallCard> _versions = [];
+
+  /// JSON Scryfall brut de chaque version, indexe par identifiant de tirage.
+  /// Conserve pour pouvoir ecrire le tirage CHOISI dans le cache
+  /// `card_prints` : [ScryfallCard] a perdu en route des champs dont le cache
+  /// a besoin (`printed_text` notamment). Seule la version selectionnee est
+  /// mise en cache -- pas les deux cents impressions listees.
+  final Map<String, Map<String, dynamic>> _rawVersions = {};
+
   bool _isLoading = true;
   String _errorMessage = '';
 
@@ -58,9 +70,19 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
       );
       final List<dynamic> dataList = data['data'] ?? [];
 
+      final rawByCardId = <String, Map<String, dynamic>>{};
+      for (final json in dataList) {
+        final map = json as Map<String, dynamic>;
+        final id = map['id'] as String?;
+        if (id != null) rawByCardId[id] = map;
+      }
+
       if (mounted) {
         setState(() {
           _versions = dataList.map((json) => ScryfallCard.fromJson(json)).toList();
+          _rawVersions
+            ..clear()
+            ..addAll(rawByCardId);
           _isLoading = false;
         });
       }
@@ -72,6 +94,19 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
         });
       }
     }
+  }
+
+  /// Ecrit le tirage choisi dans le cache, sans jamais lever ni bloquer la
+  /// fermeture de la feuille.
+  void _cacheSelectedPrint(String cardId) {
+    final raw = _rawVersions[cardId];
+    if (raw == null) return;
+    final resolver = ref.read(cardResolverProvider);
+    unawaited(resolver.cachePrintFromJson(raw).catchError((Object e) {
+      log('Mise en cache du tirage choisi impossible ($cardId): $e',
+          name: 'VersionsSelectorSheet');
+      return ResolvedPrint.fromJson(raw);
+    }));
   }
 
   @override
@@ -119,6 +154,18 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
 
                           return GestureDetector(
                             onTap: () {
+                              // La version choisie entre dans le cache
+                              // `card_prints` : c'est le tirage que
+                              // l'utilisateur va posseder. Sans cette
+                              // ecriture, elle n'aurait jamais de ligne
+                              // `card_prints` (le backfill de reprise ne
+                              // s'execute qu'une fois dans la vie de l'app)
+                              // et resterait invisible pour `resolveDisplay`
+                              // comme pour `enqueueOwnedCardsForLanguage`.
+                              // Non attendue et sans effet en cas de panne :
+                              // le choix de version ne doit pas dependre de
+                              // l'ecriture d'un cache.
+                              _cacheSelectedPrint(card.id);
                               widget.onVersionSelected(card);
                               Navigator.pop(context);
                             },

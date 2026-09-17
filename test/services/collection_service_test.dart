@@ -519,9 +519,16 @@ void main() {
     test('CollectionService.resolveImportedEntries branche le resolveur et enfile la traduction', () async {
       int collectionCalls = 0;
       int unitaryCalls = 0;
+      final List<Map<String, dynamic>> sentIdentifiers = [];
       final dio = _mockDio((options) {
         if (options.path.contains('/cards/collection')) {
           collectionCalls++;
+          // Le CORPS de la requete est la seule assertion qui distingue
+          // "on envoie l'identite du tirage" de "on envoie le nom" -- soit
+          // tout l'objet de ce chantier. Un mock qui ignore `options`
+          // resterait vert apres une regression vers {name: Sol Ring}.
+          sentIdentifiers.addAll(((options.data as Map)['identifiers'] as List)
+              .cast<Map<String, dynamic>>());
           return {
             'data': [
               {
@@ -554,6 +561,9 @@ void main() {
 
       // L'import rend la main des que l'edition est connue : aucune requete
       // unitaire de traduction n'a ete attendue dans le chemin d'import.
+      expect(sentIdentifiers, [
+        {'set': 'ltc', 'collector_number': '284'}
+      ]);
       expect(resolution.resolved.single.scryfallId, 'ltc-284-en');
       expect(resolution.isComplete, isTrue);
       expect(collectionCalls, 1);

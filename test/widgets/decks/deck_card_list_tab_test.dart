@@ -61,14 +61,26 @@ class _DelayableDb extends AppDatabase {
   }
 }
 
+/// Fabrique un tirage en respectant le contrat de [DbCardPrint] :
+/// `printedName` porte le nom localise de CE tirage et reste NUL quand il n'y
+/// en a pas -- ce qui est le cas de tout tirage anglais. Poser
+/// `printedName: 'Dreadbore'` sur un tirage `lang: 'en'` violait ce contrat et
+/// avait un effet pervers : le repli `printedName ?? oracleName` de
+/// `resolveDisplay` n'etait jamais exerce par ces tests. L'assertion ci-dessous
+/// empeche la violation de revenir.
 DbCardPrint _print({
   required String scryfallId,
   required String lang,
   String? printedName,
   required String oracleId,
   required String oracleName,
-}) =>
-    DbCardPrint(
+}) {
+  assert(
+    lang != 'en' || printedName == null,
+    'un tirage anglais n\'a pas de nom imprime : printedName doit rester nul '
+    '(le nom affiche vient alors de oracleName)',
+  );
+  return DbCardPrint(
       scryfallId: scryfallId,
       oracleId: oracleId,
       oracleName: oracleName,
@@ -81,6 +93,7 @@ DbCardPrint _print({
       colorIdentity: '[]',
       fetchedAt: DateTime.utc(2026, 9, 17),
     );
+}
 
 void main() {
   late AppDatabase db;
@@ -117,7 +130,6 @@ void main() {
     await db.upsertCardPrint(_print(
       scryfallId: 'sld-141',
       lang: 'en',
-      printedName: 'Dreadbore',
       oracleId: 'oracle-dreadbore',
       oracleName: 'Dreadbore',
     ));
@@ -151,12 +163,42 @@ void main() {
   });
 
   testWidgets(
-      'garde le tirage possede et signale le repli quand aucune traduction n existe',
+      'garde le tirage possede et signale le repli quand l absence de '
+      'traduction est CONFIRMEE',
       (tester) async {
     await db.upsertCardPrint(_print(
       scryfallId: 'sld-141',
       lang: 'en',
-      printedName: 'Dreadbore',
+      oracleId: 'oracle-dreadbore',
+      oracleName: 'Dreadbore',
+    ));
+    // Scryfall a repondu 404 sur la route de traduction : l'absence est un
+    // fait etabli. Sans cette confirmation, le repli est silencieux (voir le
+    // test suivant) -- sinon chaque ligne d'un deck fraichement importe
+    // afficherait "EN · pas de VF", y compris les cartes qui ont une VF.
+    await db.markTranslationAbsent('oracle-dreadbore', 'fr');
+
+    final cardList = [
+      DeckCard(scryfallId: 'sld-141', name: 'Dreadbore', quantity: 1),
+    ];
+
+    await tester.pumpWidget(buildTab(cardList));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dreadbore'), findsOneWidget);
+    expect(find.text('EN · pas de VF'), findsOneWidget);
+  });
+
+  testWidgets(
+      'juste apres un import, aucune ligne n affiche "pas de VF" : la '
+      'traduction n a pas encore ete demandee',
+      (tester) async {
+    // L'etat exact d'un deck fraichement importe : le tirage possede est en
+    // cache, la traduction est encore en file. Le badge doit rester muet --
+    // c'est la premiere chose que l'utilisateur voit a l'ecran.
+    await db.upsertCardPrint(_print(
+      scryfallId: 'sld-141',
+      lang: 'en',
       oracleId: 'oracle-dreadbore',
       oracleName: 'Dreadbore',
     ));
@@ -169,7 +211,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Dreadbore'), findsOneWidget);
-    expect(find.text('EN · pas de VF'), findsOneWidget);
+    expect(find.text('EN · pas de VF'), findsNothing);
   });
 
   group('_loadDisplays — jeton de sequence', () {
@@ -183,9 +225,8 @@ void main() {
       await delayableDb.upsertCardPrint(_print(
         scryfallId: 'card-a',
         lang: 'en',
-        printedName: 'CardA v1',
         oracleId: 'oracle-a',
-        oracleName: 'CardA',
+        oracleName: 'CardA v1',
       ));
 
       // Le PROCHAIN appel a getCardPrint('card-a') sera bloque jusqu'a
@@ -207,16 +248,14 @@ void main() {
       await delayableDb.upsertCardPrint(_print(
         scryfallId: 'card-a',
         lang: 'en',
-        printedName: 'CardA v2',
         oracleId: 'oracle-a',
-        oracleName: 'CardA',
+        oracleName: 'CardA v2',
       ));
       await delayableDb.upsertCardPrint(_print(
         scryfallId: 'card-b',
         lang: 'en',
-        printedName: 'CardB-projected',
         oracleId: 'oracle-b',
-        oracleName: 'CardB',
+        oracleName: 'CardB-projected',
       ));
 
       final cardList2 = [

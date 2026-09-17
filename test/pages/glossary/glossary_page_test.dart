@@ -42,7 +42,7 @@ class _NoopTranslationWorker extends TranslationWorker {
   _NoopTranslationWorker({required super.resolver, required super.db});
 
   @override
-  Future<int> drain({int maxTasks = 50}) async => 0;
+  Future<int> drain({int batchSize = 50}) async => 0;
 }
 
 /// AppDatabase de test dont `getCardPrint` leve systematiquement -- simule
