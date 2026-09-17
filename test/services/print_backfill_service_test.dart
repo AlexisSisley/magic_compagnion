@@ -71,14 +71,17 @@ CardResolver _serverErrorResolver(AppDatabase db) {
 
 /// Un VRAI CardResolver que Scryfall declare "introuvable" pour toute
 /// requete -- lui non plus ne leve jamais : la requete atterit dans
-/// EditionResolution.notFound.
-CardResolver _notFoundResolver(AppDatabase db) {
-  final dio = _mockDio((_) => {
-        'data': [],
-        'not_found': [
-          {'id': 'ancien-id'}
-        ],
-      });
+/// EditionResolution.notFound. [onCall] est notifie a chaque requete HTTP.
+CardResolver _notFoundResolver(AppDatabase db, {void Function()? onCall}) {
+  final dio = _mockDio((_) {
+    onCall?.call();
+    return {
+      'data': [],
+      'not_found': [
+        {'id': 'ancien-id'}
+      ],
+    };
+  });
   return CardResolver(api: ScryfallApiService(dio: dio), db: db);
 }
 
@@ -206,18 +209,27 @@ void main() {
     });
 
     test(
-        'une carte declaree introuvable (VRAI CardResolver) ne pose pas non '
-        'plus le drapeau', () async {
+        'une carte declaree DEFINITIVEMENT introuvable (VRAI CardResolver) '
+        'pose quand meme le drapeau -- notFound n est pas failed, retenter '
+        'ne changerait rien et empecherait toute convergence', () async {
       await seedOneDeckCard(db);
-      final service =
-          PrintBackfillService(db: db, resolver: _notFoundResolver(db));
+      int calls = 0;
+      final service = PrintBackfillService(
+          db: db, resolver: _notFoundResolver(db, onCall: () => calls++));
 
       await service.runOnce();
 
       expect(
         await db.getSetting(PrintBackfillService.backfillCompletedSettingKey),
-        isNull,
+        'true',
       );
+
+      // Prochain "lancement" : le drapeau etant pose, aucun nouvel appel
+      // HTTP ne doit avoir lieu -- la reprise ne doit PAS se relancer
+      // indefiniment pour une carte que Scryfall ne connait pas.
+      final callsAfterFirst = calls;
+      await service.runOnce();
+      expect(calls, callsAfterFirst);
     });
 
     test(

@@ -12,13 +12,25 @@ import 'card_resolver.dart';
 
 class PrintBackfillService {
   /// Cle AppSettings memorisant que la reprise a deja aboutit une fois.
-  /// Posee uniquement quand la resolution est COMPLETE (voir [runOnce]) :
-  /// [CardResolver.resolveEditions] ne leve jamais sur une panne de lot --
-  /// un lot en echec ou une carte introuvable se consignent respectivement
-  /// dans `failed` et `notFound` plutot que de faire remonter une exception.
-  /// Se fier a la seule absence d'exception poserait donc le drapeau meme
-  /// quand rien n'a ete resolu (ex. reseau absent au premier lancement), ce
-  /// qui perdrait la reprise pour toujours pour l'utilisateur concerne.
+  /// Posee des que [EditionResolution.failed] est vide (voir [runOnce]) --
+  /// PAS quand [EditionResolution.notFound] l'est aussi. Ces deux seaux
+  /// n'ont pas la meme nature, et la confondre casse la convergence :
+  /// - `failed` est TRANSITOIRE (panne reseau, 5xx, 429) : retenter au
+  ///   prochain lancement a du sens, et [CardResolver.resolveEditions] ne
+  ///   leve jamais dans ce cas -- se fier a la seule absence d'exception
+  ///   poserait donc le drapeau a tort meme quand rien n'a ete resolu (ex.
+  ///   reseau absent au premier lancement), perdant la reprise pour
+  ///   toujours pour l'utilisateur concerne ;
+  /// - `notFound` est DEFINITIF : Scryfall a explicitement repondu qu'il ne
+  ///   connait pas cette carte (identifiant supprime, donnee heritee d'une
+  ///   vieille version de l'app...). Retenter ne changera rien : exiger
+  ///   `notFound` vide en plus de `failed` vide empecherait le drapeau de
+  ///   JAMAIS se poser pour un utilisateur qui possede une telle carte, et
+  ///   la reprise se relancerait indefiniment a chaque lancement sans
+  ///   jamais aboutir. C'est exactement la meme distinction que celle faite
+  ///   pour les traductions ([CardResolver.resolveTranslation]), ou un 404
+  ///   est une reponse memorisee ([AppDatabase.markTranslationAbsent]) et
+  ///   non une panne rejouable.
   static const String backfillCompletedSettingKey = 'print_backfill_completed';
 
   final AppDatabase _db;
@@ -32,10 +44,11 @@ class PrintBackfillService {
   /// (drapeau [backfillCompletedSettingKey]).
   ///
   /// Pensee pour etre appelee sans `await` au demarrage (voir `main.dart`) :
-  /// - le drapeau n'est pose que si la resolution est COMPLETE (rien dans
-  ///   `failed`, rien dans `notFound`) -- une resolution partielle ou
-  ///   totalement en echec laisse le drapeau absent, pour etre retentee au
-  ///   prochain lancement plutot que perdue silencieusement ;
+  /// - le drapeau n'est pose que si `failed` est vide (voir la doc de
+  ///   [backfillCompletedSettingKey] pour la raison de ne PAS exiger
+  ///   `notFound` vide aussi) -- un lot en echec laisse le drapeau absent,
+  ///   pour etre retente au prochain lancement plutot que perdu
+  ///   silencieusement ;
   /// - tout le corps de la methode est protege : une panne pendant la
   ///   lecture ou l'ecriture du drapeau lui-meme (base fermee/corrompue,
   ///   etc.), pas seulement pendant la resolution, ne doit jamais faire
@@ -48,7 +61,10 @@ class PrintBackfillService {
       if (alreadyDone == 'true') return;
 
       final resolution = await _resolveEditionsForExisting();
-      if (resolution.failed.isEmpty && resolution.notFound.isEmpty) {
+      // `notFound` n'entre PAS dans cette condition : voir la doc de
+      // [backfillCompletedSettingKey] ci-dessus pour la raison (definitif
+      // vs transitoire).
+      if (resolution.failed.isEmpty) {
         await _db.setSetting(backfillCompletedSettingKey, 'true');
       }
     } catch (_) {
