@@ -27,7 +27,7 @@ String _sourceLabel(String? source) {
   final lower = source.toLowerCase();
   if (lower.contains('commander')) return source; // preserve full "Commander: X"
   if (lower.contains('poison')) return 'Poison';
-  if (lower.contains('energy')) return 'Energy';
+  if (lower.contains('energy')) return 'Énergie';
   return source;
 }
 

@@ -12,7 +12,7 @@ String _sourceLabel(String? source) {
   final lower = source.toLowerCase();
   if (lower.contains('commander')) return 'Commander: ${source.split(':').skip(1).join(':').trim()}';
   if (lower.contains('poison')) return 'Poison';
-  if (lower.contains('energy')) return 'Energy';
+  if (lower.contains('energy')) return 'Énergie';
   return source;
 }
 
