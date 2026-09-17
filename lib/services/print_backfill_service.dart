@@ -12,9 +12,13 @@ import 'card_resolver.dart';
 
 class PrintBackfillService {
   /// Cle AppSettings memorisant que la reprise a deja aboutit une fois.
-  /// Posee uniquement en cas de succes (voir [runOnce]) : un echec ne doit
-  /// jamais etre pris pour un succes silencieux, sous peine de perdre la
-  /// reprise pour toujours pour l'utilisateur concerne.
+  /// Posee uniquement quand la resolution est COMPLETE (voir [runOnce]) :
+  /// [CardResolver.resolveEditions] ne leve jamais sur une panne de lot --
+  /// un lot en echec ou une carte introuvable se consignent respectivement
+  /// dans `failed` et `notFound` plutot que de faire remonter une exception.
+  /// Se fier a la seule absence d'exception poserait donc le drapeau meme
+  /// quand rien n'a ete resolu (ex. reseau absent au premier lancement), ce
+  /// qui perdrait la reprise pour toujours pour l'utilisateur concerne.
   static const String backfillCompletedSettingKey = 'print_backfill_completed';
 
   final AppDatabase _db;
@@ -24,31 +28,49 @@ class PrintBackfillService {
       : _db = db,
         _resolver = resolver;
 
-  /// Lance [run] une seule fois au total, memorise via [AppSettings]
+  /// Lance la reprise une seule fois au total, memorisee via [AppSettings]
   /// (drapeau [backfillCompletedSettingKey]).
   ///
   /// Pensee pour etre appelee sans `await` au demarrage (voir `main.dart`) :
-  /// - une panne (reseau absent au premier lancement, etc.) ne pose PAS le
-  ///   drapeau -- la reprise sera retentee au prochain lancement plutot que
-  ///   perdue silencieusement ;
-  /// - aucune exception ne s'echappe de cette methode : le demarrage de
-  ///   l'application ne doit jamais dependre de la reprise de l'existant.
+  /// - le drapeau n'est pose que si la resolution est COMPLETE (rien dans
+  ///   `failed`, rien dans `notFound`) -- une resolution partielle ou
+  ///   totalement en echec laisse le drapeau absent, pour etre retentee au
+  ///   prochain lancement plutot que perdue silencieusement ;
+  /// - tout le corps de la methode est protege : une panne pendant la
+  ///   lecture ou l'ecriture du drapeau lui-meme (base fermee/corrompue,
+  ///   etc.), pas seulement pendant la resolution, ne doit jamais faire
+  ///   echouer le demarrage de l'application (l'appel se fait `unawaited`
+  ///   depuis `main.dart` : une exception non geree y deviendrait un rejet
+  ///   de Future non capture).
   Future<void> runOnce() async {
-    final alreadyDone = await _db.getSetting(backfillCompletedSettingKey);
-    if (alreadyDone == 'true') return;
-
     try {
-      await run();
-      await _db.setSetting(backfillCompletedSettingKey, 'true');
+      final alreadyDone = await _db.getSetting(backfillCompletedSettingKey);
+      if (alreadyDone == 'true') return;
+
+      final resolution = await _resolveEditionsForExisting();
+      if (resolution.failed.isEmpty && resolution.notFound.isEmpty) {
+        await _db.setSetting(backfillCompletedSettingKey, 'true');
+      }
     } catch (_) {
-      // Echec (reseau, base, etc.) : le drapeau reste absent expres, pour
-      // que le prochain lancement retente la reprise plutot que de la
-      // considerer terminee a tort.
+      // Toute panne (reseau, lecture/ecriture du drapeau...) laisse le
+      // drapeau absent expres : le prochain lancement retentera la reprise
+      // plutot que de la considerer terminee a tort.
     }
   }
 
   /// Rend le nombre de tirages nouvellement mis en cache.
   Future<int> run() async {
+    final resolution = await _resolveEditionsForExisting();
+    return resolution.resolved.length;
+  }
+
+  /// Identifie les tirages manquants du cache parmi les cartes deja stockees
+  /// (decks + collection) et delegue leur resolution a [CardResolver]. Seul
+  /// point d'acces a la base et au resolveur partage par [run] et [runOnce],
+  /// pour que les deux versions de la completude (nombre resolu vs
+  /// resolution totale) soient calculees a partir du meme
+  /// [EditionResolution].
+  Future<EditionResolution> _resolveEditionsForExisting() async {
     final deckRows = await _db.select(_db.deckCards).get();
     final collectionRows = await _db.select(_db.collectionCards).get();
 
@@ -67,7 +89,6 @@ class PrintBackfillService {
       }
     }
 
-    final resolution = await _resolver.resolveEditions(missing);
-    return resolution.resolved.length;
+    return _resolver.resolveEditions(missing);
   }
 }
