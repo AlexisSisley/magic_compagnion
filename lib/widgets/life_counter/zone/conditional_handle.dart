@@ -115,18 +115,32 @@ class ConditionalHandle extends StatelessWidget {
   }
 
   Widget _band() {
-    return Container(
-      decoration: BoxDecoration(
-        // greyShade800 est un getter (app_colors.dart:180), pas une constante :
-        // ce BoxDecoration ne peut donc pas etre const.
-        border: Border(top: BorderSide(color: AppColors.greyShade800)),
-      ),
-      alignment: Alignment.center,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: _visibleChips(),
-      ),
+    // Ronde de correction 1 : `maxVisibleChips` bornait le NOMBRE de puces,
+    // mais `Row(mainAxisSize: min)` dans un `Container` sans contrainte de
+    // largeur ne protégeait de rien si ce nombre-là ne tenait pas dans la
+    // largeur réelle -- un `RenderFlex overflowed`, silencieux en release
+    // (clipping), dès qu'une session monte `maxVisibleChips` pour un cran de
+    // densité plus dense que ce que `maxVisibleChips` seul anticipait.
+    // `LayoutBuilder` donne la largeur réellement disponible à
+    // `_visibleChips`, qui l'utilise pour réduire encore le nombre de puces
+    // RENDUES si besoin (voir son doc-comment) -- jamais pour les faire
+    // défiler ni rétrécir sous le seuil lisible.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Container(
+          decoration: BoxDecoration(
+            // greyShade800 est un getter (app_colors.dart:180), pas une
+            // constante : ce BoxDecoration ne peut donc pas etre const.
+            border: Border(top: BorderSide(color: AppColors.greyShade800)),
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: _visibleChips(constraints.maxWidth),
+          ),
+        );
+      },
     );
   }
 
@@ -137,7 +151,16 @@ class ConditionalHandle extends StatelessWidget {
   /// commandant garde la priorité historique (il passait avant l'énergie et
   /// la taxe dans l'ancien ordre fixe), puis l'ordre d'insertion de
   /// `summary.counters`.
-  List<Widget> _visibleChips() {
+  ///
+  /// Deux passes de troncature, pas une seule : `maxVisibleChips` borne
+  /// d'abord le NOMBRE de puces (comportement historique) ; si ce qui reste
+  /// -- puces affichées + `"+N"` le cas échéant -- ne tient toujours pas
+  /// dans `maxWidth`, les puces les moins graves cèdent une à une leur
+  /// place au `"+N"`, qui recompte alors TOUTES celles qui manquent (pas
+  /// seulement celles que `maxVisibleChips` avait écartées). Jamais de
+  /// défilement, jamais de puce rétrécie sous le seuil lisible : la seule
+  /// variable qui cède est combien de puces sont effectivement rendues.
+  List<Widget> _visibleChips(double maxWidth) {
     final entries = <_ChipData>[
       if (summary.worstCommanderDamage > 0)
         _ChipData('⚔', summary.worstCommanderDamage, AppColors.accentRed),
@@ -145,19 +168,53 @@ class ConditionalHandle extends StatelessWidget {
         _ChipData(entry.key.emoji, entry.value, Color(entry.key.color)),
     ]..sort((a, b) => b.value.compareTo(a.value));
 
-    if (entries.length <= maxVisibleChips) {
-      return [for (final e in entries) _chip(e.glyph, e.value, e.color)];
+    final baseShowCount = entries.length <= maxVisibleChips
+        ? entries.length
+        : (maxVisibleChips > 0 ? maxVisibleChips - 1 : 0);
+
+    var shown = entries.take(baseShowCount).toList();
+    var hiddenCount = entries.length - shown.length;
+
+    if (maxWidth.isFinite) {
+      while (shown.isNotEmpty && _rowWidth(shown, hiddenCount) > maxWidth) {
+        shown = shown.sublist(0, shown.length - 1);
+        hiddenCount = entries.length - shown.length;
+      }
     }
 
-    // Jamais de défilement : le surplus qui ne tient pas se compte dans un
-    // "+N", il ne se cache pas derrière une bande qui défile.
-    final showCount = maxVisibleChips > 0 ? maxVisibleChips - 1 : 0;
-    final shown = entries.take(showCount);
-    final hiddenCount = entries.length - shown.length;
     return [
       for (final e in shown) _chip(e.glyph, e.value, e.color),
-      _overflowChip(hiddenCount),
+      if (hiddenCount > 0) _overflowChip(hiddenCount),
     ];
+  }
+
+  /// Largeur totale qu'occuperait la bande pour ces puces (padding
+  /// horizontal des `Padding` de `_chip`/`_overflowChip` inclus), en comptant
+  /// le "+N" s'il y en a un -- c'est cette largeur que `_visibleChips`
+  /// compare à `maxWidth` pour décider si une puce de plus doit céder sa
+  /// place.
+  double _rowWidth(List<_ChipData> shown, int hiddenCount) {
+    var total = 0.0;
+    for (final e in shown) {
+      total += _chipTextWidth('${e.glyph} ${e.value}');
+    }
+    if (hiddenCount > 0) {
+      total += _chipTextWidth('+$hiddenCount');
+    }
+    return total;
+  }
+
+  /// Largeur mesurée d'un texte de puce avec la même police que
+  /// `_chip`/`_overflowChip` (la couleur n'affecte pas la métrique du
+  /// texte, donc la couleur par défaut de `lifeHandleChip` suffit ici),
+  /// plus les 12px de `Padding` horizontal (6 de chaque côté) qui
+  /// l'entourent dans la puce réelle.
+  double _chipTextWidth(String text) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: AppTextStyles.lifeHandleChip()),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return painter.width + 12;
   }
 
   Widget _chip(String glyph, int value, Color color) {

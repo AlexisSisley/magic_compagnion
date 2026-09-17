@@ -222,4 +222,67 @@ void main() {
     expect(find.byType(SingleChildScrollView), findsNothing);
     expect(find.byType(ListView), findsNothing);
   });
+
+  // --- Ronde de correction 1 : `maxVisibleChips` limite le NOMBRE de puces,
+  // mais rien ne garantissait qu'elles tiennent en LARGEUR une fois ce
+  // nombre autorisé. Une session qui monte ce paramètre pour un cran de
+  // densité peut se retrouver avec plus de puces que la largeur réelle ne
+  // permet -- exactement l'usage pour lequel il a été rendu paramétrable.
+
+  testWidgets(
+      'même quand maxVisibleChips laisse passer plus de puces que la '
+      'largeur réelle ne permet, aucun débordement ne se produit -- la '
+      'bande réduit encore le nombre de puces rendues, et le "+N" compte '
+      'TOUTES celles qui manquent (pas seulement celles que maxVisibleChips '
+      'aurait écartées)', (tester) async {
+    // maxVisibleChips volontairement généreux (10, largement au-dessus des
+    // 4 entrées non nulles) : ici, c'est la LARGEUR, pas le nombre, qui doit
+    // forcer la troncature.
+    const summary = CounterSummary(
+      counters: [
+        MapEntry(_poison, 9),
+        MapEntry(_energy, 8),
+        MapEntry(_custom, 7),
+      ],
+      worstCommanderDamage: 6,
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              // Largeur volontairement bien trop étroite pour 4 puces.
+              width: 60,
+              child: ConditionalHandle(
+                summary: summary,
+                maxVisibleChips: 10,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull,
+        reason: 'aucun débordement, à AUCUNE largeur -- pas de '
+            'RenderFlex overflowed, même silencieux en release : c\'est '
+            'exactement le mécanisme qui a fait revenir en arrière le lot 6');
+
+    final overflowFinder = find.textContaining('+');
+    expect(overflowFinder, findsOneWidget,
+        reason: 'à 60px, 4 puces ne tiennent pas : la largeur doit forcer '
+            'un "+N", même si maxVisibleChips (10) ne l\'exigeait pas');
+
+    final overflowText = tester.widget<Text>(overflowFinder).data!;
+    final hiddenCount = int.parse(overflowText.substring(1));
+    final visibleChipsCount =
+        tester.widgetList<Text>(find.byType(Text)).length - 1; // - le "+N"
+
+    expect(visibleChipsCount + hiddenCount, 4,
+        reason: 'le "+N" doit compter TOUTES les puces manquantes, pas '
+            'seulement celles que maxVisibleChips aurait écartées');
+  });
 }
