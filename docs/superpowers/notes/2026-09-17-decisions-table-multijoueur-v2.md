@@ -21,7 +21,7 @@ La parade qui a marché à chaque fois : **exiger une mutation nommée par test*
 
 ---
 
-## Les dix-neuf décisions
+## Les vingt-deux décisions
 
 **Ruling 1 : `actionHub` est introduit en T4 avec un `const SizedBox.shrink()` provisoire dans `life_counter_page.dart`, remplacé en T6.**
 Motif : le plan le prévoit déjà dans son auto-revue, mais seulement en prose ; sans cette instruction portée dans le brief de T4, l'implémenteur de T4 laisse la suite rouge et la revue de T4 signale une régression qui n'en est pas une. Le paramètre reste `required` : un défaut nul serait un piège permanent.
@@ -119,6 +119,49 @@ Motif : extension signalée par l'implémenteur plutôt que glissée. Elle est n
 Ce que je NE peux PAS trancher par le raisonnement : `onLifeChanged` continue de partir à chaque pas, donc le nombre de PV affiché bouge pendant la descente puis se corrige au relâchement. Les bulles ne mentent plus, mais le chiffre peut encore sauter. La seule façon de le savoir est de le regarder.
 Inscrit à T8 comme point nommé : « en glissant vers un palier, le chiffre de PV saute-t-il visiblement avant de se stabiliser ? » Si oui, le correctif est de différer l'application de la molette jusqu'au relâchement — geste pleinement atomique — et c'est un lot de suite, pas une ronde de plus ici.
 Coût si j'ai tort : un saut de valeur visible pendant un geste. Détectable en trente secondes à la porte, et je préfère le montrer que le deviner.
+
+**Ruling 20 (final) : les presets d'orientation 2 à 6 joueurs sont DÉRIVÉS de la géométrie, et les presets décoratifs sont supprimés.**
+Motif : Critical 3. Les listes en dur décrivent la disposition moitié-haute/moitié-basse d'avant la branche. Mesuré à Size(900,700) / 4 joueurs : la disposition rendue est [top,right,bottom,left] = [2,3,0,1], alors que « Face à face » pose [2,2,0,0]. AUCUN des cinq presets ne produit l'orientation juste. Dix tests verts gravent les valeurs fausses.
+« Côtés », « Triangle » et « Cercle » ne décrivent aucune disposition de sièges : ils ne peuvent pas être exprimés honnêtement une fois la géométrie dérivée. Ils sont supprimés — c'est la même question que l'utilisateur avait laissée ouverte au lot 6, cette fois avec une raison.
+Coût si j'ai tort : l'utilisateur perd trois raccourcis d'orientation. Les rotations restent atteignables une par une par le bouton de rotation de chaque zone.
+**Ruling 21 (final) : la migration des rotations pose le REPLI face-à-face, jamais les sièges de table.**
+Motif : Important 4. `game_session.dart:316` appelle `seatsFor(effectiveOrder.length)` sans drapeau — ce que le ruling 12 a interdit ailleurs. Le modèle n'a pas accès à la taille de l'écran : il ne peut pas savoir si la disposition rendue aura des colonnes latérales. Un snapshot hérité ouvert sur téléphone en portrait poserait 90° et 270° dans des cases horizontales dès le premier lancement.
+Le repli est le seul choix lisible sur TOUS les écrans. Sur tablette, l'utilisateur applique « Table » s'il le souhaite.
+Coût si j'ai tort : après mise à jour, les possesseurs de tablette voient une table en face-à-face au lieu des quatre côtés, et doivent appliquer un preset une fois. Lisible partout, plutôt qu'illisible quelque part.
+**Ruling 22 (final) : `kZoneHeaderHeight` passe de 40 à 48, mesuré comme `kActionWidth` l'a été.**
+Motif : Important 2. `PlayerHeader` contient un `IconButton` Material nu ; `kMinInteractiveDimension` vaut 48. Mesuré : en-tête rendu de 40 px, bouton palette de 48 px, débordement de 8 px rogné par le `clipBehavior` de la zone. La cible tactile tombe à 48x40, sous le minimum, dans une refonte dont le ruling 16 dit que « 48 dp est la cible tactile minimale ». Les 8 px inférieurs sont absorbés par le `LifeDial` : le tap donne +1 PV au lieu d'ouvrir le sélecteur.
+Cascade assumée : `kZoneShortEdgeFloor` 70 -> 78, `kSideColumnNeed` 96 -> 104. Vérifié : tablette portrait 820-208 = 612 >= 472, colonnes conservées ; le seuil de 600 reste sans colonnes, déjà le cas.
+Coût si j'ai tort : le plancher monte de 8 px, donc quelques écrans limites basculent en face-à-face. Honnête, et cohérent avec le ruling 16.
+
+---
+
+## Résidus de la revue finale — assumés, non corrigés
+
+Le protocole prévoit **une seule** vague de correction après la revue finale, puis une re-revue scopée. Ces trois points sont sortis de cette re-revue et sont assumés tels quels.
+
+**R1 — le correctif du Critical 1 n'est gardé par aucun test. C'est le résidu qui compte.**
+`_stepUnder` utilise désormais `globalToLocal`, ce qui est juste. Mais la re-revue a rejoué la mutation (retour à `localToGlobal(Offset.zero) & box.size`) et lancé **toute la suite : 1032 tests verts**, y compris les huit tests « sous rotation du siège ». Le rapport de la vague annonçait « 3 échecs sur 8 » — c'était faux.
+Cause : les tests montent un `RotatedBox` **nu**, où le rectangle fantôme coïncide par chance avec le vrai. Une sonde montée sur une vraie `PlayerZone`, elle, attrape le défaut.
+**Ce qu'il faut faire :** monter `PlayerZone` (ou au moins décentrer et redimensionner le `RotatedBox`) dans `life_dial_test.dart`, pour que la coïncidence cesse. Le produit est juste aujourd'hui ; rien n'empêche de le re-casser sans un seul test rouge — et c'est exactement le mécanisme qui a produit six tests menteurs dans ce lot.
+
+**R2 — la cascade de `kZoneShortEdgeFloor` (70 → 78) déplace un seuil, hors des appareils réels.**
+Matrice mesurée sur 11 tailles × 5 effectifs : **identique ligne pour ligne** avant et après. Mais la première largeur qui conserve les colonnes latérales passe de 664 à 680 px (chemin bande) et de 352 à 368 px (chemin hub). Un écran de 664 à 679 px de large avec un petit côté ≥ 600 — fenêtre d'écran partagé, pliable ouvert — perd ses colonnes. Aucun appareil standard dans cette fenêtre de 16 px.
+
+**R3 — commentaire arithmétiquement faux**, `player_zone_density_test.dart:71` : « le petit côté (72) est sous `kZoneShortEdgeFloor` (70) ». Le plancher vaut 78, et la phrase était déjà fausse avant.
+
+---
+
+## Ce que la porte visuelle doit trancher
+
+Aucun test ne peut répondre à ces questions. Elles sont la raison d'être de la porte.
+
+1. **L'orientation réelle des zones après chaque preset, à 4, 5 et 6 joueurs.** Ces valeurs viennent d'être réécrites et n'ont jamais croisé un œil humain.
+2. **Le mot « Table » à 3 et 7 joueurs**, où le bouton pose en fait un face-à-face parce que les deux coïncident à ces effectifs. Correct, potentiellement déroutant.
+3. **Le chiffre de PV saute-t-il pendant un glissé vers un palier ?** `onLifeChanged` part à chaque pas de molette, donc la valeur bouge puis se corrige au relâchement. Les bulles ne mentent plus, le chiffre peut encore sauter (ruling 19).
+4. **La rangée d'attribution qui apparaît brièvement entre deux sélections de palier** (ruling 17).
+5. **L'état d'animation suit désormais le joueur et non sa case** lors d'un réordonnancement — conséquence de la clé d'identité, signalée par la session du lot 5, qu'aucun test ne voit.
+6. **Le défilement du tiroir dans le pire cas** : 54,5 % du parcours pour atteindre « Tourner » à 7-8 joueurs. Mesuré acceptable, à sentir au pouce.
+7. **L'overflow du `LifeDial` dans l'aperçu de glissement**, non reproduit et toujours inexpliqué.
 
 ## Mineurs reportés
 
