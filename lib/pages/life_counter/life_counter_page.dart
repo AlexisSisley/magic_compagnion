@@ -937,6 +937,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     return AdaptiveGrid(
       playerZones: playerZones,
       centralBar: _buildCentralBar(),
+      // TODO(task 6): remplacer par le vrai hub d'actions.
+      actionHub: const SizedBox.shrink(),
     );
   }
 

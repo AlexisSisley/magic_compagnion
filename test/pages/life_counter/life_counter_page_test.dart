@@ -85,26 +85,52 @@ Future<void> pumpLifeCounter(
 /// du joueur affiché à `zoneIndex`, avec un `pump()` entre chaque tap pour
 /// laisser chaque geste se résoudre avant le suivant.
 ///
-/// `AdaptiveGrid` pivote à 180° les zones du haut (index < topCount, où
-/// topCount = playerCount ~/ 2 — voir adaptive_grid.dart) : la moitié
-/// GÉOMÉTRIQUE gauche (écran) d'une zone pivotée est alors sa moitié locale
-/// DROITE (+1), et inversement. `totalZones` (le nombre de `LifeDial`
-/// réellement montés) sert à retrouver `topCount` sans le supposer fixe, si
-/// bien que ce calcul reste correct quel que soit le nombre de joueurs de la
-/// session testée.
+/// Depuis la tâche 4, `AdaptiveGrid` ne pivote plus jamais rien (voir
+/// `adaptive_grid.dart`) : seul `PlayerZone` pivote sa zone, via le
+/// `RotatedBox(quarterTurns: player.quarterTurns)` qu'il pose autour de son
+/// contenu (`player_zone.dart` ~ligne 458). La rotation effective d'un
+/// cadran donné dépend donc uniquement de l'état du joueur, jamais de sa
+/// position dans la grille — ce calcul l'observe directement sur l'arbre de
+/// widgets plutôt que de la déduire (à tort) de `zoneIndex`.
 Future<void> tapMinusHalf(
   WidgetTester tester,
   int zoneIndex,
   int count,
 ) async {
-  final totalZones = find.byType(LifeDial).evaluate().length;
-  final isRotated = zoneIndex < totalZones ~/ 2;
-  final dial = tester.getRect(find.byType(LifeDial).at(zoneIndex));
+  final dialFinder = find.byType(LifeDial).at(zoneIndex);
+  final rotatedAncestor = find.ancestor(
+    of: dialFinder,
+    matching: find.byWidgetPredicate((w) => w is RotatedBox && w.quarterTurns == 2),
+  );
+  final isRotated = rotatedAncestor.evaluate().isNotEmpty;
+  final dial = tester.getRect(dialFinder);
   final dx = isRotated ? dial.width * 0.75 : dial.width * 0.25;
   for (var i = 0; i < count; i++) {
     await tester.tapAt(Offset(dial.left + dx, dial.center.dy));
     await tester.pump();
   }
+}
+
+/// Impose une taille d'écran de type téléphone en portrait, pour la durée du
+/// test (restaurée par `addTearDown`).
+///
+/// Nécessaire depuis la tâche 4 : `pumpLifeCounter`/`pumpWithContainer` ne
+/// pinnaient auparavant aucune taille, et héritaient de la taille de surface
+/// par défaut du test runner — assez grande pour que `tableLayoutFor`
+/// bascule en colonnes latérales à 4 joueurs (voir `table_layout.dart`), ce
+/// qui change l'ORDRE d'affichage des zones par rapport à l'ordre canonique
+/// des joueurs. Les tests qui suivent un joueur par sa position dans l'arbre
+/// (`.first`, `.at(index)`) ont besoin de cet ordre stable, identique à
+/// celui du repli face-à-face (`seatsFor(_, allowSideColumns: false)`).
+void _setPhonePortrait(WidgetTester tester) {
+  final originalSize = tester.view.physicalSize;
+  final originalDpr = tester.view.devicePixelRatio;
+  tester.view.physicalSize = const Size(390, 844);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(() {
+    tester.view.physicalSize = originalSize;
+    tester.view.devicePixelRatio = originalDpr;
+  });
 }
 
 /// Réordonne par une mutation directe du provider — PAS par un vrai geste de
@@ -154,6 +180,7 @@ void main() {
   testWidgets(
       'la partie restaurée survit à une modification de PV (régression bug A)',
       (tester) async {
+    _setPhonePortrait(tester);
     // Une partie en cours : Alex a déjà perdu 6 PV.
     final baseSession = GameSession.newGame(
       format: commanderFormat,
@@ -172,8 +199,8 @@ void main() {
     expect(find.text('34'), findsOneWidget);
 
     // On retire 1 PV au joueur 0 par un vrai tap sur son cadran (zone
-    // d'index 0, pivotée à 180° par AdaptiveGrid : `tapMinusHalf` compense),
-    // et on laisse le buffer de 2 s s'appliquer.
+    // d'index 0 ; `tapMinusHalf` détecte lui-même sa rotation réelle, voir
+    // sa docstring), et on laisse le buffer de 2 s s'appliquer.
     await tapMinusHalf(tester, 0, 1);
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
@@ -792,6 +819,7 @@ void main() {
   testWidgets(
       'DETTE 1/4 — le toggle monarque depuis le tiroir atteint la session',
       (tester) async {
+    _setPhonePortrait(tester);
     final container = await pumpWithContainer(tester);
 
     await openDrawerForPlayerZero(tester);
@@ -819,6 +847,7 @@ void main() {
       "DETTE 2/4 — l'élimination volontaire depuis le tiroir atteint la "
       'session',
       (tester) async {
+    _setPhonePortrait(tester);
     final container = await pumpWithContainer(tester);
 
     await openDrawerForPlayerZero(tester);
@@ -837,6 +866,7 @@ void main() {
       "DETTE 3/4 — annuler l'élimination depuis le tiroir restaure le "
       'joueur',
       (tester) async {
+    _setPhonePortrait(tester);
     final baseSession = GameSession.newGame(
       format: commanderFormat,
       playerConfigs: testConfigs,
@@ -869,6 +899,7 @@ void main() {
       'DETTE 4/4 — réinitialiser les compteurs depuis le tiroir ne touche '
       'pas la vie',
       (tester) async {
+    _setPhonePortrait(tester);
     final container = await pumpWithContainer(tester);
     final notifier = container.read(gameSessionNotifierProvider.notifier);
 
@@ -912,6 +943,7 @@ void main() {
       'la grille du tiroir écrit les dégâts sur le joueur DONT LE TIROIR '
       'EST OUVERT, avec la ligne tapée comme SOURCE — pas l\'inverse',
       (tester) async {
+    _setPhonePortrait(tester);
     final container = await pumpWithContainer(tester);
 
     // Tiroir du joueur 0 (Alex), ouvert par un vrai tap sur sa poignée.
@@ -957,6 +989,7 @@ void main() {
       'la grille du tiroir liste bien tous les adversaires (pas le joueur '
       'du tiroir lui-même) avec leur total déjà reçu',
       (tester) async {
+    _setPhonePortrait(tester);
     final baseSession = GameSession.newGame(
       format: commanderFormat,
       playerConfigs: testConfigs,
@@ -1000,6 +1033,7 @@ void main() {
   testWidgets(
       'un adversaire réellement éliminé reste listé dans la grille du '
       'tiroir, avec son total corrigeable', (tester) async {
+    _setPhonePortrait(tester);
     final baseSession = GameSession.newGame(
       format: commanderFormat,
       playerConfigs: testConfigs,
@@ -1369,14 +1403,25 @@ void main() {
 
   testWidgets(
       'ronde de correction 1 (Important) — la barre centrale ne déborde pas '
-      'sur un téléphone étroit, et son 8e bouton (vue table) reste '
-      'réellement atteignable',
+      'sur un téléphone étroit ; son 8e bouton (vue table) est déplacé dans '
+      'le hub (tâche 4)',
       (tester) async {
     // 320px logiques : le plus étroit des téléphones courants. La barre
     // centrale comptait déjà 7 enfants de taille fixe (dont un cercle de
     // 50×50) avant le bouton de la tâche 4, qui porte le total à 8 — sans
     // protection, `Row(spaceEvenly)` seul dépasse ici et lève une erreur de
     // rendu (RenderFlex overflow), invisible sur un simulateur large.
+    //
+    // Tâche 4 (AdaptiveGrid) : `tableLayoutFor` choisit maintenant le HUB
+    // (pas la bande) sous `kLargeScreenShortEdge` (600) — un téléphone
+    // étroit n'affiche donc plus jamais la bande à 8 boutons ; le risque de
+    // dépassement qu'elle posait ne s'y produit plus PAR CONSTRUCTION,
+    // puisque `AdaptiveGrid` ne la monte plus du tout dans ce cas. Le hub
+    // qui la remplace ici est encore un placeholder
+    // (`actionHub: const SizedBox.shrink()` dans `life_counter_page.dart`,
+    // tâche 6 à venir) : l'atteignabilité réelle du bouton "vue table"
+    // depuis le hub n'est donc pas vérifiable ici et reste à couvrir par la
+    // tâche 6.
     final originalSize = tester.view.physicalSize;
     final originalDpr = tester.view.devicePixelRatio;
     tester.view.physicalSize = const Size(320, 640);
@@ -1392,26 +1437,22 @@ void main() {
     );
     await pumpLifeCounter(tester, snapshot: baseSession);
 
-    // Le cœur du test : sans la protection (LayoutBuilder + ScrollView +
-    // ConstrainedBox), ce pump aurait déjà capturé une exception de
-    // dépassement à ce stade.
+    // Le cœur du test : sans protection, la bande à 8 boutons aurait déjà
+    // capturé une exception de dépassement à ce stade si elle était montée.
     expect(tester.takeException(), isNull,
         reason: 'la barre centrale ne doit jamais déborder, même sur un '
             'écran étroit');
 
-    // Pas seulement « aucune exception » : le bouton doit être réellement
-    // amenable à l'écran par un défilement, pas coincé hors champ à
-    // l'infini derrière un ConstrainedBox mal borné.
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('action-table-view')),
-    );
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-
-    final buttonRect =
-        tester.getRect(find.byKey(const ValueKey('action-table-view')));
-    expect(buttonRect.left, greaterThanOrEqualTo(0));
-    expect(buttonRect.right, lessThanOrEqualTo(320));
+    // La bande (et son 8e bouton) n'est plus montée du tout sur un écran
+    // aussi étroit : c'est le hub qui prend sa place (voir AdaptiveGrid,
+    // tâche 4).
+    expect(find.byKey(const ValueKey('action-table-view')), findsNothing,
+        reason: 'sur téléphone étroit, la bande centrale (et son bouton '
+            '« vue table ») cède la place au hub, elle ne déborde plus '
+            'jamais par construction');
+    expect(find.byKey(const ValueKey('action_hub')), findsOneWidget,
+        reason: 'AdaptiveGrid doit choisir le hub, pas la bande, sous le '
+            'seuil de grand écran');
   });
 
   // --- Vague de correction finale du lot 3 (Critical #1) : la rangée
