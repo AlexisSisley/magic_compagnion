@@ -84,3 +84,40 @@ C'est la même famille que `_layoutSafetyMargin` du lot 5 : une mesure isolée q
 3. `flutter test` **en entier** et `flutter analyze`.
 4. **Vérifier nommément** : le test de distance du tiroir (< 75 %), l'absence de `Scrollable` dans la poignée, `reservedHeight` à 30, l'absence de compensation de rotation, le marqueur `rotationsMigrated`, et les trois sites « une seule source, un seul filtre ».
 5. Un merge Dart peut compiler, passer mille tests, et avoir remis deux entrées de tiroir dans leur ordre d'origine. **C'est précisément ce qu'aucun test ne voit.**
+
+
+---
+
+# Ce que la fusion a réellement appris (écrit après coup)
+
+La fusion a eu lieu le 2026-09-17. `main` est à `b319e2d`, 1128 tests verts. **Aucune décision des deux cartes ci-dessus n'a été perdue**, et aucun conflit de fond n'est apparu : les deux chantiers ont tenu ensemble.
+
+Neuf tests ont échoué après la résolution. Voici ce qu'ils ont enseigné.
+
+## La règle qui manquait aux deux cartes
+
+Les cartes servaient à éviter qu'un merge **annule** une décision. Celui-ci en a **dupliqué** une, et aucune des deux listes ne décrivait cette forme-là.
+
+Les deux chantiers avaient chacun ajouté un `KeyedSubtree(key: ValueKey('player_zone_<playerId>'))` autour de la zone joueur — même intention, même clé, écrits indépendamment. La résolution a gardé les deux côtés, comme partout où ils semblaient purement additifs. Résultat : **deux widgets de clé identique dans le même arbre**, donc tout `find.byKey` ambigu — quatre tests rouges d'un coup (badge après réordonnancement, réordonnancement, presets, repli portrait).
+
+Le symptôme ressemblait à un conflit de fond entre les deux chantiers. C'était l'inverse : **deux fois la même bonne idée.**
+
+> **Dans une résolution de conflit, « les deux côtés sont additifs » n'est pas une raison suffisante de garder les deux.** Il faut se demander si les deux ajouts sont la *même chose dite deux fois*. Deux paramètres différents se cumulent ; deux clés identiques s'annulent.
+
+## Les cinq autres échecs
+
+Tous des tests décrivant le monde d'avant, aucun défaut de production :
+- un `.first` sur les zones, qui ne désigne plus le même joueur depuis que l'ordre de l'arbre suit `tableLayoutFor`/`seatsFor` ;
+- la grille de dégâts de commandant, qui n'entre plus sans défiler dans un tiroir allongé par les deux côtés ;
+- un helper montant un `Player` avec les champs nommés que le lot 5 a remplacés par une collection ;
+- un `'☠ 3'` cherché sans le sélecteur de variante emoji que porte `CounterType`.
+
+Aucun seuil relâché, aucune assertion affaiblie. **Le test de distance du tiroir mesure 59,5 %** contre un seuil de 75 % : les lignes de compteur n'ont pas repoussé « Tourner » trop bas.
+
+## Une erreur de méthode, commise deux fois
+
+J'ai annoncé « 0 erreur, 0 avertissement » sur `main`. C'est faux : il y a **1 avertissement** (`_tag` dans `game_setup_modal.dart`, antérieur aux deux chantiers). La cause est un `grep -icE " error | warning "` dont le motif exige une espace **avant** le mot, alors que `flutter analyze` n'en met pas toujours une.
+
+C'est la deuxième fois dans ce lot. La première, la leçon avait été écrite : *vérifier un compte à zéro avec un filtre dont on n'a jamais regardé la sortie brute, c'est se fabriquer une preuve.* Elle a été écrite, puis pas appliquée.
+
+> **Un chiffre de zéro annoncé dans un compte rendu doit avoir été lu en sortie brute au moins une fois.** C'est la ligne sur laquelle quelqu'un finira par s'appuyer.
