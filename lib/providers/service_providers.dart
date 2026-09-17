@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/database/app_database.dart';
 import '../services/backup_service.dart';
 import '../services/bulk_data_service.dart';
+import '../services/card_resolver.dart';
 import '../services/collection_service.dart';
 import '../services/counter_type_service.dart';
 import '../services/deck_service.dart';
@@ -28,6 +29,7 @@ import '../services/scan_history_service.dart';
 import '../services/scryfall_api_service.dart';
 import '../services/set_service.dart';
 import '../services/game_session_service.dart';
+import '../services/translation_worker.dart';
 import '../services/wishlist_service.dart';
 
 // --- Database singleton ---
@@ -46,10 +48,17 @@ final scryfallApiServiceProvider = Provider<ScryfallApiService>((ref) {
 
 // --- Services avec injection de la base drift + API ---
 
+final cardResolverProvider = Provider<CardResolver>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  final api = ref.watch(scryfallApiServiceProvider);
+  return CardResolver(api: api, db: db);
+});
+
 final collectionServiceProvider = Provider<CollectionService>((ref) {
   final db = ref.watch(appDatabaseProvider);
   final api = ref.watch(scryfallApiServiceProvider);
-  return CollectionService(database: db, api: api);
+  final resolver = ref.watch(cardResolverProvider);
+  return CollectionService(database: db, api: api, resolver: resolver);
 });
 
 final deckServiceProvider = Provider<DeckService>((ref) {
@@ -75,6 +84,12 @@ final gameHistoryServiceProvider = Provider<GameHistoryService>((ref) {
 final scanHistoryServiceProvider = Provider<ScanHistoryService>((ref) {
   final db = ref.watch(appDatabaseProvider);
   return ScanHistoryService(database: db);
+});
+
+final translationWorkerProvider = Provider<TranslationWorker>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  final resolver = ref.watch(cardResolverProvider);
+  return TranslationWorker(resolver: resolver, db: db);
 });
 
 // --- Services sans dépendance à la base ---

@@ -4,16 +4,20 @@ import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Pour Clipboard
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:magic_companion/widgets/cards/versions_selector_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../providers/card_display_provider.dart';
+import '../../providers/preferred_language_provider.dart';
+import '../../providers/service_providers.dart';
 import '../../router/app_router.dart';
 import '../../services/deck_service.dart'; // Pour DeckBoard enum
 
-class DeckCardListTab extends StatefulWidget {
+class DeckCardListTab extends ConsumerStatefulWidget {
   final List<DeckCard> cardList;
   final List<ScryfallCard> fullCardData;
   final List<DeckCard> collection;
@@ -54,12 +58,75 @@ class DeckCardListTab extends StatefulWidget {
   });
 
   @override
-  State<DeckCardListTab> createState() => _DeckCardListTabState();
+  ConsumerState<DeckCardListTab> createState() => _DeckCardListTabState();
 }
 
-class _DeckCardListTabState extends State<DeckCardListTab> {
-  double _gridColumns = 1.0; 
+class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
+  double _gridColumns = 1.0;
   double _lastScale = 1.0;
+
+  /// Projection d'affichage (langue preferee) par carte possedee, indexee
+  /// par scryfallId. Resolue en une seule passe au chargement du deck --
+  /// jamais une requete par ligne de liste, donc jamais de spinner par nom
+  /// de carte (regle d'affichage n°1). Tant qu'une entree est absente de
+  /// cette map, la tuile correspondante affiche `card.name` (le tirage
+  /// possede) sans attendre : le remplacement par la traduction, quand elle
+  /// arrive, est silencieux.
+  Map<String, CardDisplay> _displays = {};
+
+  /// Jeton de sequence pour `_loadDisplays` : incremente a chaque lancement,
+  /// capture en debut d'appel. `didUpdateWidget` peut relancer une
+  /// resolution avant que la precedente n'ait fini (deck modifie deux fois
+  /// rapidement, import qui rafraichit la liste...) ; rien ne garantit
+  /// l'ordre de resolution des Future. Au moment de publier, un appel ne
+  /// pose son resultat que si son jeton est toujours le plus recent -- le
+  /// dernier lancement gagne, jamais un retour tardif d'un appel perime.
+  int _loadSeq = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDisplays();
+  }
+
+  @override
+  void didUpdateWidget(covariant DeckCardListTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_cardsSignature(oldWidget.cardList) != _cardsSignature(widget.cardList)) {
+      _loadDisplays();
+    }
+  }
+
+  String _cardsSignature(List<DeckCard> cards) =>
+      cards.map((c) => c.scryfallId).join('|');
+
+  /// Resout la projection d'affichage de chaque carte possedee du deck, en
+  /// une seule passe. Le tirage possede (`DbCardPrint`) est lu depuis le
+  /// cache local ; s'il est absent (carte non encore mise en cache, entree
+  /// `LOCAL:` sans tirage Scryfall...) la carte est simplement absente de la
+  /// map et la tuile continue d'afficher `card.name`.
+  Future<void> _loadDisplays() async {
+    final seq = ++_loadSeq;
+    final db = ref.read(appDatabaseProvider);
+    final preferredLang = await readPreferredLanguage();
+
+    final Map<String, CardDisplay> resolved = {};
+    for (final card in widget.cardList) {
+      if (resolved.containsKey(card.scryfallId)) continue;
+      final owned = await db.getCardPrint(card.scryfallId);
+      if (owned == null) continue;
+      resolved[card.scryfallId] = await resolveDisplay(
+        db: db,
+        owned: owned,
+        preferredLang: preferredLang,
+      );
+    }
+
+    // Le dernier lancement gagne : un appel demarre avant mais qui repond
+    // apres ne publie pas son resultat s'il n'est plus le plus recent.
+    if (!mounted || seq != _loadSeq) return;
+    setState(() => _displays = resolved);
+  }
 
   void _handleScaleUpdate(ScaleUpdateDetails details) {
     if (details.scale > 1.3 && _lastScale <= 1.0) { setState(() { if (_gridColumns > 1) _gridColumns--; _lastScale = details.scale; }); } 
@@ -202,11 +269,12 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     ScryfallCard? scryfallCard;
     scryfallCard = widget.fullCardData.where((sc) => sc.id == card.scryfallId).firstOrNull;
     final bool isInCollection = widget.collection.any((c) => c.scryfallId == card.scryfallId);
+    final CardDisplay? display = _displays[card.scryfallId];
 
-    
     if (isGrid) {
       return DeckCardGridTile(
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
+        display: display,
         onPlus: () => widget.onUpdateQuantity(card, 1),
         onMinus: () => widget.onUpdateQuantity(card, -1),
         onTap: () { if (scryfallCard != null) context.push(AppRoutes.cardDetail, extra: {'cardName': scryfallCard.name}); },
@@ -215,6 +283,7 @@ class _DeckCardListTabState extends State<DeckCardListTab> {
     } else {
       return DeckCardTile(
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
+        display: display,
         onTap: () { if (scryfallCard != null) context.push(AppRoutes.cardDetail, extra: {'cardName': scryfallCard.name}); },
         onMore: () => _showCardOptions(card, scryfallCard, isCommander), // <--- Ouvre la modale
       );

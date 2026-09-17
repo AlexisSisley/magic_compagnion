@@ -5,7 +5,10 @@ import 'dart:developer';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/database/app_database.dart';
+import '../models/card_print.dart';
 import '../models/deck_model.dart';
+import 'card_resolver.dart';
+import 'deck_format_service.dart';
 import 'scryfall_api_service.dart';
 import '../utils/card_list_upsert_mixin.dart';
 
@@ -13,10 +16,12 @@ class CollectionService with CardListUpsertMixin {
   static const _collectionKey = 'user_collection';
   final AppDatabase? _db;
   final ScryfallApiService? _api;
+  final CardResolver? _resolver;
 
-  CollectionService({AppDatabase? database, ScryfallApiService? api})
+  CollectionService({AppDatabase? database, ScryfallApiService? api, CardResolver? resolver})
       : _db = database,
-        _api = api;
+        _api = api,
+        _resolver = resolver;
 
   Future<List<DeckCard>> loadCollection() async {
     if (_db != null) {
@@ -89,6 +94,53 @@ class CollectionService with CardListUpsertMixin {
         quantityToAdd: quantity,
         isFoil: isFoil
       );
+   }
+
+   /// Resout les entrees d'une decklist par edition (set + numero de
+   /// collection quand ils sont connus, sinon par nom), puis enfile les
+   /// traductions manquantes en tache de fond.
+   ///
+   /// Rend la main des que les editions sont connues : les traductions ne
+   /// sont jamais attendues ici (voir TranslationWorker), et aucune n'est
+   /// enfilee pour un tirage deja dans la langue preferee.
+   ///
+   /// Un import partiel n'est jamais silencieux : l'[EditionResolution]
+   /// complete est rendue a l'appelant (resolved / notFound / failed /
+   /// errors), qui decide quoi en faire.
+   Future<EditionResolution> resolveImportedEntries(
+     List<DecklistEntry> entries, {
+     required String preferredLang,
+   }) async {
+     final resolver = _resolver;
+     final db = _db;
+     if (resolver == null || db == null) {
+       throw StateError(
+         'resolveImportedEntries requiert un CardResolver et un AppDatabase '
+         '(injecter via collectionServiceProvider).',
+       );
+     }
+
+     final requests = entries
+         .map((e) => PrintRequest(
+               name: e.name,
+               setCode: e.setCode,
+               collectorNumber: e.collectorNumber,
+             ))
+         .toList();
+
+     final resolution = await resolver.resolveEditions(requests);
+
+     for (final print in resolution.resolved) {
+       if (print.lang == preferredLang) continue;
+       await db.enqueueTranslation(
+         scryfallId: print.scryfallId,
+         setCode: print.setCode,
+         collectorNumber: print.collectorNumber,
+         lang: preferredLang,
+       );
+     }
+
+     return resolution;
    }
 
    // --- IMPORTATION DE MASSE ---

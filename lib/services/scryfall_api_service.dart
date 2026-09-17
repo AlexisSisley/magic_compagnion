@@ -89,8 +89,17 @@ class ScryfallApiService {
   // ============================================================
 
   /// Récupère une carte par set code et collector number.
-  Future<Map<String, dynamic>> getCardBySetAndNumber(String setCode, String collectorNumber) async {
-    return _get('/cards/$setCode/$collectorNumber', cacheTtl: longCacheTtl);
+  ///
+  /// [lang] cible une traduction precise (`/cards/eld/146/fr`). Attention :
+  /// `POST /cards/collection` ignore silencieusement la langue, seule cette
+  /// route unitaire rend une version traduite.
+  Future<Map<String, dynamic>> getCardBySetAndNumber(
+    String setCode,
+    String collectorNumber, {
+    String? lang,
+  }) async {
+    final suffix = (lang == null || lang.isEmpty) ? '' : '/$lang';
+    return _get('/cards/$setCode/$collectorNumber$suffix', cacheTtl: longCacheTtl);
   }
 
   /// Recherche de cartes par nom (pour auto-complete ou recherche simple).

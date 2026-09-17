@@ -6233,6 +6233,1430 @@ class PlayerConfigCommandersCompanion
   }
 }
 
+class $CardPrintsTable extends CardPrints
+    with TableInfo<$CardPrintsTable, DbCardPrint> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CardPrintsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _scryfallIdMeta = const VerificationMeta(
+    'scryfallId',
+  );
+  @override
+  late final GeneratedColumn<String> scryfallId = GeneratedColumn<String>(
+    'scryfall_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _oracleIdMeta = const VerificationMeta(
+    'oracleId',
+  );
+  @override
+  late final GeneratedColumn<String> oracleId = GeneratedColumn<String>(
+    'oracle_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _setCodeMeta = const VerificationMeta(
+    'setCode',
+  );
+  @override
+  late final GeneratedColumn<String> setCode = GeneratedColumn<String>(
+    'set_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _collectorNumberMeta = const VerificationMeta(
+    'collectorNumber',
+  );
+  @override
+  late final GeneratedColumn<String> collectorNumber = GeneratedColumn<String>(
+    'collector_number',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _langMeta = const VerificationMeta('lang');
+  @override
+  late final GeneratedColumn<String> lang = GeneratedColumn<String>(
+    'lang',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _oracleNameMeta = const VerificationMeta(
+    'oracleName',
+  );
+  @override
+  late final GeneratedColumn<String> oracleName = GeneratedColumn<String>(
+    'oracle_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _printedNameMeta = const VerificationMeta(
+    'printedName',
+  );
+  @override
+  late final GeneratedColumn<String> printedName = GeneratedColumn<String>(
+    'printed_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _printedTextMeta = const VerificationMeta(
+    'printedText',
+  );
+  @override
+  late final GeneratedColumn<String> printedText = GeneratedColumn<String>(
+    'printed_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _imageUriMeta = const VerificationMeta(
+    'imageUri',
+  );
+  @override
+  late final GeneratedColumn<String> imageUri = GeneratedColumn<String>(
+    'image_uri',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _colorIdentityMeta = const VerificationMeta(
+    'colorIdentity',
+  );
+  @override
+  late final GeneratedColumn<String> colorIdentity = GeneratedColumn<String>(
+    'color_identity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
+    'fetchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> fetchedAt = GeneratedColumn<DateTime>(
+    'fetched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    scryfallId,
+    oracleId,
+    setCode,
+    collectorNumber,
+    lang,
+    oracleName,
+    printedName,
+    printedText,
+    imageUri,
+    colorIdentity,
+    fetchedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'card_prints';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DbCardPrint> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('scryfall_id')) {
+      context.handle(
+        _scryfallIdMeta,
+        scryfallId.isAcceptableOrUnknown(data['scryfall_id']!, _scryfallIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scryfallIdMeta);
+    }
+    if (data.containsKey('oracle_id')) {
+      context.handle(
+        _oracleIdMeta,
+        oracleId.isAcceptableOrUnknown(data['oracle_id']!, _oracleIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_oracleIdMeta);
+    }
+    if (data.containsKey('set_code')) {
+      context.handle(
+        _setCodeMeta,
+        setCode.isAcceptableOrUnknown(data['set_code']!, _setCodeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_setCodeMeta);
+    }
+    if (data.containsKey('collector_number')) {
+      context.handle(
+        _collectorNumberMeta,
+        collectorNumber.isAcceptableOrUnknown(
+          data['collector_number']!,
+          _collectorNumberMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_collectorNumberMeta);
+    }
+    if (data.containsKey('lang')) {
+      context.handle(
+        _langMeta,
+        lang.isAcceptableOrUnknown(data['lang']!, _langMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_langMeta);
+    }
+    if (data.containsKey('oracle_name')) {
+      context.handle(
+        _oracleNameMeta,
+        oracleName.isAcceptableOrUnknown(data['oracle_name']!, _oracleNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_oracleNameMeta);
+    }
+    if (data.containsKey('printed_name')) {
+      context.handle(
+        _printedNameMeta,
+        printedName.isAcceptableOrUnknown(
+          data['printed_name']!,
+          _printedNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('printed_text')) {
+      context.handle(
+        _printedTextMeta,
+        printedText.isAcceptableOrUnknown(
+          data['printed_text']!,
+          _printedTextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('image_uri')) {
+      context.handle(
+        _imageUriMeta,
+        imageUri.isAcceptableOrUnknown(data['image_uri']!, _imageUriMeta),
+      );
+    }
+    if (data.containsKey('color_identity')) {
+      context.handle(
+        _colorIdentityMeta,
+        colorIdentity.isAcceptableOrUnknown(
+          data['color_identity']!,
+          _colorIdentityMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fetched_at')) {
+      context.handle(
+        _fetchedAtMeta,
+        fetchedAt.isAcceptableOrUnknown(data['fetched_at']!, _fetchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fetchedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {scryfallId};
+  @override
+  DbCardPrint map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DbCardPrint(
+      scryfallId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scryfall_id'],
+      )!,
+      oracleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}oracle_id'],
+      )!,
+      setCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}set_code'],
+      )!,
+      collectorNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}collector_number'],
+      )!,
+      lang: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}lang'],
+      )!,
+      oracleName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}oracle_name'],
+      )!,
+      printedName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}printed_name'],
+      ),
+      printedText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}printed_text'],
+      ),
+      imageUri: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_uri'],
+      ),
+      colorIdentity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color_identity'],
+      )!,
+      fetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fetched_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CardPrintsTable createAlias(String alias) {
+    return $CardPrintsTable(attachedDatabase, alias);
+  }
+}
+
+class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
+  final String scryfallId;
+  final String oracleId;
+  final String setCode;
+  final String collectorNumber;
+  final String lang;
+
+  /// Le nom oracle (anglais), stable a travers toutes les traductions.
+  /// Distinct de [printedName], qui porte le nom localise de CE tirage.
+  final String oracleName;
+  final String? printedName;
+  final String? printedText;
+  final String? imageUri;
+
+  /// Identite de couleur de CE tirage (ex. `["W","U"]"`), en JSON -- meme
+  /// convention que [Decks.colors]. Mise en cache pour qu'un tirage servi
+  /// depuis le cache (donc sans repasser par Scryfall) porte toujours son
+  /// identite de couleur, meme quand la carte n'existe pas dans le bulk
+  /// local (voir `LocalCardService`).
+  final String colorIdentity;
+  final DateTime fetchedAt;
+  const DbCardPrint({
+    required this.scryfallId,
+    required this.oracleId,
+    required this.setCode,
+    required this.collectorNumber,
+    required this.lang,
+    required this.oracleName,
+    this.printedName,
+    this.printedText,
+    this.imageUri,
+    required this.colorIdentity,
+    required this.fetchedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['scryfall_id'] = Variable<String>(scryfallId);
+    map['oracle_id'] = Variable<String>(oracleId);
+    map['set_code'] = Variable<String>(setCode);
+    map['collector_number'] = Variable<String>(collectorNumber);
+    map['lang'] = Variable<String>(lang);
+    map['oracle_name'] = Variable<String>(oracleName);
+    if (!nullToAbsent || printedName != null) {
+      map['printed_name'] = Variable<String>(printedName);
+    }
+    if (!nullToAbsent || printedText != null) {
+      map['printed_text'] = Variable<String>(printedText);
+    }
+    if (!nullToAbsent || imageUri != null) {
+      map['image_uri'] = Variable<String>(imageUri);
+    }
+    map['color_identity'] = Variable<String>(colorIdentity);
+    map['fetched_at'] = Variable<DateTime>(fetchedAt);
+    return map;
+  }
+
+  CardPrintsCompanion toCompanion(bool nullToAbsent) {
+    return CardPrintsCompanion(
+      scryfallId: Value(scryfallId),
+      oracleId: Value(oracleId),
+      setCode: Value(setCode),
+      collectorNumber: Value(collectorNumber),
+      lang: Value(lang),
+      oracleName: Value(oracleName),
+      printedName: printedName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(printedName),
+      printedText: printedText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(printedText),
+      imageUri: imageUri == null && nullToAbsent
+          ? const Value.absent()
+          : Value(imageUri),
+      colorIdentity: Value(colorIdentity),
+      fetchedAt: Value(fetchedAt),
+    );
+  }
+
+  factory DbCardPrint.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DbCardPrint(
+      scryfallId: serializer.fromJson<String>(json['scryfallId']),
+      oracleId: serializer.fromJson<String>(json['oracleId']),
+      setCode: serializer.fromJson<String>(json['setCode']),
+      collectorNumber: serializer.fromJson<String>(json['collectorNumber']),
+      lang: serializer.fromJson<String>(json['lang']),
+      oracleName: serializer.fromJson<String>(json['oracleName']),
+      printedName: serializer.fromJson<String?>(json['printedName']),
+      printedText: serializer.fromJson<String?>(json['printedText']),
+      imageUri: serializer.fromJson<String?>(json['imageUri']),
+      colorIdentity: serializer.fromJson<String>(json['colorIdentity']),
+      fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'scryfallId': serializer.toJson<String>(scryfallId),
+      'oracleId': serializer.toJson<String>(oracleId),
+      'setCode': serializer.toJson<String>(setCode),
+      'collectorNumber': serializer.toJson<String>(collectorNumber),
+      'lang': serializer.toJson<String>(lang),
+      'oracleName': serializer.toJson<String>(oracleName),
+      'printedName': serializer.toJson<String?>(printedName),
+      'printedText': serializer.toJson<String?>(printedText),
+      'imageUri': serializer.toJson<String?>(imageUri),
+      'colorIdentity': serializer.toJson<String>(colorIdentity),
+      'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
+    };
+  }
+
+  DbCardPrint copyWith({
+    String? scryfallId,
+    String? oracleId,
+    String? setCode,
+    String? collectorNumber,
+    String? lang,
+    String? oracleName,
+    Value<String?> printedName = const Value.absent(),
+    Value<String?> printedText = const Value.absent(),
+    Value<String?> imageUri = const Value.absent(),
+    String? colorIdentity,
+    DateTime? fetchedAt,
+  }) => DbCardPrint(
+    scryfallId: scryfallId ?? this.scryfallId,
+    oracleId: oracleId ?? this.oracleId,
+    setCode: setCode ?? this.setCode,
+    collectorNumber: collectorNumber ?? this.collectorNumber,
+    lang: lang ?? this.lang,
+    oracleName: oracleName ?? this.oracleName,
+    printedName: printedName.present ? printedName.value : this.printedName,
+    printedText: printedText.present ? printedText.value : this.printedText,
+    imageUri: imageUri.present ? imageUri.value : this.imageUri,
+    colorIdentity: colorIdentity ?? this.colorIdentity,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+  );
+  DbCardPrint copyWithCompanion(CardPrintsCompanion data) {
+    return DbCardPrint(
+      scryfallId: data.scryfallId.present
+          ? data.scryfallId.value
+          : this.scryfallId,
+      oracleId: data.oracleId.present ? data.oracleId.value : this.oracleId,
+      setCode: data.setCode.present ? data.setCode.value : this.setCode,
+      collectorNumber: data.collectorNumber.present
+          ? data.collectorNumber.value
+          : this.collectorNumber,
+      lang: data.lang.present ? data.lang.value : this.lang,
+      oracleName: data.oracleName.present
+          ? data.oracleName.value
+          : this.oracleName,
+      printedName: data.printedName.present
+          ? data.printedName.value
+          : this.printedName,
+      printedText: data.printedText.present
+          ? data.printedText.value
+          : this.printedText,
+      imageUri: data.imageUri.present ? data.imageUri.value : this.imageUri,
+      colorIdentity: data.colorIdentity.present
+          ? data.colorIdentity.value
+          : this.colorIdentity,
+      fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DbCardPrint(')
+          ..write('scryfallId: $scryfallId, ')
+          ..write('oracleId: $oracleId, ')
+          ..write('setCode: $setCode, ')
+          ..write('collectorNumber: $collectorNumber, ')
+          ..write('lang: $lang, ')
+          ..write('oracleName: $oracleName, ')
+          ..write('printedName: $printedName, ')
+          ..write('printedText: $printedText, ')
+          ..write('imageUri: $imageUri, ')
+          ..write('colorIdentity: $colorIdentity, ')
+          ..write('fetchedAt: $fetchedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    scryfallId,
+    oracleId,
+    setCode,
+    collectorNumber,
+    lang,
+    oracleName,
+    printedName,
+    printedText,
+    imageUri,
+    colorIdentity,
+    fetchedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DbCardPrint &&
+          other.scryfallId == this.scryfallId &&
+          other.oracleId == this.oracleId &&
+          other.setCode == this.setCode &&
+          other.collectorNumber == this.collectorNumber &&
+          other.lang == this.lang &&
+          other.oracleName == this.oracleName &&
+          other.printedName == this.printedName &&
+          other.printedText == this.printedText &&
+          other.imageUri == this.imageUri &&
+          other.colorIdentity == this.colorIdentity &&
+          other.fetchedAt == this.fetchedAt);
+}
+
+class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
+  final Value<String> scryfallId;
+  final Value<String> oracleId;
+  final Value<String> setCode;
+  final Value<String> collectorNumber;
+  final Value<String> lang;
+  final Value<String> oracleName;
+  final Value<String?> printedName;
+  final Value<String?> printedText;
+  final Value<String?> imageUri;
+  final Value<String> colorIdentity;
+  final Value<DateTime> fetchedAt;
+  final Value<int> rowid;
+  const CardPrintsCompanion({
+    this.scryfallId = const Value.absent(),
+    this.oracleId = const Value.absent(),
+    this.setCode = const Value.absent(),
+    this.collectorNumber = const Value.absent(),
+    this.lang = const Value.absent(),
+    this.oracleName = const Value.absent(),
+    this.printedName = const Value.absent(),
+    this.printedText = const Value.absent(),
+    this.imageUri = const Value.absent(),
+    this.colorIdentity = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CardPrintsCompanion.insert({
+    required String scryfallId,
+    required String oracleId,
+    required String setCode,
+    required String collectorNumber,
+    required String lang,
+    required String oracleName,
+    this.printedName = const Value.absent(),
+    this.printedText = const Value.absent(),
+    this.imageUri = const Value.absent(),
+    this.colorIdentity = const Value.absent(),
+    required DateTime fetchedAt,
+    this.rowid = const Value.absent(),
+  }) : scryfallId = Value(scryfallId),
+       oracleId = Value(oracleId),
+       setCode = Value(setCode),
+       collectorNumber = Value(collectorNumber),
+       lang = Value(lang),
+       oracleName = Value(oracleName),
+       fetchedAt = Value(fetchedAt);
+  static Insertable<DbCardPrint> custom({
+    Expression<String>? scryfallId,
+    Expression<String>? oracleId,
+    Expression<String>? setCode,
+    Expression<String>? collectorNumber,
+    Expression<String>? lang,
+    Expression<String>? oracleName,
+    Expression<String>? printedName,
+    Expression<String>? printedText,
+    Expression<String>? imageUri,
+    Expression<String>? colorIdentity,
+    Expression<DateTime>? fetchedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (scryfallId != null) 'scryfall_id': scryfallId,
+      if (oracleId != null) 'oracle_id': oracleId,
+      if (setCode != null) 'set_code': setCode,
+      if (collectorNumber != null) 'collector_number': collectorNumber,
+      if (lang != null) 'lang': lang,
+      if (oracleName != null) 'oracle_name': oracleName,
+      if (printedName != null) 'printed_name': printedName,
+      if (printedText != null) 'printed_text': printedText,
+      if (imageUri != null) 'image_uri': imageUri,
+      if (colorIdentity != null) 'color_identity': colorIdentity,
+      if (fetchedAt != null) 'fetched_at': fetchedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CardPrintsCompanion copyWith({
+    Value<String>? scryfallId,
+    Value<String>? oracleId,
+    Value<String>? setCode,
+    Value<String>? collectorNumber,
+    Value<String>? lang,
+    Value<String>? oracleName,
+    Value<String?>? printedName,
+    Value<String?>? printedText,
+    Value<String?>? imageUri,
+    Value<String>? colorIdentity,
+    Value<DateTime>? fetchedAt,
+    Value<int>? rowid,
+  }) {
+    return CardPrintsCompanion(
+      scryfallId: scryfallId ?? this.scryfallId,
+      oracleId: oracleId ?? this.oracleId,
+      setCode: setCode ?? this.setCode,
+      collectorNumber: collectorNumber ?? this.collectorNumber,
+      lang: lang ?? this.lang,
+      oracleName: oracleName ?? this.oracleName,
+      printedName: printedName ?? this.printedName,
+      printedText: printedText ?? this.printedText,
+      imageUri: imageUri ?? this.imageUri,
+      colorIdentity: colorIdentity ?? this.colorIdentity,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (scryfallId.present) {
+      map['scryfall_id'] = Variable<String>(scryfallId.value);
+    }
+    if (oracleId.present) {
+      map['oracle_id'] = Variable<String>(oracleId.value);
+    }
+    if (setCode.present) {
+      map['set_code'] = Variable<String>(setCode.value);
+    }
+    if (collectorNumber.present) {
+      map['collector_number'] = Variable<String>(collectorNumber.value);
+    }
+    if (lang.present) {
+      map['lang'] = Variable<String>(lang.value);
+    }
+    if (oracleName.present) {
+      map['oracle_name'] = Variable<String>(oracleName.value);
+    }
+    if (printedName.present) {
+      map['printed_name'] = Variable<String>(printedName.value);
+    }
+    if (printedText.present) {
+      map['printed_text'] = Variable<String>(printedText.value);
+    }
+    if (imageUri.present) {
+      map['image_uri'] = Variable<String>(imageUri.value);
+    }
+    if (colorIdentity.present) {
+      map['color_identity'] = Variable<String>(colorIdentity.value);
+    }
+    if (fetchedAt.present) {
+      map['fetched_at'] = Variable<DateTime>(fetchedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CardPrintsCompanion(')
+          ..write('scryfallId: $scryfallId, ')
+          ..write('oracleId: $oracleId, ')
+          ..write('setCode: $setCode, ')
+          ..write('collectorNumber: $collectorNumber, ')
+          ..write('lang: $lang, ')
+          ..write('oracleName: $oracleName, ')
+          ..write('printedName: $printedName, ')
+          ..write('printedText: $printedText, ')
+          ..write('imageUri: $imageUri, ')
+          ..write('colorIdentity: $colorIdentity, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TranslationAbsencesTable extends TranslationAbsences
+    with TableInfo<$TranslationAbsencesTable, DbTranslationAbsent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TranslationAbsencesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _oracleIdMeta = const VerificationMeta(
+    'oracleId',
+  );
+  @override
+  late final GeneratedColumn<String> oracleId = GeneratedColumn<String>(
+    'oracle_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _langMeta = const VerificationMeta('lang');
+  @override
+  late final GeneratedColumn<String> lang = GeneratedColumn<String>(
+    'lang',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [oracleId, lang];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'translation_absences';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DbTranslationAbsent> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('oracle_id')) {
+      context.handle(
+        _oracleIdMeta,
+        oracleId.isAcceptableOrUnknown(data['oracle_id']!, _oracleIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_oracleIdMeta);
+    }
+    if (data.containsKey('lang')) {
+      context.handle(
+        _langMeta,
+        lang.isAcceptableOrUnknown(data['lang']!, _langMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_langMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {oracleId, lang};
+  @override
+  DbTranslationAbsent map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DbTranslationAbsent(
+      oracleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}oracle_id'],
+      )!,
+      lang: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}lang'],
+      )!,
+    );
+  }
+
+  @override
+  $TranslationAbsencesTable createAlias(String alias) {
+    return $TranslationAbsencesTable(attachedDatabase, alias);
+  }
+}
+
+class DbTranslationAbsent extends DataClass
+    implements Insertable<DbTranslationAbsent> {
+  final String oracleId;
+  final String lang;
+  const DbTranslationAbsent({required this.oracleId, required this.lang});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['oracle_id'] = Variable<String>(oracleId);
+    map['lang'] = Variable<String>(lang);
+    return map;
+  }
+
+  TranslationAbsencesCompanion toCompanion(bool nullToAbsent) {
+    return TranslationAbsencesCompanion(
+      oracleId: Value(oracleId),
+      lang: Value(lang),
+    );
+  }
+
+  factory DbTranslationAbsent.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DbTranslationAbsent(
+      oracleId: serializer.fromJson<String>(json['oracleId']),
+      lang: serializer.fromJson<String>(json['lang']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'oracleId': serializer.toJson<String>(oracleId),
+      'lang': serializer.toJson<String>(lang),
+    };
+  }
+
+  DbTranslationAbsent copyWith({String? oracleId, String? lang}) =>
+      DbTranslationAbsent(
+        oracleId: oracleId ?? this.oracleId,
+        lang: lang ?? this.lang,
+      );
+  DbTranslationAbsent copyWithCompanion(TranslationAbsencesCompanion data) {
+    return DbTranslationAbsent(
+      oracleId: data.oracleId.present ? data.oracleId.value : this.oracleId,
+      lang: data.lang.present ? data.lang.value : this.lang,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DbTranslationAbsent(')
+          ..write('oracleId: $oracleId, ')
+          ..write('lang: $lang')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(oracleId, lang);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DbTranslationAbsent &&
+          other.oracleId == this.oracleId &&
+          other.lang == this.lang);
+}
+
+class TranslationAbsencesCompanion
+    extends UpdateCompanion<DbTranslationAbsent> {
+  final Value<String> oracleId;
+  final Value<String> lang;
+  final Value<int> rowid;
+  const TranslationAbsencesCompanion({
+    this.oracleId = const Value.absent(),
+    this.lang = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TranslationAbsencesCompanion.insert({
+    required String oracleId,
+    required String lang,
+    this.rowid = const Value.absent(),
+  }) : oracleId = Value(oracleId),
+       lang = Value(lang);
+  static Insertable<DbTranslationAbsent> custom({
+    Expression<String>? oracleId,
+    Expression<String>? lang,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (oracleId != null) 'oracle_id': oracleId,
+      if (lang != null) 'lang': lang,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TranslationAbsencesCompanion copyWith({
+    Value<String>? oracleId,
+    Value<String>? lang,
+    Value<int>? rowid,
+  }) {
+    return TranslationAbsencesCompanion(
+      oracleId: oracleId ?? this.oracleId,
+      lang: lang ?? this.lang,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (oracleId.present) {
+      map['oracle_id'] = Variable<String>(oracleId.value);
+    }
+    if (lang.present) {
+      map['lang'] = Variable<String>(lang.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranslationAbsencesCompanion(')
+          ..write('oracleId: $oracleId, ')
+          ..write('lang: $lang, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TranslationTasksTable extends TranslationTasks
+    with TableInfo<$TranslationTasksTable, DbTranslationTask> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TranslationTasksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _scryfallIdMeta = const VerificationMeta(
+    'scryfallId',
+  );
+  @override
+  late final GeneratedColumn<String> scryfallId = GeneratedColumn<String>(
+    'scryfall_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _setCodeMeta = const VerificationMeta(
+    'setCode',
+  );
+  @override
+  late final GeneratedColumn<String> setCode = GeneratedColumn<String>(
+    'set_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _collectorNumberMeta = const VerificationMeta(
+    'collectorNumber',
+  );
+  @override
+  late final GeneratedColumn<String> collectorNumber = GeneratedColumn<String>(
+    'collector_number',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _langMeta = const VerificationMeta('lang');
+  @override
+  late final GeneratedColumn<String> lang = GeneratedColumn<String>(
+    'lang',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _attemptsMeta = const VerificationMeta(
+    'attempts',
+  );
+  @override
+  late final GeneratedColumn<int> attempts = GeneratedColumn<int>(
+    'attempts',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
+    'lastError',
+  );
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+    'last_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nextAttemptAtMeta = const VerificationMeta(
+    'nextAttemptAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextAttemptAt =
+      GeneratedColumn<DateTime>(
+        'next_attempt_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    scryfallId,
+    setCode,
+    collectorNumber,
+    lang,
+    attempts,
+    lastError,
+    nextAttemptAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'translation_tasks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DbTranslationTask> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('scryfall_id')) {
+      context.handle(
+        _scryfallIdMeta,
+        scryfallId.isAcceptableOrUnknown(data['scryfall_id']!, _scryfallIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scryfallIdMeta);
+    }
+    if (data.containsKey('set_code')) {
+      context.handle(
+        _setCodeMeta,
+        setCode.isAcceptableOrUnknown(data['set_code']!, _setCodeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_setCodeMeta);
+    }
+    if (data.containsKey('collector_number')) {
+      context.handle(
+        _collectorNumberMeta,
+        collectorNumber.isAcceptableOrUnknown(
+          data['collector_number']!,
+          _collectorNumberMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_collectorNumberMeta);
+    }
+    if (data.containsKey('lang')) {
+      context.handle(
+        _langMeta,
+        lang.isAcceptableOrUnknown(data['lang']!, _langMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_langMeta);
+    }
+    if (data.containsKey('attempts')) {
+      context.handle(
+        _attemptsMeta,
+        attempts.isAcceptableOrUnknown(data['attempts']!, _attemptsMeta),
+      );
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(
+        _lastErrorMeta,
+        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+      );
+    }
+    if (data.containsKey('next_attempt_at')) {
+      context.handle(
+        _nextAttemptAtMeta,
+        nextAttemptAt.isAcceptableOrUnknown(
+          data['next_attempt_at']!,
+          _nextAttemptAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_nextAttemptAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DbTranslationTask map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DbTranslationTask(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      scryfallId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scryfall_id'],
+      )!,
+      setCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}set_code'],
+      )!,
+      collectorNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}collector_number'],
+      )!,
+      lang: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}lang'],
+      )!,
+      attempts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempts'],
+      )!,
+      lastError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error'],
+      ),
+      nextAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_attempt_at'],
+      )!,
+    );
+  }
+
+  @override
+  $TranslationTasksTable createAlias(String alias) {
+    return $TranslationTasksTable(attachedDatabase, alias);
+  }
+}
+
+class DbTranslationTask extends DataClass
+    implements Insertable<DbTranslationTask> {
+  final int id;
+  final String scryfallId;
+  final String setCode;
+  final String collectorNumber;
+  final String lang;
+  final int attempts;
+  final String? lastError;
+  final DateTime nextAttemptAt;
+  const DbTranslationTask({
+    required this.id,
+    required this.scryfallId,
+    required this.setCode,
+    required this.collectorNumber,
+    required this.lang,
+    required this.attempts,
+    this.lastError,
+    required this.nextAttemptAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['scryfall_id'] = Variable<String>(scryfallId);
+    map['set_code'] = Variable<String>(setCode);
+    map['collector_number'] = Variable<String>(collectorNumber);
+    map['lang'] = Variable<String>(lang);
+    map['attempts'] = Variable<int>(attempts);
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
+    map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt);
+    return map;
+  }
+
+  TranslationTasksCompanion toCompanion(bool nullToAbsent) {
+    return TranslationTasksCompanion(
+      id: Value(id),
+      scryfallId: Value(scryfallId),
+      setCode: Value(setCode),
+      collectorNumber: Value(collectorNumber),
+      lang: Value(lang),
+      attempts: Value(attempts),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
+      nextAttemptAt: Value(nextAttemptAt),
+    );
+  }
+
+  factory DbTranslationTask.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DbTranslationTask(
+      id: serializer.fromJson<int>(json['id']),
+      scryfallId: serializer.fromJson<String>(json['scryfallId']),
+      setCode: serializer.fromJson<String>(json['setCode']),
+      collectorNumber: serializer.fromJson<String>(json['collectorNumber']),
+      lang: serializer.fromJson<String>(json['lang']),
+      attempts: serializer.fromJson<int>(json['attempts']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
+      nextAttemptAt: serializer.fromJson<DateTime>(json['nextAttemptAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'scryfallId': serializer.toJson<String>(scryfallId),
+      'setCode': serializer.toJson<String>(setCode),
+      'collectorNumber': serializer.toJson<String>(collectorNumber),
+      'lang': serializer.toJson<String>(lang),
+      'attempts': serializer.toJson<int>(attempts),
+      'lastError': serializer.toJson<String?>(lastError),
+      'nextAttemptAt': serializer.toJson<DateTime>(nextAttemptAt),
+    };
+  }
+
+  DbTranslationTask copyWith({
+    int? id,
+    String? scryfallId,
+    String? setCode,
+    String? collectorNumber,
+    String? lang,
+    int? attempts,
+    Value<String?> lastError = const Value.absent(),
+    DateTime? nextAttemptAt,
+  }) => DbTranslationTask(
+    id: id ?? this.id,
+    scryfallId: scryfallId ?? this.scryfallId,
+    setCode: setCode ?? this.setCode,
+    collectorNumber: collectorNumber ?? this.collectorNumber,
+    lang: lang ?? this.lang,
+    attempts: attempts ?? this.attempts,
+    lastError: lastError.present ? lastError.value : this.lastError,
+    nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+  );
+  DbTranslationTask copyWithCompanion(TranslationTasksCompanion data) {
+    return DbTranslationTask(
+      id: data.id.present ? data.id.value : this.id,
+      scryfallId: data.scryfallId.present
+          ? data.scryfallId.value
+          : this.scryfallId,
+      setCode: data.setCode.present ? data.setCode.value : this.setCode,
+      collectorNumber: data.collectorNumber.present
+          ? data.collectorNumber.value
+          : this.collectorNumber,
+      lang: data.lang.present ? data.lang.value : this.lang,
+      attempts: data.attempts.present ? data.attempts.value : this.attempts,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
+      nextAttemptAt: data.nextAttemptAt.present
+          ? data.nextAttemptAt.value
+          : this.nextAttemptAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DbTranslationTask(')
+          ..write('id: $id, ')
+          ..write('scryfallId: $scryfallId, ')
+          ..write('setCode: $setCode, ')
+          ..write('collectorNumber: $collectorNumber, ')
+          ..write('lang: $lang, ')
+          ..write('attempts: $attempts, ')
+          ..write('lastError: $lastError, ')
+          ..write('nextAttemptAt: $nextAttemptAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    scryfallId,
+    setCode,
+    collectorNumber,
+    lang,
+    attempts,
+    lastError,
+    nextAttemptAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DbTranslationTask &&
+          other.id == this.id &&
+          other.scryfallId == this.scryfallId &&
+          other.setCode == this.setCode &&
+          other.collectorNumber == this.collectorNumber &&
+          other.lang == this.lang &&
+          other.attempts == this.attempts &&
+          other.lastError == this.lastError &&
+          other.nextAttemptAt == this.nextAttemptAt);
+}
+
+class TranslationTasksCompanion extends UpdateCompanion<DbTranslationTask> {
+  final Value<int> id;
+  final Value<String> scryfallId;
+  final Value<String> setCode;
+  final Value<String> collectorNumber;
+  final Value<String> lang;
+  final Value<int> attempts;
+  final Value<String?> lastError;
+  final Value<DateTime> nextAttemptAt;
+  const TranslationTasksCompanion({
+    this.id = const Value.absent(),
+    this.scryfallId = const Value.absent(),
+    this.setCode = const Value.absent(),
+    this.collectorNumber = const Value.absent(),
+    this.lang = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+  });
+  TranslationTasksCompanion.insert({
+    this.id = const Value.absent(),
+    required String scryfallId,
+    required String setCode,
+    required String collectorNumber,
+    required String lang,
+    this.attempts = const Value.absent(),
+    this.lastError = const Value.absent(),
+    required DateTime nextAttemptAt,
+  }) : scryfallId = Value(scryfallId),
+       setCode = Value(setCode),
+       collectorNumber = Value(collectorNumber),
+       lang = Value(lang),
+       nextAttemptAt = Value(nextAttemptAt);
+  static Insertable<DbTranslationTask> custom({
+    Expression<int>? id,
+    Expression<String>? scryfallId,
+    Expression<String>? setCode,
+    Expression<String>? collectorNumber,
+    Expression<String>? lang,
+    Expression<int>? attempts,
+    Expression<String>? lastError,
+    Expression<DateTime>? nextAttemptAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (scryfallId != null) 'scryfall_id': scryfallId,
+      if (setCode != null) 'set_code': setCode,
+      if (collectorNumber != null) 'collector_number': collectorNumber,
+      if (lang != null) 'lang': lang,
+      if (attempts != null) 'attempts': attempts,
+      if (lastError != null) 'last_error': lastError,
+      if (nextAttemptAt != null) 'next_attempt_at': nextAttemptAt,
+    });
+  }
+
+  TranslationTasksCompanion copyWith({
+    Value<int>? id,
+    Value<String>? scryfallId,
+    Value<String>? setCode,
+    Value<String>? collectorNumber,
+    Value<String>? lang,
+    Value<int>? attempts,
+    Value<String?>? lastError,
+    Value<DateTime>? nextAttemptAt,
+  }) {
+    return TranslationTasksCompanion(
+      id: id ?? this.id,
+      scryfallId: scryfallId ?? this.scryfallId,
+      setCode: setCode ?? this.setCode,
+      collectorNumber: collectorNumber ?? this.collectorNumber,
+      lang: lang ?? this.lang,
+      attempts: attempts ?? this.attempts,
+      lastError: lastError ?? this.lastError,
+      nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (scryfallId.present) {
+      map['scryfall_id'] = Variable<String>(scryfallId.value);
+    }
+    if (setCode.present) {
+      map['set_code'] = Variable<String>(setCode.value);
+    }
+    if (collectorNumber.present) {
+      map['collector_number'] = Variable<String>(collectorNumber.value);
+    }
+    if (lang.present) {
+      map['lang'] = Variable<String>(lang.value);
+    }
+    if (attempts.present) {
+      map['attempts'] = Variable<int>(attempts.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
+    if (nextAttemptAt.present) {
+      map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranslationTasksCompanion(')
+          ..write('id: $id, ')
+          ..write('scryfallId: $scryfallId, ')
+          ..write('setCode: $setCode, ')
+          ..write('collectorNumber: $collectorNumber, ')
+          ..write('lang: $lang, ')
+          ..write('attempts: $attempts, ')
+          ..write('lastError: $lastError, ')
+          ..write('nextAttemptAt: $nextAttemptAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6258,6 +7682,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PlayerConfigsTable playerConfigs = $PlayerConfigsTable(this);
   late final $PlayerConfigCommandersTable playerConfigCommanders =
       $PlayerConfigCommandersTable(this);
+  late final $CardPrintsTable cardPrints = $CardPrintsTable(this);
+  late final $TranslationAbsencesTable translationAbsences =
+      $TranslationAbsencesTable(this);
+  late final $TranslationTasksTable translationTasks = $TranslationTasksTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6277,6 +7707,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     counterTypes,
     playerConfigs,
     playerConfigCommanders,
+    cardPrints,
+    translationAbsences,
+    translationTasks,
   ];
 }
 
@@ -10270,6 +11703,758 @@ typedef $$PlayerConfigCommandersTableProcessedTableManager =
       DbPlayerConfigCommander,
       PrefetchHooks Function({bool playerConfigId})
     >;
+typedef $$CardPrintsTableCreateCompanionBuilder =
+    CardPrintsCompanion Function({
+      required String scryfallId,
+      required String oracleId,
+      required String setCode,
+      required String collectorNumber,
+      required String lang,
+      required String oracleName,
+      Value<String?> printedName,
+      Value<String?> printedText,
+      Value<String?> imageUri,
+      Value<String> colorIdentity,
+      required DateTime fetchedAt,
+      Value<int> rowid,
+    });
+typedef $$CardPrintsTableUpdateCompanionBuilder =
+    CardPrintsCompanion Function({
+      Value<String> scryfallId,
+      Value<String> oracleId,
+      Value<String> setCode,
+      Value<String> collectorNumber,
+      Value<String> lang,
+      Value<String> oracleName,
+      Value<String?> printedName,
+      Value<String?> printedText,
+      Value<String?> imageUri,
+      Value<String> colorIdentity,
+      Value<DateTime> fetchedAt,
+      Value<int> rowid,
+    });
+
+class $$CardPrintsTableFilterComposer
+    extends Composer<_$AppDatabase, $CardPrintsTable> {
+  $$CardPrintsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get scryfallId => $composableBuilder(
+    column: $table.scryfallId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get oracleId => $composableBuilder(
+    column: $table.oracleId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get setCode => $composableBuilder(
+    column: $table.setCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get collectorNumber => $composableBuilder(
+    column: $table.collectorNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lang => $composableBuilder(
+    column: $table.lang,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get oracleName => $composableBuilder(
+    column: $table.oracleName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get printedName => $composableBuilder(
+    column: $table.printedName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get printedText => $composableBuilder(
+    column: $table.printedText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imageUri => $composableBuilder(
+    column: $table.imageUri,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get colorIdentity => $composableBuilder(
+    column: $table.colorIdentity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CardPrintsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CardPrintsTable> {
+  $$CardPrintsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get scryfallId => $composableBuilder(
+    column: $table.scryfallId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get oracleId => $composableBuilder(
+    column: $table.oracleId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get setCode => $composableBuilder(
+    column: $table.setCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get collectorNumber => $composableBuilder(
+    column: $table.collectorNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lang => $composableBuilder(
+    column: $table.lang,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get oracleName => $composableBuilder(
+    column: $table.oracleName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get printedName => $composableBuilder(
+    column: $table.printedName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get printedText => $composableBuilder(
+    column: $table.printedText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get imageUri => $composableBuilder(
+    column: $table.imageUri,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get colorIdentity => $composableBuilder(
+    column: $table.colorIdentity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CardPrintsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CardPrintsTable> {
+  $$CardPrintsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get scryfallId => $composableBuilder(
+    column: $table.scryfallId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get oracleId =>
+      $composableBuilder(column: $table.oracleId, builder: (column) => column);
+
+  GeneratedColumn<String> get setCode =>
+      $composableBuilder(column: $table.setCode, builder: (column) => column);
+
+  GeneratedColumn<String> get collectorNumber => $composableBuilder(
+    column: $table.collectorNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lang =>
+      $composableBuilder(column: $table.lang, builder: (column) => column);
+
+  GeneratedColumn<String> get oracleName => $composableBuilder(
+    column: $table.oracleName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get printedName => $composableBuilder(
+    column: $table.printedName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get printedText => $composableBuilder(
+    column: $table.printedText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get imageUri =>
+      $composableBuilder(column: $table.imageUri, builder: (column) => column);
+
+  GeneratedColumn<String> get colorIdentity => $composableBuilder(
+    column: $table.colorIdentity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get fetchedAt =>
+      $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+}
+
+class $$CardPrintsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CardPrintsTable,
+          DbCardPrint,
+          $$CardPrintsTableFilterComposer,
+          $$CardPrintsTableOrderingComposer,
+          $$CardPrintsTableAnnotationComposer,
+          $$CardPrintsTableCreateCompanionBuilder,
+          $$CardPrintsTableUpdateCompanionBuilder,
+          (
+            DbCardPrint,
+            BaseReferences<_$AppDatabase, $CardPrintsTable, DbCardPrint>,
+          ),
+          DbCardPrint,
+          PrefetchHooks Function()
+        > {
+  $$CardPrintsTableTableManager(_$AppDatabase db, $CardPrintsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CardPrintsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CardPrintsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CardPrintsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> scryfallId = const Value.absent(),
+                Value<String> oracleId = const Value.absent(),
+                Value<String> setCode = const Value.absent(),
+                Value<String> collectorNumber = const Value.absent(),
+                Value<String> lang = const Value.absent(),
+                Value<String> oracleName = const Value.absent(),
+                Value<String?> printedName = const Value.absent(),
+                Value<String?> printedText = const Value.absent(),
+                Value<String?> imageUri = const Value.absent(),
+                Value<String> colorIdentity = const Value.absent(),
+                Value<DateTime> fetchedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CardPrintsCompanion(
+                scryfallId: scryfallId,
+                oracleId: oracleId,
+                setCode: setCode,
+                collectorNumber: collectorNumber,
+                lang: lang,
+                oracleName: oracleName,
+                printedName: printedName,
+                printedText: printedText,
+                imageUri: imageUri,
+                colorIdentity: colorIdentity,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String scryfallId,
+                required String oracleId,
+                required String setCode,
+                required String collectorNumber,
+                required String lang,
+                required String oracleName,
+                Value<String?> printedName = const Value.absent(),
+                Value<String?> printedText = const Value.absent(),
+                Value<String?> imageUri = const Value.absent(),
+                Value<String> colorIdentity = const Value.absent(),
+                required DateTime fetchedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => CardPrintsCompanion.insert(
+                scryfallId: scryfallId,
+                oracleId: oracleId,
+                setCode: setCode,
+                collectorNumber: collectorNumber,
+                lang: lang,
+                oracleName: oracleName,
+                printedName: printedName,
+                printedText: printedText,
+                imageUri: imageUri,
+                colorIdentity: colorIdentity,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CardPrintsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CardPrintsTable,
+      DbCardPrint,
+      $$CardPrintsTableFilterComposer,
+      $$CardPrintsTableOrderingComposer,
+      $$CardPrintsTableAnnotationComposer,
+      $$CardPrintsTableCreateCompanionBuilder,
+      $$CardPrintsTableUpdateCompanionBuilder,
+      (
+        DbCardPrint,
+        BaseReferences<_$AppDatabase, $CardPrintsTable, DbCardPrint>,
+      ),
+      DbCardPrint,
+      PrefetchHooks Function()
+    >;
+typedef $$TranslationAbsencesTableCreateCompanionBuilder =
+    TranslationAbsencesCompanion Function({
+      required String oracleId,
+      required String lang,
+      Value<int> rowid,
+    });
+typedef $$TranslationAbsencesTableUpdateCompanionBuilder =
+    TranslationAbsencesCompanion Function({
+      Value<String> oracleId,
+      Value<String> lang,
+      Value<int> rowid,
+    });
+
+class $$TranslationAbsencesTableFilterComposer
+    extends Composer<_$AppDatabase, $TranslationAbsencesTable> {
+  $$TranslationAbsencesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get oracleId => $composableBuilder(
+    column: $table.oracleId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lang => $composableBuilder(
+    column: $table.lang,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TranslationAbsencesTableOrderingComposer
+    extends Composer<_$AppDatabase, $TranslationAbsencesTable> {
+  $$TranslationAbsencesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get oracleId => $composableBuilder(
+    column: $table.oracleId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lang => $composableBuilder(
+    column: $table.lang,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TranslationAbsencesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TranslationAbsencesTable> {
+  $$TranslationAbsencesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get oracleId =>
+      $composableBuilder(column: $table.oracleId, builder: (column) => column);
+
+  GeneratedColumn<String> get lang =>
+      $composableBuilder(column: $table.lang, builder: (column) => column);
+}
+
+class $$TranslationAbsencesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TranslationAbsencesTable,
+          DbTranslationAbsent,
+          $$TranslationAbsencesTableFilterComposer,
+          $$TranslationAbsencesTableOrderingComposer,
+          $$TranslationAbsencesTableAnnotationComposer,
+          $$TranslationAbsencesTableCreateCompanionBuilder,
+          $$TranslationAbsencesTableUpdateCompanionBuilder,
+          (
+            DbTranslationAbsent,
+            BaseReferences<
+              _$AppDatabase,
+              $TranslationAbsencesTable,
+              DbTranslationAbsent
+            >,
+          ),
+          DbTranslationAbsent,
+          PrefetchHooks Function()
+        > {
+  $$TranslationAbsencesTableTableManager(
+    _$AppDatabase db,
+    $TranslationAbsencesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TranslationAbsencesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TranslationAbsencesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$TranslationAbsencesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> oracleId = const Value.absent(),
+                Value<String> lang = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TranslationAbsencesCompanion(
+                oracleId: oracleId,
+                lang: lang,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String oracleId,
+                required String lang,
+                Value<int> rowid = const Value.absent(),
+              }) => TranslationAbsencesCompanion.insert(
+                oracleId: oracleId,
+                lang: lang,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TranslationAbsencesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TranslationAbsencesTable,
+      DbTranslationAbsent,
+      $$TranslationAbsencesTableFilterComposer,
+      $$TranslationAbsencesTableOrderingComposer,
+      $$TranslationAbsencesTableAnnotationComposer,
+      $$TranslationAbsencesTableCreateCompanionBuilder,
+      $$TranslationAbsencesTableUpdateCompanionBuilder,
+      (
+        DbTranslationAbsent,
+        BaseReferences<
+          _$AppDatabase,
+          $TranslationAbsencesTable,
+          DbTranslationAbsent
+        >,
+      ),
+      DbTranslationAbsent,
+      PrefetchHooks Function()
+    >;
+typedef $$TranslationTasksTableCreateCompanionBuilder =
+    TranslationTasksCompanion Function({
+      Value<int> id,
+      required String scryfallId,
+      required String setCode,
+      required String collectorNumber,
+      required String lang,
+      Value<int> attempts,
+      Value<String?> lastError,
+      required DateTime nextAttemptAt,
+    });
+typedef $$TranslationTasksTableUpdateCompanionBuilder =
+    TranslationTasksCompanion Function({
+      Value<int> id,
+      Value<String> scryfallId,
+      Value<String> setCode,
+      Value<String> collectorNumber,
+      Value<String> lang,
+      Value<int> attempts,
+      Value<String?> lastError,
+      Value<DateTime> nextAttemptAt,
+    });
+
+class $$TranslationTasksTableFilterComposer
+    extends Composer<_$AppDatabase, $TranslationTasksTable> {
+  $$TranslationTasksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scryfallId => $composableBuilder(
+    column: $table.scryfallId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get setCode => $composableBuilder(
+    column: $table.setCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get collectorNumber => $composableBuilder(
+    column: $table.collectorNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lang => $composableBuilder(
+    column: $table.lang,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TranslationTasksTableOrderingComposer
+    extends Composer<_$AppDatabase, $TranslationTasksTable> {
+  $$TranslationTasksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scryfallId => $composableBuilder(
+    column: $table.scryfallId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get setCode => $composableBuilder(
+    column: $table.setCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get collectorNumber => $composableBuilder(
+    column: $table.collectorNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lang => $composableBuilder(
+    column: $table.lang,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TranslationTasksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TranslationTasksTable> {
+  $$TranslationTasksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get scryfallId => $composableBuilder(
+    column: $table.scryfallId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get setCode =>
+      $composableBuilder(column: $table.setCode, builder: (column) => column);
+
+  GeneratedColumn<String> get collectorNumber => $composableBuilder(
+    column: $table.collectorNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lang =>
+      $composableBuilder(column: $table.lang, builder: (column) => column);
+
+  GeneratedColumn<int> get attempts =>
+      $composableBuilder(column: $table.attempts, builder: (column) => column);
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => column,
+  );
+}
+
+class $$TranslationTasksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TranslationTasksTable,
+          DbTranslationTask,
+          $$TranslationTasksTableFilterComposer,
+          $$TranslationTasksTableOrderingComposer,
+          $$TranslationTasksTableAnnotationComposer,
+          $$TranslationTasksTableCreateCompanionBuilder,
+          $$TranslationTasksTableUpdateCompanionBuilder,
+          (
+            DbTranslationTask,
+            BaseReferences<
+              _$AppDatabase,
+              $TranslationTasksTable,
+              DbTranslationTask
+            >,
+          ),
+          DbTranslationTask,
+          PrefetchHooks Function()
+        > {
+  $$TranslationTasksTableTableManager(
+    _$AppDatabase db,
+    $TranslationTasksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TranslationTasksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TranslationTasksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TranslationTasksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> scryfallId = const Value.absent(),
+                Value<String> setCode = const Value.absent(),
+                Value<String> collectorNumber = const Value.absent(),
+                Value<String> lang = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<DateTime> nextAttemptAt = const Value.absent(),
+              }) => TranslationTasksCompanion(
+                id: id,
+                scryfallId: scryfallId,
+                setCode: setCode,
+                collectorNumber: collectorNumber,
+                lang: lang,
+                attempts: attempts,
+                lastError: lastError,
+                nextAttemptAt: nextAttemptAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String scryfallId,
+                required String setCode,
+                required String collectorNumber,
+                required String lang,
+                Value<int> attempts = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                required DateTime nextAttemptAt,
+              }) => TranslationTasksCompanion.insert(
+                id: id,
+                scryfallId: scryfallId,
+                setCode: setCode,
+                collectorNumber: collectorNumber,
+                lang: lang,
+                attempts: attempts,
+                lastError: lastError,
+                nextAttemptAt: nextAttemptAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TranslationTasksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TranslationTasksTable,
+      DbTranslationTask,
+      $$TranslationTasksTableFilterComposer,
+      $$TranslationTasksTableOrderingComposer,
+      $$TranslationTasksTableAnnotationComposer,
+      $$TranslationTasksTableCreateCompanionBuilder,
+      $$TranslationTasksTableUpdateCompanionBuilder,
+      (
+        DbTranslationTask,
+        BaseReferences<
+          _$AppDatabase,
+          $TranslationTasksTable,
+          DbTranslationTask
+        >,
+      ),
+      DbTranslationTask,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -10308,4 +12493,10 @@ class $AppDatabaseManager {
         _db,
         _db.playerConfigCommanders,
       );
+  $$CardPrintsTableTableManager get cardPrints =>
+      $$CardPrintsTableTableManager(_db, _db.cardPrints);
+  $$TranslationAbsencesTableTableManager get translationAbsences =>
+      $$TranslationAbsencesTableTableManager(_db, _db.translationAbsences);
+  $$TranslationTasksTableTableManager get translationTasks =>
+      $$TranslationTasksTableTableManager(_db, _db.translationTasks);
 }

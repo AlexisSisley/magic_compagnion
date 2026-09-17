@@ -1,10 +1,12 @@
 // Fichier : lib/controllers/card_detail_controller.dart
 // Controller pour RecognitionResultPage - extrait la logique metier de la page.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -15,16 +17,119 @@ import '../models/scan_history_model.dart';
 import '../models/scryfall_card_model.dart';
 import '../models/scryfall_ruling.dart';
 import '../providers/service_providers.dart';
+import '../services/card_resolver.dart';
 import '../services/collection_service.dart';
 import '../services/deck_service.dart';
 import '../services/local_card_service.dart';
 import '../services/scan_history_service.dart';
 import '../services/scryfall_api_service.dart';
+import '../services/translation_worker.dart';
 import '../services/wishlist_service.dart';
 
 // --- ENUM (reutilise depuis la page) ---
 
 enum ResultPageState { loading, selection, success, error }
+
+// --- LECTURE DU BAS DE CARTE (edition, numero, langue) ---
+
+/// Langues imprimees sur les cartes et connues de Scryfall (route
+/// `/cards/{set}/{cn}/{lang}`). Un code hors de cette liste est traite
+/// comme "pas de langue", jamais comme une langue a essayer.
+const Set<String> kPrintedLanguages = {
+  'en', 'fr', 'de', 'it', 'es', 'pt', 'ja', 'ko', 'ru', 'zhs', 'zht', 'ph',
+};
+
+/// Format moderne (post-8e edition) : "`CN`[a]/`TOTAL` [`RARETE`] `SET`",
+/// ex. "146/280 C ELD", "150/332 M 2XM" (Double Masters), "10/407 M 40K"
+/// (Universes Beyond 40K). Le numero de collection precede le code
+/// d'edition, qui peut melanger lettres et chiffres : seule sa *position*
+/// (juste apres la rarete, elle-meme juste apres `CN`/`TOTAL`) l'identifie,
+/// pas sa forme — imposer "commence par une lettre" exclurait des editions
+/// courantes. `•` et `·` sont acceptes comme separateurs : l'OCR restitue
+/// parfois le point median imprime entre les segments par l'un ou l'autre
+/// caractere.
+final RegExp _footerModernRegex = RegExp(
+  r'\b(\d{1,4}[a-z]?)\s*/\s*\d{1,4}\b(?:[\s•·]+[A-Z])?[\s•·]+([A-Z0-9]{2,5})\b',
+);
+
+/// Format historique : "`SET` `CN`", ex. "ELD 146". Le code d'edition
+/// precede le numero de collection. Ne reconnait pas les codes d'edition
+/// entierement numeriques (ex. anciens sets "4ED") : ils sont indiscernables
+/// d'un numero de collection isole.
+final RegExp _footerLegacyRegex = RegExp(
+  r'\b([A-Z0-9]{2,5})[\s•·]+(\d{1,4}[a-z]?)\b',
+);
+
+/// Code langue attendu juste apres le motif edition/numero (ex. "FR" apres
+/// "ELD"). Ancre sur le debut du texte restant (immediatement apres le
+/// motif reconnu) plutot que sur la fin de toute la chaine : un bloc OCR
+/// peut concatener d'autres lignes (credit artiste, copyright) apres la
+/// langue, et un mot plus long ne doit jamais etre tronque pour ressembler
+/// a un code valide.
+final RegExp _footerLangRegex = RegExp(r'^[\s•·\/\-]*([A-Z]{2,3})\b');
+
+/// Vrai si `token` contient au moins une lettre — un code d'edition Scryfall
+/// n'est jamais entierement numerique. Sert de garde-fou pour les deux
+/// regex ci-dessus : sans elle, une paire de nombres isoles (ex. deux vies
+/// affichees l'une a cote de l'autre) pourrait etre lue comme "set + cn".
+bool _looksLikeSetCode(String token) => RegExp(r'[A-Z]').hasMatch(token);
+
+/// Lit le bas d'une carte : edition, numero de collection et langue
+/// imprimee. Rend null quand aucun motif d'edition n'est reconnaissable.
+///
+/// Deux formats sont essayes, dans cet ordre : le format moderne
+/// "CN/TOTAL RARETE SET" (le numero precede l'edition), puis le format
+/// historique "SET CN" (l'edition precede le numero). La langue, si
+/// presente, est lue juste apres le motif reconnu — jamais a la fin de la
+/// chaine entiere, qui peut contenir du texte OCR sans rapport.
+///
+/// Le bas d'une carte Magic est imprime en MAJUSCULES : les jetons edition
+/// et langue doivent donc l'etre aussi. Ce n'est pas une simplification —
+/// c'est ce qui empeche le texte de regles ordinaire ("turn 2", "put 2
+/// loyalty counters") d'etre confondu avec un motif edition/numero, et un
+/// mot comme "It" (majuscule de debut de phrase, pas un code) d'etre lu
+/// comme la langue italienne.
+({String setCode, String collectorNumber, String? lang})? parsePrintFooter(
+  String blockText,
+) {
+  String? setCode;
+  String? collectorNumber;
+  int matchEnd = 0;
+
+  final modernMatch = _footerModernRegex.firstMatch(blockText);
+  if (modernMatch != null && _looksLikeSetCode(modernMatch.group(2)!)) {
+    collectorNumber = modernMatch.group(1);
+    setCode = modernMatch.group(2);
+    matchEnd = modernMatch.end;
+  } else {
+    final legacyMatch = _footerLegacyRegex.firstMatch(blockText);
+    if (legacyMatch != null && _looksLikeSetCode(legacyMatch.group(1)!)) {
+      setCode = legacyMatch.group(1);
+      collectorNumber = legacyMatch.group(2);
+      matchEnd = legacyMatch.end;
+    }
+  }
+
+  if (setCode == null || collectorNumber == null) return null;
+
+  String? lang;
+  final remainder = blockText.substring(matchEnd);
+  final langMatch = _footerLangRegex.firstMatch(remainder);
+  final candidate = langMatch?.group(1)?.toLowerCase();
+  if (candidate != null && kPrintedLanguages.contains(candidate)) {
+    lang = candidate;
+  }
+
+  return (setCode: setCode, collectorNumber: collectorNumber, lang: lang);
+}
+
+/// Vrai quand `e` signale l'absence d'une traduction precise sur la route
+/// `/cards/{set}/{cn}/{lang}` (404 Scryfall) — le seul cas ou il est correct
+/// de retomber sur un appel sans langue. Toute autre erreur (reseau coupe,
+/// 5xx, timeout...) est une vraie panne et rend faux, pour ne jamais la
+/// faire passer silencieusement pour une simple carte introuvable.
+bool isMissingTranslation(Object e) =>
+    e is DioException && e.response?.statusCode == 404;
 
 // --- ETAT IMMUTABLE ---
 
@@ -125,6 +230,8 @@ class CardDetailController extends StateNotifier<CardDetailState> {
   final WishlistService _wishlistService;
   final LocalCardService _localCardService;
   final ScryfallApiService _apiService;
+  final CardResolver _cardResolver;
+  final TranslationWorker _translationWorker;
   final CardDetailParams _params;
 
   CardDetailController({
@@ -134,6 +241,8 @@ class CardDetailController extends StateNotifier<CardDetailState> {
     required WishlistService wishlistService,
     required LocalCardService localCardService,
     required ScryfallApiService apiService,
+    required CardResolver cardResolver,
+    required TranslationWorker translationWorker,
     required CardDetailParams params,
   })  : _deckService = deckService,
         _collectionService = collectionService,
@@ -141,6 +250,8 @@ class CardDetailController extends StateNotifier<CardDetailState> {
         _wishlistService = wishlistService,
         _localCardService = localCardService,
         _apiService = apiService,
+        _cardResolver = cardResolver,
+        _translationWorker = translationWorker,
         _params = params,
         super(CardDetailState()) {
     _initializeAndSearch();
@@ -207,20 +318,20 @@ class CardDetailController extends StateNotifier<CardDetailState> {
           await textRecognizer.processImage(inputImage);
       textRecognizer.close();
 
-      final RegExp collectorRegex =
-          RegExp(r'\b([A-Z0-9]{3,5})[\s•\/\-]{1,3}([0-9]{1,4}[a-z]?)\b', caseSensitive: false);
-
       for (var block in recognizedText.blocks) {
-        String blockText = block.text.replaceAll('\n', ' ');
-        final match = collectorRegex.firstMatch(blockText);
-        if (match != null) {
-          final String setCode = match.group(1)!;
-          final String collectorNumber = match.group(2)!;
+        final String blockText = block.text.replaceAll('\n', ' ');
+        final parsed = parsePrintFooter(blockText);
+        if (parsed != null) {
           if (!mounted) return;
           state = state.copyWith(
-            statusMessage: 'Code détecté : $setCode #$collectorNumber',
+            statusMessage:
+                'Code détecté : ${parsed.setCode} #${parsed.collectorNumber}',
           );
-          bool success = await _fetchExactCard(setCode, collectorNumber);
+          final bool success = await _fetchExactCard(
+            parsed.setCode,
+            parsed.collectorNumber,
+            lang: parsed.lang,
+          );
           if (success) return;
         }
       }
@@ -289,18 +400,58 @@ class CardDetailController extends StateNotifier<CardDetailState> {
 
   // --- FETCHING ---
 
-  Future<bool> _fetchExactCard(String set, String cn) async {
+  /// Identification precise d'une carte par son edition et son numero de
+  /// collection : l'etape du scan une fois le bas de carte lu.
+  ///
+  /// Publique pour etre testable : le chemin normal y arrive par l'OCR d'une
+  /// photo, qu'un test `flutter_test` ne peut pas jouer.
+  Future<bool> fetchExactCard(String set, String cn, {String? lang}) =>
+      _fetchExactCard(set, cn, lang: lang);
+
+  Future<bool> _fetchExactCard(String set, String cn, {String? lang}) async {
     state = state.copyWith(
       statusMessage: 'Identification précise ($set #$cn)...',
     );
     try {
-      final data = await _apiService.getCardBySetAndNumber(set, cn);
+      final data = await _apiService.getCardBySetAndNumber(set, cn, lang: lang);
+      // Le scan tient le JSON Scryfall complet : il ecrit le tirage dans le
+      // cache `card_prints`. Sans cela, une carte identifiee par scan (puis
+      // ajoutee a la collection) n'aurait jamais de ligne `card_prints` --
+      // `PrintBackfillService.runOnce` ne s'executant qu'une seule fois dans
+      // la vie de l'app --, donc resterait invisible pour `resolveDisplay`
+      // comme pour `enqueueOwnedCardsForLanguage`, definitivement.
+      // Une panne d'ecriture du cache ne doit pas faire echouer
+      // l'identification elle-meme : elle se consigne (voir _cachePrint).
+      await _cachePrint(data);
       selectCard(ScryfallCard.fromJson(data));
+      // Temps 2 : un scan reussi est l'un des trois declencheurs de vidage de
+      // la file de traduction prevus par la spec. Sans `await` : l'affichage
+      // de la carte ne l'attend pas.
+      unawaited(_translationWorker.drain());
       return true;
     } catch (e) {
-      // Silently fall through
+      // Une traduction absente rend 404 sur cette route (isMissingTranslation) :
+      // ce n'est pas un echec d'identification, on retente sans langue (un
+      // seul niveau, toujours avec lang: null, donc aucune boucle possible).
+      // Toute autre erreur (reseau coupe, 5xx, timeout...) est une vraie
+      // panne : on ne la masque pas derriere un repli qui echouerait de la
+      // meme façon.
+      if (lang != null && isMissingTranslation(e)) {
+        return _fetchExactCard(set, cn);
+      }
     }
     return false;
+  }
+
+  /// Ecrit un tirage dans le cache sans jamais lever : une panne base ne doit
+  /// pas transformer une identification reussie en echec affiche.
+  Future<void> _cachePrint(Map<String, dynamic> json) async {
+    try {
+      await _cardResolver.cachePrintFromJson(json);
+    } catch (e) {
+      log('Mise en cache du tirage scanne impossible: $e',
+          name: 'CardDetailController');
+    }
   }
 
   Future<void> searchForCandidates(String query) async {
@@ -534,6 +685,8 @@ final cardDetailControllerProvider = StateNotifierProvider.autoDispose
     final wishlistService = ref.watch(wishlistServiceProvider);
     final localCardService = ref.watch(localCardServiceProvider);
     final apiService = ref.watch(scryfallApiServiceProvider);
+    final cardResolver = ref.watch(cardResolverProvider);
+    final translationWorker = ref.watch(translationWorkerProvider);
 
     return CardDetailController(
       deckService: deckService,
@@ -542,6 +695,8 @@ final cardDetailControllerProvider = StateNotifierProvider.autoDispose
       wishlistService: wishlistService,
       localCardService: localCardService,
       apiService: apiService,
+      cardResolver: cardResolver,
+      translationWorker: translationWorker,
       params: params,
     );
   },
