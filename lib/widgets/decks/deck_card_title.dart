@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../providers/card_display_provider.dart';
 import '../../utils/price_helper.dart';
 
 // ==========================================
@@ -18,6 +19,12 @@ class DeckCardTile extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onMore; // <--- REMPLACE onPlus/onMinus
 
+  /// Projection d'affichage (langue preferee) resolue en amont, pour TOUT le
+  /// deck, par `_DeckCardListTabState`. Nul tant que la resolution n'est pas
+  /// terminee -- dans ce cas la tuile affiche `card.name` (le tirage
+  /// possede) immediatement, sans spinner ni etat de chargement.
+  final CardDisplay? display;
+
   const DeckCardTile({
     super.key,
     required this.card,
@@ -26,12 +33,15 @@ class DeckCardTile extends StatelessWidget {
     required this.isInCollection,
     this.onTap,
     required this.onMore, // Requis maintenant
+    this.display,
   });
 
   @override
   Widget build(BuildContext context) {
     final imageUrl = scryfallCard?.smallImageUrl;
     final price = scryfallCard != null ? PriceHelper.rawPrice(scryfallCard!.prices) : null;
+    final displayName = display?.name ?? card.name;
+    final isFallback = display?.isFallback ?? false;
 
     return Card(
       color: AppColors.textOnPrimary.withValues(alpha: 0.4),
@@ -64,14 +74,32 @@ class DeckCardTile extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                card.name,
+                displayName,
                 style: AppTextStyles.cinzel(fontSize: 15),
                 maxLines: 1,
                 softWrap: false,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            
+
+            // --- BADGE DE REPLI (langue preferee indisponible) ---
+            // La carte reste affichee dans sa langue d'origine faute de
+            // traduction en cache : on le signale, on ne le cache jamais.
+            if (isFallback)
+              Container(
+                margin: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.amber.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: AppColors.amber),
+                ),
+                child: Text(
+                  '${display!.lang.toUpperCase()} · pas de VF',
+                  style: const TextStyle(color: AppColors.amber, fontSize: 9, fontWeight: FontWeight.bold),
+                ),
+              ),
+
             // --- INDICATEUR PROXY ---
             if (card.proxyQuantity > 0)
               Container(
@@ -139,6 +167,9 @@ class DeckCardGridTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
+  /// Voir [DeckCardTile.display] : meme projection, meme regle de repli.
+  final CardDisplay? display;
+
   const DeckCardGridTile({
     super.key,
     required this.card,
@@ -149,11 +180,13 @@ class DeckCardGridTile extends StatelessWidget {
     required this.onMinus,
     required this.onTap,
     required this.onLongPress,
+    this.display,
   });
 
   @override
   Widget build(BuildContext context) {
     final imageUrl = scryfallCard?.imageUrl ?? scryfallCard?.smallImageUrl;
+    final displayName = display?.name ?? card.name;
 
     return GestureDetector(
       onTap: onTap,
@@ -181,7 +214,7 @@ class DeckCardGridTile extends StatelessWidget {
                   )
                 : Container(
                     color: AppColors.greyShade900,
-                    child: Center(child: Text(card.name, textAlign: TextAlign.center, style: AppTextStyles.label(color: AppColors.textSecondary))),
+                    child: Center(child: Text(displayName, textAlign: TextAlign.center, style: AppTextStyles.label(color: AppColors.textSecondary))),
                   ),
             
             // Foil Effect
