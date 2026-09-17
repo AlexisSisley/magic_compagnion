@@ -18,6 +18,15 @@ import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
 import 'package:magic_companion/widgets/life_counter/zone/player_drawer.dart';
 
+/// Depuis le lot 5, `PlayerZone` construit `CounterSummary` depuis
+/// `Player.counters` -- la collection générique alimentée par
+/// `_toLegacyPlayer` à partir de `GameSession.activeCounterIds` -- et non
+/// plus depuis les champs nommés `poison`/`energy`/`commanderCastCount`.
+/// Ce helper reproduit donc ce que fait la page réelle : le compteur est
+/// porté par les DEUX représentations, exactement comme `_toLegacyPlayer`
+/// qui dérive le champ nommé de la même map filtrée. Sans `counters`, la
+/// zone montée ici décrirait un joueur qu'aucun chemin de production ne
+/// produit.
 Player _buildPlayer({int poison = 0, int quarterTurns = 0}) {
   return Player(
     id: 0,
@@ -26,6 +35,7 @@ Player _buildPlayer({int poison = 0, int quarterTurns = 0}) {
     colorValue: 0xFF880000,
     commanderDamageReceived: const {},
     poison: poison,
+    counters: {'poison': poison},
     quarterTurns: quarterTurns,
   );
 }
@@ -55,6 +65,16 @@ Future<void> _pumpZoneOfSize(
   );
   await tester.pumpAndSettle();
 }
+
+/// Glyphe réellement rendu par la puce « poison » de la poignée. Lu dans le
+/// catalogue, pas écrit en dur : depuis le lot 5, `ConditionalHandle` ne
+/// possède plus de glyphe à lui -- il prend celui de `CounterType`. Le
+/// catalogue porte '☠️' (avec sélecteur de variante emoji) là où
+/// la constante historique de la poignée écrivait '☠' seul ; figer
+/// l'ancienne valeur ici ferait de nouveau diverger le test du rendu.
+final String _poisonGlyph = CounterType.builtInCounters
+    .firstWhere((c) => c.id == 'poison')
+    .emoji;
 
 void main() {
   testWidgets(
@@ -107,7 +127,7 @@ void main() {
           'lieu de quatre champs nommés (lot 5), la propriété testée est '
           'la même',
     );
-    expect(find.textContaining('☠'), findsNothing,
+    expect(find.textContaining(_poisonGlyph), findsNothing,
         reason: 'sous le cran confort, le résumé des compteurs secondaires '
             'est masqué même si un compteur est actif');
   });
@@ -122,7 +142,7 @@ void main() {
       player: _buildPlayer(poison: 3),
     );
 
-    expect(find.textContaining('☠ 3'), findsOneWidget);
+    expect(find.textContaining('$_poisonGlyph 3'), findsOneWidget);
   });
 
   testWidgets(
