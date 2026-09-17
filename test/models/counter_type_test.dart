@@ -86,4 +86,57 @@ void main() {
       expect(energy.maxValue, isNull);
     });
   });
+
+  // Lot 5, tâche 4 (AJOUT 2) : `CounterType` était un objet-valeur sans
+  // égalité de valeur (identité par défaut) -- `CounterCatalogNotifier.load()`
+  // reconstruit des instances fraîches (`CounterType.fromJson`) à chaque
+  // appel, donc deux `CounterType` de même id étaient jusqu'ici des objets
+  // distincts, un piège pour tout code qui les comparerait par `==` ou les
+  // mettrait dans un `Set`/`Map` par clé.
+  group('égalité de valeur (==, hashCode)', () {
+    test('deux instances de même id sont égales, même si les autres champs diffèrent', () {
+      const a = CounterType(
+        id: 'poison',
+        name: 'Poison',
+        emoji: '☠️',
+        color: 0xFF4CAF50,
+        isBuiltIn: true,
+        maxValue: 10,
+      );
+      const b = CounterType(
+        id: 'poison',
+        name: 'Autre nom',
+        emoji: '💀',
+        color: 0xFF000000,
+        isBuiltIn: false,
+        maxValue: 5,
+      );
+      expect(a, equals(b),
+          reason: 'l\'égalité de CounterType est fondée sur l\'id, pas sur '
+              'l\'identité de l\'objet ni sur les autres champs -- deux '
+              'instances rechargées du même compteur (ex. après '
+              'CounterCatalogNotifier.load()) doivent être ==');
+    });
+
+    test('deux instances d\'id différent ne sont jamais égales', () {
+      const a = CounterType(id: 'poison', name: 'Poison', emoji: '☠️', color: 0xFF4CAF50);
+      const b = CounterType(id: 'energy', name: 'Poison', emoji: '☠️', color: 0xFF4CAF50);
+      expect(a, isNot(equals(b)));
+    });
+
+    test('hashCode est cohérent avec == (fondé sur l\'id)', () {
+      const a = CounterType(id: 'poison', name: 'Poison', emoji: '☠️', color: 0xFF4CAF50);
+      const b = CounterType(id: 'poison', name: 'Autre', emoji: '💀', color: 0xFF000000);
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('un Set<CounterType> déduplique par id', () {
+      const a = CounterType(id: 'poison', name: 'Poison', emoji: '☠️', color: 0xFF4CAF50);
+      const b = CounterType(id: 'poison', name: 'Autre', emoji: '💀', color: 0xFF000000);
+      final set = {a, b};
+      expect(set, hasLength(1),
+          reason: 'sans égalité de valeur, les deux instances de même id '
+              'coexisteraient dans le Set');
+    });
+  });
 }

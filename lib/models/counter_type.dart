@@ -33,6 +33,23 @@ class CounterType {
     );
   }
 
+  /// Lot 5, tâche 4 (AJOUT 2) : égalité de valeur fondée sur `id` seul.
+  /// `CounterCatalogNotifier.load()` (counter_catalog_provider.dart)
+  /// reconstruit des instances fraîches (`CounterType.fromJson`) à chaque
+  /// appel -- sans cette égalité, deux `CounterType` désignant le même
+  /// compteur étaient des objets distincts (identité par défaut), un piège
+  /// pour tout code les comparant par `==` ou les rangeant dans un
+  /// `Set`/comme clé de `Map`. Fondée sur `id` seul (pas les autres champs) :
+  /// c'est `id` qui identifie un compteur dans tout le reste du modèle
+  /// (`GameSession.activeCounterIds`, `PlayerState.counters`,
+  /// `CounterTypeService`, ...), jamais la combinaison de ses champs.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || (other is CounterType && other.id == id);
+
+  @override
+  int get hashCode => id.hashCode;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,

@@ -29,11 +29,15 @@ class CounterSummary {
   /// zéro : c'est `CounterSummary` qui filtre les non-nulles (pour `isCalm`
   /// et pour l'affichage), pas l'appelant.
   ///
-  /// Une `List<MapEntry<...>>`, pas une `Map<CounterType, int>` : `CounterType`
-  /// ne redéfinit ni `==` ni `hashCode` (identité par défaut), donc une clé
-  /// de `Map` ne serait fiable que si chaque appelant réutilise
-  /// scrupuleusement la même instance -- une `List` n'a pas besoin de cette
-  /// garantie pour se contenter d'énumérer des paires.
+  /// Une `List<MapEntry<...>>`, pas une `Map<CounterType, int>` : au moment
+  /// où ce choix a été fait, `CounterType` ne redéfinissait ni `==` ni
+  /// `hashCode` (identité par défaut), donc une clé de `Map` n'aurait été
+  /// fiable que si chaque appelant réutilisait scrupuleusement la même
+  /// instance. `CounterType` porte désormais une égalité de valeur fondée
+  /// sur `id` (lot 5, tâche 4, AJOUT 2) -- ce qui lèverait cette contrainte
+  /// -- mais rien n'imposait de rouvrir cette représentation pour autant :
+  /// une `List` énumère des paires sans avoir besoin d'aucune des deux
+  /// garanties.
   final List<MapEntry<CounterType, int>> counters;
 
   /// Le plus gros total de dégâts de commandant reçu d'une seule source.
