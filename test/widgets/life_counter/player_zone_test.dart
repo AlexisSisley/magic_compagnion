@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/player_model.dart';
 import 'package:magic_companion/providers/player_zone_notifier.dart';
+import 'package:magic_companion/widgets/life_counter/layouts/density_tier.dart';
 import 'package:magic_companion/widgets/life_counter/player_header.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
@@ -487,5 +488,57 @@ void main() {
       attributionOpponents: const [],
     );
     expect(find.byType(DamageAttributionRow), findsNothing);
+  });
+
+  // ===========================================================================
+  // Revue finale, IMPORTANT #2 (ruling 22) — le jumeau du garde-fou de
+  // `kActionWidth` (ruling 16), qui MESURE un bouton rendu au lieu de
+  // supposer.
+  //
+  // `PlayerHeader` contient un `IconButton` Material nu, qui mesure 48 px au
+  // minimum (`kMinInteractiveDimension`). `kZoneHeaderHeight` valait 40 :
+  // débordement de 8 px, rogné en silence par le `clipBehavior` de la zone.
+  // La cible tactile effective tombait à 48×40, sous le minimum, et les 8 px
+  // manquants étaient absorbés par le `LifeDial` en dessous — le tap donnait
+  // +1 PV au lieu d'ouvrir le sélecteur de couleur.
+  //
+  // Repérage par GÉOMÉTRIE, parce que la propriété testée EST une position :
+  // le bouton doit tenir en entier dans la bande réservée à l'en-tête.
+  // ===========================================================================
+  group('kZoneHeaderHeight reflète la vraie hauteur rendue (ruling 22)', () {
+    testWidgets(
+        'le bouton palette de PlayerHeader tient entièrement dans la bande '
+        'réservée par kZoneHeaderHeight', (tester) async {
+      await pumpZone(tester, buildPlayer());
+
+      final header = find.byKey(const ValueKey('player-zone-header'));
+      expect(header, findsOneWidget,
+          reason: 'précondition : une zone de 340×340 est bien au-dessus du '
+              'cran minimal, donc son en-tête est monté');
+
+      final headerRect = tester.getRect(header);
+      expect(headerRect.height, kZoneHeaderHeight,
+          reason: 'la bande réservée doit mesurer exactement ce que la '
+              'constante annonce');
+
+      final paletteButton = find.descendant(
+        of: header,
+        matching: find.widgetWithIcon(IconButton, Icons.palette),
+      );
+      expect(paletteButton, findsOneWidget);
+      final buttonRect = tester.getRect(paletteButton);
+
+      expect(buttonRect.height, lessThanOrEqualTo(headerRect.height),
+          reason: 'hauteur RÉELLEMENT rendue du bouton palette '
+              '(${buttonRect.height}px) vs bande réservée '
+              '(${headerRect.height}px) — si le bouton est plus haut, le '
+              'surplus est rogné par le clipBehavior de la zone, sa cible '
+              'tactile passe sous le minimum de Material, et les pixels '
+              'manquants sont absorbés par le LifeDial en dessous : le tap '
+              'donne +1 PV au lieu d ouvrir le sélecteur de couleur');
+      expect(buttonRect.bottom, lessThanOrEqualTo(headerRect.bottom),
+          reason: 'le bouton ne doit pas déborder sous la bande, où le '
+              'cadran de vie prend le hit-test');
+    });
   });
 }

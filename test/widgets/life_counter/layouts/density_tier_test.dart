@@ -9,8 +9,10 @@ void main() {
     expect(kZoneShortEdgeFloor, kZoneHeaderHeight + kZoneHandleHeight);
   });
 
-  test('le plancher vaut 70 px avec les valeurs actuelles', () {
-    expect(kZoneShortEdgeFloor, 70.0);
+  // Revue finale (ruling 22) : 78 = 48 (en-tête, porté de 40 à la cible
+  // tactile minimale de Material) + 30 (poignée).
+  test('le plancher vaut 78 px avec les valeurs actuelles', () {
+    expect(kZoneShortEdgeFloor, 78.0);
   });
 
   test('une grande zone est au cran confort', () {

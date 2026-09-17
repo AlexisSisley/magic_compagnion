@@ -3,7 +3,26 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 /// Hauteur de l'en-tête d'une zone joueur (`player_zone.dart`).
-const double kZoneHeaderHeight = 40.0;
+///
+/// Revue finale (ruling 22) : 40.0 était FAUX, exactement comme `kActionWidth`
+/// valait 36 alors qu'un `IconButton` Material mesure 48
+/// (`kMinInteractiveDimension`) — ruling 16, même défaut, même remède.
+/// `PlayerHeader` contient un `IconButton` nu ; mesuré sur une `PlayerZone`
+/// de 340×340 : en-tête rendu de 40 px, bouton palette de 48 px, débordement
+/// de 8 px rogné par le `clipBehavior` de la zone. La cible tactile effective
+/// tombait donc à 48×40, sous le minimum, et les 8 px manquants étaient
+/// absorbés par le `LifeDial` en dessous : le tap donnait +1 PV au lieu
+/// d'ouvrir le sélecteur de couleur.
+///
+/// Cascade assumée : `kZoneShortEdgeFloor` 70 → 78, `kSideColumnNeed`
+/// 96 → 104. Vérifié : tablette en portrait, 820 − 208 = 612 ≥ 472, les
+/// colonnes latérales sont conservées ; le seuil de 600 px était déjà sans
+/// colonnes.
+///
+/// Gardée par un test qui MESURE la hauteur réellement rendue de
+/// `PlayerHeader` (`test/widgets/life_counter/player_zone_test.dart`), pour
+/// que ce mensonge ne puisse pas revenir.
+const double kZoneHeaderHeight = 48.0;
 
 /// Hauteur minimale de la poignée du tiroir (`conditional_handle.dart`).
 const double kZoneHandleHeight = 30.0;
