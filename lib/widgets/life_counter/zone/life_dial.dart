@@ -52,14 +52,6 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// ignore tous les autres jusqu'à ce qu'il se relâche.
   int? _trackedPointer;
 
-  /// Dernière position brute connue du pointeur (mise à jour à chaque
-  /// `onPointerDown`/`onPointerMove` du `Listener` racine, quel que soit le
-  /// mode). Sert de secours à `_endAdjustGesture` quand `onTapCancel` se
-  /// déclenche : contrairement à `onTapUp`, `TapCancelDetails` ne porte
-  /// aucune position, alors que la fermeture du mode ajustement doit tout de
-  /// même pouvoir résoudre le palier survolé.
-  Offset? _lastGlobalPosition;
-
   /// Les deltas dont le tap est en cours (posés, pas encore relâchés), en
   /// attente d'émission à `onTapUp`.
   ///
@@ -93,7 +85,6 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     _longPressTimer?.cancel();
     _trackedPointer = null;
     _downPosition = null;
-    _lastGlobalPosition = null;
     super.dispose();
   }
 
@@ -134,8 +125,7 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// Les boutons sont retrouvés par leur `GlobalKey` : aucune position n'est
   /// calculée à la main, ce qui reste juste quelle que soit la rotation du
   /// siège — un point sur lequel ce projet s'est déjà trompé neuf fois.
-  int? _stepUnder(Offset? globalPosition) {
-    if (globalPosition == null) return null;
+  int? _stepUnder(Offset globalPosition) {
     for (final entry in _stepKeys.entries) {
       final box = entry.value.currentContext?.findRenderObject() as RenderBox?;
       if (box == null) continue;
@@ -153,7 +143,16 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// inatteignables — ce qui n'est vrai que s'il faut LEVER le doigt pour
   /// taper. Avec un glissé-relâché, ils restent atteignables sans jamais
   /// rompre le contact.
-  void _endAdjustGesture(PlayerZoneNotifier notifier, Offset? globalPosition) {
+  ///
+  /// Round de correction 1 : appelée UNIQUEMENT depuis `onPointerUp` du
+  /// `Listener` racine (événement brut), jamais depuis `onTapUp`/`onTapCancel`
+  /// du `GestureDetector` d'une moitié. Ces deux derniers se déclenchent à la
+  /// résolution de l'ARÈNE, pas au lever du doigt : `onTapCancel` en
+  /// particulier part dès que le pointeur dépasse `kTouchSlop` (18px), donc en
+  /// plein glissement — bien avant que le doigt n'atteigne un palier. Le
+  /// relâchement brut (`PointerUpEvent`) est le seul événement qui coïncide
+  /// avec le vrai lever du doigt.
+  void _endAdjustGesture(PlayerZoneNotifier notifier, Offset globalPosition) {
     final delta = _stepUnder(globalPosition);
     if (delta != null) _emit(delta);
     notifier.exitAdjustMode();
@@ -184,14 +183,12 @@ class _LifeDialState extends ConsumerState<LifeDial> {
           onPointerDown: (event) {
             // Round 3 (Critical #1 ressuscité) : un seul pointeur à la fois
             // arme la veille d'appui long — voir la note sur `_trackedPointer`.
-            _lastGlobalPosition = event.position;
             if (_trackedPointer != null) return;
             _trackedPointer = event.pointer;
             _downPosition = event.position;
             _startLongPressWatch(notifier);
           },
           onPointerMove: (event) {
-            _lastGlobalPosition = event.position;
             if (event.pointer != _trackedPointer) return;
             if (isAdjusting) {
               // Round 2 (Important #1) : un glissement de molette maintenu plus
@@ -224,23 +221,30 @@ class _LifeDialState extends ConsumerState<LifeDial> {
               }
             }
           },
-          // N'arrête ici que l'appui long : le `Listener` racine reçoit le
-          // relâchement *avant* que l'arène de la moitié ne se résolve (son
-          // callback brut s'exécute pendant le routage, alors que `onTapUp` n'est
-          // appelé qu'au balayage de l'arène qui suit) — y annuler aussi le tap
-          // en attente le viderait avant que `_confirmTap` ne puisse l'émettre.
-          // La moitié restant montée en permanence (voir plus bas), c'est elle
-          // qui gère fiablement son propre tap via `onTapUp`/`onTapCancel`, et
-          // désormais aussi la fermeture du mode ajustement (`_endAdjustGesture`).
+          // Round de correction 1 : c'est ICI, sur l'événement brut, que se
+          // résout le mode ajustement — jamais sur `onTapUp`/`onTapCancel` du
+          // `GestureDetector` d'une moitié (voir le doc-comment de
+          // `_endAdjustGesture`). Hors mode ajustement, ce `Listener` ne fait
+          // qu'arrêter la veille d'appui long ; la moitié gère alors seule son
+          // propre tap via `onTapUp`/`onTapCancel`, qui restent câblés
+          // uniquement sur `_confirmTap`/`_cancelPress` (jamais sur le mode
+          // ajustement).
           onPointerUp: (event) {
             if (event.pointer != _trackedPointer) return;
             _trackedPointer = null;
             _cancelLongPressWatch();
+            if (isAdjusting) {
+              _endAdjustGesture(notifier, event.position);
+            }
           },
           onPointerCancel: (event) {
             if (event.pointer != _trackedPointer) return;
             _trackedPointer = null;
             _cancelLongPressWatch();
+            // Un `PointerCancelEvent` (interruption système, pas un
+            // relâchement délibéré) sort du mode sans appliquer de palier :
+            // il n'y a pas de position de relâchement à faire confiance ici.
+            if (isAdjusting) notifier.exitAdjustMode();
           },
           child: Stack(
             alignment: Alignment.center,
@@ -254,8 +258,8 @@ class _LifeDialState extends ConsumerState<LifeDial> {
                 ignoring: isAdjusting,
                 child: Row(
                   children: [
-                    Expanded(child: _half(-1, isAdjusting, notifier)),
-                    Expanded(child: _half(1, isAdjusting, notifier)),
+                    Expanded(child: _half(-1)),
+                    Expanded(child: _half(1)),
                   ],
                 ),
               ),
@@ -362,30 +366,20 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     _longPressTimer = null;
   }
 
-  /// [isAdjusting] et [notifier] sont capturés au moment du `build()` : la
-  /// moitié restant montée en permanence (voir la note dans [build]), c'est
-  /// le `RawGestureDetectorState` sous-jacent qui met à jour ces callbacks à
-  /// chaque reconstruction, sans jamais perdre le pointeur qu'il suit déjà —
-  /// ce qui permet à `onTapUp`/`onTapCancel` de refléter le mode courant même
-  /// pour un doigt posé avant l'entrée en mode ajustement.
-  Widget _half(int delta, bool isAdjusting, PlayerZoneNotifier notifier) {
+  /// `onTapUp`/`onTapCancel` ne connaissent QUE le tap ±1 (spec §2.1),
+  /// jamais le mode ajustement : câbler `_endAdjustGesture` ici serait faux,
+  /// parce que ces deux callbacks se déclenchent à la résolution de
+  /// l'ARÈNE de gestes, pas au lever du doigt — `onTapCancel` en particulier
+  /// part dès que le pointeur dépasse `kTouchSlop` (18px), donc en plein
+  /// glissement vers un palier, bien avant que le doigt ne l'atteigne. Voir
+  /// le doc-comment de `_endAdjustGesture`, câblée uniquement sur
+  /// `onPointerUp` du `Listener` racine.
+  Widget _half(int delta) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => _startHold(delta),
-      onTapUp: (details) {
-        if (isAdjusting) {
-          _endAdjustGesture(notifier, details.globalPosition);
-        } else {
-          _confirmTap(delta);
-        }
-      },
-      onTapCancel: () {
-        if (isAdjusting) {
-          _endAdjustGesture(notifier, _lastGlobalPosition);
-        } else {
-          _cancelPress(delta);
-        }
-      },
+      onTapUp: (_) => _confirmTap(delta),
+      onTapCancel: () => _cancelPress(delta),
       child: const SizedBox.expand(),
     );
   }

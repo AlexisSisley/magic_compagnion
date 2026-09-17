@@ -237,23 +237,29 @@ void main() {
       await tester.pumpAndSettle();
     });
 
+    // Réécrit en geste continu unique (comme ses voisins) : l'ancienne
+    // version entrait en mode via `tester.longPress()` (relâché à son terme)
+    // PUIS tenait un second doigt séparé -- depuis la tâche 7, le premier
+    // relâchement referme déjà le mode, si bien que ce test n'exerçait plus
+    // sa propriété que par coïncidence (le second maintien ne faisait que
+    // ré-ouvrir puis refermer le mode sans que rien ne dépende de l'ancien
+    // mécanisme).
     testWidgets('maintenir le doigt en mode ajustement ne produit aucun ±1',
         (tester) async {
       final deltas = await pumpDial(tester);
-      await tester.longPress(find.byType(LifeDial));
-      await tester.pumpAndSettle();
-      expect(deltas, isEmpty);
-
       final gesture = await tester.startGesture(
         tester.getCenter(find.byType(LifeDial)),
       );
       await tester.pump(const Duration(milliseconds: 800));
-      await gesture.up();
-      await tester.pumpAndSettle();
 
       expect(deltas, isEmpty,
           reason: 'un doigt immobile en mode ajustement ne doit jamais '
               'émettre de ±1');
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(deltas, isEmpty);
     });
 
     testWidgets(
@@ -293,7 +299,9 @@ void main() {
       await gesture.up();
       await tester.pumpAndSettle();
 
-      expect(deltas, contains(-10));
+      // Égalité stricte (round de correction 1) : `contains(-10)` laissait
+      // passer un delta de molette parasite en plus du palier attendu.
+      expect(deltas, [-10]);
     });
 
     // Réécrit pour la tâche 7 (fusion en UN SEUL geste continu) : l'ancienne
@@ -369,6 +377,16 @@ void main() {
     // geste de fermeture distinct : ici, on vérifie qu'un glissement vers un
     // point hors des paliers, PUIS un relâchement, ferme le mode dans le même
     // geste continu que celui qui l'a ouvert.
+    //
+    // Round de correction 1 (Important #4) : avant la correction sur
+    // `onPointerUp`, ce test était vert par accident -- le mouvement de ~138px
+    // dépassait `kTouchSlop` et fermait déjà le mode via `onTapCancel`, avant
+    // même que `gesture.up()` ne s'exécute ; l'assertion aurait été vraie que
+    // `up()` fasse quelque chose ou non. Depuis la correction (résolution
+    // uniquement sur l'événement brut de relâchement), le mode survit au
+    // déplacement et ne se ferme qu'au `up()` : ce test exerce désormais
+    // réellement ce qu'il annonce, distinct de « relâcher hors des paliers
+    // ferme le mode sans rien appliquer » (aucun déplacement).
     testWidgets(
         'glisser puis relâcher hors des paliers sort du mode, sans second '
         'geste', (tester) async {
@@ -475,6 +493,95 @@ void main() {
 
       await gesture.up();
       await tester.pumpAndSettle();
+    });
+
+    // Round de correction 1 : le vrai motif qui distingue le code correct du
+    // code cassé est le glissement en PLUSIEURS événements, pas un unique
+    // `moveTo` qui saute directement sur la cible (un seul `PointerMoveEvent`
+    // masque le bug : `_stepUnder` voit tout de suite la position finale).
+    // Un vrai doigt émet des dizaines d'événements de suivi.
+    //
+    // Le glissement part d'une position déjà au NIVEAU VERTICAL de la rangée
+    // (mais hors de tout bouton, à droite de "+10") plutôt que du centre du
+    // cadran : sur un trajet purement horizontal (dy=0 à chaque événement),
+    // la molette -- un mécanisme distinct et volontaire, pas un bug -- n'a
+    // rien à accumuler, ce qui isole proprement la propriété sous test (la
+    // résolution du palier au relâchement, pas l'interaction avec la
+    // molette, déjà couverte par le test suivant).
+    testWidgets(
+        'un glissement en plusieurs événements vers un palier applique CE '
+        'palier, pas un autre ni rien d\'autre', (tester) async {
+      final deltas = await pumpDial(tester);
+      final dial = tester.getRect(find.byType(LifeDial));
+
+      // Empiriquement hors de tout bouton (rangée mesurée à environ
+      // [dial.bottom - 62, dial.bottom - 8]) et à droite du dernier palier
+      // ("+10") : un point de départ plausible pour un pouce qui glissera
+      // ensuite vers la gauche jusqu'à "-5".
+      final start = Offset(dial.right - 10, dial.bottom - 30);
+      final gesture = await tester.startGesture(start);
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      expect(find.text('-5'), findsOneWidget);
+
+      final target =
+          tester.getCenter(find.byKey(const ValueKey('life_step_-5')));
+
+      // Au moins 8 incréments, en gardant la même ordonnée que le point de
+      // départ (glissement purement horizontal) : chaque `PointerMoveEvent`
+      // a un dy nul, donc n'a rien à apporter à la molette, quel que soit
+      // l'endroit du trajet.
+      const steps = 10;
+      for (var i = 1; i <= steps; i++) {
+        final t = i / steps;
+        final x = start.dx + (target.dx - start.dx) * t;
+        await gesture.moveTo(Offset(x, start.dy));
+        // Un `pump()` par pas : un vrai doigt fait avancer des frames au fur
+        // et à mesure, ce qui laisse l'arbre se reconstruire si le mode a
+        // basculé en cours de route (c'est précisément ce qu'une fermeture
+        // prématurée, ex. sur `onTapCancel`, romprait : la rangée se
+        // démonterait, ses `GlobalKey` ne résoudraient plus rien).
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // Égalité stricte : avec l'ancien câblage (résolution sur
+      // `onTapUp`/`onTapCancel` du `GestureDetector`), `onTapCancel` partait
+      // dès que le pointeur dépassait `kTouchSlop` (18px, soit dès le second
+      // incrément ici), bien avant d'atteindre "-5" — le mode se serait
+      // refermé sans rien appliquer, ou sur un mauvais palier.
+      expect(deltas, [-5]);
+    });
+
+    // Round de correction 1 : symétrique du test précédent, côté molette.
+    // Reste franchement hors de la rangée de paliers (dy total < distance au
+    // sommet de la rangée) pour isoler la propriété sous test (l'accumulation
+    // continue) de l'interaction volontaire molette/palier.
+    testWidgets(
+        'un glissement molette en plusieurs événements accumule sur tout le '
+        'trajet, pas seulement le premier pas', (tester) async {
+      final deltas = await pumpDial(tester);
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(LifeDial)));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+
+      // 7 incréments de 10px = 70px, largement au-delà de kTouchSlop (18px)
+      // dès le second pas, et encore loin du sommet mesuré de la rangée
+      // (environ 80px plus bas que le centre du cadran) : la molette doit
+      // pouvoir accumuler sur la totalité du trajet.
+      for (var i = 0; i < 7; i++) {
+        await gesture.moveBy(const Offset(0, 10));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // 70px / 8px par point = 8 (sous le seuil d'accélération de 120px).
+      // Avec l'ancien câblage, le mode se serait refermé au second incrément
+      // (18px dépassés), et le reste du trajet (5 incréments, 50px) n'aurait
+      // plus jamais atteint la molette.
+      expect(deltas.fold<int>(0, (sum, d) => sum + d), -8,
+          reason: 'la molette doit accumuler sur tout le trajet (70px), pas '
+              'seulement jusqu\'au dépassement de kTouchSlop');
     });
   });
 }

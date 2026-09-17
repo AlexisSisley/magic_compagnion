@@ -1660,7 +1660,7 @@ void main() {
   testWidgets(
       'en mode ajustement, la rangée d\'attribution n\'apparaît jamais '
       '(même sur un buffer négatif) : les paliers ±5/±10 restent seuls '
-      'maîtres du bas de la zone, atteignables par un second tap',
+      'maîtres du bas de la zone, atteignables par un second geste continu',
       (tester) async {
     final container = await pumpWithContainer(tester);
 
@@ -1712,6 +1712,16 @@ void main() {
     // palier, jamais une attribution silencieuse à un adversaire.
     gesture = await tester.startGesture(tester.getCenter(sarahDial()));
     await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+
+    // Important #5 (round de correction 1) : c'est ICI, et seulement ici,
+    // que la conjonction exacte qui motivait le garde `!isAdjusting` est
+    // reproduite -- buffer déjà négatif (-5, de la première sélection) ET
+    // mode ajustement de nouveau ouvert. La déplacer sur la première tenue
+    // (buffer encore à 0) ne prouvait rien de cette conjonction.
+    expect(find.byKey(const ValueKey('damage-attribution-0')), findsNothing,
+        reason: 'avec un buffer déjà négatif ET les paliers de nouveau '
+            'affichés, la rangée ne doit toujours pas apparaître');
+
     await gesture.moveTo(tester.getCenter(stepMinus5()));
     await gesture.up();
     await tester.pump();
