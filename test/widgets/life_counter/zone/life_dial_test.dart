@@ -20,7 +20,11 @@ Future<List<int>> pumpDial(
             child: LifeDial(
               playerId: 0,
               life: life,
-              onDelta: deltas.add,
+              // `silent` (round de correction 3) n'affecte que le retour
+              // visuel/haptique, câblé plus haut dans `PlayerZone` -- ce
+              // helper de test isolé sur `LifeDial` continue d'enregistrer
+              // TOUS les deltas, silencieux ou non.
+              onDelta: (delta, {silent = false}) => deltas.add(delta),
             ),
           ),
         ),
@@ -370,38 +374,14 @@ void main() {
               'tiroir et à la rotation, pas à la molette');
     });
 
-    // Réécrit pour la tâche 7 (encodait l'ancien modèle) : la version
-    // précédente fermait le mode par un TAP SÉPARÉ, posé après le relâchement
-    // de l'appui long — exactement le geste en deux temps que la tâche 7
-    // supprime (spec §5.1, plus de mode persistant). Il n'existe plus de
-    // geste de fermeture distinct : ici, on vérifie qu'un glissement vers un
-    // point hors des paliers, PUIS un relâchement, ferme le mode dans le même
-    // geste continu que celui qui l'a ouvert.
-    //
-    // Round de correction 1 (Important #4) : avant la correction sur
-    // `onPointerUp`, ce test était vert par accident -- le mouvement de ~138px
-    // dépassait `kTouchSlop` et fermait déjà le mode via `onTapCancel`, avant
-    // même que `gesture.up()` ne s'exécute ; l'assertion aurait été vraie que
-    // `up()` fasse quelque chose ou non. Depuis la correction (résolution
-    // uniquement sur l'événement brut de relâchement), le mode survit au
-    // déplacement et ne se ferme qu'au `up()` : ce test exerce désormais
-    // réellement ce qu'il annonce, distinct de « relâcher hors des paliers
-    // ferme le mode sans rien appliquer » (aucun déplacement).
-    testWidgets(
-        'glisser puis relâcher hors des paliers sort du mode, sans second '
-        'geste', (tester) async {
-      await pumpDial(tester);
-      final dial = tester.getRect(find.byType(LifeDial));
-      final gesture = await tester.startGesture(dial.center);
-      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
-      expect(find.text('+10'), findsOneWidget);
-
-      await gesture.moveTo(Offset(dial.center.dx, dial.top + 12));
-      await gesture.up();
-      await tester.pumpAndSettle();
-
-      expect(find.text('+10'), findsNothing);
-    });
+    // Round de correction 3 : ce test (« glisser puis relâcher hors des
+    // paliers sort du mode, sans second geste ») a été supprimé. La revue a
+    // vérifié qu'il ne discrimine pas : sous la mutation qui rebranche la
+    // fermeture sur `onTapCancel` (l'ancien modèle), il reste vert, parce que
+    // son assertion (« mode fermé ») est vraie que la fermeture vienne du
+    // dépassement de `kTouchSlop` à 18px ou du `up()` réel. La propriété
+    // qu'il visait est déjà couverte, et discriminée, par « relâcher hors des
+    // paliers ferme le mode sans rien appliquer » (groupe suivant).
   });
 
   group('paliers resserrés, fermés au relâchement (tâche 7)', () {
@@ -583,6 +563,52 @@ void main() {
       expect(deltas.fold<int>(0, (sum, d) => sum + d), -8,
           reason: 'la molette doit accumuler sur tout le trajet (70px), pas '
               'seulement jusqu\'au dépassement de kTouchSlop');
+    });
+
+    // Round de correction 3 (MINOR mais porteur) : `_wheelSumSinceAdjust`
+    // doit être remis à zéro dans `onPointerCancel` lui-même, pas seulement
+    // à la PROCHAINE entrée en mode ajustement -- sinon un résidu de molette
+    // annulé par un `PointerCancel` (interruption système, pas un
+    // relâchement) reste sale jusqu'à cette prochaine entrée, et contamine
+    // le geste suivant.
+    testWidgets(
+        'un glissement molette annulé par PointerCancel ne pollue pas la '
+        'somme du geste suivant vers un palier', (tester) async {
+      final deltas = await pumpDial(tester);
+      final center = tester.getCenter(find.byType(LifeDial));
+
+      // Premier geste : appui long, glissement molette (48px = -6), puis
+      // ANNULATION (PointerCancel, pas un relâchement délibéré).
+      final first = await tester.startGesture(center);
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await first.moveBy(const Offset(0, 48));
+      await tester.pump();
+      await first.cancel();
+      await tester.pump();
+
+      deltas.clear();
+
+      // Second geste, sans aucun rapport avec le premier : glisse jusqu'à
+      // "-5" et relâche.
+      final gesture = await tester.startGesture(center);
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      final target =
+          tester.getCenter(find.byKey(const ValueKey('life_step_-5')));
+      const steps = 10;
+      for (var i = 1; i <= steps; i++) {
+        final t = i / steps;
+        await gesture.moveTo(Offset.lerp(center, target, t)!);
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // Sans la remise à zéro dans `onPointerCancel`, le résidu (-6) du
+      // premier geste se combinerait avec celui du second, faussant son
+      // annulation : la somme nette dériverait vers +1 au lieu de -5.
+      expect(deltas.fold<int>(0, (sum, d) => sum + d), -5,
+          reason: 'le résidu de molette du premier geste (annulé par '
+              'PointerCancel) ne doit pas contaminer la somme du second');
     });
   });
 }

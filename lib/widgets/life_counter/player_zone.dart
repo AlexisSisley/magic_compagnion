@@ -192,8 +192,17 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
   /// Remonte un delta de vie : la zone ne mute plus le `Player` en place
   /// (V4 — voir le tiroir pour les compteurs), elle se contente d'émettre et
   /// de jouer le retour visuel (pulse/shake + nombre flottant).
-  void _triggerChange(int change) {
+  ///
+  /// [silent] (round de correction 3 de `LifeDial`) : un delta d'annulation
+  /// interne (la molette croisée en route vers un palier, jamais un geste de
+  /// l'utilisateur) ne doit produire NI bulle, NI pulsation/tremblement — la
+  /// mutation de vie elle-même (`onLifeChanged`) a quand même lieu, puisque
+  /// c'est elle qui rend le NET juste au buffer de la page. Sans ce garde,
+  /// l'utilisateur verrait une bulle annonçant un gain (ou une perte) de vie
+  /// qui n'a jamais eu lieu, juste avant celle du palier réellement visé.
+  void _triggerChange(int change, {bool silent = false}) {
     widget.onLifeChanged(change);
+    if (silent) return;
     _showFloatingNumber(change);
     if (change > 0) {
       _pulseController.forward(from: 0);

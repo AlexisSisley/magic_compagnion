@@ -1,5 +1,7 @@
 // test/widgets/life_counter/player_zone_test.dart
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/player_model.dart';
@@ -108,6 +110,96 @@ void main() {
     // `Timer` internes (50 ms puis 600 ms) — `pumpAndSettle()` seul ne les
     // atteint pas (aucune frame n'est reprogrammée entre les deux), ce qui
     // laisserait un Timer pendant à la fin du test. On les purge explicitement.
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+  });
+
+  // Round de correction 3 (tâche 7) : un glissement descendant réaliste vers
+  // un palier traverse la zone active de la molette (LifeDial l'annule au
+  // relâchement pour que le net reste exactement le palier). Cette
+  // annulation doit rester SILENCIEUSE au niveau visuel/haptique : sans le
+  // paramètre `silent` propagé jusqu'ici, `_triggerChange` afficherait une
+  // bulle et jouerait pulsation/haptique pour CE delta interne aussi, en
+  // plus de celui du palier -- ce que l'utilisateur (et les autres joueurs,
+  // sur un appareil posé à plat) verraient sur l'écran.
+  testWidgets(
+      'un glissement descendant vers un palier n\'affiche qu\'UNE bulle, '
+      'portant la valeur du palier, et ne joue qu\'UN retour haptique',
+      (tester) async {
+    final hapticCalls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'HapticFeedback.vibrate') hapticCalls.add(call);
+      return null;
+    });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final player = buildPlayer();
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 340,
+              height: 340,
+              child: PlayerZone(
+                player: player,
+                onLifeChanged: (_) {},
+                onColorChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Appui long au centre du cadran (position naturelle), puis glissement
+    // en plusieurs incréments, descendant réellement, vers le bouton "-5" :
+    // un vrai doigt émet des dizaines d'événements, pas un seul saut.
+    final center = tester.getCenter(find.byType(LifeDial));
+    final gesture = await tester.startGesture(center);
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+
+    // L'entrée en mode ajustement joue son propre `HapticFeedback.
+    // mediumImpact()` (légitime, sans rapport avec ce round) : on ne compte
+    // les retours haptiques qu'à partir d'ici, pour isoler ceux du
+    // glissement puis du relâchement.
+    hapticCalls.clear();
+
+    final target = tester.getCenter(find.descendant(
+      of: find.byType(LifeDial),
+      matching: find.byKey(const ValueKey('life_step_-5')),
+    ));
+
+    const steps = 10;
+    for (var i = 1; i <= steps; i++) {
+      final t = i / steps;
+      await gesture.moveTo(Offset.lerp(center, target, t)!);
+      await tester.pump();
+    }
+    await gesture.up();
+    await tester.pump();
+
+    final floatingNumbers =
+        container.read(playerZoneNotifierProvider(player.id)).floatingNumbers;
+    expect(floatingNumbers, hasLength(1),
+        reason: 'un seul geste, un seul effet visible -- pas de bulle pour '
+            'la molette annulée en route');
+    expect(floatingNumbers.single.text, '-5');
+
+    expect(hapticCalls, hasLength(1),
+        reason: 'un seul retour haptique au lever, pas un par delta '
+            'interne (palier + annulation)');
+
+    // Purge les Timer internes de la bulle avant la fin du test.
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
   });

@@ -27,7 +27,14 @@ class LifeDial extends ConsumerStatefulWidget {
 
   final int playerId;
   final int life;
-  final void Function(int delta) onDelta;
+
+  /// [silent] marque un delta qui n'est PAS un geste utilisateur mais une
+  /// correction interne (round de correction 3, spec) : l'annulation de la
+  /// molette croisée en route vers un palier (voir `_wheelSumSinceAdjust`).
+  /// L'appelant ne doit alors jouer ni bulle de nombre flottant, ni
+  /// pulsation/tremblement, ni retour haptique — seule la mutation de vie
+  /// elle-même (déjà nette au buffer, voir `onLifeChanged`) doit avoir lieu.
+  final void Function(int delta, {bool silent}) onDelta;
   final Color? textColor;
 
   @override
@@ -94,8 +101,18 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// doigt levé ») : si le relâchement tombe sur un palier, ce palier doit
   /// être le SEUL effet du geste. On accumule donc tout ce que la molette a
   /// émis pendant le geste, pour l'annuler dans `_endAdjustGesture` si (et
-  /// seulement si) le relâchement atterrit sur un palier — le buffer de la
-  /// page ne montre que la somme courante, donc rien ne clignote.
+  /// seulement si) le relâchement atterrit sur un palier.
+  ///
+  /// Round de correction 3 (Important — le commentaire précédent affirmait le
+  /// contraire, à tort) : le NET est juste (le buffer de la page ne voit que
+  /// la somme), mais l'annulation elle-même reste VISIBLE tant que le delta
+  /// d'annulation n'est pas explicitement marqué `silent` — `onDelta` aboutit
+  /// aussi à `PlayerZone._triggerChange`, qui affiche une bulle de nombre
+  /// flottant et joue une pulsation/tremblement pour CHAQUE delta reçu, pas
+  /// seulement le net. Sans le paramètre `silent`, l'utilisateur verrait donc
+  /// les bulles de la molette prises en route, PUIS une bulle « +9 » (ou
+  /// équivalent) annonçant un gain de vie qui n'a jamais eu lieu, avant celle
+  /// du palier — d'où `_emit(..., silent: true)` dans `_endAdjustGesture`.
   int _wheelSumSinceAdjust = 0;
 
   @override
@@ -107,9 +124,9 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     super.dispose();
   }
 
-  void _emit(int delta) {
-    HapticFeedback.selectionClick();
-    widget.onDelta(delta);
+  void _emit(int delta, {bool silent = false}) {
+    if (!silent) HapticFeedback.selectionClick();
+    widget.onDelta(delta, silent: silent);
   }
 
   void _startHold(int delta) {
@@ -177,10 +194,19 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// `_wheelSumSinceAdjust`), pour que le palier reste le seul effet net —
   /// un relâchement hors palier, lui, laisse la molette telle quelle (son
   /// usage normal).
+  ///
+  /// Round de correction 3 : l'annulation est émise `silent: true` — ce n'est
+  /// pas un geste utilisateur, juste une correction interne, et ne doit donc
+  /// déclencher ni bulle de nombre flottant, ni pulsation/tremblement, ni
+  /// retour haptique (voir le doc-comment de `_wheelSumSinceAdjust` et celui
+  /// de `LifeDial.onDelta`). Le palier lui-même reste émis normalement (seul
+  /// retour haptique du geste).
   void _endAdjustGesture(PlayerZoneNotifier notifier, Offset globalPosition) {
     final delta = _stepUnder(globalPosition);
     if (delta != null) {
-      if (_wheelSumSinceAdjust != 0) _emit(-_wheelSumSinceAdjust);
+      if (_wheelSumSinceAdjust != 0) {
+        _emit(-_wheelSumSinceAdjust, silent: true);
+      }
       _emit(delta);
     }
     _wheelSumSinceAdjust = 0;
@@ -235,7 +261,20 @@ class _LifeDialState extends ConsumerState<LifeDial> {
               if (_stepUnder(event.position) == null) {
                 final steps = notifier.handleWheelDrag(event.delta.dy);
                 if (steps != 0) {
-                  _emit(steps);
+                  // Round de correction 3 : chaque pas de molette est émis
+                  // `silent: true`. Tant que le geste est en cours, on ne
+                  // sait pas encore s'il se terminera sur un palier — et s'il
+                  // s'y termine, ce pas sera annulé par `_endAdjustGesture`
+                  // (voir `_wheelSumSinceAdjust`) : lui faire jouer bulle et
+                  // haptique en temps réel produirait alors, sur un
+                  // glissement réaliste vers un palier, une dizaine de bulles
+                  // qui ne correspondent à aucun effet final -- exactement ce
+                  // que la revue a mesuré et refusé. Le NET reste juste dans
+                  // tous les cas (`onLifeChanged` est appelé pour chaque pas,
+                  // silencieux ou non) : seul le retour visuel/haptique
+                  // temps réel de la molette est sacrifié en mode ajustement,
+                  // au profit d'un geste qui ne raconte que son effet final.
+                  _emit(steps, silent: true);
                   // Round de correction 2 : mémorisé pour être annulé si le
                   // geste se termine sur un palier (voir le doc-comment de
                   // `_wheelSumSinceAdjust`).
@@ -279,7 +318,16 @@ class _LifeDialState extends ConsumerState<LifeDial> {
             // Un `PointerCancelEvent` (interruption système, pas un
             // relâchement délibéré) sort du mode sans appliquer de palier :
             // il n'y a pas de position de relâchement à faire confiance ici.
+            //
+            // Round de correction 3 (MINOR mais porteur) : remet aussi
+            // `_wheelSumSinceAdjust` à zéro ici, plutôt que de compter sur la
+            // remise à zéro de la PROCHAINE entrée en mode ajustement — ce
+            // chemin ne passe jamais par `_endAdjustGesture` (pas de palier à
+            // résoudre), donc rien d'autre ne nettoie ce compteur, qui
+            // resterait sinon sale jusqu'à la prochaine ouverture du mode et
+            // fausserait son annulation.
             if (isAdjusting) notifier.exitAdjustMode();
+            _wheelSumSinceAdjust = 0;
           },
           child: Stack(
             alignment: Alignment.center,
