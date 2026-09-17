@@ -1780,6 +1780,40 @@ void main() {
     expect(find.textContaining('Poison'), findsNothing);
   });
 
+  // Le pendant du test ci-dessus, et il vaut plus que lui. La re-revue a
+  // muté `_getDeathReason` en `final poison = 0;` -- soit la mort par poison
+  // purement et simplement supprimée -- et la suite entière est restée verte
+  // à 1031/1031. Aucun test ne couvrait le cas nominal : le test de Critical
+  // 1 ne verrouille qu'un `findsNothing`, exactement la moitié qui ne coûte
+  // rien à un filtre trop large. Sans ce test, la prochaine main qui touche
+  // à cette fonction peut tuer la détection d'élimination sans qu'un seul
+  // voyant s'allume.
+  testWidgets(
+      'Critical 1, sens inverse : un poison ACTIF au seuil létal déclenche '
+      'toujours l\'élimination', (tester) async {
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    final players = [...baseSession.players];
+    players[0] = players[0].copyWith(counters: {'poison': 10});
+    // Seule différence avec le test précédent : `poison` reste dans les
+    // actifs. Même valeur, même geste, même attente.
+    final session = baseSession.copyWith(players: players);
+
+    await pumpWithContainer(tester, snapshot: session);
+
+    await tapMinusHalf(tester, 0, 1);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(find.byType(DeathConfirmationOverlay), findsOneWidget,
+        reason: 'le filtre par activeCounterIds corrige une lecture, il ne '
+            'doit pas supprimer la détection : un joueur qui atteint le '
+            'seuil de poison avec le compteur actif doit toujours se voir '
+            'proposer l\'élimination');
+  });
+
   // --- Revue finale, Critical 2 : `_resetPlayerCounters` itérait sur une
   // liste écrite à la main (`['poison', 'energy', 'commander_tax']`), pas
   // sur `activeCounterIds` -- un compteur personnalisé actif survivait donc
