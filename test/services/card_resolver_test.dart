@@ -32,11 +32,17 @@ Map<String, dynamic> _frCard() => {
       'lang': 'fr',
     };
 
-/// Dio mocke : [handler] rend soit une Map (200), soit un int (code d'erreur).
+/// Dio mocke : [handler] rend soit une Map (200), soit un int (code d'erreur
+/// HTTP, encapsule en badResponse), soit un DioException tout construit
+/// (pour simuler un timeout ou tout autre type d'echec sans reponse HTTP).
 Dio _mockDio(Object Function(RequestOptions) handler) {
   final dio = Dio(BaseOptions(baseUrl: ScryfallApiService.baseUrl));
   dio.interceptors.add(InterceptorsWrapper(onRequest: (options, h) {
     final result = handler(options);
+    if (result is DioException) {
+      h.reject(result);
+      return;
+    }
     if (result is int) {
       h.reject(DioException(
         requestOptions: options,
@@ -150,6 +156,80 @@ void main() {
       expect(result.notFound, hasLength(1));
       expect(result.notFound.first.name, 'Carte Fantome');
       expect(result.isComplete, isFalse);
+    });
+
+    test(
+        'deux requetes de meme identifiant structurel ne s ecrasent pas : '
+        'aucune ne disparait', () async {
+      // Deux exemplaires de la meme carte, comme deux lignes d'une decklist :
+      // meme set + meme numero de collectionneur -> meme identifiant envoye
+      // a Scryfall. Le champ `lang` differe uniquement pour obtenir deux
+      // instances distinctes de PrintRequest (il n'entre pas dans
+      // l'identifiant structurel, donc les deux requetes restent bien
+      // "identiques" du point de vue de l'appariement).
+      const req1 = PrintRequest(
+          name: 'Carte Fantome', setCode: 'xyz', collectorNumber: '999');
+      const req2 = PrintRequest(name: 'Carte Fantome',
+          setCode: 'xyz', collectorNumber: '999', lang: 'fr');
+
+      // Scryfall echoue exactement l'identifiant envoye pour chaque
+      // occurrence non resolue : ici, deux fois le meme identifiant
+      // structurel, un par requete.
+      final dio = _mockDio((_) => {
+            'data': [],
+            'not_found': [
+              {'set': 'xyz', 'collector_number': '999'},
+              {'set': 'xyz', 'collector_number': '999'},
+            ],
+          });
+      final resolver = CardResolver(api: ScryfallApiService(dio: dio), db: db);
+
+      final result = await resolver.resolveEditions([req1, req2]);
+
+      // Invariant : aucune requete ne disparait, chacune doit se retrouver
+      // dans notFound. Une implementation qui apparie la premiere requete
+      // trouvee (au lieu de consommer) attribue les deux entrees not_found
+      // a req1 et perd req2 silencieusement : la longueur vaudrait 2 mais
+      // les deux elements seraient le meme objet.
+      expect(result.notFound, hasLength(2));
+      expect(result.notFound.any((r) => identical(r, req1)), isTrue);
+      expect(result.notFound.any((r) => identical(r, req2)), isTrue);
+      expect(identical(result.notFound[0], result.notFound[1]), isFalse);
+      expect(result.resolved, isEmpty);
+      expect(result.failed, isEmpty);
+    });
+
+    test(
+        'une erreur 429 est distinguable d une erreur de timeout a la seule '
+        'lecture de errors', () async {
+      final dioRateLimited = _mockDio((_) => 429);
+      final resolverRateLimited =
+          CardResolver(api: ScryfallApiService(dio: dioRateLimited), db: db);
+      final rateLimited = await resolverRateLimited.resolveEditions([
+        const PrintRequest(name: 'Carte A', setCode: 'xyz', collectorNumber: '1'),
+      ]);
+
+      final dioTimeout = _mockDio((options) => DioException(
+            requestOptions: options,
+            type: DioExceptionType.connectionTimeout,
+          ));
+      final resolverTimeout =
+          CardResolver(api: ScryfallApiService(dio: dioTimeout), db: db);
+      final timedOut = await resolverTimeout.resolveEditions([
+        const PrintRequest(name: 'Carte B', setCode: 'xyz', collectorNumber: '2'),
+      ]);
+
+      expect(rateLimited.errors, hasLength(1));
+      expect(timedOut.errors, hasLength(1));
+
+      final rateLimitedError = rateLimited.errors.first;
+      final timeoutError = timedOut.errors.first;
+
+      expect(rateLimitedError, isNot(equals(timeoutError)));
+      expect(rateLimitedError, contains('429'));
+      expect(rateLimitedError, isNot(contains('connectionTimeout')));
+      expect(timeoutError, contains('connectionTimeout'));
+      expect(timeoutError, isNot(contains('429')));
     });
   });
 

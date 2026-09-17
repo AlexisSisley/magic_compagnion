@@ -28,6 +28,22 @@ class CardResolver {
   /// ses requetes sont nommees dans [EditionResolution.failed] plutot que de
   /// disparaitre silencieusement. Une carte que Scryfall declare introuvable
   /// (champ `not_found`) est nommee dans [EditionResolution.notFound].
+  ///
+  /// Invariant : aucune requete ne disparait. Toute requete passee a
+  /// [resolveEditions] se retrouve dans exactement un seau (resolved,
+  /// notFound ou failed). En particulier, deux [PrintRequest] d'un meme lot
+  /// peuvent porter un identifiant structurel identique (deux requetes par
+  /// nom seul, ou deux exemplaires de la meme carte listes ligne a ligne
+  /// dans une decklist) : l'appariement se fait donc par consommation d'une
+  /// liste de travail des requetes non encore attribuees pour le lot
+  /// courant (une requete en est retiree a chaque appariement, qu'il
+  /// provienne d'une carte rendue ou d'une entree `not_found`), jamais par
+  /// simple recherche de "la premiere qui correspond" — une recherche
+  /// attribuerait la meme requete a chaque doublon et en perdrait d'autres
+  /// silencieusement. Toute requete du lot restee non attribuee a la fin
+  /// (ni rendue, ni declaree `not_found` par Scryfall) rejoint notFound :
+  /// elle n'a pas trouve son tirage, c'est un fait, et c'est infiniment
+  /// preferable a son effacement.
   Future<EditionResolution> resolveEditions(List<PrintRequest> requests) async {
     final List<ResolvedPrint> resolved = [];
     final List<PrintRequest> notFound = [];
@@ -47,27 +63,42 @@ class CardResolver {
     for (var i = 0; i < toFetch.length; i += _batchSize) {
       final slice = toFetch.skip(i).take(_batchSize).toList();
       final identifiers = slice.map(_toIdentifier).toList();
+      // Liste de travail : indices (dans slice/identifiers) des requetes du
+      // lot pas encore attribuees a un seau. Consommee, jamais recherchee.
+      final unassigned = List<int>.generate(slice.length, (i) => i);
 
       try {
         final data = await _api.fetchCollection(identifiers);
         final List<dynamic> found = data['data'] ?? [];
         for (final json in found) {
-          final print = ResolvedPrint.fromJson(json as Map<String, dynamic>);
+          final cardJson = json as Map<String, dynamic>;
+          final print = ResolvedPrint.fromJson(cardJson);
           await _cache(print);
           resolved.add(print);
+          // La carte rendue porte, en plus des siens, les champs de
+          // l'identifiant envoye : on consomme la requete correspondante
+          // pour qu'elle ne soit pas comptee deux fois.
+          _consumeMatch(unassigned, identifiers, cardJson);
         }
 
         final List<dynamic> notFoundIdentifiers = data['not_found'] ?? [];
         for (final identifier in notFoundIdentifiers) {
-          final match = _matchRequest(slice, identifiers, identifier as Map<String, dynamic>);
-          if (match != null) notFound.add(match);
+          final index = _consumeMatch(
+              unassigned, identifiers, identifier as Map<String, dynamic>);
+          if (index != null) notFound.add(slice[index]);
+        }
+
+        // Toute requete du lot ni rendue ni declaree not_found par Scryfall
+        // rejoint notFound plutot que de disparaitre.
+        for (final index in unassigned) {
+          notFound.add(slice[index]);
         }
       } on DioException catch (e) {
         // Lot injoignable : ses requetes sont nommees, pas perdues. On ne
         // propage pas l'exception — un seul lot en echec ne doit pas tuer
         // les autres lots deja resolus.
         failed.addAll(slice);
-        errors.add(e.message ?? 'Erreur reseau sur un lot de ${slice.length} carte(s)');
+        errors.add(_describeError(e, slice.length));
       }
     }
 
@@ -77,6 +108,24 @@ class CardResolver {
       failed: failed,
       errors: errors,
     );
+  }
+
+  /// Message d'erreur exploitable : la taille du lot concerne et le type de
+  /// l'exception sont toujours presents ; le code de statut HTTP et le
+  /// message sont ajoutes quand ils existent. `DioException.message` est
+  /// `null` pour toute exception de type `badResponse` (le cas le plus
+  /// courant : 429, 5xx) — sans le code de statut et le type, un appelant
+  /// ne peut pas distinguer un 429 d'un timeout a la seule lecture de ce
+  /// message, et [EditionResolution.errors] ne serait d'aucun secours.
+  String _describeError(DioException e, int batchSize) {
+    final statusCode = e.response?.statusCode;
+    final parts = <String>[
+      'lot de $batchSize carte(s)',
+      'type=${e.type}',
+      if (statusCode != null) 'statusCode=$statusCode',
+      if (e.message != null) 'message=${e.message}',
+    ];
+    return parts.join(', ');
   }
 
   /// Temps 2 : recupere la traduction d'un tirage, ou null s'il n'en existe pas.
@@ -121,24 +170,43 @@ class CardResolver {
     return row == null ? null : _fromRow(row);
   }
 
-  /// Retrouve, parmi [slice], la requete dont l'identifiant Scryfall envoye
-  /// correspond a un identifiant `not_found` rendu par l'API (comparaison
-  /// structurelle : meme cles, memes valeurs).
-  PrintRequest? _matchRequest(
-    List<PrintRequest> slice,
+  /// Retrouve, parmi les indices non encore attribues de [unassigned],
+  /// celui dont l'identifiant envoye correspond a [candidate] — une carte
+  /// rendue dans `data` (superset de champs) ou une entree `not_found`
+  /// (identique a l'identifiant envoye) — le retire de la liste de travail
+  /// et renvoie son index dans le lot. Par consommation, pas par recherche :
+  /// une fois un index retire, il ne peut plus etre attribue a une autre
+  /// carte ou entree `not_found`, ce qui empeche deux requetes de meme
+  /// identifiant structurel de s'ecraser l'une l'autre. Renvoie `null` si
+  /// aucun index disponible ne correspond (la requete reste alors dans
+  /// [unassigned] et rejoindra `notFound` en fin de lot).
+  int? _consumeMatch(
+    List<int> unassigned,
     List<Map<String, dynamic>> identifiers,
-    Map<String, dynamic> identifier,
+    Map<String, dynamic> candidate,
   ) {
-    for (var i = 0; i < identifiers.length; i++) {
-      if (_identifierEquals(identifiers[i], identifier)) return slice[i];
+    for (var i = 0; i < unassigned.length; i++) {
+      final index = unassigned[i];
+      if (_identifierMatches(identifiers[index], candidate)) {
+        unassigned.removeAt(i);
+        return index;
+      }
     }
     return null;
   }
 
-  bool _identifierEquals(Map<String, dynamic> a, Map<String, dynamic> b) {
-    if (a.length != b.length) return false;
-    for (final entry in a.entries) {
-      if (b[entry.key] != entry.value) return false;
+  /// Vrai si toutes les cles de [identifier] (l'identifiant envoye a
+  /// Scryfall) sont presentes avec la meme valeur dans [candidate]. Une
+  /// comparaison en sous-ensemble, pas en egalite stricte de maps : une
+  /// entree `not_found` echoue l'identifiant a l'identique, mais une carte
+  /// rendue dans `data` porte des champs supplementaires (id, oracle_id,
+  /// name, lang...) en plus de ceux de l'identifiant envoye.
+  bool _identifierMatches(
+    Map<String, dynamic> identifier,
+    Map<String, dynamic> candidate,
+  ) {
+    for (final entry in identifier.entries) {
+      if (candidate[entry.key] != entry.value) return false;
     }
     return true;
   }
