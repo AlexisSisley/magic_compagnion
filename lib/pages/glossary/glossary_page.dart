@@ -70,12 +70,23 @@ class _GlossaryPageState extends ConsumerState<GlossaryPage> {
 
   Future<void> _toggleLanguage() async {
     final String newLang = (_currentLang == 'fr') ? 'en' : 'fr';
-    final db = ref.read(appDatabaseProvider);
-    final translationWorker = ref.read(translationWorkerProvider);
 
-    await writePreferredLanguage(db, newLang);
-    await enqueueOwnedCardsForLanguage(db: db, lang: newLang);
-    unawaited(translationWorker.drain()); // ne bloque pas le changement de langue
+    // Une panne base pendant l'ecriture du miroir ou pendant l'enfilement du
+    // backfill ne doit jamais empecher le changement de langue de se voir a
+    // l'ecran : SharedPreferences peut deja porter la nouvelle langue, donc
+    // l'interface DOIT se recharger quoi qu'il arrive ici. La panne se
+    // consigne, elle ne se voit pas.
+    try {
+      final db = ref.read(appDatabaseProvider);
+      final translationWorker = ref.read(translationWorkerProvider);
+
+      await writePreferredLanguage(db, newLang);
+      await enqueueOwnedCardsForLanguage(db: db, lang: newLang);
+      unawaited(translationWorker.drain()); // ne bloque pas le changement de langue
+    } catch (e) {
+      log('Changement de langue : ecriture ou enfilement du backfill impossible: $e',
+          name: 'GlossaryPage');
+    }
 
     await _loadGlossaryData(newLang);
   }
