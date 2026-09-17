@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/table_seat.dart';
 import 'package:magic_companion/widgets/life_counter/layouts/table_layout.dart';
+import 'package:magic_companion/widgets/life_counter/zone/action_hub.dart';
 
 const phonePortrait = Size(390, 844);
 const phoneLandscape = Size(844, 390);
@@ -161,6 +162,36 @@ void main() {
       expect(measured.height, kActionWidth,
           reason: 'même vérification en hauteur : le bouton mesuré doit '
               'rester carré à la taille que `kActionWidth` affirme');
+    });
+  });
+
+  // Revue finale (M3) : `kHubNeed` valait 160.0, posé par estimation, sans
+  // aucun lien avec le widget qu'il est censé mesurer -- rétrécir le hub
+  // n'aurait rien changé à la place qu'on lui réserve. Il dérive désormais de
+  // `ActionHub.diameter`, et ce test MESURE le hub rendu, comme le garde-fou
+  // de `kActionWidth` mesure un bouton rendu (ruling 16).
+  group('kHubNeed reflète la vraie taille rendue du hub (M3)', () {
+    testWidgets('le hub rendu tient dans la place que kHubNeed lui réserve',
+        (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Center(child: ActionHub(actions: [])),
+          ),
+        ),
+      );
+
+      final measured = tester.getSize(find.byType(ActionHub));
+      expect(measured.width, ActionHub.diameter,
+          reason: 'précondition : le hub mesure bien son diamètre annoncé');
+      expect(measured.width, lessThanOrEqualTo(kHubNeed),
+          reason: 'largeur RÉELLEMENT rendue du hub (${measured.width}px) vs '
+              'la place que kHubNeed lui réserve (${kHubNeed}px) -- si le hub '
+              'grandissait au-delà, tableLayoutFor accorderait des colonnes '
+              'latérales sur un budget central trop court');
+      expect(kHubNeed, greaterThan(ActionHub.diameter),
+          reason: 'kHubNeed doit garder une marge autour du hub, pas le '
+              'serrer exactement à son diamètre');
     });
   });
 }

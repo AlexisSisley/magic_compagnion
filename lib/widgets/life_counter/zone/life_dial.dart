@@ -321,6 +321,25 @@ class _LifeDialState extends ConsumerState<LifeDial> {
           // propre tap via `onTapUp`/`onTapCancel`, qui restent câblés
           // uniquement sur `_confirmTap`/`_cancelPress` (jamais sur le mode
           // ajustement).
+          // MINEUR CONNU, DÉLIBÉRÉMENT NON CORRIGÉ (revue finale, mineur
+          // reporté n°11) : `isAdjusting` est lu au-dessus, à la
+          // CONSTRUCTION de ce `Listener`, et capturé dans cette closure.
+          // Si le doigt se lève dans le même tour de boucle que le
+          // déclenchement du timer d'appui long — le `build` déclenché par
+          // `enterAdjustMode()` n'a pas encore eu lieu —, la closure
+          // exécutée voit encore `isAdjusting == false`, ne passe pas par
+          // `_endAdjustGesture`, et `exitAdjustMode()` n'est jamais appelé.
+          // La fenêtre ne dure qu'une frame, MAIS si elle est prise le mode
+          // ajustement reste armé INDÉFINIMENT (plus aucun doigt posé pour
+          // le refermer) : c'est exactement le bug utilisateur d'origine.
+          //
+          // Le correctif serait de relire l'état via
+          // `ref.read(playerZoneNotifierProvider(widget.playerId))` DANS la
+          // closure plutôt que de capturer la valeur du build. Il n'est pas
+          // appliqué ici : ce défaut est hérité, hors du périmètre de cette
+          // passe, et le toucher reviendrait à changer la source de vérité
+          // du geste sans test capable de reproduire une fenêtre d'une
+          // frame. Documenté pour que le prochain ne le redécouvre pas.
           onPointerUp: (event) {
             if (event.pointer != _trackedPointer) return;
             _trackedPointer = null;

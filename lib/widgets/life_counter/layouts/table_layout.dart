@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:magic_companion/models/table_seat.dart';
+import 'package:magic_companion/widgets/life_counter/zone/action_hub.dart';
 import 'package:magic_companion/widgets/life_counter/layouts/density_tier.dart';
 
 /// Forme que prend l'accès aux actions de partie.
@@ -44,8 +45,26 @@ const double kActionGap = 4.0;
 /// Largeur naturelle de la bande d'actions : les neuf actions, sans défilement.
 const double kBandNeed = kActionCount * (kActionWidth + kActionGap) + kActionGap;
 
+/// Marge laissée autour du hub, de chaque côté.
+///
+/// Revue finale (M3) : ce qui restait d'estimation dans `kHubNeed` est isolé
+/// ICI, plutôt que noyé dans un total rond. La valeur conserve le total
+/// historique de 160 px, pour qu'aucun seuil de `tableLayoutFor` ne bouge au
+/// passage — c'est un exercice d'honnêteté sur la provenance du nombre, pas
+/// un changement de comportement.
+const double kHubHalo = 52.0;
+
 /// Place réservée au centre pour le hub et son pourtour tapable.
-const double kHubNeed = 160.0;
+///
+/// Revue finale (M3) : DÉRIVÉ du diamètre réel de `ActionHub`, plus une marge
+/// de chaque côté. La valeur était auparavant posée en dur (160.0) sans
+/// aucun lien avec le widget qu'elle est censée mesurer : rétrécir le hub
+/// n'aurait rien changé ici. Aucun cycle d'import — `action_hub.dart` ne
+/// dépend que de `material` et du thème.
+///
+/// Gardé par un test qui MESURE le hub rendu (même famille que le garde-fou
+/// de `kActionWidth`, ruling 16).
+const double kHubNeed = ActionHub.diameter + 2 * kHubHalo;
 
 /// Petit côté à partir duquel un écran est considéré comme grand.
 const double kLargeScreenShortEdge = 600.0;

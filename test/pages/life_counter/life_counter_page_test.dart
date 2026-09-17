@@ -1499,12 +1499,14 @@ void main() {
     // (pas la bande) sous `kLargeScreenShortEdge` (600) — un téléphone
     // étroit n'affiche donc plus jamais la bande à 8 boutons ; le risque de
     // dépassement qu'elle posait ne s'y produit plus PAR CONSTRUCTION,
-    // puisque `AdaptiveGrid` ne la monte plus du tout dans ce cas. Le hub
-    // qui la remplace ici est encore un placeholder
-    // (`actionHub: const SizedBox.shrink()` dans `life_counter_page.dart`,
-    // tâche 6 à venir) : l'atteignabilité réelle du bouton "vue table"
-    // depuis le hub n'est donc pas vérifiable ici et reste à couvrir par la
-    // tâche 6.
+    // puisque `AdaptiveGrid` ne la monte plus du tout dans ce cas.
+    //
+    // Revue finale (M2) : le hub n'est plus un placeholder -- la tâche 6 est
+    // livrée, `AdaptiveGrid` monte un vrai `ActionHub`. L'atteignabilité des
+    // actions depuis le hub est couverte ailleurs dans ce fichier (« les
+    // infos de partie sont aussi atteignables depuis le hub, sur petit
+    // écran ») et par `test/widgets/life_counter/zone/action_hub_test.dart`.
+    // Ce test-ci ne porte que sur l'ABSENCE de débordement de la bande.
     _setScreenSize(tester, const Size(320, 640));
 
     final baseSession = GameSession.newGame(
