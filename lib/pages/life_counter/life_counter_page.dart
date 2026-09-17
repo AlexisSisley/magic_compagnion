@@ -1291,12 +1291,22 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _saveSnapshot();
   }
 
-  /// Les huit actions de partie, dans l'ordre où la bande les affichait déjà.
+  /// Les neuf actions de partie, dans l'ordre où la bande affichait déjà les
+  /// huit premières.
   ///
   /// Source UNIQUE, consommée à la fois par `_buildCentralBar` (la bande,
   /// grand écran) et par `ActionHub` (le hub, petit écran) : deux listes qui
   /// divergeraient rendraient une action joignable dans une forme et pas dans
   /// l'autre — précisément le défaut que la tâche 6 existe pour éliminer.
+  ///
+  /// Ronde de correction 1 : les infos de partie (`_showGameInfoSheet`)
+  /// n'avaient qu'un appui long caché sur le bouton d'orientation comme seul
+  /// chemin d'accès -- invisible, et absent du hub puisque `GameAction` ne
+  /// porte pas de champ `onLongPress`. Elles sont désormais une neuvième
+  /// action à part entière, joignable par un tap ordinaire depuis la bande
+  /// ET depuis le hub. L'appui long reste en plus sur le bouton
+  /// d'orientation (un raccourci supplémentaire ne gêne personne), mais il
+  /// n'est plus le seul chemin.
   List<GameAction> get _gameActions => [
         GameAction(
           icon: Icons.screen_rotation_alt,
@@ -1340,6 +1350,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           label: 'Joueurs',
           onPressed: _showGameSetupDialog,
         ),
+        GameAction(
+          icon: Icons.info_outline,
+          label: 'Infos de partie',
+          onPressed: _showGameInfoSheet,
+        ),
       ];
 
   Widget _buildCentralBar() {
@@ -1355,7 +1370,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Quick orientation presets (tap) / Game info (long press)
+          // Quick orientation presets (tap). Raccourci en plus : appui long
+          // pour les infos de partie -- mais ce n'est plus leur seul chemin,
+          // voir l'action "Infos de partie" plus bas.
           GestureDetector(
             onLongPress: _showGameInfoSheet,
             child: IconButton(
@@ -1432,6 +1449,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
             key: const ValueKey('action-game-setup'),
             icon: Icon(actions[7].icon, color: AppColors.textSecondary),
             onPressed: actions[7].onPressed,
+          ),
+          // Infos de partie (ronde de correction 1, tâche 6) : un tap
+          // ordinaire, plus un appui long caché sur un autre bouton -- voir
+          // le commentaire de `_gameActions`.
+          IconButton(
+            key: const ValueKey('action-game-info'),
+            icon: Icon(actions[8].icon, color: AppColors.textSecondary),
+            onPressed: actions[8].onPressed,
           ),
         ],
       ),
@@ -1653,6 +1678,12 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.scaffoldBackground,
+      // Ronde de correction 1 (tâche 6) : cette feuille n'était atteignable
+      // que par l'appui long sur le bouton d'orientation, jamais testée sur
+      // petit écran. Devenue joignable depuis le hub (écran étroit), son
+      // contenu (jusqu'à 9 lignes) dépasse la hauteur d'un petit écran sans
+      // `isScrollControlled` + défilement -- même remède qu'`ActionHub._open`.
+      isScrollControlled: true,
       builder: (ctx) {
         final alivePlayers = _session?.players.where((p) => !p.isEliminated).length ?? 0;
         final totalPlayers = _playerCount;
@@ -1661,30 +1692,37 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
             .map((p) => p.config.name)
             .firstOrNull;
 
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(child: Text('Infos Partie', style: AppTextStyles.cinzel(fontSize: 22))),
-              const SizedBox(height: 16),
-              _infoRow(Icons.category, 'Format', _currentFormat.name),
-              _infoRow(Icons.favorite, 'Vie de départ', '${_currentFormat.startingLife}'),
-              _infoRow(Icons.people, 'Joueurs', '$alivePlayers / $totalPlayers en vie'),
-              _infoRow(Icons.timer, 'Durée', _formatDuration(_gameDuration)),
-              _infoRow(Icons.science, 'Poison létal',
-                _currentFormat.maxPoison > 0 ? '${_currentFormat.maxPoison} compteurs' : 'Désactivé'),
-              _infoRow(Icons.shield, 'Cmd létal',
-                _currentFormat.maxCommanderDamage > 0 ? '${_currentFormat.maxCommanderDamage} dégâts' : 'Désactivé'),
-              _infoRow(Icons.favorite_border, 'PV à 0 = mort',
-                _currentFormat.lethalAtZeroLife ? 'Oui' : 'Non'),
-              if (monarchName != null)
-                _infoRow(Icons.star, 'Monarque', monarchName),
-              if (_session?.tag != null && _session!.tag!.isNotEmpty)
-                _infoRow(Icons.label, 'Tag', _session!.tag!),
-              const SizedBox(height: 16),
-            ],
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.8,
+          ),
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Text('Infos Partie', style: AppTextStyles.cinzel(fontSize: 22))),
+                  const SizedBox(height: 16),
+                  _infoRow(Icons.category, 'Format', _currentFormat.name),
+                  _infoRow(Icons.favorite, 'Vie de départ', '${_currentFormat.startingLife}'),
+                  _infoRow(Icons.people, 'Joueurs', '$alivePlayers / $totalPlayers en vie'),
+                  _infoRow(Icons.timer, 'Durée', _formatDuration(_gameDuration)),
+                  _infoRow(Icons.science, 'Poison létal',
+                    _currentFormat.maxPoison > 0 ? '${_currentFormat.maxPoison} compteurs' : 'Désactivé'),
+                  _infoRow(Icons.shield, 'Cmd létal',
+                    _currentFormat.maxCommanderDamage > 0 ? '${_currentFormat.maxCommanderDamage} dégâts' : 'Désactivé'),
+                  _infoRow(Icons.favorite_border, 'PV à 0 = mort',
+                    _currentFormat.lethalAtZeroLife ? 'Oui' : 'Non'),
+                  if (monarchName != null)
+                    _infoRow(Icons.star, 'Monarque', monarchName),
+                  if (_session?.tag != null && _session!.tag!.isNotEmpty)
+                    _infoRow(Icons.label, 'Tag', _session!.tag!),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
           ),
         );
       },

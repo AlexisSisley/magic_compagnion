@@ -1538,10 +1538,15 @@ void main() {
     // n'en dise rien).
     //
     // À 4 joueurs et 600px de large, `tableLayoutFor` choisit encore la
-    // bande ET des colonnes latérales (côté payé en entier, §6) : le centre
-    // qui reste à la bande est le plus étroit qu'elle puisse jamais obtenir
-    // (~396px, contre ~324px nécessaires à ses 8 boutons -- une marge d'une
-    // dizaine de pixels, pas plus).
+    // bande, mais SANS colonnes latérales depuis la ronde de correction 1
+    // (option C) : `kActionWidth` (largeur supposée d'un bouton d'action)
+    // est passé de 36 à 48 -- la vraie taille minimale d'un `IconButton`
+    // Material, mesurée en pratique ; 36 était faux depuis l'origine de la
+    // bande. `kBandNeed` en dérive : 9 × (48 + 4) + 4 = 472px. Le budget des
+    // colonnes latérales à cette largeur (600 - 192 = 408px) ne loge plus
+    // les deux à la fois : les colonnes cèdent (§6, "on renonce, on ne
+    // rétrécit pas"), la bande garde toute la largeur de l'écran (600px),
+    // qui loge large ses 9 vrais boutons (432px de contenu minimum).
     _setScreenSize(tester, const Size(600, 900));
 
     final baseSession = GameSession.newGame(
@@ -1557,14 +1562,79 @@ void main() {
         reason: 'la bande ne doit jamais déborder, même à sa largeur la '
             'plus contrainte');
 
-    // Le dernier bouton de la bande ("Game setup") doit rester réellement
-    // atteignable, pas seulement présent hors champ derrière un
+    // "Game setup" et le dernier bouton de la bande ("Infos de partie",
+    // depuis la ronde de correction 1) doivent rester réellement
+    // atteignables, pas seulement présents hors champ derrière un
     // `ConstrainedBox` mal borné.
     await tester.ensureVisible(
       find.byKey(const ValueKey('action-game-setup')),
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('action-game-info')),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'ronde de correction 1 (tâche 6) — les infos de partie sont '
+      'atteignables depuis la bande, par un tap ordinaire sur leur propre '
+      'action',
+      (tester) async {
+    // Taille de test par défaut : shortEdge 600 >= kLargeScreenShortEdge,
+    // donc `tableLayoutFor` choisit la bande (voir `TableLayout.barKind`).
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    await pumpLifeCounter(tester, snapshot: baseSession);
+
+    expect(find.byKey(const ValueKey('action_band')), findsOneWidget,
+        reason: 'précondition : ce test ne vérifie rien de la bande sinon');
+    expect(find.text('Infos Partie'), findsNothing,
+        reason: 'précondition : la feuille n\'est pas encore ouverte');
+
+    // Un vrai tap sur l'action dédiée, PAS l'appui long caché sur le
+    // bouton d'orientation : c'est justement ce chemin caché que la ronde
+    // de correction 1 remplace par un accès de plein droit.
+    await tester.tap(find.byKey(const ValueKey('action-game-info')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Infos Partie'), findsOneWidget,
+        reason: 'un tap ordinaire sur "Infos de partie" doit ouvrir la '
+            'feuille des infos de partie');
+  });
+
+  testWidgets(
+      'ronde de correction 1 (tâche 6) — les infos de partie sont aussi '
+      'atteignables depuis le hub, sur petit écran',
+      (tester) async {
+    // 320px logiques : sous kLargeScreenShortEdge, `tableLayoutFor` choisit
+    // le hub -- la bande (et son action "Infos de partie") n'existe pas du
+    // tout à cette largeur.
+    _setScreenSize(tester, const Size(320, 640));
+
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    await pumpLifeCounter(tester, snapshot: baseSession);
+
+    expect(find.byKey(const ValueKey('action_hub')), findsOneWidget,
+        reason: 'précondition : ce test ne vérifie rien du hub sinon');
+
+    await tester.tap(find.byKey(const ValueKey('action_hub_button')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Infos de partie'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Infos Partie'), findsOneWidget,
+        reason: 'les infos de partie doivent être atteignables depuis le '
+            'hub, pas seulement depuis la bande d\'un grand écran');
   });
 
   // --- Vague de correction finale du lot 3 (Critical #1) : la rangée

@@ -50,19 +50,34 @@ class ActionHub extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.cardBackground,
+      // Ronde de correction 1 (tâche 6) : à neuf actions, la feuille peut
+      // dépasser la hauteur d'un petit écran. `isScrollControlled` +
+      // `SingleChildScrollView` la rendent défilable plutôt que rognée sans
+      // recours -- un défilement DÉCOUVRABLE dans une feuille modale (l'
+      // utilisateur sait qu'on peut faire glisser une feuille) n'a rien à
+      // voir avec le défilement horizontal interdit de la bande, qui, lui,
+      // cachait des actions sans aucune affordance.
+      isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
-        child: Wrap(
-          children: [
-            for (final action in actions)
-              ListTile(
-                leading: Icon(action.icon, color: AppColors.textSecondary),
-                title: Text(action.label),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  action.onPressed();
-                },
-              ),
-          ],
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetContext).size.height * 0.8,
+          ),
+          child: SingleChildScrollView(
+            child: Wrap(
+              children: [
+                for (final action in actions)
+                  ListTile(
+                    leading: Icon(action.icon, color: AppColors.textSecondary),
+                    title: Text(action.label),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      action.onPressed();
+                    },
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );

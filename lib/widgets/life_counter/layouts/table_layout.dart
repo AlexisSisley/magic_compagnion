@@ -18,11 +18,30 @@ enum ActionBarKind {
 /// visuellement inutilisable.
 const double kSideColumnNeed = kZoneShortEdgeFloor + 26.0;
 
-const int kActionCount = 8;
-const double kActionWidth = 36.0;
+// Tâche 6 (ronde de correction 1) : les infos de partie n'avaient qu'un
+// appui long caché sur le bouton d'orientation comme seul chemin d'accès --
+// invisible et absent du hub. Devenues une neuvième action à part entière
+// (tap ordinaire, joignable depuis la bande ET le hub), `kActionCount` en
+// tient compte pour que `kBandNeed` ne sous-estime plus la largeur réelle.
+const int kActionCount = 9;
+
+// Tâche 6 (ronde de correction 1, option C) : 36.0 était FAUX -- un
+// `IconButton` Material mesure 48×48 au minimum
+// (`kMinInteractiveDimension`), jamais moins, quoi qu'on lui demande. Cette
+// constante mentait depuis l'origine de la bande ; `kBandNeed` sous-estimait
+// donc sa largeur réelle depuis toujours (marge réelle mesurée à 8 actions :
+// ~10px, jamais vérifiée avant). La neuvième action n'a fait que rendre le
+// défaut visible. Porter cette valeur en dessous de 48 pour gagner de la
+// place reviendrait à rétrécir la cible tactile minimale -- refusé : c'est
+// précisément le bug (taper à côté sur un téléphone posé à plat) que toute
+// cette refonte existe pour éliminer. Voir
+// `test/widgets/life_counter/layouts/table_layout_test.dart`, groupe
+// « kActionWidth reflète la vraie taille rendue », qui compare cette
+// constante à la taille mesurée d'un vrai bouton de bande.
+const double kActionWidth = 48.0;
 const double kActionGap = 4.0;
 
-/// Largeur naturelle de la bande d'actions : les huit actions, sans défilement.
+/// Largeur naturelle de la bande d'actions : les neuf actions, sans défilement.
 const double kBandNeed = kActionCount * (kActionWidth + kActionGap) + kActionGap;
 
 /// Place réservée au centre pour le hub et son pourtour tapable.
