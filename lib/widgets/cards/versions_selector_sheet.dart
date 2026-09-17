@@ -53,6 +53,8 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
         'oracleid:${widget.oracleId}',
         unique: 'prints',
         includeMultilingual: true,
+        order: 'released',
+        dir: 'desc',
       );
       final List<dynamic> dataList = data['data'] ?? [];
 

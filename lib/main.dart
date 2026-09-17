@@ -20,6 +20,8 @@
 // The One Piece is Real.
 //
 
+import 'dart:async';
+
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -34,6 +36,9 @@ import 'providers/service_providers.dart';
 import 'data/database/app_database.dart';
 import 'data/migration/migration_service.dart';
 import 'router/app_router.dart';
+import 'services/card_resolver.dart';
+import 'services/print_backfill_service.dart';
+import 'services/scryfall_api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,6 +70,19 @@ void main() async {
   final db = AppDatabase();
   final migrationService = MigrationService(db);
   await migrationService.migrateIfNeeded();
+
+  // Reprise de l'existant (identite de tirage) : met en cache le tirage des
+  // cartes deja stockees (deck + collection), pour que la projection
+  // d'affichage dispose d'un oracleId meme pour ce qui a ete importe avant
+  // ce lot. Lancee sans `await` : ne doit jamais retarder le premier
+  // affichage. `runOnce` est protegee par un drapeau AppSettings et ne pose
+  // ce drapeau qu'en cas de succes -- une panne (pas de reseau au premier
+  // lancement, etc.) sera retentee au prochain demarrage plutot que perdue.
+  final printBackfillService = PrintBackfillService(
+    db: db,
+    resolver: CardResolver(api: ScryfallApiService(), db: db),
+  );
+  unawaited(printBackfillService.runOnce());
 
   runApp(
     ProviderScope(
