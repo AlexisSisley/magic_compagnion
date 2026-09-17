@@ -215,3 +215,43 @@ Voir [[visual-work-needs-eyes]].
   `/v1/trade-binders`) répondent 401 : la collection passera par l'export CSV.
 - Le téléchargement du bulk `all_cards`.
 - La préférence de langue par deck.
+
+## Dette connue après implémentation (2026-09-18)
+
+Le chantier est fusionné (29 commits, 1128 → 1230 tests). Trois constats ont
+été délibérément parqués à la revue finale plutôt que corrigés, le processus
+n'autorisant qu'une vague de correction après celle-ci.
+
+1. **`versions_selector_sheet.dart` — `catchError` mal formé.** Pour satisfaire
+   le type de retour, le `catchError` rejoue `ResolvedPrint.fromJson(raw)`,
+   c'est-à-dire l'appel qui vient d'échouer si la panne venait du parsing :
+   l'exception s'échapperait en erreur asynchrone non gérée. Quasi inatteignable
+   aujourd'hui (`_rawVersions` n'indexe que des JSON portant un `id`), mais le
+   motif est faux. Correctif : rendre `_cacheSelectedPrint` `void` et avaler
+   dans un `catchError` sans valeur de retour.
+
+2. **Scan et sélecteur de versions n'enfilent aucune traduction.** Le tirage est
+   bien mis en cache, mais aucune traduction n'est demandée dans la langue déjà
+   préférée : la carte ne sera traduite qu'au prochain changement de langue.
+   Dégradé, pas faux — la carte s'affiche en anglais sans badge mensonger, et
+   l'état est rattrapable. Le correctif futur doit couvrir **les deux** chemins.
+   Conséquence à ne pas oublier : le déclencheur « fin de scan » du worker est
+   aujourd'hui conforme à cette spec mais sans objet, puisque le scan n'enfile
+   rien.
+
+3. **Le badge de repli n'apparaît qu'après passage du worker.** `isFallback` est
+   désormais conditionné à une absence *confirmée* par Scryfall — sans quoi
+   toutes les lignes portaient le badge juste après un import. Revers assumé :
+   l'état « on ne sait pas encore » n'est pas distingué de « pas de repli » côté
+   interface.
+
+Deux notes de conception issues de l'exécution, à connaître avant d'y toucher :
+
+- **Une absence de traduction est mémorisée par `(oracleId, lang)`**, donc pour
+  toute la carte et non pour le tirage. Or la disponibilité d'une VF est une
+  propriété de l'édition : un 404 sur un tirage condamne les autres. Conforme à
+  cette spec, mais la spec est peut-être trop large — à trancher si le cas se
+  présente.
+- **La migration v3 → v4 n'est couverte par aucun test** : les tests de base
+  ouvrent toujours une base neuve, donc seulement `onCreate`. La branche des
+  utilisateurs existants n'est vérifiée que par lecture.
