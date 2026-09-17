@@ -62,7 +62,15 @@ class DeckCardTile extends StatelessWidget {
           children: [
             Text('${card.quantity}x', style: AppTextStyles.cinzel(color: card.isFoil ? AppColors.amber : AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(width: 8),
-            Expanded(child: Text(card.name, style: AppTextStyles.cinzel(fontSize: 15), overflow: TextOverflow.ellipsis)),
+            Expanded(
+              child: Text(
+                card.name,
+                style: AppTextStyles.cinzel(fontSize: 15),
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             
             // --- INDICATEUR PROXY ---
             if (card.proxyQuantity > 0)
