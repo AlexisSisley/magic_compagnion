@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -25,6 +26,79 @@ import '../services/wishlist_service.dart';
 // --- ENUM (reutilise depuis la page) ---
 
 enum ResultPageState { loading, selection, success, error }
+
+// --- LECTURE DU BAS DE CARTE (edition, numero, langue) ---
+
+/// Langues imprimees sur les cartes et connues de Scryfall (route
+/// `/cards/{set}/{cn}/{lang}`). Un code hors de cette liste est traite
+/// comme "pas de langue", jamais comme une langue a essayer.
+const Set<String> kPrintedLanguages = {
+  'en', 'fr', 'de', 'it', 'es', 'pt', 'ja', 'ko', 'ru', 'zhs', 'zht', 'ph',
+};
+
+/// Format moderne (post-8e edition) : "<CN>[a]/<TOTAL> [<RARETE>] <SET>",
+/// ex. "146/280 C ELD". Le numero de collection precede le code d'edition.
+/// `•` et `·` sont acceptes comme separateurs : l'OCR restitue parfois le
+/// point median imprime entre les segments par un caractere ou l'autre.
+final RegExp _footerModernRegex = RegExp(
+  r'\b(\d{1,4}[a-z]?)\s*/\s*\d{1,4}\b(?:[\s•·]+[A-Za-z])?[\s•·]+([A-Za-z][A-Za-z0-9]{1,4})\b',
+  caseSensitive: false,
+);
+
+/// Format historique : "<SET> <CN>", ex. "ELD 146". Le code d'edition
+/// precede le numero de collection. Ne reconnait pas les codes d'edition
+/// entierement numeriques (ex. anciens sets "4ED") : ils sont indiscernables
+/// d'un numero de collection isole.
+final RegExp _footerLegacyRegex = RegExp(
+  r'\b([A-Za-z][A-Za-z0-9]{1,4})[\s•·]+(\d{1,4}[a-z]?)\b',
+);
+
+/// Code langue attendu juste apres le motif edition/numero (ex. "FR" apres
+/// "ELD"). Ancre sur le debut du texte restant (immediatement apres le
+/// motif reconnu) plutot que sur la fin de toute la chaine : un bloc OCR
+/// peut concatener d'autres lignes (credit artiste, copyright) apres la
+/// langue, et un mot plus long ne doit jamais etre tronque pour ressembler
+/// a un code valide.
+final RegExp _footerLangRegex = RegExp(r'^[\s•·\/\-]*([A-Za-z]{2,3})\b');
+
+/// Lit le bas d'une carte : edition, numero de collection et langue
+/// imprimee. Rend null quand aucun motif d'edition n'est reconnaissable.
+///
+/// Deux formats sont essayes, dans cet ordre : le format moderne
+/// "CN/TOTAL RARETE SET" (le numero precede l'edition), puis le format
+/// historique "SET CN" (l'edition precede le numero). La langue, si
+/// presente, est lue juste apres le motif reconnu — jamais a la fin de la
+/// chaine entiere, qui peut contenir du texte OCR sans rapport.
+({String setCode, String collectorNumber, String? lang})? parsePrintFooter(
+  String blockText,
+) {
+  final String setCode;
+  final String collectorNumber;
+  final int matchEnd;
+
+  final modernMatch = _footerModernRegex.firstMatch(blockText);
+  if (modernMatch != null) {
+    collectorNumber = modernMatch.group(1)!;
+    setCode = modernMatch.group(2)!;
+    matchEnd = modernMatch.end;
+  } else {
+    final legacyMatch = _footerLegacyRegex.firstMatch(blockText);
+    if (legacyMatch == null) return null;
+    setCode = legacyMatch.group(1)!;
+    collectorNumber = legacyMatch.group(2)!;
+    matchEnd = legacyMatch.end;
+  }
+
+  String? lang;
+  final remainder = blockText.substring(matchEnd);
+  final langMatch = _footerLangRegex.firstMatch(remainder);
+  final candidate = langMatch?.group(1)?.toLowerCase();
+  if (candidate != null && kPrintedLanguages.contains(candidate)) {
+    lang = candidate;
+  }
+
+  return (setCode: setCode, collectorNumber: collectorNumber, lang: lang);
+}
 
 // --- ETAT IMMUTABLE ---
 
@@ -207,20 +281,20 @@ class CardDetailController extends StateNotifier<CardDetailState> {
           await textRecognizer.processImage(inputImage);
       textRecognizer.close();
 
-      final RegExp collectorRegex =
-          RegExp(r'\b([A-Z0-9]{3,5})[\s•\/\-]{1,3}([0-9]{1,4}[a-z]?)\b', caseSensitive: false);
-
       for (var block in recognizedText.blocks) {
-        String blockText = block.text.replaceAll('\n', ' ');
-        final match = collectorRegex.firstMatch(blockText);
-        if (match != null) {
-          final String setCode = match.group(1)!;
-          final String collectorNumber = match.group(2)!;
+        final String blockText = block.text.replaceAll('\n', ' ');
+        final parsed = parsePrintFooter(blockText);
+        if (parsed != null) {
           if (!mounted) return;
           state = state.copyWith(
-            statusMessage: 'Code détecté : $setCode #$collectorNumber',
+            statusMessage:
+                'Code détecté : ${parsed.setCode} #${parsed.collectorNumber}',
           );
-          bool success = await _fetchExactCard(setCode, collectorNumber);
+          final bool success = await _fetchExactCard(
+            parsed.setCode,
+            parsed.collectorNumber,
+            lang: parsed.lang,
+          );
           if (success) return;
         }
       }
@@ -289,14 +363,23 @@ class CardDetailController extends StateNotifier<CardDetailState> {
 
   // --- FETCHING ---
 
-  Future<bool> _fetchExactCard(String set, String cn) async {
+  Future<bool> _fetchExactCard(String set, String cn, {String? lang}) async {
     state = state.copyWith(
       statusMessage: 'Identification précise ($set #$cn)...',
     );
     try {
-      final data = await _apiService.getCardBySetAndNumber(set, cn);
+      final data = await _apiService.getCardBySetAndNumber(set, cn, lang: lang);
       selectCard(ScryfallCard.fromJson(data));
       return true;
+    } on DioException catch (e) {
+      // Une traduction absente rend 404 sur cette route : ce n'est pas un
+      // echec d'identification, on retente sans langue (un seul niveau,
+      // toujours avec lang: null, donc aucune boucle possible). Toute autre
+      // erreur (reseau coupe, 5xx, timeout...) est une vraie panne : on ne
+      // la masque pas derriere un repli qui echouerait de la meme façon.
+      if (lang != null && e.response?.statusCode == 404) {
+        return _fetchExactCard(set, cn);
+      }
     } catch (e) {
       // Silently fall through
     }
