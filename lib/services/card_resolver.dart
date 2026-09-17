@@ -6,6 +6,8 @@
 //
 // Voir docs/superpowers/specs/2026-09-17-identite-tirage-langue-design.md
 
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import '../data/database/app_database.dart';
@@ -256,6 +258,7 @@ class CardResolver {
         printedName: row.printedName,
         printedText: row.printedText,
         imageUri: row.imageUri,
+        colorIdentity: AppDatabase.decodeTags(row.colorIdentity),
       );
 
   Future<void> _cache(ResolvedPrint print) => _db.upsertCardPrint(DbCardPrint(
@@ -268,6 +271,7 @@ class CardResolver {
         printedName: print.printedName,
         printedText: print.printedText,
         imageUri: print.imageUri,
+        colorIdentity: json.encode(print.colorIdentity),
         fetchedAt: DateTime.now(),
       ));
 }

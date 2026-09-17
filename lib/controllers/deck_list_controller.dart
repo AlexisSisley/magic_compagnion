@@ -268,33 +268,46 @@ class DeckListController extends StateNotifier<DeckListState> {
       }
     }
 
-    // Couleur d'identite : propriete de la carte oracle, independante du
-    // tirage choisi -- on la lit dans les donnees locales par nom plutot que
-    // par scryfallId (le tirage resolu n'est pas forcement celui que la
-    // base locale (oracle-cards) indexe).
+    // Couleur d'identite : accumulee au fil de la resolution de chaque
+    // DeckCard ci-dessous, depuis le ResolvedPrint effectivement attribue --
+    // il porte l'identite de couleur du tirage reellement resolu par
+    // Scryfall, gratuite dans la reponse batch. LocalCardService ne sert
+    // plus que de filet pour les cartes non resolues (notFound/failed) : le
+    // bulk local (oracle-cards.json) est fige a la date de build de l'app et
+    // ignorerait silencieusement toute carte plus recente.
     final Set<String> deckColors = {};
-    for (final entry in allEntries) {
-      final local = _localCardService.getCardByName(entry.name);
-      if (local != null) deckColors.addAll(local.colorIdentity);
-    }
-    const order = {'W': 0, 'U': 1, 'B': 2, 'R': 3, 'G': 4, 'C': 5};
-    final sortedColors = deckColors.toList()
-      ..sort((a, b) => (order[a] ?? 9).compareTo(order[b] ?? 9));
 
-    DeckCard toDeckCard(DecklistEntry entry) => DeckCard(
-          scryfallId: _consumeScryfallId(printsByKey, entry),
+    DeckCard toDeckCard(DecklistEntry entry) {
+      final print = _consumePrint(printsByKey, entry);
+      if (print != null) {
+        deckColors.addAll(print.colorIdentity);
+        return DeckCard(
+          scryfallId: print.scryfallId,
           name: entry.name,
           quantity: entry.quantity,
           isFoil: entry.isFoil,
         );
+      }
+      final local = _localCardService.getCardByName(entry.name);
+      if (local != null) deckColors.addAll(local.colorIdentity);
+      return DeckCard(
+        scryfallId: 'LOCAL:${entry.name}',
+        name: entry.name,
+        quantity: entry.quantity,
+        isFoil: entry.isFoil,
+      );
+    }
 
     await _deckService.createNewDeck(deckName);
     final decks = await _deckService.loadDecks();
     Deck newDeck = decks.where((d) => d.name == deckName).first;
-    newDeck.colors = sortedColors;
     newDeck.format = parseResult.commanderName != null ? 'Commander' : 'Standard';
     newDeck.mainboard = parseResult.mainboard.map(toDeckCard).toList();
     newDeck.sideboard = parseResult.sideboard.map(toDeckCard).toList();
+
+    const order = {'W': 0, 'U': 1, 'B': 2, 'R': 3, 'G': 4, 'C': 5};
+    newDeck.colors = deckColors.toList()
+      ..sort((a, b) => (order[a] ?? 9).compareTo(order[b] ?? 9));
 
     if (parseResult.commanderName != null) {
       final commanderCard = newDeck.mainboard
@@ -336,20 +349,20 @@ class DeckListController extends StateNotifier<DeckListState> {
   String _printKey(String name) => name.toLowerCase();
 
   /// Consomme, dans [printsByKey], le tirage resolu correspondant a [entry].
-  /// Sans correspondance (carte non resolue : `notFound`, `failed`, ou file
-  /// deja epuisee pour ce nom), rend un identifiant `LOCAL:<nom>` -- le meme
-  /// sentinel que le reste de l'app utilise deja pour signaler une carte sans
-  /// identite Scryfall connue (voir `legality_service.dart`,
-  /// `deck_stats_controller.dart`...).
-  String _consumeScryfallId(
+  /// Rend `null` sans correspondance (carte non resolue : `notFound`,
+  /// `failed`, ou file deja epuisee pour ce nom) -- l'appelant retombe alors
+  /// sur le sentinel `LOCAL:<nom>`, le meme que le reste de l'app utilise
+  /// deja pour signaler une carte sans identite Scryfall connue (voir
+  /// `legality_service.dart`, `deck_stats_controller.dart`...).
+  ResolvedPrint? _consumePrint(
     Map<String, List<ResolvedPrint>> printsByKey,
     DecklistEntry entry,
   ) {
     final bucket = printsByKey[_printKey(entry.name)];
     if (bucket != null && bucket.isNotEmpty) {
-      return bucket.removeAt(0).scryfallId;
+      return bucket.removeAt(0);
     }
-    return 'LOCAL:${entry.name}';
+    return null;
   }
 
   String getSortLabel(String code) {

@@ -23,6 +23,7 @@ DbCardPrint _print({
     printedName: printedName,
     printedText: null,
     imageUri: null,
+    colorIdentity: '[]',
     fetchedAt: DateTime.utc(2026, 9, 17),
   );
 }

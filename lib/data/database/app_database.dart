@@ -233,6 +233,13 @@ class CardPrints extends Table {
   TextColumn get printedName => text().nullable()();
   TextColumn get printedText => text().nullable()();
   TextColumn get imageUri => text().nullable()();
+
+  /// Identite de couleur de CE tirage (ex. `["W","U"]"`), en JSON -- meme
+  /// convention que [Decks.colors]. Mise en cache pour qu'un tirage servi
+  /// depuis le cache (donc sans repasser par Scryfall) porte toujours son
+  /// identite de couleur, meme quand la carte n'existe pas dans le bulk
+  /// local (voir `LocalCardService`).
+  TextColumn get colorIdentity => text().withDefault(const Constant('[]'))();
   DateTimeColumn get fetchedAt => dateTime()();
 
   @override

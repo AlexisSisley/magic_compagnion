@@ -59,6 +59,7 @@ void main() {
       printedName: null,
       printedText: null,
       imageUri: null,
+      colorIdentity: '[]',
       fetchedAt: DateTime.utc(2026, 9, 17),
     ));
   });
@@ -170,6 +171,7 @@ void main() {
       printedName: null,
       printedText: null,
       imageUri: null,
+      colorIdentity: '[]',
       fetchedAt: DateTime.utc(2026, 9, 17),
     ));
     final dio = _mockDio((_) => {

@@ -355,5 +355,51 @@ Random text here
       final deck = controller.state.decks.firstWhere((d) => d.name == 'Deck Incomplet');
       expect(deck.mainboard.single.scryfallId, 'LOCAL:Carte Fantome');
     });
+
+    test(
+        'une carte absente du bulk local mais resolue par Scryfall apporte '
+        'quand meme sa couleur a l\'identite du deck (regression round 3)', () async {
+      // Nom fictif garanti absent du bulk local (assets/json/oracle-cards.json,
+      // fige a la date de build) : seul le ResolvedPrint rendu par le mock
+      // Scryfall peut fournir sa couleur. Avec l'ancien code (colorIdentity
+      // lue via LocalCardService.getCardByName), cette carte etait ignoree
+      // silencieusement et l'identite du deck sous-estimee.
+      const fictionalName = 'Carte Totalement Inventee Zzzqx Neuvieme Extension';
+      expect(
+        LocalCardService().getCardByName(fictionalName),
+        isNull,
+        reason: 'le nom de test doit rester absent du bulk local pour que le '
+            'test verifie bien le bon chemin (sinon il passerait meme avec '
+            'la regression)',
+      );
+
+      final dio = _mockDio((options) {
+        return {
+          'data': [
+            {
+              'id': 'neo-1-en',
+              'oracle_id': 'oracle-carte-inventee',
+              'name': fictionalName,
+              'set': 'neo',
+              'collector_number': '1',
+              'lang': 'en',
+              'color_identity': ['U', 'B'],
+            }
+          ],
+          'not_found': [],
+        };
+      });
+
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final controller = _createImportController(dio: dio, db: db);
+
+      final result = await controller.importDeck('Deck Neuf', '1 $fictionalName');
+
+      expect(result.success, isTrue);
+      final deck = controller.state.decks.firstWhere((d) => d.name == 'Deck Neuf');
+      expect(deck.mainboard.single.scryfallId, 'neo-1-en');
+      expect(deck.colors, ['U', 'B']);
+    });
   });
 }

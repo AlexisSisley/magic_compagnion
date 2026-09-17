@@ -30,6 +30,12 @@ class ResolvedPrint {
   final String? printedText;
   final String? imageUri;
 
+  /// Identite de couleur du tirage resolu (ex. `['W', 'U']`), telle que
+  /// rendue par Scryfall pour CE tirage precis -- gratuite dans la reponse
+  /// batch, et plus juste que toute donnee locale puisqu'elle decrit la
+  /// carte reellement resolue plutot qu'une impression "par defaut".
+  final List<String> colorIdentity;
+
   const ResolvedPrint({
     required this.scryfallId,
     required this.oracleId,
@@ -40,6 +46,7 @@ class ResolvedPrint {
     this.printedName,
     this.printedText,
     this.imageUri,
+    this.colorIdentity = const [],
   });
 
   /// Le nom a afficher : le nom imprime quand il existe, sinon le nom oracle.
@@ -47,6 +54,7 @@ class ResolvedPrint {
 
   factory ResolvedPrint.fromJson(Map<String, dynamic> json) {
     final imageUris = json['image_uris'] as Map<String, dynamic>?;
+    final colorIdentityJson = json['color_identity'] as List<dynamic>?;
     return ResolvedPrint(
       scryfallId: json['id'] as String,
       oracleId: json['oracle_id'] as String? ?? '',
@@ -57,6 +65,8 @@ class ResolvedPrint {
       printedName: json['printed_name'] as String?,
       printedText: json['printed_text'] as String?,
       imageUri: imageUris?['normal'] as String?,
+      colorIdentity:
+          colorIdentityJson?.map((e) => e as String).toList() ?? const [],
     );
   }
 }

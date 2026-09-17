@@ -6336,6 +6336,18 @@ class $CardPrintsTable extends CardPrints
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _colorIdentityMeta = const VerificationMeta(
+    'colorIdentity',
+  );
+  @override
+  late final GeneratedColumn<String> colorIdentity = GeneratedColumn<String>(
+    'color_identity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
     'fetchedAt',
   );
@@ -6358,6 +6370,7 @@ class $CardPrintsTable extends CardPrints
     printedName,
     printedText,
     imageUri,
+    colorIdentity,
     fetchedAt,
   ];
   @override
@@ -6447,6 +6460,15 @@ class $CardPrintsTable extends CardPrints
         imageUri.isAcceptableOrUnknown(data['image_uri']!, _imageUriMeta),
       );
     }
+    if (data.containsKey('color_identity')) {
+      context.handle(
+        _colorIdentityMeta,
+        colorIdentity.isAcceptableOrUnknown(
+          data['color_identity']!,
+          _colorIdentityMeta,
+        ),
+      );
+    }
     if (data.containsKey('fetched_at')) {
       context.handle(
         _fetchedAtMeta,
@@ -6500,6 +6522,10 @@ class $CardPrintsTable extends CardPrints
         DriftSqlType.string,
         data['${effectivePrefix}image_uri'],
       ),
+      colorIdentity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color_identity'],
+      )!,
       fetchedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}fetched_at'],
@@ -6526,6 +6552,13 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
   final String? printedName;
   final String? printedText;
   final String? imageUri;
+
+  /// Identite de couleur de CE tirage (ex. `["W","U"]"`), en JSON -- meme
+  /// convention que [Decks.colors]. Mise en cache pour qu'un tirage servi
+  /// depuis le cache (donc sans repasser par Scryfall) porte toujours son
+  /// identite de couleur, meme quand la carte n'existe pas dans le bulk
+  /// local (voir `LocalCardService`).
+  final String colorIdentity;
   final DateTime fetchedAt;
   const DbCardPrint({
     required this.scryfallId,
@@ -6537,6 +6570,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
     this.printedName,
     this.printedText,
     this.imageUri,
+    required this.colorIdentity,
     required this.fetchedAt,
   });
   @override
@@ -6557,6 +6591,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
     if (!nullToAbsent || imageUri != null) {
       map['image_uri'] = Variable<String>(imageUri);
     }
+    map['color_identity'] = Variable<String>(colorIdentity);
     map['fetched_at'] = Variable<DateTime>(fetchedAt);
     return map;
   }
@@ -6578,6 +6613,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
       imageUri: imageUri == null && nullToAbsent
           ? const Value.absent()
           : Value(imageUri),
+      colorIdentity: Value(colorIdentity),
       fetchedAt: Value(fetchedAt),
     );
   }
@@ -6597,6 +6633,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
       printedName: serializer.fromJson<String?>(json['printedName']),
       printedText: serializer.fromJson<String?>(json['printedText']),
       imageUri: serializer.fromJson<String?>(json['imageUri']),
+      colorIdentity: serializer.fromJson<String>(json['colorIdentity']),
       fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
     );
   }
@@ -6613,6 +6650,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
       'printedName': serializer.toJson<String?>(printedName),
       'printedText': serializer.toJson<String?>(printedText),
       'imageUri': serializer.toJson<String?>(imageUri),
+      'colorIdentity': serializer.toJson<String>(colorIdentity),
       'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
     };
   }
@@ -6627,6 +6665,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
     Value<String?> printedName = const Value.absent(),
     Value<String?> printedText = const Value.absent(),
     Value<String?> imageUri = const Value.absent(),
+    String? colorIdentity,
     DateTime? fetchedAt,
   }) => DbCardPrint(
     scryfallId: scryfallId ?? this.scryfallId,
@@ -6638,6 +6677,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
     printedName: printedName.present ? printedName.value : this.printedName,
     printedText: printedText.present ? printedText.value : this.printedText,
     imageUri: imageUri.present ? imageUri.value : this.imageUri,
+    colorIdentity: colorIdentity ?? this.colorIdentity,
     fetchedAt: fetchedAt ?? this.fetchedAt,
   );
   DbCardPrint copyWithCompanion(CardPrintsCompanion data) {
@@ -6661,6 +6701,9 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
           ? data.printedText.value
           : this.printedText,
       imageUri: data.imageUri.present ? data.imageUri.value : this.imageUri,
+      colorIdentity: data.colorIdentity.present
+          ? data.colorIdentity.value
+          : this.colorIdentity,
       fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
     );
   }
@@ -6677,6 +6720,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
           ..write('printedName: $printedName, ')
           ..write('printedText: $printedText, ')
           ..write('imageUri: $imageUri, ')
+          ..write('colorIdentity: $colorIdentity, ')
           ..write('fetchedAt: $fetchedAt')
           ..write(')'))
         .toString();
@@ -6693,6 +6737,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
     printedName,
     printedText,
     imageUri,
+    colorIdentity,
     fetchedAt,
   );
   @override
@@ -6708,6 +6753,7 @@ class DbCardPrint extends DataClass implements Insertable<DbCardPrint> {
           other.printedName == this.printedName &&
           other.printedText == this.printedText &&
           other.imageUri == this.imageUri &&
+          other.colorIdentity == this.colorIdentity &&
           other.fetchedAt == this.fetchedAt);
 }
 
@@ -6721,6 +6767,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
   final Value<String?> printedName;
   final Value<String?> printedText;
   final Value<String?> imageUri;
+  final Value<String> colorIdentity;
   final Value<DateTime> fetchedAt;
   final Value<int> rowid;
   const CardPrintsCompanion({
@@ -6733,6 +6780,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
     this.printedName = const Value.absent(),
     this.printedText = const Value.absent(),
     this.imageUri = const Value.absent(),
+    this.colorIdentity = const Value.absent(),
     this.fetchedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -6746,6 +6794,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
     this.printedName = const Value.absent(),
     this.printedText = const Value.absent(),
     this.imageUri = const Value.absent(),
+    this.colorIdentity = const Value.absent(),
     required DateTime fetchedAt,
     this.rowid = const Value.absent(),
   }) : scryfallId = Value(scryfallId),
@@ -6765,6 +6814,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
     Expression<String>? printedName,
     Expression<String>? printedText,
     Expression<String>? imageUri,
+    Expression<String>? colorIdentity,
     Expression<DateTime>? fetchedAt,
     Expression<int>? rowid,
   }) {
@@ -6778,6 +6828,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
       if (printedName != null) 'printed_name': printedName,
       if (printedText != null) 'printed_text': printedText,
       if (imageUri != null) 'image_uri': imageUri,
+      if (colorIdentity != null) 'color_identity': colorIdentity,
       if (fetchedAt != null) 'fetched_at': fetchedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -6793,6 +6844,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
     Value<String?>? printedName,
     Value<String?>? printedText,
     Value<String?>? imageUri,
+    Value<String>? colorIdentity,
     Value<DateTime>? fetchedAt,
     Value<int>? rowid,
   }) {
@@ -6806,6 +6858,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
       printedName: printedName ?? this.printedName,
       printedText: printedText ?? this.printedText,
       imageUri: imageUri ?? this.imageUri,
+      colorIdentity: colorIdentity ?? this.colorIdentity,
       fetchedAt: fetchedAt ?? this.fetchedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -6841,6 +6894,9 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
     if (imageUri.present) {
       map['image_uri'] = Variable<String>(imageUri.value);
     }
+    if (colorIdentity.present) {
+      map['color_identity'] = Variable<String>(colorIdentity.value);
+    }
     if (fetchedAt.present) {
       map['fetched_at'] = Variable<DateTime>(fetchedAt.value);
     }
@@ -6862,6 +6918,7 @@ class CardPrintsCompanion extends UpdateCompanion<DbCardPrint> {
           ..write('printedName: $printedName, ')
           ..write('printedText: $printedText, ')
           ..write('imageUri: $imageUri, ')
+          ..write('colorIdentity: $colorIdentity, ')
           ..write('fetchedAt: $fetchedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -11657,6 +11714,7 @@ typedef $$CardPrintsTableCreateCompanionBuilder =
       Value<String?> printedName,
       Value<String?> printedText,
       Value<String?> imageUri,
+      Value<String> colorIdentity,
       required DateTime fetchedAt,
       Value<int> rowid,
     });
@@ -11671,6 +11729,7 @@ typedef $$CardPrintsTableUpdateCompanionBuilder =
       Value<String?> printedName,
       Value<String?> printedText,
       Value<String?> imageUri,
+      Value<String> colorIdentity,
       Value<DateTime> fetchedAt,
       Value<int> rowid,
     });
@@ -11726,6 +11785,11 @@ class $$CardPrintsTableFilterComposer
 
   ColumnFilters<String> get imageUri => $composableBuilder(
     column: $table.imageUri,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get colorIdentity => $composableBuilder(
+    column: $table.colorIdentity,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11789,6 +11853,11 @@ class $$CardPrintsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get colorIdentity => $composableBuilder(
+    column: $table.colorIdentity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get fetchedAt => $composableBuilder(
     column: $table.fetchedAt,
     builder: (column) => ColumnOrderings(column),
@@ -11841,6 +11910,11 @@ class $$CardPrintsTableAnnotationComposer
   GeneratedColumn<String> get imageUri =>
       $composableBuilder(column: $table.imageUri, builder: (column) => column);
 
+  GeneratedColumn<String> get colorIdentity => $composableBuilder(
+    column: $table.colorIdentity,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get fetchedAt =>
       $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
 }
@@ -11885,6 +11959,7 @@ class $$CardPrintsTableTableManager
                 Value<String?> printedName = const Value.absent(),
                 Value<String?> printedText = const Value.absent(),
                 Value<String?> imageUri = const Value.absent(),
+                Value<String> colorIdentity = const Value.absent(),
                 Value<DateTime> fetchedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CardPrintsCompanion(
@@ -11897,6 +11972,7 @@ class $$CardPrintsTableTableManager
                 printedName: printedName,
                 printedText: printedText,
                 imageUri: imageUri,
+                colorIdentity: colorIdentity,
                 fetchedAt: fetchedAt,
                 rowid: rowid,
               ),
@@ -11911,6 +11987,7 @@ class $$CardPrintsTableTableManager
                 Value<String?> printedName = const Value.absent(),
                 Value<String?> printedText = const Value.absent(),
                 Value<String?> imageUri = const Value.absent(),
+                Value<String> colorIdentity = const Value.absent(),
                 required DateTime fetchedAt,
                 Value<int> rowid = const Value.absent(),
               }) => CardPrintsCompanion.insert(
@@ -11923,6 +12000,7 @@ class $$CardPrintsTableTableManager
                 printedName: printedName,
                 printedText: printedText,
                 imageUri: imageUri,
+                colorIdentity: colorIdentity,
                 fetchedAt: fetchedAt,
                 rowid: rowid,
               ),
