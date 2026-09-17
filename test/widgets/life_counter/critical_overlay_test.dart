@@ -22,6 +22,32 @@ void main() {
       );
     }
 
+    // Revue finale, Critical #2 : la profondeur de l'arbre rendu par
+    // `CriticalOverlay` doit être INVARIANTE. La version précédente renvoyait
+    // `widget.child` nu au cran `safe` et l'enveloppait au-delà : franchir le
+    // seuil détruisait puis recréait tout le sous-arbre, donc le `State` de
+    // `LifeDial` — avec le doigt encore posé, et le geste mourait.
+    testWidgets(
+        'franchir le seuil safe -> warning ne recrée PAS le State de son '
+        'enfant (profondeur de l arbre invariante)', (tester) async {
+      var inits = 0;
+      await tester.pumpWidget(buildWidget(
+        level: CriticalLevel.safe,
+        child: _StateProbe(onInit: () => inits++),
+      ));
+      expect(inits, 1, reason: 'précondition : une seule création au montage');
+
+      await tester.pumpWidget(buildWidget(
+        level: CriticalLevel.warning,
+        child: _StateProbe(onInit: () => inits++),
+      ));
+      await tester.pump();
+
+      expect(inits, 1,
+          reason: 'le changement de niveau ne doit insérer ni retirer aucun '
+              'niveau au-dessus de son enfant');
+    });
+
     testWidgets('wraps child content', (tester) async {
       const childKey = Key('child');
       await tester.pumpWidget(buildWidget(
@@ -137,4 +163,27 @@ void main() {
       expect(find.byType(CriticalOverlay), findsOneWidget);
     });
   });
+}
+
+/// Enfant sonde : compte les créations de `State`. Si un ancêtre change la
+/// PROFONDEUR de l'arbre au-dessus de lui, Flutter ne peut plus apparier son
+/// `Element`, détruit le sous-arbre et recrée ce `State` — ce compteur le
+/// voit. C'est exactement ce qui tuait le geste en cours dans `LifeDial`
+/// (revue finale, Critical #2).
+class _StateProbe extends StatefulWidget {
+  const _StateProbe({required this.onInit});
+  final VoidCallback onInit;
+  @override
+  State<_StateProbe> createState() => _StateProbeState();
+}
+
+class _StateProbeState extends State<_StateProbe> {
+  @override
+  void initState() {
+    super.initState();
+    widget.onInit();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox(width: 100, height: 100);
 }

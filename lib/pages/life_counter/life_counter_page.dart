@@ -13,6 +13,7 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:math';
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,9 +40,12 @@ import 'package:magic_companion/widgets/life_counter/player_history_sheet.dart';
 import '../../widgets/life_counter/zone/player_drawer.dart';
 import '../../widgets/life_counter/zone/commander_damage_grid.dart';
 import '../../widgets/life_counter/zone/damage_attribution_row.dart';
+import '../../widgets/life_counter/zone/action_hub.dart';
 import '../../widgets/life_counter/dice_roll_dialog.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
 import '../../widgets/life_counter/layouts/adaptive_grid.dart';
+import '../../widgets/life_counter/layouts/table_layout.dart';
+import '../../models/table_seat.dart';
 import '../../widgets/life_counter/critical_overlay.dart';
 import '../../widgets/life_counter/elimination_overlay.dart';
 import '../../widgets/life_counter/death_confirmation_overlay.dart';
@@ -99,6 +103,35 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
 
   // Edit mode state
   bool _isEditMode = false;
+
+  // Ronde de correction 2 (tâche 5) : `MediaQuery.sizeOf(context)` donne la
+  // taille de l'ÉCRAN, pas celle que `AdaptiveGrid` reçoit réellement de son
+  // propre `LayoutBuilder` -- un `Scaffold` porteur d'une
+  // `bottomNavigationBar` (le shell de production, `AppShellScaffold`)
+  // ampute cette dernière de la hauteur de la barre. Deux sources de vérité
+  // sur la géométrie, la même classe de défaut que le double-pivotement du
+  // lot 6 et que la ronde de correction précédente de cette tâche. Cette clé
+  // permet de lire la taille RÉELLEMENT mesurée par la grille (après sa
+  // disposition), au lieu de la deviner depuis l'écran.
+  final GlobalKey _gridKey = GlobalKey();
+
+  /// Taille réellement occupée par `AdaptiveGrid`, lue sur son `RenderBox`
+  /// après disposition -- jamais mutée pendant un `build()`, seulement lue
+  /// depuis des callbacks post-frame (gestes, feuilles modales).
+  ///
+  /// Retombée sur `MediaQuery.sizeOf(context)` si la grille n'a pas encore de
+  /// contexte (premier appel avant le tout premier `build()`, ou test qui
+  /// n'a monté que la grille sans lui laisser une frame) : c'est la taille de
+  /// l'écran, donc potentiellement en excès de la hauteur d'une barre de
+  /// navigation -- une approximation, pas la source de vérité, et signalée
+  /// comme telle ici plutôt que silencieuse.
+  Size _measuredGridSize(BuildContext context) {
+    final renderObject = _gridKey.currentContext?.findRenderObject();
+    if (renderObject is RenderBox && renderObject.hasSize) {
+      return renderObject.size;
+    }
+    return MediaQuery.sizeOf(context);
+  }
 
   // History sheet state
   int? _historyFilterPlayerId;
@@ -1002,12 +1035,25 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         );
       }
 
-      return zone;
+      // Clé d'identité stable par joueur CANONIQUE (playerState.playerId),
+      // pas par position d'affichage : depuis la tâche 4, AdaptiveGrid place
+      // les zones selon `tableLayoutFor`/`seatsFor`, dont l'ordre dans
+      // l'arbre ne suit ni l'ordre d'affichage ni l'ordre canonique de façon
+      // fixe (colonnes latérales, sous-grille 8 joueurs...). Un test qui a
+      // besoin de retrouver LE joueur 0, quel que soit l'endroit où il est
+      // rendu, doit pouvoir le faire sans reposer sur `.first`/`.at(n)` —
+      // c'est tout l'objet de cette clé.
+      return KeyedSubtree(
+        key: ValueKey('player_zone_${playerState.playerId}'),
+        child: zone,
+      );
     }).toList();
 
     return AdaptiveGrid(
+      key: _gridKey,
       playerZones: playerZones,
       centralBar: _buildCentralBar(),
+      actionHub: ActionHub(actions: _gameActions),
     );
   }
 
@@ -1024,12 +1070,40 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       child: zone,
     );
 
-    // Commander damage flash overlay (Bug 3)
-    if (_commanderDamageFlash.contains(playerState.playerId)) {
-      zone = Stack(
-        children: [
-          zone,
+    final pending = _pendingDamage[playerState.playerId] ?? 0;
+    final pendingText = pending > 0 ? '+$pending' : '$pending';
+    final pendingColor =
+        pending > 0 ? AppColors.accentGreen : AppColors.accentRed;
+
+    // Ronde de correction 4 de la tache 7 -- CAUSE RACINE d'un defaut de
+    // geste, pas un nettoyage cosmetique. Ces trois surcouches
+    // (flash de degats de commandant, badge de buffer, overlay de mort)
+    // ETAIENT trois `if` qui ENVELOPPAIENT `zone` dans un `Stack`
+    // supplementaire. Envelopper, c'est INSERER UN NIVEAU dans l'arbre :
+    // a la frame ou `pending` passe de 0 a -1 (le tout premier pas de
+    // molette d'un geste d'ajustement), l'enfant de `KeyedSubtree` change
+    // de type (`EliminationOverlay` -> `Stack`). Flutter ne peut plus
+    // apparier l'Element, detruit tout le sous-arbre et le reconstruit :
+    // le `State` de `LifeDial` est recree EN PLEIN GESTE (`_trackedPointer`
+    // remis a `null`, veille d'appui long perdue, `_wheelSumSinceAdjust`
+    // perdu). Le doigt continuait de bouger, plus rien ne l'ecoutait, et le
+    // relachement n'appliquait meme pas le palier. Mesure : `initState` /
+    // `dispose` de `_LifeDialState` instrumentes -- deux recreations par
+    // geste, la premiere avec `tracked=1` (pointeur encore pose).
+    //
+    // Le `Stack` est donc desormais INCONDITIONNEL : sa profondeur ne
+    // depend plus d'aucun etat de la page, seuls ses enfants apparaissent
+    // et disparaissent. Chaque enfant porte une `ValueKey` pour que
+    // l'appariement du premier (la zone elle-meme, qui porte le cadran)
+    // ne depende pas non plus de son index parmi ses freres.
+    return Stack(
+      children: [
+        KeyedSubtree(key: const ValueKey('zone_body'), child: zone),
+
+        // Commander damage flash overlay (Bug 3)
+        if (_commanderDamageFlash.contains(playerState.playerId))
           Positioned.fill(
+            key: const ValueKey('zone_commander_damage_flash'),
             child: AnimatedOpacity(
               opacity: 0.5,
               duration: const Duration(milliseconds: 300),
@@ -1043,19 +1117,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
               ),
             ),
           ),
-        ],
-      );
-    }
 
-    // Pending damage buffer indicator (Bug 4)
-    final pending = _pendingDamage[playerState.playerId] ?? 0;
-    if (pending != 0) {
-      final pendingText = pending > 0 ? '+$pending' : '$pending';
-      final pendingColor = pending > 0 ? AppColors.accentGreen : AppColors.accentRed;
-      zone = Stack(
-        children: [
-          zone,
+        // Pending damage buffer indicator (Bug 4)
+        if (pending != 0)
           Positioned(
+            key: const ValueKey('zone_pending_badge'),
             top: 8,
             right: 8,
             child: Container(
@@ -1070,24 +1136,19 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
               ),
             ),
           ),
-        ],
-      );
-    }
 
-    // Rangee d'attribution a la volee (spec S2.6) : voir `_buildPlayerZone`,
-    // qui calcule sa visibilite et la passe a `PlayerZone` en donnees.
-    //
-    // Ronde de correction finale (Critical/Important #2) : elle ne vit plus
-    // ici, empilee PAR-DESSUS la zone -- ce Stack est hors du `RotatedBox`
-    // de `quarterTurns` de `PlayerZone`, donc la rangee ne pivotait jamais
-    // avec la zone (90deg/270deg). Deplacee DANS `PlayerZone` pour pivoter
-    // avec le reste.
+        // Rangee d'attribution a la volee (spec S2.6) : voir `_buildPlayerZone`,
+        // qui calcule sa visibilite et la passe a `PlayerZone` en donnees.
+        //
+        // Ronde de correction finale (Critical/Important #2) : elle ne vit plus
+        // ici, empilee PAR-DESSUS la zone -- ce Stack est hors du `RotatedBox`
+        // de `quarterTurns` de `PlayerZone`, donc la rangee ne pivotait jamais
+        // avec la zone (90deg/270deg). Deplacee DANS `PlayerZone` pour pivoter
+        // avec le reste.
 
-    if (_showDeathOverlay.contains(playerState.playerId)) {
-      zone = Stack(
-        children: [
-          zone,
+        if (_showDeathOverlay.contains(playerState.playerId))
           Positioned.fill(
+            key: const ValueKey('zone_death_overlay'),
             child: DeathConfirmationOverlay(
               playerName: player.name,
               currentLife: player.life,
@@ -1096,11 +1157,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
               onConfirmElimination: () => _confirmElimination(playerState.playerId),
             ),
           ),
-        ],
-      );
-    }
-
-    return zone;
+      ],
+    );
   }
 
   void _onReorderPlayers(int oldIndex, int newIndex) {
@@ -1116,6 +1174,30 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     order[oldIndex] = order[newIndex];
     order[newIndex] = temp;
     _controller.reorderPlayers(order);
+    // Une zone DÉPLACÉE prend l'orientation par défaut de son nouveau siège
+    // (décision utilisateur). Seules les deux zones permutées changent de
+    // siège : les reposer TOUTES détruisait l'orientation des joueurs que
+    // personne n'avait touchés — un « Même sens » sautait au premier
+    // glisser-déposer sans rapport.
+    //
+    // Ronde de correction 1 (tâche 5) : `seatsFor(order.length)` appelé en
+    // direct ignorait le repli face-à-face que `tableLayoutFor` applique
+    // quand l'écran ne peut pas payer de colonne latérale (téléphone en
+    // portrait, §3.3) — deux sources de vérité sur la géométrie qui
+    // divergeaient, la même classe de défaut que le double-pivotement du lot
+    // 6. Il faut lire les sièges dans la MÊME disposition que celle que
+    // `AdaptiveGrid` a réellement rendue, donc via `tableLayoutFor`.
+    //
+    // Ronde de correction 2 : `MediaQuery.sizeOf(context)` donnait la taille
+    // de l'ÉCRAN, encore une source différente de celle qu'`AdaptiveGrid`
+    // mesure réellement (voir `_measuredGridSize`) — remplacé taille de la
+    // grille mesurée via `_gridKey`.
+    final seats =
+        tableLayoutFor(_measuredGridSize(context), order.length).seats;
+    for (final displayIndex in {oldIndex, newIndex}) {
+      _controller.updateRotation(
+          order[displayIndex], seats[displayIndex].quarterTurns);
+    }
     setState(() {});
     _saveSnapshot();
   }
@@ -1141,7 +1223,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       onRotationChanged: (r) => _updatePlayerRotation(p.id, r),
       onSkinChanged: (path) => _updatePlayerSkin(p.id, path),
       onNameTap: () => _showPlayerHistory(p.id),
-      onOpenDrawer: () => _openPlayerDrawer(ps),
+      onOpenDrawer: (onRotate, onShowColorPicker) =>
+          _openPlayerDrawer(ps, onRotate, onShowColorPicker),
       attributionOpponents:
           showAttribution ? _attributionOpponents(ps.playerId) : null,
       onAttributeDamage: (sourcePlayerId) =>
@@ -1154,7 +1237,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   /// monarque, élimination volontaire / son annulation, reset des compteurs,
   /// et la grille de dégâts de commandant reçus (remplace en tâche 2 le
   /// sélecteur plein écran, orienté à l'envers — voir _onDrawerCommanderDamage).
-  void _openPlayerDrawer(PlayerState ps) {
+  void _openPlayerDrawer(
+    PlayerState ps,
+    VoidCallback onRotate,
+    VoidCallback onShowColorPicker,
+  ) {
     final session = _session;
     final opponents = session == null
         ? const <CommanderDamageOpponent>[]
@@ -1225,6 +1312,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       inactiveCounters: inactiveCounters,
       onActivateCounter: (type) =>
           _onDrawerActivateCounter(ps.playerId, type),
+      onRotate: onRotate,
+      onShowColorPicker: onShowColorPicker,
+      // Revue finale (IMPORTANT #1) : second point d'entrée de l'historique
+      // PAR JOUEUR, garanti à tous les crans de densité. `onNameTap` sur
+      // `PlayerHeader` reste le premier, mais l'en-tête disparaît au cran
+      // `minimal` (7-8 joueurs sur téléphone) et la fonction devenait alors
+      // injoignable pour toute la partie.
+      onShowHistory: () => _showPlayerHistory(ps.playerId),
     );
   }
 
@@ -1392,113 +1487,190 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     _saveSnapshot();
   }
 
+  /// Les neuf actions de partie, dans l'ordre où la bande affichait déjà les
+  /// huit premières.
+  ///
+  /// Source UNIQUE, consommée à la fois par `_buildCentralBar` (la bande,
+  /// grand écran) et par `ActionHub` (le hub, petit écran) : deux listes qui
+  /// divergeraient rendraient une action joignable dans une forme et pas dans
+  /// l'autre — précisément le défaut que la tâche 6 existe pour éliminer.
+  ///
+  /// Ronde de correction 1 : les infos de partie (`_showGameInfoSheet`)
+  /// n'avaient qu'un appui long caché sur le bouton d'orientation comme seul
+  /// chemin d'accès -- invisible, et absent du hub puisque `GameAction` ne
+  /// porte pas de champ `onLongPress`. Elles sont désormais une neuvième
+  /// action à part entière, joignable par un tap ordinaire depuis la bande
+  /// ET depuis le hub. L'appui long reste en plus sur le bouton
+  /// d'orientation (un raccourci supplémentaire ne gêne personne), mais il
+  /// n'est plus le seul chemin.
+  List<GameAction> get _gameActions => [
+        GameAction(
+          id: 'orientation-presets',
+          icon: Icons.screen_rotation_alt,
+          label: 'Orientation',
+          onPressed: _showOrientationPresets,
+        ),
+        GameAction(
+          // `restart-game`, pas `reset` : le tiroir du joueur porte déjà une
+          // `ValueKey('action-reset')` (réinitialiser SES compteurs), et deux
+          // widgets montés en même temps sous la même clé rendent tout
+          // repérage ambigu.
+          id: 'restart-game',
+          icon: Icons.refresh,
+          label: 'Recommencer',
+          onPressed: () => _resetGame(),
+        ),
+        GameAction(
+          id: 'dice',
+          icon: Icons.casino,
+          label: 'Dé',
+          onPressed: _showDiceSelector,
+        ),
+        GameAction(
+          id: 'timer',
+          icon: _isGameActive ? Icons.stop : Icons.play_arrow,
+          label: _isGameActive
+              ? 'Terminer la partie'
+              : 'Désigner le premier joueur',
+          onPressed: _isGameActive ? _endGame : _pickStartingPlayer,
+        ),
+        GameAction(
+          id: 'history',
+          icon: Icons.history,
+          label: 'Historique',
+          onPressed: _showDamageHistory,
+        ),
+        GameAction(
+          id: 'table-view',
+          icon: Icons.table_chart_outlined,
+          label: 'Vue table',
+          onPressed: _showTableView,
+        ),
+        GameAction(
+          id: 'edit-mode',
+          icon: Icons.build,
+          label: _isEditMode ? 'Terminer l\'édition' : 'Réorganiser les joueurs',
+          onPressed: () => setState(() => _isEditMode = !_isEditMode),
+        ),
+        GameAction(
+          id: 'game-setup',
+          icon: Icons.people,
+          label: 'Joueurs',
+          onPressed: _showGameSetupDialog,
+        ),
+        GameAction(
+          id: 'game-info',
+          icon: Icons.info_outline,
+          label: 'Infos de partie',
+          onPressed: _showGameInfoSheet,
+        ),
+      ];
+
+  /// La bande d'actions (grand écran).
+  ///
+  /// Revue finale (IMPORTANT #3) : construite par ITÉRATION sur
+  /// `_gameActions`, jamais plus à l'index. La version précédente câblait neuf
+  /// boutons en dur (`actions[0]` … `actions[8]`) tandis que le hub itérait :
+  /// une dixième action aurait été affichée par le hub, ignorée par la bande,
+  /// et sous-estimée par `kBandNeed` — les deux mécaniques exactes du défaut
+  /// d'origine (une action joignable dans une forme et pas dans l'autre, une
+  /// largeur calculée sur un compte faux), réarmées.
+  ///
+  /// Les trois rendus bespoke qui subsistent sont sélectionnés par l'`id` de
+  /// l'action, pas par sa position : ajouter, retirer ou réordonner une
+  /// action ne peut plus en déplacer un sur la mauvaise.
   Widget _buildCentralBar() {
+    final actions = _gameActions;
+    // La bande n'est plus rendue que lorsque `tableLayoutFor` a vérifié
+    // qu'elle tient (voir `TableLayout.barKind`, `kBandNeed`) : un
+    // `SingleChildScrollView` qui masquerait silencieusement des actions est
+    // interdit par la spec, donc plus de scroll ici -- sous ce seuil,
+    // `AdaptiveGrid` monte le hub à la place.
     return Container(
       height: 60,
       color: AppColors.textOnPrimary,
-      // Tache 4 (ronde de correction 1) : la barre comptait deja 7 enfants
-      // de taille fixe avant le bouton "vue table" (le 8e) -- sur un
-      // telephone etroit, `Row(spaceEvenly)` seul depasse et leve une
-      // erreur de rendu (RenderFlex overflow), invisible sur un simulateur
-      // large. `LayoutBuilder` fournit la largeur disponible reelle ;
-      // `ConstrainedBox(minWidth: ...)` a l'interieur d'un
-      // `SingleChildScrollView` horizontal force le `Row` (mainAxisSize.min)
-      // a occuper au moins toute la largeur quand ca rentre -- ce qui
-      // preserve exactement le `spaceEvenly` d'origine -- et le laisse
-      // grandir a sa taille naturelle, scrollable, quand ca ne rentre pas.
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: constraints.maxWidth),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-          // Quick orientation presets (tap) / Game info (long press)
-          GestureDetector(
-            onLongPress: _showGameInfoSheet,
-            child: IconButton(
-              icon: const Icon(Icons.screen_rotation_alt, color: AppColors.textSecondary),
-              onPressed: _showOrientationPresets,
-            ),
-          ),
-          // Reset
-          IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
-            onPressed: () => _resetGame(),
-          ),
-          // Dice
-          IconButton(
-            icon: const Icon(Icons.casino, color: AppColors.textSecondary),
-            onPressed: _showDiceSelector,
-          ),
-          // Timer / Pick starter / End game
-          InkWell(
-            onTap: _isGameActive ? _endGame : _pickStartingPlayer,
-            borderRadius: BorderRadius.circular(50),
-            child: Container(
-              width: 50, height: 50,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.textOnPrimary,
-                border: Border.all(
-                  color: _isGameActive ? AppColors.accentRed : AppColors.primaryShade800,
-                  width: 2,
-                ),
-              ),
-              child: _isGameActive
-                  ? FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        _formatDuration(_gameDuration),
-                        style: GoogleFonts.robotoMono(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    )
-                  : const Icon(Icons.play_arrow, color: AppColors.primary),
-            ),
-          ),
-          // History (NEW)
-          IconButton(
-            icon: const Icon(Icons.history, color: AppColors.textSecondary),
-            onPressed: _showDamageHistory,
-          ),
-          // Vue table (tache 4) : bouton dedie, pas de geste a deux doigts
-          // sur les zones -- voir table_view_page.dart pour la justification.
-          IconButton(
-            key: const ValueKey('action-table-view'),
-            icon: const Icon(Icons.table_chart_outlined, color: AppColors.textSecondary),
-            onPressed: _showTableView,
-          ),
-          // Edit mode toggle (NEW)
-          IconButton(
-            icon: Icon(
-              Icons.build,
-              color: _isEditMode ? AppColors.primary : AppColors.textSecondary,
-            ),
-            style: _isEditMode
-                ? IconButton.styleFrom(backgroundColor: AppColors.primary.withAlpha(40))
-                : null,
-            onPressed: () => setState(() => _isEditMode = !_isEditMode),
-          ),
-          // Game setup
-          IconButton(
-            icon: const Icon(Icons.people, color: AppColors.textSecondary),
-            onPressed: _showGameSetupDialog,
-          ),
-                ],
-              ),
-            ),
-          );
-        },
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          for (final action in actions) _bandButton(action),
+        ],
       ),
     );
+  }
+
+  /// Le bouton de bande d'une action. Le cas général est un `IconButton`
+  /// Material nu — celui dont `kActionWidth` mesure la taille (ruling 16).
+  Widget _bandButton(GameAction action) {
+    final key = ValueKey('action-${action.id}');
+    switch (action.id) {
+      // Raccourci en plus : appui long pour les infos de partie -- mais ce
+      // n'est plus leur seul chemin, voir l'action `game-info`.
+      case 'orientation-presets':
+        return GestureDetector(
+          onLongPress: _showGameInfoSheet,
+          child: IconButton(
+            key: key,
+            icon: Icon(action.icon, color: AppColors.textSecondary),
+            onPressed: action.onPressed,
+          ),
+        );
+
+      // Chrono : style bespoke (cercle de 50x50, minuterie en Roboto Mono),
+      // reporté par la revue finale. Il reste ici une branche de ce switch,
+      // donc toujours UN élément de la bande par action, ni plus ni moins.
+      case 'timer':
+        return InkWell(
+          key: key,
+          onTap: action.onPressed,
+          borderRadius: BorderRadius.circular(50),
+          child: Container(
+            width: 50, height: 50,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.textOnPrimary,
+              border: Border.all(
+                color: _isGameActive ? AppColors.accentRed : AppColors.primaryShade800,
+                width: 2,
+              ),
+            ),
+            child: _isGameActive
+                ? FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _formatDuration(_gameDuration),
+                      style: GoogleFonts.robotoMono(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  )
+                : Icon(action.icon, color: AppColors.primary),
+          ),
+        );
+
+      // Surlignage du mode édition : également bespoke, également reporté.
+      case 'edit-mode':
+        return IconButton(
+          key: key,
+          icon: Icon(
+            action.icon,
+            color: _isEditMode ? AppColors.primary : AppColors.textSecondary,
+          ),
+          style: _isEditMode
+              ? IconButton.styleFrom(backgroundColor: AppColors.primary.withAlpha(40))
+              : null,
+          onPressed: action.onPressed,
+        );
+
+      default:
+        return IconButton(
+          key: key,
+          icon: Icon(action.icon, color: AppColors.textSecondary),
+          onPressed: action.onPressed,
+        );
+    }
   }
 
   void _showOrientationPresets() {
@@ -1555,71 +1727,75 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     );
   }
 
+  /// Presets d'orientation, TOUS dérivés de la géométrie (revue finale,
+  /// ruling 20).
+  ///
+  /// Ce qui existait avant : des listes en dur de 2 à 6 joueurs, écrites pour
+  /// une disposition qui n'existe plus. Mesuré à `Size(900, 700)` / 4
+  /// joueurs — l'écran exact des tests de presets — la disposition rendue est
+  /// `[top, right, bottom, left]`, soit `[2, 3, 0, 1]`, colonnes latérales
+  /// actives ; « Face à face » posait `[2, 2, 0, 0]` et AUCUN des cinq presets
+  /// ne produisait l'orientation juste. L'aperçu, lui, dessinait honnêtement
+  /// le résultat faux : libellé et aperçu se contredisaient à l'écran.
+  ///
+  /// Depuis, il n'y a plus qu'une source de géométrie —
+  /// `tableLayoutFor(_measuredGridSize(context), count)` — et aucune liste en
+  /// dur ne peut plus diverger d'elle.
+  ///
+  /// Les trois libellés supprimés — « Côtés », « Triangle », « Cercle » — ne
+  /// décrivaient aucune disposition de sièges : ils ne peuvent pas être
+  /// exprimés honnêtement une fois la géométrie dérivée, et prétendaient
+  /// placer des joueurs là où la grille ne les met pas.
   List<_OrientationPreset> _getOrientationPresets(int count) {
-    if (count == 2) {
-      return [
-        _OrientationPreset('Face à face', [2, 0]),
-        _OrientationPreset('Même sens', [0, 0]),
-        _OrientationPreset('Côte à côte', [1, 3]),
-      ];
-    }
-    if (count == 3) {
-      // Layout: 1 top (index 0), 2 bottom (indices 1, 2)
-      return [
-        _OrientationPreset('Face à face', [2, 0, 0]),
-        _OrientationPreset('Même sens', [0, 0, 0]),
-        _OrientationPreset('Triangle', [2, 1, 3]),
-      ];
-    }
-    if (count == 4) {
-      return [
-        _OrientationPreset('Face à face', [2, 2, 0, 0]),
-        _OrientationPreset('Côtés', [1, 3, 1, 3]),
-        _OrientationPreset('Table', [1, 3, 0, 2]),
-        _OrientationPreset('Cercle', [2, 2, 1, 3]),
-        _OrientationPreset('Même sens', [0, 0, 0, 0]),
-      ];
-    }
-    if (count == 5) {
-      // Layout: 2 top (indices 0-1), 3 bottom (indices 2-4)
-      return [
-        _OrientationPreset('Face à face', [2, 2, 0, 0, 0]),
-        _OrientationPreset('Même sens', [0, 0, 0, 0, 0]),
-      ];
-    }
-    if (count == 6) {
-      return [
-        _OrientationPreset('Face à face', [2, 2, 2, 0, 0, 0]),
-        _OrientationPreset('Côtés', [1, 2, 3, 1, 0, 3]),
-        _OrientationPreset('Même sens', [0, 0, 0, 0, 0, 0]),
-      ];
-    }
-    // Fallback for any count — top half = floor(count/2) to match AdaptiveGrid
-    final halfUp = List.generate(count, (i) => i < count ~/ 2 ? 2 : 0);
-    final allSame = List.filled(count, 0);
+    // La disposition RÉELLEMENT rendue, colonnes latérales comprises.
+    // `TableSeat.quarterTurns` porte déjà la rotation juste pour un siège
+    // donné : rien à recalculer, aucune compensation.
+    final tableRotations = [
+      for (final seat in tableLayoutFor(_measuredGridSize(context), count).seats)
+        seat.quarterTurns,
+    ];
+
+    // Le repli face-à-face, c'est-à-dire la même géométrie privée de ses
+    // colonnes latérales — et non une liste écrite à la main.
+    final faceToFaceRotations = [
+      for (final seat in seatsFor(count, allowSideColumns: false))
+        seat.quarterTurns,
+    ];
+
     return [
-      _OrientationPreset('Face à face', halfUp),
-      _OrientationPreset('Même sens', allSame),
+      _OrientationPreset('Table', tableRotations),
+      // Proposé seulement là où il DIFFÈRE de « Table » : sur un écran (ou un
+      // effectif) où la grille ne pose déjà pas de colonnes latérales, les
+      // deux presets sont le même, et offrir deux boutons identiques sous
+      // deux noms ment sur ce qu'ils font.
+      if (!listEquals(faceToFaceRotations, tableRotations))
+        _OrientationPreset('Face à face', faceToFaceRotations),
+      _OrientationPreset('Même sens', List.filled(count, 0)),
+      // Seul preset qui ne décrive pas des SIÈGES : deux joueurs côte à côte
+      // du même bord de l'appareil, chacun tourné d'un quart de tour vers
+      // l'autre. Il n'a de sens qu'à deux, et n'a pas d'équivalent
+      // géométrique à dériver — `seatsFor` ne modélise pas ce placement.
+      if (count == 2) const _OrientationPreset('Côte à côte', [1, 3]),
     ];
   }
 
   void _applyOrientationPreset(List<int> rotations) {
     if (_session == null) return;
-    // Les presets décrivent une position visuelle (haut/bas de la grille) :
-    // il faut donc les appliquer dans l'ordre d'affichage, pas dans l'ordre
-    // canonique, sous peine de tourner le mauvais joueur après un reorder.
+    // Les presets décrivent une position visuelle (haut/bas/côtés de la
+    // grille) : il faut donc les appliquer dans l'ordre d'affichage, pas
+    // dans l'ordre canonique, sous peine de tourner le mauvais joueur après
+    // un reorder.
+    //
+    // Depuis la tâche 4, `AdaptiveGrid` ne pivote plus jamais rien lui-même
+    // (voir adaptive_grid.dart) : les `quarterTurns` d'un preset sont donc
+    // déjà la rotation finale à poser, sans aucune compensation. Le retrait
+    // de deux quarts de tour qui vivait ici avant cette correction
+    // supposait encore l'ancienne grille, qui pivotait la moitié haute de
+    // 180° elle-même — 180° − 180° = 0°, le défaut symétrique de celui que
+    // la tâche 4 interdit (180° + 180° = 360°).
     final players = _orderedPlayers;
-    final topCount = players.length ~/ 2;
     for (int i = 0; i < players.length && i < rotations.length; i++) {
-      // AdaptiveGrid wraps the top half in RotatedBox(quarterTurns: 2),
-      // so we must compensate: subtract 2 quarter turns for top-row zones
-      // to get the intended visual orientation.
-      int effectiveRotation = rotations[i];
-      if (i < topCount) {
-        effectiveRotation = (rotations[i] - 2) % 4;
-        if (effectiveRotation < 0) effectiveRotation += 4;
-      }
-      _controller.updateRotation(players[i].playerId, effectiveRotation);
+      _controller.updateRotation(players[i].playerId, rotations[i]);
     }
     setState(() {});
     _saveSnapshot();
@@ -1627,45 +1803,68 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   Widget _buildOrientationPreview(List<int> rotations, int count) {
-    // Mirror the AdaptiveGrid layout: topCount = floor(count/2), bottomCount = count - topCount
-    final topCount = count ~/ 2;
-    final bottomCount = count - topCount;
-    final rows = topCount == 0 ? 1 : 2;
-    final maxCols = topCount > bottomCount ? topCount : bottomCount;
+    // Aligné sur la vraie géométrie (tâche 4, ronde de correction 1) :
+    // `tableLayoutFor` décide seule des côtés, `AdaptiveGrid` ne fait qu'y
+    // obéir. Un topCount supposé (moitié haute / moitié basse) est faux dès
+    // que des colonnes latérales entrent en jeu : à 4 joueurs, les index 1
+    // et 3 finissent à droite et à gauche, pas en bas.
+    //
+    // Ronde de correction 2 (tâche 5) : taille RÉELLE de la grille, pas celle
+    // de l'écran (voir `_measuredGridSize`).
+    final seats = tableLayoutFor(_measuredGridSize(context), count).seats;
 
-    return LayoutBuilder(builder: (ctx, constraints) {
-      final cellW = constraints.maxWidth / maxCols;
-      final cellH = constraints.maxHeight / rows;
-      return Stack(
-        children: List.generate(count, (i) {
-          final bool isTop = i < topCount;
-          final int row = isTop ? 0 : (rows - 1);
-          final int col = isTop ? i : (i - topCount);
-          final int rowCols = isTop ? topCount : bottomCount;
-          // Center the row if it has fewer items than maxCols
-          final double offsetX = (maxCols - rowCols) * cellW / 2;
-          final rotation = rotations[i];
-          final arrow = _arrowForRotation(rotation);
-          return Positioned(
-            left: offsetX + col * cellW,
-            top: row * cellH,
-            width: cellW,
-            height: cellH,
-            child: Container(
-              margin: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: AppColors.primaryShade800.withAlpha(60),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: AppColors.borderMedium, width: 0.5),
-              ),
-              child: Center(
-                child: Text(arrow, style: const TextStyle(fontSize: 16, color: AppColors.textPrimary)),
-              ),
-            ),
-          );
-        }),
+    List<int> indicesOn(TableSide side) {
+      final indices = <int>[];
+      for (int i = 0; i < seats.length && i < count; i++) {
+        if (seats[i].side == side) indices.add(i);
+      }
+      indices.sort((a, b) => seats[a].slot.compareTo(seats[b].slot));
+      return indices;
+    }
+
+    Widget cellFor(int i) {
+      final arrow = _arrowForRotation(rotations[i]);
+      return Container(
+        margin: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: AppColors.primaryShade800.withAlpha(60),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: AppColors.borderMedium, width: 0.5),
+        ),
+        child: Center(
+          child: Text(arrow, style: const TextStyle(fontSize: 16, color: AppColors.textPrimary)),
+        ),
       );
-    });
+    }
+
+    Widget rowOf(List<int> indices) => indices.isEmpty
+        ? const SizedBox.shrink()
+        : Row(children: [for (final i in indices) Expanded(child: cellFor(i))]);
+    Widget columnOf(List<int> indices) => indices.isEmpty
+        ? const SizedBox.shrink()
+        : Column(children: [for (final i in indices) Expanded(child: cellFor(i))]);
+
+    final top = indicesOn(TableSide.top);
+    final bottom = indicesOn(TableSide.bottom);
+    final left = indicesOn(TableSide.left);
+    final right = indicesOn(TableSide.right);
+
+    final centre = Column(
+      children: [
+        Expanded(child: rowOf(top)),
+        Expanded(child: rowOf(bottom)),
+      ],
+    );
+
+    if (left.isEmpty && right.isEmpty) return centre;
+
+    return Row(
+      children: [
+        if (left.isNotEmpty) Expanded(child: columnOf(left)),
+        Expanded(flex: 2, child: centre),
+        if (right.isNotEmpty) Expanded(child: columnOf(right)),
+      ],
+    );
   }
 
   String _arrowForRotation(int quarterTurns) {
@@ -1682,6 +1881,12 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.scaffoldBackground,
+      // Ronde de correction 1 (tâche 6) : cette feuille n'était atteignable
+      // que par l'appui long sur le bouton d'orientation, jamais testée sur
+      // petit écran. Devenue joignable depuis le hub (écran étroit), son
+      // contenu (jusqu'à 9 lignes) dépasse la hauteur d'un petit écran sans
+      // `isScrollControlled` + défilement -- même remède qu'`ActionHub._open`.
+      isScrollControlled: true,
       builder: (ctx) {
         final alivePlayers = _session?.players.where((p) => !p.isEliminated).length ?? 0;
         final totalPlayers = _playerCount;
@@ -1690,30 +1895,37 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
             .map((p) => p.config.name)
             .firstOrNull;
 
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(child: Text('Infos Partie', style: AppTextStyles.cinzel(fontSize: 22))),
-              const SizedBox(height: 16),
-              _infoRow(Icons.category, 'Format', _currentFormat.name),
-              _infoRow(Icons.favorite, 'Vie de départ', '${_currentFormat.startingLife}'),
-              _infoRow(Icons.people, 'Joueurs', '$alivePlayers / $totalPlayers en vie'),
-              _infoRow(Icons.timer, 'Durée', _formatDuration(_gameDuration)),
-              _infoRow(Icons.science, 'Poison létal',
-                _currentFormat.maxPoison > 0 ? '${_currentFormat.maxPoison} compteurs' : 'Désactivé'),
-              _infoRow(Icons.shield, 'Cmd létal',
-                _currentFormat.maxCommanderDamage > 0 ? '${_currentFormat.maxCommanderDamage} dégâts' : 'Désactivé'),
-              _infoRow(Icons.favorite_border, 'PV à 0 = mort',
-                _currentFormat.lethalAtZeroLife ? 'Oui' : 'Non'),
-              if (monarchName != null)
-                _infoRow(Icons.star, 'Monarque', monarchName),
-              if (_session?.tag != null && _session!.tag!.isNotEmpty)
-                _infoRow(Icons.label, 'Tag', _session!.tag!),
-              const SizedBox(height: 16),
-            ],
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.8,
+          ),
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Text('Infos Partie', style: AppTextStyles.cinzel(fontSize: 22))),
+                  const SizedBox(height: 16),
+                  _infoRow(Icons.category, 'Format', _currentFormat.name),
+                  _infoRow(Icons.favorite, 'Vie de départ', '${_currentFormat.startingLife}'),
+                  _infoRow(Icons.people, 'Joueurs', '$alivePlayers / $totalPlayers en vie'),
+                  _infoRow(Icons.timer, 'Durée', _formatDuration(_gameDuration)),
+                  _infoRow(Icons.science, 'Poison létal',
+                    _currentFormat.maxPoison > 0 ? '${_currentFormat.maxPoison} compteurs' : 'Désactivé'),
+                  _infoRow(Icons.shield, 'Cmd létal',
+                    _currentFormat.maxCommanderDamage > 0 ? '${_currentFormat.maxCommanderDamage} dégâts' : 'Désactivé'),
+                  _infoRow(Icons.favorite_border, 'PV à 0 = mort',
+                    _currentFormat.lethalAtZeroLife ? 'Oui' : 'Non'),
+                  if (monarchName != null)
+                    _infoRow(Icons.star, 'Monarque', monarchName),
+                  if (_session?.tag != null && _session!.tag!.isNotEmpty)
+                    _infoRow(Icons.label, 'Tag', _session!.tag!),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
           ),
         );
       },

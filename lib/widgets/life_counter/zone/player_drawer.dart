@@ -70,6 +70,25 @@ Future<void> showPlayerDrawer({
   // ce tiroir déjà ouvert l'affiche immédiatement sans attendre un rebuild
   // externe.
   Future<int> Function(CounterType type)? onActivateCounter,
+  // Ronde de correction 1 (tâche 2, v2 multijoueur) : au cran `minimal`,
+  // `PlayerHeader` (seul point d'accès à la rotation et à la couleur) est
+  // masqué -- le tiroir devient donc le point d'entrée GARANTI de ces deux
+  // actions à tous les crans, sa poignée ne descendant jamais sous 30 px.
+  // Les callbacks viennent de `PlayerZone` (`_rotate90Degrees`,
+  // `showPlayerSkinPicker`) : ce tiroir ne fait que les relayer, sans
+  // dupliquer leur logique.
+  required VoidCallback onRotate,
+  required VoidCallback onShowColorPicker,
+  // Revue finale (IMPORTANT #1) : `PlayerHistorySheet` n'avait qu'un seul
+  // point d'entrée, `onNameTap` sur `PlayerHeader` -- lui-même remplacé par
+  // un `SizedBox.shrink()` au cran `minimal`. À 8 joueurs sur téléphone,
+  // l'historique par joueur était donc mort pour toute la partie, et
+  // l'action « Historique » de la bande et du hub ouvre l'historique GLOBAL,
+  // pas celui du joueur. Troisième fois dans ce lot qu'une réorganisation
+  // d'affichage supprime une fonction sans supprimer son code (rulings 7 et
+  // 15) : même remède, le tiroir, dont la poignée est garantie à tous les
+  // crans.
+  required VoidCallback onShowHistory,
 }) {
   HapticFeedback.selectionClick();
   return showModalBottomSheet<void>(
@@ -111,6 +130,18 @@ Future<void> showPlayerDrawer({
       onRemoveCounter: onRemoveCounter,
       inactiveCounters: inactiveCounters,
       onActivateCounter: onActivateCounter,
+      onRotate: () {
+        Navigator.of(sheetCtx).pop();
+        onRotate();
+      },
+      onShowColorPicker: () {
+        Navigator.of(sheetCtx).pop();
+        onShowColorPicker();
+      },
+      onShowHistory: () {
+        Navigator.of(sheetCtx).pop();
+        onShowHistory();
+      },
     ),
   );
 }
@@ -133,6 +164,9 @@ class _PlayerDrawerBody extends StatefulWidget {
     required this.onRemoveCounter,
     this.inactiveCounters = const [],
     this.onActivateCounter,
+    required this.onRotate,
+    required this.onShowColorPicker,
+    required this.onShowHistory,
   });
 
   final String playerName;
@@ -159,6 +193,9 @@ class _PlayerDrawerBody extends StatefulWidget {
   /// finale) -- voir le doc-comment de `showPlayerDrawer`.
   final List<CounterType> inactiveCounters;
   final Future<int> Function(CounterType type)? onActivateCounter;
+  final VoidCallback onRotate;
+  final VoidCallback onShowColorPicker;
+  final VoidCallback onShowHistory;
 
   @override
   State<_PlayerDrawerBody> createState() => _PlayerDrawerBodyState();
@@ -336,6 +373,49 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
               // écrit dans `custom_counter_types` sans jamais être relu par
               // personne.
               for (final type in _inactiveCounters) _reactivateRow(type),
+              const Divider(height: 26),
+              // Ronde de correction 1 (tâche 2) : accès garanti à la
+              // rotation et à la couleur à tous les crans de densité, y
+              // compris `minimal` où `PlayerHeader` (leur seul autre point
+              // d'accès) est masqué.
+              //
+              // Ronde de correction 3 : placées AVANT la grille de dégâts de
+              // commandant (pas après), et juste après les compteurs. Ce
+              // sont les deux seules actions dont le tiroir est l'UNIQUE
+              // point d'entrée au cran minimal -- la rotation, en
+              // particulier, est ce qu'un joueur mal orienté cherche en
+              // premier, la fonction même que cette refonte sert. La grille
+              // est longue par nature et de longueur variable (jusqu'à 7
+              // adversaires) : rien d'essentiel ne doit vivre derrière elle,
+              // sous peine d'exiger un défilement jusqu'au bout du tiroir
+              // pour une action qui n'a QUE ce point d'accès (mesuré : 371px
+              // sur 371px de maxScrollExtent en pire cas avant ce correctif).
+              _action(
+                key: const ValueKey('action-rotate'),
+                icon: Icons.rotate_right,
+                label: 'Tourner',
+                color: AppColors.textSecondary,
+                onTap: widget.onRotate,
+              ),
+              _action(
+                key: const ValueKey('action-color'),
+                icon: Icons.palette,
+                label: 'Couleur',
+                color: AppColors.textSecondary,
+                onTap: widget.onShowColorPicker,
+              ),
+              // Revue finale (IMPORTANT #1) : placée ICI, avec « Tourner » et
+              // « Couleur » et AVANT la grille de dégâts de commandant, pour
+              // la même raison que le ruling 10 -- ce qui n'est joignable que
+              // par le tiroir ne doit pas vivre derrière une liste longue et
+              // de taille variable.
+              _action(
+                key: const ValueKey('action-player-history'),
+                icon: Icons.history,
+                label: 'Historique du joueur',
+                color: AppColors.textSecondary,
+                onTap: widget.onShowHistory,
+              ),
               // Ronde de correction 1 (Important, "seconde porte") : la
               // grille n'etait conditionnee par rien -- ni le seuil letal,
               // ni les compteurs actives par le format -- et s'affichait

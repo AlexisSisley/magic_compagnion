@@ -201,5 +201,125 @@ void main() {
       expect(restored.players.map((p) => p.playerId).toList(), [0, 1, 2, 3]);
       expect(restored.playerOrder, [3, 1, 2, 0]);
     });
+
+    test('un snapshot écrit par ce code porte le marqueur de migration', () {
+      final session = GameSession.newGame(
+        format: GameFormat.builtInFormats.first,
+        playerConfigs: List.generate(
+          4,
+          (i) => PlayerConfig(
+            id: 'p$i',
+            name: 'Joueur $i',
+            type: i == 0 ? PlayerType.owner : PlayerType.guest,
+          ),
+        ),
+      );
+      expect(session.toJson()['rotationsMigrated'], isTrue);
+    });
+
+    test('un « Même sens » délibéré survit à un aller-retour JSON', () {
+      final session = GameSession.newGame(
+        format: GameFormat.builtInFormats.first,
+        playerConfigs: List.generate(
+          4,
+          (i) => PlayerConfig(
+            id: 'p$i',
+            name: 'Joueur $i',
+            type: i == 0 ? PlayerType.owner : PlayerType.guest,
+          ),
+        ),
+      );
+      final allZero = session.copyWith(
+        players: session.players.map((p) => p.copyWith(quarterTurns: 0)).toList(),
+      );
+      final round = GameSession.fromJson(allZero.toJson());
+      expect(round.players.map((p) => p.quarterTurns).toList(), [0, 0, 0, 0],
+          reason: 'sans le marqueur, l\'heuristique prendrait ce choix délibéré '
+              'pour un ancien snapshot et le réécrirait à chaque rechargement');
+    });
+
+    test(
+        'un ancien snapshot SANS marqueur NI playerOrder reçoit les '
+        'rotations de siège en ordre canonique', () {
+      final session = GameSession.newGame(
+        format: GameFormat.builtInFormats.first,
+        playerConfigs: List.generate(
+          4,
+          (i) => PlayerConfig(
+            id: 'p$i',
+            name: 'Joueur $i',
+            type: i == 0 ? PlayerType.owner : PlayerType.guest,
+          ),
+        ),
+      );
+      // Un vrai snapshot antérieur au champ `playerOrder` ne le porte PAS du
+      // tout dans son JSON (le champ n'existait pas encore) : le retirer
+      // entièrement, pas seulement laisser `[0,1,2,3]`, est ce qui fait
+      // vraiment emprunter la retombée de `_migrateLegacyRotation`
+      // (`playerOrder.length != players.length`, ici 0 != 4). Un
+      // `playerOrder` laissé à `[0,1,2,3]` prend la branche normale
+      // (`effectiveOrder = playerOrder`), qui donne par coïncidence le même
+      // résultat que la retombée ici — ce qui masquait totalement la
+      // retombée avant ce correctif (ronde de correction 3).
+      final legacy = Map<String, dynamic>.from(session.toJson())
+        ..remove('rotationsMigrated')
+        ..remove('playerOrder');
+      legacy['players'] = (legacy['players'] as List)
+          .map((p) => Map<String, dynamic>.from(p as Map)..['quarterTurns'] = 0)
+          .toList();
+      final migrated = GameSession.fromJson(legacy);
+      // Revue finale (ruling 21) : la migration pose le REPLI
+      // (`allowSideColumns: false`), parce que le modèle ne connaît pas
+      // l'écran. `seatsFor(4)` sans drapeau donnerait [2,3,0,1], soit 90° et
+      // 270° dans des cases horizontales sur un téléphone en portrait.
+      // `_faceToFace(4)` = [top,top,bottom,bottom] -> [2,2,0,0].
+      expect(migrated.players.map((p) => p.quarterTurns).toList(), [2, 2, 0, 0],
+          reason: 'playerOrder absent -> effectiveOrder retombe sur l\'ordre '
+              'canonique des playerId ([0,1,2,3]) -> le repli face-à-face '
+              'donne [2,2,0,0], lisible sur tous les écrans');
+    });
+
+    test(
+        'un ancien snapshot SANS marqueur MAIS avec un playerOrder déjà '
+        'posé migre dans l\'ordre d\'AFFICHAGE, pas dans l\'ordre canonique',
+        () {
+      // Version transitoire plausible : `playerOrder` existait déjà (M-3,
+      // tâche antérieure à celle-ci) mais `rotationsMigrated` n'existait pas
+      // encore. Ce cas doit emprunter la branche NORMALE de
+      // `_migrateLegacyRotation` (`effectiveOrder = playerOrder`), pas la
+      // retombée canonique -- et le résultat doit donc différer de celui
+      // qu'on obtiendrait en ordre canonique, sans quoi les deux chemins
+      // seraient indiscernables (voir la contrainte du brief : aucune
+      // fixture ne part d'un playerOrder identité quand le test porte sur
+      // l'ordre).
+      final session = GameSession.newGame(
+        format: GameFormat.builtInFormats.first,
+        playerConfigs: List.generate(
+          4,
+          (i) => PlayerConfig(
+            id: 'p$i',
+            name: 'Joueur $i',
+            type: i == 0 ? PlayerType.owner : PlayerType.guest,
+          ),
+        ),
+      );
+      final legacy = Map<String, dynamic>.from(session.toJson())
+        ..remove('rotationsMigrated');
+      legacy['playerOrder'] = [3, 1, 2, 0];
+      legacy['players'] = (legacy['players'] as List)
+          .map((p) => Map<String, dynamic>.from(p as Map)..['quarterTurns'] = 0)
+          .toList();
+      final migrated = GameSession.fromJson(legacy);
+      // Revue finale (ruling 21) : repli face-à-face,
+      // `seatsFor(4, allowSideColumns: false)` = [top,top,bottom,bottom] ->
+      // quarterTurns [2,2,0,0] par POSITION d'affichage.
+      // effectiveOrder = playerOrder = [3,1,2,0] : position0(joueur3)->2,
+      // position1(joueur1)->2, position2(joueur2)->0, position3(joueur0)->0.
+      // Résultat en ordre canonique playerId [0,1,2,3] : [0,2,0,2] --
+      // différent du [2,2,0,0] qu'aurait donné un calcul en ordre canonique
+      // (le résultat du test précédent), preuve que ce chemin lit bien
+      // `playerOrder`.
+      expect(migrated.players.map((p) => p.quarterTurns).toList(), [0, 2, 0, 2]);
+    });
   });
 }

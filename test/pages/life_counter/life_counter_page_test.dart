@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +22,7 @@ import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/widgets/life_counter/death_confirmation_overlay.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
+import 'package:magic_companion/widgets/life_counter/layouts/table_layout.dart';
 import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
 import 'package:magic_companion/widgets/life_counter/zone/life_dial.dart';
@@ -56,6 +58,17 @@ final testConfigs = [
   const PlayerConfig(id: 'p4', name: 'Leo', type: PlayerType.guest),
 ];
 
+/// Configs pour un effectif arbitraire, pour les tests de presets
+/// d'orientation qui ont besoin de 2, 3, 5, 6 ou 7 joueurs.
+List<PlayerConfig> playerConfigsFor(int count) => [
+      for (int i = 0; i < count; i++)
+        PlayerConfig(
+          id: 'p${i + 1}',
+          name: 'Joueur ${i + 1}',
+          type: i == 0 ? PlayerType.owner : PlayerType.guest,
+        ),
+    ];
+
 /// Monte la page avec un snapshot pré-chargé dans SharedPreferences.
 /// `GameHistoryService()` sans base retombe sur SharedPreferences
 /// (voir lib/services/game_history_service.dart:12), donc aucun Drift en test.
@@ -84,30 +97,94 @@ Future<void> pumpLifeCounter(
   await tester.pumpAndSettle();
 }
 
+/// Repère la zone du joueur [playerId] (ordre CANONIQUE, jamais d'affichage
+/// ni d'arbre) : `life_counter_page.dart` pose un
+/// `KeyedSubtree(key: ValueKey('player_zone_<playerId>'))` autour de chaque
+/// zone précisément pour ça.
+Finder _playerZone(int playerId) =>
+    find.byKey(ValueKey('player_zone_$playerId'));
+
 /// Tape `count` fois la moitié gauche VISUELLE (−1) du cadran (`LifeDial`)
-/// du joueur affiché à `zoneIndex`, avec un `pump()` entre chaque tap pour
-/// laisser chaque geste se résoudre avant le suivant.
+/// du joueur [playerId], avec un `pump()` entre chaque tap pour laisser
+/// chaque geste se résoudre avant le suivant.
 ///
-/// `AdaptiveGrid` pivote à 180° les zones du haut (index < topCount, où
-/// topCount = playerCount ~/ 2 — voir adaptive_grid.dart) : la moitié
-/// GÉOMÉTRIQUE gauche (écran) d'une zone pivotée est alors sa moitié locale
-/// DROITE (+1), et inversement. `totalZones` (le nombre de `LifeDial`
-/// réellement montés) sert à retrouver `topCount` sans le supposer fixe, si
-/// bien que ce calcul reste correct quel que soit le nombre de joueurs de la
-/// session testée.
+/// Repéré par identité (voir `_playerZone`), jamais par position dans
+/// l'arbre : depuis la tâche 4, `AdaptiveGrid` place les zones selon
+/// `tableLayoutFor`/`seatsFor`, dont l'ordre ne suit ni l'ordre d'affichage
+/// ni l'ordre canonique de façon fixe (colonnes latérales, sous-grille 8
+/// joueurs, reorder...). Un repérage ordinal (`.at(zoneIndex)`) se
+/// retrouvait donc à cibler un joueur différent de celui voulu selon la
+/// géométrie du moment — exactement le défaut que ce projet a déjà vu
+/// neuf fois.
+///
+/// La rotation elle-même reste observée sur l'arbre plutôt que déduite :
+/// depuis la tâche 4, `AdaptiveGrid` ne pivote plus jamais rien (voir
+/// `adaptive_grid.dart`) ; seul `PlayerZone` pivote sa zone, via le
+/// `RotatedBox(quarterTurns: player.quarterTurns)` qu'il pose autour de son
+/// contenu (`player_zone.dart` ~ligne 458). La rotation effective d'un
+/// cadran donné dépend donc uniquement de l'état du joueur.
 Future<void> tapMinusHalf(
   WidgetTester tester,
-  int zoneIndex,
+  int playerId,
   int count,
 ) async {
-  final totalZones = find.byType(LifeDial).evaluate().length;
-  final isRotated = zoneIndex < totalZones ~/ 2;
-  final dial = tester.getRect(find.byType(LifeDial).at(zoneIndex));
-  final dx = isRotated ? dial.width * 0.75 : dial.width * 0.25;
+  final dialFinder = find.descendant(
+    of: _playerZone(playerId),
+    matching: find.byType(LifeDial),
+  );
+  final quarterTurns = _quarterTurnsAbove(dialFinder);
+  final dial = tester.getRect(dialFinder);
+  // `RotatedBox` tourne dans le sens HORAIRE (voir table_seat.dart) : la
+  // moitié décrément (visuellement "gauche" depuis la chaise du joueur) se
+  // trouve à dx inférieur pour 0, dy inférieur pour 1, dx supérieur pour 2,
+  // dy supérieur pour 3. Depuis la tâche 5, un siège latéral peut porter
+  // `quarterTurns == 1` ou `3` (pas seulement 0/2) : le repérage doit donc
+  // couvrir les quatre valeurs, pas seulement détecter un demi-tour.
+  final point = switch (quarterTurns) {
+    1 => Offset(dial.center.dx, dial.top + dial.height * 0.25),
+    2 => Offset(dial.left + dial.width * 0.75, dial.center.dy),
+    3 => Offset(dial.center.dx, dial.top + dial.height * 0.75),
+    _ => Offset(dial.left + dial.width * 0.25, dial.center.dy),
+  };
   for (var i = 0; i < count; i++) {
-    await tester.tapAt(Offset(dial.left + dx, dial.center.dy));
+    await tester.tapAt(point);
     await tester.pump();
   }
+}
+
+/// Le `quarterTurns` réellement appliqué au-dessus de [descendant], déduit
+/// de l'arbre (jamais de l'état) — voir la docstring de `tapMinusHalf`.
+int _quarterTurnsAbove(Finder descendant) {
+  for (final qt in const [1, 2, 3]) {
+    final ancestor = find.ancestor(
+      of: descendant,
+      matching: find.byWidgetPredicate((w) => w is RotatedBox && w.quarterTurns == qt),
+    );
+    if (ancestor.evaluate().isNotEmpty) return qt;
+  }
+  return 0;
+}
+
+/// Impose une taille d'écran logique pour la durée du test (restaurée par
+/// `addTearDown`).
+///
+/// Ronde de correction 1 (tâche 4) : épingler la taille d'écran pour figer
+/// l'ORDRE d'affichage des zones était le mauvais remède — cet ordre reste
+/// une position dans l'arbre, et redevient faux au prochain ajustement de
+/// `seatsFor` ou de `kLargeScreenShortEdge`. Les repérages par identité
+/// (`_playerZone`, voir plus haut) n'en ont plus besoin. N'utilise cette
+/// fonction que là où le FORMAT de l'écran fait partie de ce que le test
+/// veut dire (bascule bande/hub, colonnes latérales...), jamais pour
+/// stabiliser un ordre de traversée.
+void _setScreenSize(WidgetTester tester, Size size) {
+  final originalSize = tester.view.physicalSize;
+  final originalDpr = tester.view.devicePixelRatio;
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(() {
+    tester.view.physicalSize = originalSize;
+    tester.view.devicePixelRatio = originalDpr;
+  });
 }
 
 /// Réordonne par une mutation directe du provider — PAS par un vrai geste de
@@ -175,8 +252,8 @@ void main() {
     expect(find.text('34'), findsOneWidget);
 
     // On retire 1 PV au joueur 0 par un vrai tap sur son cadran (zone
-    // d'index 0, pivotée à 180° par AdaptiveGrid : `tapMinusHalf` compense),
-    // et on laisse le buffer de 2 s s'appliquer.
+    // d'index 0 ; `tapMinusHalf` détecte lui-même sa rotation réelle, voir
+    // sa docstring), et on laisse le buffer de 2 s s'appliquer.
     await tapMinusHalf(tester, 0, 1);
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
@@ -280,25 +357,31 @@ void main() {
     // de `reorderPlayersViaContainer` : le vrai drag s'est avéré
     // impraticable ici) : `reorderPlayers` n'écrit que `playerOrder`, que
     // rien dans lib/ ne lisait avant la tâche 4b, qui corrige ce point.
+    // Ce swap déplace le joueur CANONIQUE 0 de la position d'affichage 0 à
+    // la position 3.
     await reorderPlayersViaContainer(container, tester, 0, 3);
 
-    // Dégâts en attente sur le joueur 0, affiché en dernière position (index
-    // 3) après le swap 0<->3 : 5 vrais taps sur la moitié −1 de son cadran.
-    await tapMinusHalf(tester, 3, 5);
+    // 5 vrais taps sur la moitié −1 du cadran du joueur 0 (Alex) — repéré
+    // par identité (`tapMinusHalf` cherche `player_zone_0`), PAS par
+    // position d'affichage : c'est justement ce déplacement par le reorder
+    // que ce test doit vérifier, pas le présupposer.
+    await tapMinusHalf(tester, 0, 5);
     await tester.pump(const Duration(milliseconds: 100));
 
     // Un seul badge, et il doit être celui du joueur 0.
     expect(find.text('-5'), findsOneWidget);
 
-    // L'assertion de proximité de centres proposée à l'origine est fragile :
-    // les zones du haut de la grille sont pivotées à 180° par AdaptiveGrid,
-    // ce qui peut rapprocher géométriquement deux centres de zones distinctes
-    // sans qu'elles soient la même zone. On vérifie donc une inclusion
-    // géométrique réelle : le centre du badge tombe dans le rectangle de la
-    // zone du joueur 0, affichée en dernière position après le swap 0<->3
-    // sur ces 4 joueurs.
+    // Ronde de correction 1 (tâche 4) : `find.byType(PlayerZone).last`
+    // n'était correct qu'en apparence — après ce même swap, sur l'ambiant
+    // de test (colonnes latérales déclenchées à 4 joueurs), le DERNIER
+    // `PlayerZone` de l'arbre coïncide avec la colonne de droite, PAS
+    // forcément avec le joueur 0 : le test aurait pu rester vert en tapant
+    // et en vérifiant le même mauvais joueur des deux côtés, sans jamais
+    // prouver que le badge suit RÉELLEMENT le joueur déplacé. On vérifie
+    // donc une inclusion géométrique dans le rectangle de la zone du
+    // joueur 0 elle-même, repérée par identité.
     final badge = tester.getCenter(find.text('-5'));
-    final zoneRect = tester.getRect(find.byType(PlayerZone).last);
+    final zoneRect = tester.getRect(_playerZone(0));
     expect(
       zoneRect.contains(badge),
       isTrue,
@@ -779,10 +862,10 @@ void main() {
     return container;
   }
 
-  /// Ouvre le tiroir du joueur 0 en tapant réellement sa poignée conditionnelle
-  /// (première `ConditionalHandle` de l'arbre : les zones sont rendues dans
-  /// l'ordre d'affichage, qui coïncide avec l'ordre canonique tant qu'aucun
-  /// reorder n'a eu lieu).
+  /// Ouvre le tiroir du joueur 0 en tapant réellement sa poignée
+  /// conditionnelle, repérée par identité (`_playerZone(0)`) — jamais par
+  /// position dans l'arbre, qui ne coïncide plus de façon fiable avec
+  /// l'ordre canonique depuis la tâche 4 (colonnes latérales, sous-grille...).
   ///
   /// Un vrai `tester.tap` plutôt qu'un appel direct à `onTap` : sinon ces
   /// tests ne verrouilleraient que le câblage logique, pas l'accessibilité
@@ -790,7 +873,29 @@ void main() {
   /// `HitTestBehavior` changé, hauteur nulle), ils resteraient verts alors que
   /// les quatre actions redeviendraient injoignables dans l'app.
   Future<void> openDrawerForPlayerZero(WidgetTester tester) async {
-    await tester.tap(find.byType(ConditionalHandle).first);
+    await tester.tap(find.descendant(
+      of: _playerZone(0),
+      matching: find.byType(ConditionalHandle),
+    ));
+    await tester.pumpAndSettle();
+  }
+
+  /// Ouvre la feuille des presets d'orientation par un vrai tap sur son
+  /// bouton (`action-orientation-presets`) — nécessite un écran assez large
+  /// pour que `AdaptiveGrid` choisisse la bande (voir `TableLayout`) : sur
+  /// un écran étroit, ce bouton n'existe pas, remplacé par le hub.
+  Future<void> openOrientationSheet(WidgetTester tester) async {
+    await tester.tap(
+      find.byKey(const ValueKey('action-orientation-presets')),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  /// Sélectionne le preset [label] dans la feuille ouverte par
+  /// `openOrientationSheet`, par un vrai tap sur son étiquette (unique dans
+  /// la feuille, jamais un repérage ordinal).
+  Future<void> selectOrientationPreset(WidgetTester tester, String label) async {
+    await tester.tap(find.text(label));
     await tester.pumpAndSettle();
   }
 
@@ -800,6 +905,10 @@ void main() {
     final container = await pumpWithContainer(tester);
 
     await openDrawerForPlayerZero(tester);
+    // Tourner + Couleur (ronde de correction 1, tâche 2) allongent le
+    // tiroir : sur la taille d'écran de test, "action-monarch" n'est plus
+    // visible sans défiler (même raison que "action-reset" plus bas).
+    await tester.ensureVisible(find.byKey(const ValueKey('action-monarch')));
     await tester.tap(find.byKey(const ValueKey('action-monarch')));
     // Pas de `pumpAndSettle()` ici : devenir monarque relance le glow du
     // cadre de la zone (`_glowController.repeat()`, US-14.3), une animation
@@ -1107,7 +1216,13 @@ void main() {
         reason: 'son total déjà reçu reste consultable');
 
     // Le total reste corrigeable : un tap sur sa ligne l'incrémente comme
-    // n'importe quel autre adversaire.
+    // n'importe quel autre adversaire. « Historique du joueur » (revue
+    // finale, IMPORTANT #1) a allongé le tiroir d'une entrée : la grille
+    // passe sous le pli sur cette taille de fenêtre, il faut défiler avant
+    // de taper, comme un vrai doigt le ferait.
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('commander-damage-3-plus')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('commander-damage-3-plus')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
@@ -1321,9 +1436,13 @@ void main() {
       (tester) async {
     await pumpWithContainer(tester);
 
-    // Deux taps +1 (moitié droite du cadran de Sarah, non pivoté) : un gain
-    // de vie en attente, jamais un dégât.
-    final dial = tester.getRect(find.byType(LifeDial).at(2));
+    // Deux taps +1 (moitié droite du cadran de Sarah, playerId 2, non
+    // pivoté) : un gain de vie en attente, jamais un dégât. Repéré par
+    // identité, pas par position dans l'arbre.
+    final dial = tester.getRect(find.descendant(
+      of: _playerZone(2),
+      matching: find.byType(LifeDial),
+    ));
     for (var i = 0; i < 2; i++) {
       await tester.tapAt(Offset(dial.left + dial.width * 0.75, dial.center.dy));
       await tester.pump();
@@ -1361,8 +1480,11 @@ void main() {
             'disparition');
 
     // Les deux +1 qui suivent ramènent le buffer net à 0, avant expiration
-    // des 2s.
-    final dial = tester.getRect(find.byType(LifeDial).at(2));
+    // des 2s. Repéré par identité (Sarah, playerId 2).
+    final dial = tester.getRect(find.descendant(
+      of: _playerZone(2),
+      matching: find.byType(LifeDial),
+    ));
     for (var i = 0; i < 2; i++) {
       await tester.tapAt(Offset(dial.left + dial.width * 0.75, dial.center.dy));
       await tester.pump();
@@ -1438,22 +1560,28 @@ void main() {
 
   testWidgets(
       'ronde de correction 1 (Important) — la barre centrale ne déborde pas '
-      'sur un téléphone étroit, et son 8e bouton (vue table) reste '
-      'réellement atteignable',
+      'sur un téléphone étroit ; son 8e bouton (vue table) est déplacé dans '
+      'le hub (tâche 4)',
       (tester) async {
     // 320px logiques : le plus étroit des téléphones courants. La barre
     // centrale comptait déjà 7 enfants de taille fixe (dont un cercle de
     // 50×50) avant le bouton de la tâche 4, qui porte le total à 8 — sans
     // protection, `Row(spaceEvenly)` seul dépasse ici et lève une erreur de
     // rendu (RenderFlex overflow), invisible sur un simulateur large.
-    final originalSize = tester.view.physicalSize;
-    final originalDpr = tester.view.devicePixelRatio;
-    tester.view.physicalSize = const Size(320, 640);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() {
-      tester.view.physicalSize = originalSize;
-      tester.view.devicePixelRatio = originalDpr;
-    });
+    //
+    // Tâche 4 (AdaptiveGrid) : `tableLayoutFor` choisit maintenant le HUB
+    // (pas la bande) sous `kLargeScreenShortEdge` (600) — un téléphone
+    // étroit n'affiche donc plus jamais la bande à 8 boutons ; le risque de
+    // dépassement qu'elle posait ne s'y produit plus PAR CONSTRUCTION,
+    // puisque `AdaptiveGrid` ne la monte plus du tout dans ce cas.
+    //
+    // Revue finale (M2) : le hub n'est plus un placeholder -- la tâche 6 est
+    // livrée, `AdaptiveGrid` monte un vrai `ActionHub`. L'atteignabilité des
+    // actions depuis le hub est couverte ailleurs dans ce fichier (« les
+    // infos de partie sont aussi atteignables depuis le hub, sur petit
+    // écran ») et par `test/widgets/life_counter/zone/action_hub_test.dart`.
+    // Ce test-ci ne porte que sur l'ABSENCE de débordement de la bande.
+    _setScreenSize(tester, const Size(320, 640));
 
     final baseSession = GameSession.newGame(
       format: commanderFormat,
@@ -1461,26 +1589,207 @@ void main() {
     );
     await pumpLifeCounter(tester, snapshot: baseSession);
 
-    // Le cœur du test : sans la protection (LayoutBuilder + ScrollView +
-    // ConstrainedBox), ce pump aurait déjà capturé une exception de
-    // dépassement à ce stade.
+    // Le cœur du test : sans protection, la bande à 8 boutons aurait déjà
+    // capturé une exception de dépassement à ce stade si elle était montée.
     expect(tester.takeException(), isNull,
         reason: 'la barre centrale ne doit jamais déborder, même sur un '
             'écran étroit');
 
-    // Pas seulement « aucune exception » : le bouton doit être réellement
-    // amenable à l'écran par un défilement, pas coincé hors champ à
-    // l'infini derrière un ConstrainedBox mal borné.
+    // La bande (et son 8e bouton) n'est plus montée du tout sur un écran
+    // aussi étroit : c'est le hub qui prend sa place (voir AdaptiveGrid,
+    // tâche 4).
+    expect(find.byKey(const ValueKey('action-table-view')), findsNothing,
+        reason: 'sur téléphone étroit, la bande centrale (et son bouton '
+            '« vue table ») cède la place au hub, elle ne déborde plus '
+            'jamais par construction');
+    expect(find.byKey(const ValueKey('action_hub')), findsOneWidget,
+        reason: 'AdaptiveGrid doit choisir le hub, pas la bande, sous le '
+            'seuil de grand écran');
+  });
+
+  testWidgets(
+      'ronde de correction 1 (Important, revue) — à la largeur la plus '
+      'étroite où la bande est encore choisie, elle ne déborde pas et son '
+      'dernier bouton reste atteignable',
+      (tester) async {
+    // Le test ci-dessus prouve qu'un téléphone étroit échappe à la bande
+    // (hub à la place) : ça ne dit rien de la bande elle-même. Elle n'est
+    // montée qu'à partir de 600px de petit côté (`kLargeScreenShortEdge`) ;
+    // c'est là, et seulement là, qu'il faut vérifier qu'elle ne déborde
+    // toujours pas -- sous peine de laisser un vrai trou de couverture,
+    // exactement celui que la ronde de revue a mis en évidence (le garde-fou
+    // de `_buildCentralBar` peut être supprimé en pur sans qu'aucun test
+    // n'en dise rien).
+    //
+    // À 4 joueurs et 600px de large, `tableLayoutFor` choisit encore la
+    // bande, mais SANS colonnes latérales depuis la ronde de correction 1
+    // (option C) : `kActionWidth` (largeur supposée d'un bouton d'action)
+    // est passé de 36 à 48 -- la vraie taille minimale d'un `IconButton`
+    // Material, mesurée en pratique ; 36 était faux depuis l'origine de la
+    // bande. `kBandNeed` en dérive : 9 × (48 + 4) + 4 = 472px. Le budget des
+    // colonnes latérales à cette largeur (600 - 192 = 408px) ne loge plus
+    // les deux à la fois : les colonnes cèdent (§6, "on renonce, on ne
+    // rétrécit pas"), la bande garde toute la largeur de l'écran (600px),
+    // qui loge large ses 9 vrais boutons (432px de contenu minimum).
+    _setScreenSize(tester, const Size(600, 900));
+
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    await pumpLifeCounter(tester, snapshot: baseSession);
+
+    expect(find.byKey(const ValueKey('action_band')), findsOneWidget,
+        reason: 'à cette largeur, AdaptiveGrid doit choisir la bande, pas '
+            'le hub -- sans quoi ce test ne vérifie rien de la bande');
+    expect(tester.takeException(), isNull,
+        reason: 'la bande ne doit jamais déborder, même à sa largeur la '
+            'plus contrainte');
+
+    // "Game setup" et le dernier bouton de la bande ("Infos de partie",
+    // depuis la ronde de correction 1) doivent rester réellement
+    // atteignables, pas seulement présents hors champ derrière un
+    // `ConstrainedBox` mal borné.
     await tester.ensureVisible(
-      find.byKey(const ValueKey('action-table-view')),
+      find.byKey(const ValueKey('action-game-setup')),
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
 
-    final buttonRect =
-        tester.getRect(find.byKey(const ValueKey('action-table-view')));
-    expect(buttonRect.left, greaterThanOrEqualTo(0));
-    expect(buttonRect.right, lessThanOrEqualTo(320));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('action-game-info')),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  // ===========================================================================
+  // Revue finale, IMPORTANT #3 — le LIEN entre les trois choses qui devaient
+  // rester d'accord et que rien ne reliait : `kActionCount` (saisi à la main
+  // dans `table_layout.dart`, et dont `kBandNeed` dérive), `_gameActions` (la
+  // source unique), et la bande (qui câblait neuf boutons À L'INDEX).
+  //
+  // Scénario du défaut réarmé : quelqu'un ajoute une dixième action. Le hub
+  // l'affiche (il itère), la bande l'ignore (elle s'arrêtait à l'index 8), et
+  // `kBandNeed` sous-estime la largeur — les deux mécaniques exactes du
+  // défaut d'origine (rulings 15 et 16).
+  //
+  // `kActionCount` ne peut pas être dérivé de `_gameActions` : il vit dans
+  // `table_layout.dart`, que la page importe et qui ne peut pas importer la
+  // page en retour. Ces tests SONT le lien.
+  // ===========================================================================
+  group('la bande, le hub et kActionCount comptent la même chose (IMPORTANT #3)',
+      () {
+    testWidgets(
+        'la bande rend exactement kActionCount boutons, et autant que le hub '
+        'rend d entrées', (tester) async {
+      final baseSession = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: testConfigs,
+      );
+
+      // --- La bande (taille de test par défaut : shortEdge 600, donc bande).
+      await pumpLifeCounter(tester, snapshot: baseSession);
+      final band = find.byKey(const ValueKey('action_band'));
+      expect(band, findsOneWidget,
+          reason: 'précondition : sans bande, ce test ne dit rien');
+
+      // Repérage par `ValueKey('action-<id>')` : chaque action de
+      // `_gameActions` en pose une, y compris les trois rendus bespoke.
+      // Aucun repérage ordinal, et aucun comptage par type de widget (le
+      // chrono n est pas un `IconButton`).
+      final bandButtons = find.descendant(
+        of: band,
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w.key is ValueKey<String> &&
+              (w.key as ValueKey<String>).value.startsWith('action-'),
+        ),
+      );
+      final bandCount = bandButtons.evaluate().length;
+      expect(bandCount, kActionCount,
+          reason: 'la bande rend $bandCount boutons pour kActionCount='
+              '$kActionCount : si elles divergent, kBandNeed calcule la '
+              'largeur de la bande sur un compte faux');
+
+      // --- Le hub, sur petit écran, sur la MÊME liste d actions.
+      _setScreenSize(tester, const Size(400, 700));
+      await pumpLifeCounter(tester, snapshot: baseSession);
+      expect(find.byKey(const ValueKey('action_hub')), findsOneWidget,
+          reason: 'précondition : sur cet écran, le hub remplace la bande');
+      await tester.tap(find.byKey(const ValueKey('action_hub_button')));
+      await tester.pumpAndSettle();
+
+      final hubEntries = find.byWidgetPredicate(
+        (w) =>
+            w.key is ValueKey<String> &&
+            (w.key as ValueKey<String>).value.startsWith('hub-action-'),
+      );
+      final hubCount = hubEntries.evaluate().length;
+      expect(hubCount, bandCount,
+          reason: 'le hub rend $hubCount entrées et la bande $bandCount '
+              'boutons : une action joignable dans une forme et pas dans '
+              'l autre est exactement le défaut que la tâche 6 existe pour '
+              'éliminer');
+    });
+  });
+
+  testWidgets(
+      'ronde de correction 1 (tâche 6) — les infos de partie sont '
+      'atteignables depuis la bande, par un tap ordinaire sur leur propre '
+      'action',
+      (tester) async {
+    // Taille de test par défaut : shortEdge 600 >= kLargeScreenShortEdge,
+    // donc `tableLayoutFor` choisit la bande (voir `TableLayout.barKind`).
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    await pumpLifeCounter(tester, snapshot: baseSession);
+
+    expect(find.byKey(const ValueKey('action_band')), findsOneWidget,
+        reason: 'précondition : ce test ne vérifie rien de la bande sinon');
+    expect(find.text('Infos Partie'), findsNothing,
+        reason: 'précondition : la feuille n\'est pas encore ouverte');
+
+    // Un vrai tap sur l'action dédiée, PAS l'appui long caché sur le
+    // bouton d'orientation : c'est justement ce chemin caché que la ronde
+    // de correction 1 remplace par un accès de plein droit.
+    await tester.tap(find.byKey(const ValueKey('action-game-info')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Infos Partie'), findsOneWidget,
+        reason: 'un tap ordinaire sur "Infos de partie" doit ouvrir la '
+            'feuille des infos de partie');
+  });
+
+  testWidgets(
+      'ronde de correction 1 (tâche 6) — les infos de partie sont aussi '
+      'atteignables depuis le hub, sur petit écran',
+      (tester) async {
+    // 320px logiques : sous kLargeScreenShortEdge, `tableLayoutFor` choisit
+    // le hub -- la bande (et son action "Infos de partie") n'existe pas du
+    // tout à cette largeur.
+    _setScreenSize(tester, const Size(320, 640));
+
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    await pumpLifeCounter(tester, snapshot: baseSession);
+
+    expect(find.byKey(const ValueKey('action_hub')), findsOneWidget,
+        reason: 'précondition : ce test ne vérifie rien du hub sinon');
+
+    await tester.tap(find.byKey(const ValueKey('action_hub_button')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Infos de partie'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Infos Partie'), findsOneWidget,
+        reason: 'les infos de partie doivent être atteignables depuis le '
+            'hub, pas seulement depuis la bande d\'un grand écran');
   });
 
   // --- Vague de correction finale du lot 3 (Critical #1) : la rangée
@@ -1492,45 +1801,83 @@ void main() {
   // plus juste : les deux mécanismes servent la même intention -- saisir un
   // montant -- et ne doivent jamais coexister) masque la rangée dès que la
   // zone est en mode ajustement, quel que soit le signe du buffer.
+  // Réécrit pour la tâche 7 (encodait l'ancien modèle) : la version
+  // précédente sélectionnait le palier "-5" par un TAP SÉPARÉ, après le
+  // relâchement de l'appui long -- un mode persistant que la tâche 7
+  // supprime (spec §5.1). Il n'existe plus de tap discret sur un palier : la
+  // sélection se fait en glissant le doigt de l'appui long jusqu'au palier
+  // puis en relâchant (un seul geste continu), qui referme aussitôt le mode.
+  // Les DEUX sélections de "-5" sont donc désormais DEUX gestes continus
+  // complets et séparés (appui long + glissé + relâché), pas un appui long
+  // suivi de deux taps -- ce que ce test vérifie reste inchangé : chaque
+  // sélection doit rester un palier, jamais une attribution silencieuse.
   testWidgets(
       'en mode ajustement, la rangée d\'attribution n\'apparaît jamais '
       '(même sur un buffer négatif) : les paliers ±5/±10 restent seuls '
-      'maîtres du bas de la zone, atteignables par un second tap',
+      'maîtres du bas de la zone, atteignables par un second geste continu',
       (tester) async {
     final container = await pumpWithContainer(tester);
 
-    // Appui long réel sur le cadran de Sarah (2) : bascule en mode
-    // ajustement (spec §2.5) -- pas d'appel direct au notifier, voir « la
-    // leçon des lots 1 et 2 ».
-    await tester.longPress(find.byType(LifeDial).at(2));
-    await tester.pump();
+    // Appui long réel sur le cadran de Sarah (playerId 2), repéré par
+    // identité : bascule en mode ajustement (spec §2.5) -- pas d'appel
+    // direct au notifier, voir « la leçon des lots 1 et 2 ».
+    Finder sarahDial() => find.descendant(
+          of: _playerZone(2),
+          matching: find.byType(LifeDial),
+        );
 
-    // Le palier "-5", cherché comme DESCENDANT du cadran de Sarah (2) :
-    // dès le premier tap, un badge de buffer affichant aussi "-5" apparaît
+    // Le palier "-5", cherché comme DESCENDANT du cadran de Sarah : dès la
+    // première sélection, un badge de buffer affichant aussi "-5" apparaît
     // ailleurs dans la zone (hors du LifeDial) -- `find.text('-5')` seul
-    // deviendrait ambigu pour le second tap sans cette portée.
+    // deviendrait ambigu pour la seconde sélection sans cette portée.
     Finder stepMinus5() => find.descendant(
-          of: find.byType(LifeDial).at(2),
+          of: sarahDial(),
           matching: find.text('-5'),
         );
 
-    // Premier tap sur le palier "-5" : alimente le buffer à -5, négatif,
-    // en format Commander -- les deux conditions qui, sans le garde
-    // `!isAdjusting` du correctif, suffiraient à faire apparaître la
-    // rangée d'attribution.
-    await tester.tap(stepMinus5());
+    // Première sélection de "-5" : alimente le buffer à -5, négatif, en
+    // format Commander. Vérifié PENDANT la tenue, avant le relâchement : les
+    // deux mécanismes ne se recouvrent jamais tant que les paliers sont
+    // affichés (`showAttribution` exige `!isAdjusting`, life_counter_page.dart
+    // ~ligne 1130).
+    var gesture = await tester.startGesture(tester.getCenter(sarahDial()));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    expect(find.byKey(const ValueKey('damage-attribution-0')), findsNothing,
+        reason: 'la rangée ne doit jamais apparaître tant que les paliers '
+            'sont affichés : sur les géométries où elle les recouvrirait, '
+            'elle en volerait le hit-test');
+
+    await gesture.moveTo(tester.getCenter(stepMinus5()));
+    await gesture.up();
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('damage-attribution-0')), findsNothing,
-        reason: 'la rangée ne doit jamais apparaître pendant que la zone '
-            'est en mode ajustement, même sur un buffer négatif : sur les '
-            'géométries où elle recouvre les paliers, elle en volerait le '
-            'hit-test');
+    // Note (tâche 7) : `showAttribution` redevient vrai dès CE relâchement
+    // (`isAdjusting` repasse à `false` dans le même geste qui vient de fixer
+    // le buffer à -5) -- la rangée peut donc apparaître ICI, entre les deux
+    // sélections, ce que l'ancien modèle (mode persistant tant qu'un second
+    // tap distinct ne le fermait pas) empêchait. Ce n'est plus un défaut : les
+    // paliers ont déjà disparu au moment où elle apparaît (même geste, même
+    // frame), donc il n'y a jamais de recouvrement ni de vol de hit-test —
+    // seule l'invariante finale (deux paliers cumulés, aucune attribution)
+    // reste ce que ce test doit garantir.
 
-    // Second tap AU MÊME ENDROIT (le palier n'a pas bougé, aucune rangée
-    // n'a jamais pu prendre sa place) : doit rester un second palier,
-    // jamais une attribution silencieuse à un adversaire.
-    await tester.tap(stepMinus5());
+    // Seconde sélection de "-5", un geste continu SÉPARÉ (le mode s'est
+    // refermé au relâchement précédent, spec §5.1) : doit rester un second
+    // palier, jamais une attribution silencieuse à un adversaire.
+    gesture = await tester.startGesture(tester.getCenter(sarahDial()));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+
+    // Important #5 (round de correction 1) : c'est ICI, et seulement ici,
+    // que la conjonction exacte qui motivait le garde `!isAdjusting` est
+    // reproduite -- buffer déjà négatif (-5, de la première sélection) ET
+    // mode ajustement de nouveau ouvert. La déplacer sur la première tenue
+    // (buffer encore à 0) ne prouvait rien de cette conjonction.
+    expect(find.byKey(const ValueKey('damage-attribution-0')), findsNothing,
+        reason: 'avec un buffer déjà négatif ET les paliers de nouveau '
+            'affichés, la rangée ne doit toujours pas apparaître');
+
+    await gesture.moveTo(tester.getCenter(stepMinus5()));
+    await gesture.up();
     await tester.pump();
 
     // Laisse le buffer de 2s s'appliquer normalement.
@@ -1927,5 +2274,387 @@ void main() {
         findsNothing,
         reason: 'un compteur réactivé ne doit plus apparaître dans la '
             'liste des compteurs à réactiver');
+  });
+
+  // --- Ronde de correction 4 : LE test qui manquait. Tous les tests du geste
+  // d'ajustement (life_dial_test.dart) montaient un harnais minimal — un
+  // parent jouet avec un `setState` — jamais la PAGE RÉELLE avec sa grille.
+  // Sur `LifeCounterPage`, chaque delta émis par la molette passe par
+  // `onLifeChanged` -> `_updateLife` -> `setState()` de toute la page, ce qui
+  // reconstruit les quatre zones. Le geste complet (appui long, glissé
+  // descendant EN PLUSIEURS incréments avec un `pump()` par pas — c'est-à-dire
+  // avec un vrai rendu entre chaque événement, comme sur un appareil —, puis
+  // relâchement sur un palier) n'était donc joué nulle part là où cette
+  // cascade de rebuilds existe. Il ne marchait pas.
+  testWidgets(
+      'sur la page réelle à 4 joueurs, un appui long puis un glissé descendant '
+      'en plusieurs incréments vers le palier "-5", relâché dessus, retire '
+      'exactement 5 PV', (tester) async {
+    final container = await pumpWithContainer(tester);
+
+    // Repérage par identité (voir `_playerZone`), jamais ordinal.
+    Finder dial() => find.descendant(
+          of: _playerZone(0),
+          matching: find.byType(LifeDial),
+        );
+    Finder stepMinus5() => find.descendant(
+          of: dial(),
+          matching: find.byKey(const ValueKey('life_step_-5')),
+        );
+
+    final lifeBefore = container.read(gameSessionNotifierProvider)!
+        .players
+        .firstWhere((p) => p.playerId == 0)
+        .life;
+
+    // Appui long au centre du cadran : entrée en mode ajustement.
+    final gesture = await tester.startGesture(tester.getCenter(dial()));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    expect(stepMinus5(), findsOneWidget,
+        reason: 'précondition : l\'appui long doit avoir ouvert les paliers');
+
+    // Glissé DESCENDANT réaliste vers le palier, en 10 incréments, avec un
+    // rendu entre chaque : la rangée est ancrée en bas, donc le trajet
+    // traverse la molette et déclenche la cascade de `setState` de la page.
+    final start = tester.getCenter(dial());
+    final target = tester.getCenter(stepMinus5());
+    for (var i = 1; i <= 10; i++) {
+      await gesture.moveTo(Offset.lerp(start, target, i / 10)!);
+      await tester.pump();
+    }
+
+    await gesture.up();
+    await tester.pump();
+
+    // Laisse le buffer de 2 s s'appliquer.
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    final after = container.read(gameSessionNotifierProvider)!
+        .players
+        .firstWhere((p) => p.playerId == 0)
+        .life;
+    expect(after, lifeBefore - 5,
+        reason: 'le palier relâché doit être le SEUL effet net du geste, '
+            'molette traversée en route comprise');
+  });
+
+  // --- Revue finale, Critical #2 : LE test qui manquait ENCORE. Le test
+  // ci-dessus part de 40 PV en format Commander : la descente de 5 points
+  // reste entièrement au-dessus du seuil `safe` (ratio > 0.50, soit > 20 PV),
+  // donc `CriticalOverlay` ne change jamais de branche pendant le geste et le
+  // défaut restait invisible.
+  //
+  // `CriticalOverlay` et `EliminationOverlay` portaient le MÊME motif
+  // d'enveloppement conditionnel que la ronde 4 avait retiré de la page :
+  // `if (safe) return child;` d'un côté, `AnimatedBuilder(...)` de l'autre.
+  // Franchir un seuil en plein geste change donc la profondeur de l'arbre,
+  // Flutter détruit le sous-arbre, et le `State` de `LifeDial` est recréé
+  // avec le doigt encore posé.
+  //
+  // Mesuré avant correctif, même geste, seule la vie de départ change :
+  // 40 -> 35 (attendu 35), 21 -> 20 (attendu 16), 11 -> 6 (attendu 6). La
+  // ligne 11 prouve le mécanisme : `warning -> danger` ne change pas la
+  // profondeur, le geste survit ; `safe -> warning` la change, il meurt.
+  //
+  // Les trois vies de départ sont donc jouées, pas seulement celle qui
+  // franchit : le test dirait autrement « le geste marche à 21 » sans dire
+  // pourquoi il marchait déjà ailleurs.
+  for (final startLife in const [40, 21, 11]) {
+    testWidgets(
+        'sur la page réelle, un glissé vers "-5" depuis $startLife PV retire '
+        'exactement 5 PV — y compris quand la descente franchit un seuil '
+        'critique (Critical #2)', (tester) async {
+      final baseSession = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: testConfigs,
+      );
+      final seeded = baseSession.copyWith(
+        players: [
+          baseSession.players[0].copyWith(life: startLife),
+          ...baseSession.players.sublist(1),
+        ],
+      );
+      // Montage à pompage BORNÉ plutôt que `pumpWithContainer` : à 11 PV la
+      // zone est déjà au cran `danger` au chargement, donc la bordure pulse
+      // en boucle et le `pumpAndSettle` de ce helper ne rendrait jamais la
+      // main.
+      SharedPreferences.setMockInitialValues({
+        'active_game_snapshot': json.encode(seeded.toJson()),
+      });
+      final container = ProviderContainer(
+        overrides: [
+          gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+        ),
+      );
+      await tester.pump();
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      Finder dial() => find.descendant(
+            of: _playerZone(0),
+            matching: find.byType(LifeDial),
+          );
+      Finder stepMinus5() => find.descendant(
+            of: dial(),
+            matching: find.byKey(const ValueKey('life_step_-5')),
+          );
+
+      final gesture = await tester.startGesture(tester.getCenter(dial()));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      expect(stepMinus5(), findsOneWidget,
+          reason: 'précondition : l’appui long doit avoir ouvert les paliers');
+
+      final start = tester.getCenter(dial());
+      final target = tester.getCenter(stepMinus5());
+      for (var i = 1; i <= 10; i++) {
+        await gesture.moveTo(Offset.lerp(start, target, i / 10)!);
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pump();
+      // Pompage BORNÉ, pas `pumpAndSettle` : sous le seuil `safe`, la bordure
+      // de `CriticalOverlay` pulse en boucle infinie (`_controller.repeat()`),
+      // et `pumpAndSettle` ne rendrait jamais la main pour les vies de départ
+      // qui franchissent justement le seuil que ce test existe pour éprouver.
+      await tester.pump(const Duration(seconds: 3));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      final after = container.read(gameSessionNotifierProvider)!
+          .players
+          .firstWhere((p) => p.playerId == 0)
+          .life;
+      expect(after, startLife - 5,
+          reason: 'le geste ne doit pas mourir parce que la zone a changé de '
+              'niveau critique pendant la descente');
+    });
+  }
+
+  // --- Ronde de correction 1 de la tâche 4 (Critical #1) : les presets
+  // d'orientation posent des `quarterTurns` finaux, SANS compensation.
+  // Avant ce correctif, `_applyOrientationPreset` retranchait 2 quarts de
+  // tour aux zones de la moitié haute pour compenser la rotation que
+  // l'ANCIENNE `AdaptiveGrid` leur appliquait elle-même -- une compensation
+  // devenue fausse dès que la tâche 4 a retiré cette rotation :
+  // 180° − 180° = 0°, le défaut symétrique de celui que la tâche 4 interdit
+  // (180° + 180° = 360°). Aucun test ne couvrait les presets avant ce
+  // correctif (`grep -rn "OrientationPreset" test/` ne renvoyait rien).
+  const orientationScreenSize = Size(900, 700);
+
+  /// Écran assez large pour que `AdaptiveGrid` choisisse la bande (voir
+  /// `TableLayout`) : le bouton d'ouverture de la feuille de presets vit
+  /// dans `_buildCentralBar`, absent sur petit écran (hub à la place).
+  Future<ProviderContainer> pumpForOrientation(
+    WidgetTester tester,
+    int playerCount,
+  ) async {
+    _setScreenSize(tester, orientationScreenSize);
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: playerConfigsFor(playerCount),
+    );
+    return pumpWithContainer(tester, snapshot: baseSession);
+  }
+
+  Future<void> expectPresetRotations(
+    WidgetTester tester,
+    ProviderContainer container,
+    String label,
+    List<int> expectedRotations,
+  ) async {
+    await openOrientationSheet(tester);
+    await selectOrientationPreset(tester, label);
+
+    final session = container.read(gameSessionNotifierProvider)!;
+    for (int playerId = 0; playerId < expectedRotations.length; playerId++) {
+      final player = session.players.firstWhere((p) => p.playerId == playerId);
+      expect(
+        player.quarterTurns,
+        expectedRotations[playerId],
+        reason: 'preset "$label", joueur $playerId (ordre canonique) : '
+            'quarterTurns final attendu ${expectedRotations[playerId]}, '
+            'posé tel quel, sans compensation',
+      );
+    }
+  }
+
+  // Revue finale, Critical #3 (ruling 20) : les presets sont TOUS dérivés de
+  // la géométrie. Les valeurs attendues ci-dessous sont donc celles que la
+  // grille rend RÉELLEMENT à `Size(900, 700)`, l'écran de ces tests :
+  //
+  //   n=2 : [top, bottom]                              -> [2, 0]
+  //   n=3 : [top, bottom, bottom]                      -> [2, 0, 0]
+  //   n=4 : [top, right, bottom, left]                 -> [2, 3, 0, 1]
+  //   n=5 : [top, top, right, bottom, left]            -> [2, 2, 3, 0, 1]
+  //   n=6 : [top, top, right, bottom, bottom, left]    -> [2, 2, 3, 0, 0, 1]
+  //   n=7 : repli face-à-face (playerCount > 6)        -> [2,2,2,0,0,0,0]
+  //
+  // Les listes en dur de 2 à 6 joueurs disaient [2,2,0,0] à quatre : AUCUN des
+  // cinq presets ne produisait l'orientation juste, et l'aperçu — qui lit déjà
+  // la vraie géométrie — dessinait honnêtement le résultat faux.
+  //
+  // « Côtés », « Triangle » et « Cercle » ont disparu : ils ne décrivaient
+  // aucune disposition de sièges. « Face à face » n'est proposé que là où il
+  // DIFFÈRE de « Table », donc à 4, 5 et 6 joueurs sur cet écran — les deux
+  // tests d'absence ci-dessous verrouillent cette règle.
+  group('presets d\'orientation (revue finale — dérivés de la géométrie)', () {
+    testWidgets('4 joueurs — "Table" pose la géométrie réelle [2,3,0,1]',
+        (tester) async {
+      final container = await pumpForOrientation(tester, 4);
+      await expectPresetRotations(tester, container, 'Table', [2, 3, 0, 1]);
+    });
+
+    testWidgets('4 joueurs — "Face à face" pose le repli [2,2,0,0]',
+        (tester) async {
+      final container = await pumpForOrientation(tester, 4);
+      await expectPresetRotations(
+          tester, container, 'Face à face', [2, 2, 0, 0]);
+    });
+
+    testWidgets('4 joueurs — "Même sens" pose [0,0,0,0]', (tester) async {
+      final container = await pumpForOrientation(tester, 4);
+      await expectPresetRotations(tester, container, 'Même sens', [0, 0, 0, 0]);
+    });
+
+    testWidgets(
+        '4 joueurs — les presets qui ne décrivaient aucune disposition de '
+        'sièges ont disparu', (tester) async {
+      await pumpForOrientation(tester, 4);
+      await openOrientationSheet(tester);
+      for (final label in const ['Côtés', 'Cercle', 'Triangle']) {
+        expect(find.text(label), findsNothing,
+            reason: '"$label" ne correspond à aucune géométrie de sièges et ne '
+                'peut donc pas être dérivé honnêtement');
+      }
+    });
+
+    testWidgets('2 joueurs — "Table" pose [2,0]', (tester) async {
+      final container = await pumpForOrientation(tester, 2);
+      await expectPresetRotations(tester, container, 'Table', [2, 0]);
+    });
+
+    testWidgets('2 joueurs — "Côte à côte" pose [1,3]', (tester) async {
+      final container = await pumpForOrientation(tester, 2);
+      await expectPresetRotations(tester, container, 'Côte à côte', [1, 3]);
+    });
+
+    testWidgets(
+        '2 joueurs — "Face à face" n\'est pas proposé : il ne diffère pas '
+        'de "Table"', (tester) async {
+      await pumpForOrientation(tester, 2);
+      await openOrientationSheet(tester);
+      expect(find.text('Face à face'), findsNothing);
+      expect(find.text('Table'), findsOneWidget);
+    });
+
+    testWidgets('3 joueurs — "Table" pose [2,0,0]', (tester) async {
+      final container = await pumpForOrientation(tester, 3);
+      await expectPresetRotations(tester, container, 'Table', [2, 0, 0]);
+    });
+
+    testWidgets('5 joueurs — "Table" pose la géométrie réelle [2,2,3,0,1]',
+        (tester) async {
+      final container = await pumpForOrientation(tester, 5);
+      await expectPresetRotations(
+          tester, container, 'Table', [2, 2, 3, 0, 1]);
+    });
+
+    testWidgets('5 joueurs — "Face à face" pose le repli [2,2,0,0,0]',
+        (tester) async {
+      final container = await pumpForOrientation(tester, 5);
+      await expectPresetRotations(
+          tester, container, 'Face à face', [2, 2, 0, 0, 0]);
+    });
+
+    testWidgets('6 joueurs — "Table" pose la géométrie réelle [2,2,3,0,0,1]',
+        (tester) async {
+      final container = await pumpForOrientation(tester, 6);
+      await expectPresetRotations(
+          tester, container, 'Table', [2, 2, 3, 0, 0, 1]);
+    });
+
+    testWidgets(
+        '7 joueurs — "Table" pose le repli géométrique [2,2,2,0,0,0,0] : le '
+        'siège réel de chacun, jamais un topCount supposé', (tester) async {
+      final container = await pumpForOrientation(tester, 7);
+      // `seatsFor` retombe toujours en face-à-face au-delà de 6 joueurs, donc
+      // « Table » et le repli coïncident et un seul preset est proposé.
+      await expectPresetRotations(
+          tester, container, 'Table', [2, 2, 2, 0, 0, 0, 0]);
+    });
+  });
+
+  // --- Ronde de correction 3 (tâche 5) : `tapMinusHalf` sait depuis la
+  // ronde 1 calculer son point de tap pour les quatre valeurs de
+  // `quarterTurns` (0/1/2/3, voir sa docstring et `_quarterTurnsAbove`),
+  // mais tous les appels existants du fichier portent sur des sessions à
+  // `quarterTurns == 0` (le défaut de `GameSession.newGame`) : les branches
+  // 1 et 3 de la table n'étaient donc exercées par AUCUN test -- seule
+  // l'algèbre avait été relue, pas la couverture. Les deux tests
+  // ci-dessous posent explicitement la rotation AVANT de taper, pour que
+  // `_quarterTurnsAbove` retourne réellement 1 puis 3.
+  group('tapMinusHalf couvre les quatre quarterTurns (ronde de correction 3)',
+      () {
+    testWidgets(
+        'quarterTurns == 1 (siège "left") : le tap sur la moitié '
+        'décrément (dy inférieur) baisse la vie de 1', (tester) async {
+      final baseSession = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: testConfigs,
+      );
+      final rotated = baseSession.copyWith(
+        players: [
+          baseSession.players[0].copyWith(quarterTurns: 1),
+          ...baseSession.players.sublist(1),
+        ],
+      );
+      final container = await pumpWithContainer(tester, snapshot: rotated);
+
+      await tapMinusHalf(tester, 0, 1);
+      // Laisse le buffer de 2s s'appliquer, comme les autres tests de PV.
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+
+      expect(container.read(gameSessionNotifierProvider)!.players[0].life, 39,
+          reason: 'un tap sur la moitié décrément doit baisser la vie de 1, '
+              'même à quarterTurns == 1 : sans une table à quatre branches '
+              'réellement exercées, ce point de tap pouvait tomber sur la '
+              'mauvaise moitié (incrément) et faire monter la vie au lieu '
+              'de la baisser');
+    });
+
+    testWidgets(
+        'quarterTurns == 3 (siège "right") : le tap sur la moitié '
+        'décrément (dy supérieur) baisse la vie de 1', (tester) async {
+      final baseSession = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: testConfigs,
+      );
+      final rotated = baseSession.copyWith(
+        players: [
+          baseSession.players[0].copyWith(quarterTurns: 3),
+          ...baseSession.players.sublist(1),
+        ],
+      );
+      final container = await pumpWithContainer(tester, snapshot: rotated);
+
+      await tapMinusHalf(tester, 0, 1);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+
+      expect(container.read(gameSessionNotifierProvider)!.players[0].life, 39,
+          reason: 'même exigence qu\'à quarterTurns == 1, pour la moitié '
+              'symétrique (dy supérieur)');
+    });
   });
 }

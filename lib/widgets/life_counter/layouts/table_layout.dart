@@ -1,0 +1,141 @@
+import 'dart:math' as math;
+import 'dart:ui';
+
+import 'package:magic_companion/models/table_seat.dart';
+import 'package:magic_companion/widgets/life_counter/zone/action_hub.dart';
+import 'package:magic_companion/widgets/life_counter/layouts/density_tier.dart';
+
+/// Forme que prend l'accès aux actions de partie.
+enum ActionBarKind {
+  /// Bouton rond au centre de la table, qui ouvre une feuille. Petit écran.
+  hub,
+
+  /// Bande horizontale entre les deux moitiés. Grand écran.
+  band,
+}
+
+/// Largeur minimale d'une colonne latérale : le plancher de la zone, plus une
+/// marge de respiration sans laquelle la colonne est techniquement conforme et
+/// visuellement inutilisable.
+const double kSideColumnNeed = kZoneShortEdgeFloor + 26.0;
+
+// Tâche 6 (ronde de correction 1) : les infos de partie n'avaient qu'un
+// appui long caché sur le bouton d'orientation comme seul chemin d'accès --
+// invisible et absent du hub. Devenues une neuvième action à part entière
+// (tap ordinaire, joignable depuis la bande ET le hub), `kActionCount` en
+// tient compte pour que `kBandNeed` ne sous-estime plus la largeur réelle.
+const int kActionCount = 9;
+
+// Tâche 6 (ronde de correction 1, option C) : 36.0 était FAUX -- un
+// `IconButton` Material mesure 48×48 au minimum
+// (`kMinInteractiveDimension`), jamais moins, quoi qu'on lui demande. Cette
+// constante mentait depuis l'origine de la bande ; `kBandNeed` sous-estimait
+// donc sa largeur réelle depuis toujours (marge réelle mesurée à 8 actions :
+// ~10px, jamais vérifiée avant). La neuvième action n'a fait que rendre le
+// défaut visible. Porter cette valeur en dessous de 48 pour gagner de la
+// place reviendrait à rétrécir la cible tactile minimale -- refusé : c'est
+// précisément le bug (taper à côté sur un téléphone posé à plat) que toute
+// cette refonte existe pour éliminer. Voir
+// `test/widgets/life_counter/layouts/table_layout_test.dart`, groupe
+// « kActionWidth reflète la vraie taille rendue », qui compare cette
+// constante à la taille mesurée d'un vrai bouton de bande.
+const double kActionWidth = 48.0;
+const double kActionGap = 4.0;
+
+/// Largeur naturelle de la bande d'actions : les neuf actions, sans défilement.
+const double kBandNeed = kActionCount * (kActionWidth + kActionGap) + kActionGap;
+
+/// Marge laissée autour du hub, de chaque côté.
+///
+/// Revue finale (M3) : ce qui restait d'estimation dans `kHubNeed` est isolé
+/// ICI, plutôt que noyé dans un total rond. La valeur conserve le total
+/// historique de 160 px, pour qu'aucun seuil de `tableLayoutFor` ne bouge au
+/// passage — c'est un exercice d'honnêteté sur la provenance du nombre, pas
+/// un changement de comportement.
+const double kHubHalo = 52.0;
+
+/// Place réservée au centre pour le hub et son pourtour tapable.
+///
+/// Revue finale (M3) : DÉRIVÉ du diamètre réel de `ActionHub`, plus une marge
+/// de chaque côté. La valeur était auparavant posée en dur (160.0) sans
+/// aucun lien avec le widget qu'elle est censée mesurer : rétrécir le hub
+/// n'aurait rien changé ici. Aucun cycle d'import — `action_hub.dart` ne
+/// dépend que de `material` et du thème.
+///
+/// Gardé par un test qui MESURE le hub rendu (même famille que le garde-fou
+/// de `kActionWidth`, ruling 16).
+const double kHubNeed = ActionHub.diameter + 2 * kHubHalo;
+
+/// Petit côté à partir duquel un écran est considéré comme grand.
+const double kLargeScreenShortEdge = 600.0;
+
+/// Décision de disposition pour un écran et un nombre de joueurs donnés.
+class TableLayout {
+  const TableLayout({
+    required this.useSideColumns,
+    required this.sideWidth,
+    required this.barKind,
+    required this.seats,
+  });
+
+  final bool useSideColumns;
+  final double sideWidth;
+  final ActionBarKind barKind;
+
+  /// Sièges effectivement retenus. En cas de repli, ce sont ceux du
+  /// face-à-face : le reste du code n'a pas à connaître la règle.
+  final List<TableSeat> seats;
+}
+
+/// Décide de la disposition (spec §3 et §4).
+///
+/// Le défaut que cette fonction existe pour empêcher : le lot 6 donnait 30 % de
+/// la largeur à chaque colonne latérale, quoi qu'il arrive. Sur un écran large,
+/// deux joueurs mangeaient 60 % de la surface et la barre d'actions n'avait plus
+/// de place — elle se réduisait silencieusement à ses deux premières icônes.
+///
+/// Ici, une colonne latérale doit être payée EN ENTIER, sur deux critères
+/// indépendants, et à défaut il n'y en a aucune.
+TableLayout tableLayoutFor(Size size, int playerCount) {
+  final shortEdge = math.min(size.width, size.height);
+  final barKind = shortEdge < kLargeScreenShortEdge
+      ? ActionBarKind.hub
+      : ActionBarKind.band;
+
+  TableLayout fallback() => TableLayout(
+        useSideColumns: false,
+        sideWidth: 0.0,
+        barKind: barKind,
+        seats: seatsFor(playerCount, allowSideColumns: false),
+      );
+
+  final wanted = seatsFor(playerCount);
+  final wantsSides = wanted.any(
+      (s) => s.side == TableSide.left || s.side == TableSide.right);
+  if (!wantsSides) return fallback();
+
+  // Condition de forme : paysage, ou grand écran. Sur un téléphone en
+  // portrait, une colonne latérale donne une bande verticale trop étroite pour
+  // être lisible même quand elle passe le plancher numérique.
+  final shapeAllows =
+      size.width > size.height || shortEdge >= kLargeScreenShortEdge;
+  if (!shapeAllows) return fallback();
+
+  // Condition de budget : le centre garde d'abord de quoi loger les actions.
+  final centreNeed = barKind == ActionBarKind.band ? kBandNeed : kHubNeed;
+  if (size.width - 2 * kSideColumnNeed < centreNeed) return fallback();
+
+  // 0.17 est un réglage esthétique pour les grands écrans, JAMAIS la garantie
+  // du plancher : celle-ci est portée par le `math.max` ci-dessous, en dur.
+  final sideWidth = math.max(
+    kSideColumnNeed,
+    math.min(size.width * 0.17, (size.width - centreNeed) / 2),
+  );
+
+  return TableLayout(
+    useSideColumns: true,
+    sideWidth: sideWidth,
+    barKind: barKind,
+    seats: wanted,
+  );
+}

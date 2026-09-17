@@ -310,6 +310,13 @@ Future<void> _pumpDrawer(
                   onCreateCounter: (_) async =>
                       (success: true, message: 'Compteur cree.'),
                   onRemoveCounter: (_) {},
+                  // Ajoutees par la refonte de disposition : au cran
+                  // minimal l'en-tete de zone disparait, et le tiroir
+                  // devient le seul point d'entree de ces trois actions.
+                  // Elles doivent donc figurer dans la capture.
+                  onRotate: () {},
+                  onShowColorPicker: () {},
+                  onShowHistory: () {},
                 ),
                 child: const Text('Ouvrir le tiroir'),
               ),
@@ -502,6 +509,7 @@ void main() {
                 child: Padding(
                   padding: const EdgeInsets.all(6),
                   child: AdaptiveGrid(
+                    actionHub: const SizedBox.shrink(),
                     playerZones: [
                       _mockZone(
                         name: 'Alexis',

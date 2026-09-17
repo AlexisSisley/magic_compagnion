@@ -27,7 +27,14 @@ class LifeDial extends ConsumerStatefulWidget {
 
   final int playerId;
   final int life;
-  final void Function(int delta) onDelta;
+
+  /// [silent] marque un delta qui n'est PAS un geste utilisateur mais une
+  /// correction interne (round de correction 3, spec) : l'annulation de la
+  /// molette croisée en route vers un palier (voir `_wheelSumSinceAdjust`).
+  /// L'appelant ne doit alors jouer ni bulle de nombre flottant, ni
+  /// pulsation/tremblement, ni retour haptique — seule la mutation de vie
+  /// elle-même (déjà nette au buffer, voir `onLifeChanged`) doit avoir lieu.
+  final void Function(int delta, {bool silent}) onDelta;
   final Color? textColor;
 
   @override
@@ -68,17 +75,58 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// quatre joueurs.
   final Set<int> _pendingTaps = {};
 
+  /// Fraction de la largeur de la zone laissée libre de chaque côté de la
+  /// rangée de paliers (spec §5.4). La rangée pleine largeur retombait
+  /// exactement là où le pouce arrive au relâchement, ce qui faisait
+  /// modifier les PV par accident — voir le bug rapporté sur cette tâche.
+  static const double _stepRowSideMargin = 0.18;
+
+  /// Une `GlobalKey` par palier, pour retrouver son rectangle à l'écran sans
+  /// jamais calculer sa position à la main (`_stepUnder`).
+  final Map<int, GlobalKey> _stepKeys = {
+    for (final delta in const [-10, -5, 5, 10]) delta: GlobalKey(),
+  };
+
+  /// Somme des deltas de molette émis depuis l'entrée en mode ajustement
+  /// courante (remise à zéro par `_startLongPressWatch` à chaque nouvelle
+  /// entrée).
+  ///
+  /// Round de correction 2 : la rangée de paliers est ANCRÉE EN BAS du
+  /// cadran, donc tout glissé vers un palier est un glissé VERS LE BAS —
+  /// exactement la direction de la molette (`wheelPixelsPerUnit` = 8px). Le
+  /// garde `_stepUnder(event.position) == null` de la tâche 7 ne suspend la
+  /// molette QUE pendant le survol du bouton, jamais pendant le TRAJET qui y
+  /// mène (~80px sur un cadran de 300px, soit une dizaine de points émis en
+  /// route). Le geste est pourtant censé être atomique (« du doigt posé au
+  /// doigt levé ») : si le relâchement tombe sur un palier, ce palier doit
+  /// être le SEUL effet du geste. On accumule donc tout ce que la molette a
+  /// émis pendant le geste, pour l'annuler dans `_endAdjustGesture` si (et
+  /// seulement si) le relâchement atterrit sur un palier.
+  ///
+  /// Round de correction 3 (Important — le commentaire précédent affirmait le
+  /// contraire, à tort) : le NET est juste (le buffer de la page ne voit que
+  /// la somme), mais l'annulation elle-même reste VISIBLE tant que le delta
+  /// d'annulation n'est pas explicitement marqué `silent` — `onDelta` aboutit
+  /// aussi à `PlayerZone._triggerChange`, qui affiche une bulle de nombre
+  /// flottant et joue une pulsation/tremblement pour CHAQUE delta reçu, pas
+  /// seulement le net. Sans le paramètre `silent`, l'utilisateur verrait donc
+  /// les bulles de la molette prises en route, PUIS une bulle « +9 » (ou
+  /// équivalent) annonçant un gain de vie qui n'a jamais eu lieu, avant celle
+  /// du palier — d'où `_emit(..., silent: true)` dans `_endAdjustGesture`.
+  int _wheelSumSinceAdjust = 0;
+
   @override
   void dispose() {
     _longPressTimer?.cancel();
     _trackedPointer = null;
     _downPosition = null;
+    _wheelSumSinceAdjust = 0;
     super.dispose();
   }
 
-  void _emit(int delta) {
-    HapticFeedback.selectionClick();
-    widget.onDelta(delta);
+  void _emit(int delta, {bool silent = false}) {
+    if (!silent) HapticFeedback.selectionClick();
+    widget.onDelta(delta, silent: silent);
   }
 
   void _startHold(int delta) {
@@ -108,6 +156,73 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     _pendingTaps.clear();
   }
 
+  /// Palier dont le bouton contient [globalPosition], ou `null`.
+  ///
+  /// Les boutons sont retrouvés par leur `GlobalKey` : aucune position n'est
+  /// calculée à la main.
+  ///
+  /// Revue finale (Critical #1) : le test d'appartenance se fait dans le
+  /// repère LOCAL du bouton, jamais dans le repère écran. La version
+  /// précédente composait `box.localToGlobal(Offset.zero)` (une position
+  /// écran, obtenue en traversant le `RotatedBox` du siège) avec `box.size`
+  /// (une taille dans le repère local du bouton) — une composition qui n'est
+  /// valide que sous translation pure. Sous rotation, le rectangle obtenu
+  /// n'est pas celui du bouton : à 180° c'est son miroir, ce qui inversait
+  /// les paliers ±5/±10 pour trois joueurs sur quatre. `globalToLocal`
+  /// traverse la matrice complète (rotation comprise) et rend le point dans
+  /// le repère où `box.size` a un sens.
+  int? _stepUnder(Offset globalPosition) {
+    for (final entry in _stepKeys.entries) {
+      final box = entry.value.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.attached) continue;
+      final local = box.globalToLocal(globalPosition);
+      if ((Offset.zero & box.size).contains(local)) return entry.key;
+    }
+    return null;
+  }
+
+  /// Fin du geste en mode ajustement : on applique le palier survolé, s'il y
+  /// en a un, puis on sort du mode dans tous les cas.
+  ///
+  /// Le mode ne survit pas au doigt (spec §5.1). L'amendement de la spec V4
+  /// §2.5 avait écarté cette fermeture au motif que les paliers deviendraient
+  /// inatteignables — ce qui n'est vrai que s'il faut LEVER le doigt pour
+  /// taper. Avec un glissé-relâché, ils restent atteignables sans jamais
+  /// rompre le contact.
+  ///
+  /// Round de correction 1 : appelée UNIQUEMENT depuis `onPointerUp` du
+  /// `Listener` racine (événement brut), jamais depuis `onTapUp`/`onTapCancel`
+  /// du `GestureDetector` d'une moitié. Ces deux derniers se déclenchent à la
+  /// résolution de l'ARÈNE, pas au lever du doigt : `onTapCancel` en
+  /// particulier part dès que le pointeur dépasse `kTouchSlop` (18px), donc en
+  /// plein glissement — bien avant que le doigt n'atteigne un palier. Le
+  /// relâchement brut (`PointerUpEvent`) est le seul événement qui coïncide
+  /// avec le vrai lever du doigt.
+  ///
+  /// Round de correction 2 : un relâchement sur un palier annule d'abord tout
+  /// ce que la molette a émis PENDANT ce même geste (voir le doc-comment de
+  /// `_wheelSumSinceAdjust`), pour que le palier reste le seul effet net —
+  /// un relâchement hors palier, lui, laisse la molette telle quelle (son
+  /// usage normal).
+  ///
+  /// Round de correction 3 : l'annulation est émise `silent: true` — ce n'est
+  /// pas un geste utilisateur, juste une correction interne, et ne doit donc
+  /// déclencher ni bulle de nombre flottant, ni pulsation/tremblement, ni
+  /// retour haptique (voir le doc-comment de `_wheelSumSinceAdjust` et celui
+  /// de `LifeDial.onDelta`). Le palier lui-même reste émis normalement (seul
+  /// retour haptique du geste).
+  void _endAdjustGesture(PlayerZoneNotifier notifier, Offset globalPosition) {
+    final delta = _stepUnder(globalPosition);
+    if (delta != null) {
+      if (_wheelSumSinceAdjust != 0) {
+        _emit(-_wheelSumSinceAdjust, silent: true);
+      }
+      _emit(delta);
+    }
+    _wheelSumSinceAdjust = 0;
+    notifier.exitAdjustMode();
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = widget.textColor ?? AppColors.textPrimary;
@@ -122,88 +237,162 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     // sans jamais leur faire perdre l'arène (un `LongPressGestureRecognizer`
     // concurrent ferait perdre le tap de la moitié dès qu'il gagne, ce qui a
     // cassé le test de maintien à la ronde précédente).
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: (event) {
-        // Round 3 (Critical #1 ressuscité) : un seul pointeur à la fois
-        // arme la veille d'appui long — voir la note sur `_trackedPointer`.
-        if (_trackedPointer != null) return;
-        _trackedPointer = event.pointer;
-        _downPosition = event.position;
-        _startLongPressWatch(notifier);
-      },
-      onPointerMove: (event) {
-        if (event.pointer != _trackedPointer) return;
-        if (isAdjusting) {
-          // Round 2 (Important #1) : un glissement de molette maintenu plus
-          // de 500 ms ré-arme sinon un appui long qui remettrait
-          // `wheelAccumulator` à zéro en plein geste — l'appui long n'a plus
-          // de raison d'être dès qu'on bouge en mode ajustement.
-          _cancelLongPressWatch();
-          final steps = notifier.handleWheelDrag(event.delta.dy);
-          if (steps != 0) _emit(steps);
-        } else {
-          // Round 2 (Critical #2) : un doigt « immobile » sur un écran
-          // capacitif émet en continu des micro-mouvements de 1 à 3 px.
-          // Annuler l'appui long au premier pixel rendrait le mode
-          // ajustement quasi inatteignable sur appareil réel ; on tolère
-          // donc la même marge que `LongPressGestureRecognizer`
-          // ([kTouchSlop]) avant de considérer que c'est un glissement.
-          final downPosition = _downPosition;
-          if (downPosition != null &&
-              (event.position - downPosition).distance > kTouchSlop) {
+    //
+    // `LayoutBuilder` donne à la rangée de paliers sa propre largeur
+    // (`_stepRow` en a besoin pour ses marges latérales, spec §5.4) sans la
+    // faire descendre depuis `PlayerZone` : `LifeDial` la lit lui-même.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (event) {
+            // Round 3 (Critical #1 ressuscité) : un seul pointeur à la fois
+            // arme la veille d'appui long — voir la note sur `_trackedPointer`.
+            if (_trackedPointer != null) return;
+            _trackedPointer = event.pointer;
+            _downPosition = event.position;
+            _startLongPressWatch(notifier);
+          },
+          onPointerMove: (event) {
+            if (event.pointer != _trackedPointer) return;
+            if (isAdjusting) {
+              // Round 2 (Important #1) : un glissement de molette maintenu plus
+              // de 500 ms ré-arme sinon un appui long qui remettrait
+              // `wheelAccumulator` à zéro en plein geste — l'appui long n'a plus
+              // de raison d'être dès qu'on bouge en mode ajustement.
+              _cancelLongPressWatch();
+              // Tâche 7 : tant que le doigt survole un palier, la molette ne
+              // doit pas accumuler en parallèle — sans quoi glisser jusqu'à
+              // « -5 » ferait AUSSI tourner la molette sur tout le trajet, et
+              // le relâchement appliquerait les deux à la fois (contraire à
+              // « un seul geste continu, un seul effet »). La zone des
+              // paliers est une cible de sélection, pas une extension de la
+              // molette.
+              if (_stepUnder(event.position) == null) {
+                // Revue finale (Critical #1, second défaut) :
+                // `event.localDelta`, pas `event.delta`. `delta` est un
+                // déplacement dans le repère ÉCRAN ; sous le `RotatedBox` du
+                // siège, « vers le bas de l'écran » n'est pas « vers le bas du
+                // point de vue du joueur ». Pour le siège `top`
+                // (`quarterTurns == 2`), tirer vers soi faisait MONTER les PV.
+                // `localDelta` est exprimé dans le repère de ce `Listener`,
+                // donc dans celui du joueur.
+                final steps = notifier.handleWheelDrag(event.localDelta.dy);
+                if (steps != 0) {
+                  // Round de correction 3 : chaque pas de molette est émis
+                  // `silent: true`. Tant que le geste est en cours, on ne
+                  // sait pas encore s'il se terminera sur un palier — et s'il
+                  // s'y termine, ce pas sera annulé par `_endAdjustGesture`
+                  // (voir `_wheelSumSinceAdjust`) : lui faire jouer bulle et
+                  // haptique en temps réel produirait alors, sur un
+                  // glissement réaliste vers un palier, une dizaine de bulles
+                  // qui ne correspondent à aucun effet final -- exactement ce
+                  // que la revue a mesuré et refusé. Le NET reste juste dans
+                  // tous les cas (`onLifeChanged` est appelé pour chaque pas,
+                  // silencieux ou non) : seul le retour visuel/haptique
+                  // temps réel de la molette est sacrifié en mode ajustement,
+                  // au profit d'un geste qui ne raconte que son effet final.
+                  _emit(steps, silent: true);
+                  // Round de correction 2 : mémorisé pour être annulé si le
+                  // geste se termine sur un palier (voir le doc-comment de
+                  // `_wheelSumSinceAdjust`).
+                  _wheelSumSinceAdjust += steps;
+                }
+              }
+            } else {
+              // Round 2 (Critical #2) : un doigt « immobile » sur un écran
+              // capacitif émet en continu des micro-mouvements de 1 à 3 px.
+              // Annuler l'appui long au premier pixel rendrait le mode
+              // ajustement quasi inatteignable sur appareil réel ; on tolère
+              // donc la même marge que `LongPressGestureRecognizer`
+              // ([kTouchSlop]) avant de considérer que c'est un glissement.
+              final downPosition = _downPosition;
+              if (downPosition != null &&
+                  (event.position - downPosition).distance > kTouchSlop) {
+                _cancelLongPressWatch();
+              }
+            }
+          },
+          // Round de correction 1 : c'est ICI, sur l'événement brut, que se
+          // résout le mode ajustement — jamais sur `onTapUp`/`onTapCancel` du
+          // `GestureDetector` d'une moitié (voir le doc-comment de
+          // `_endAdjustGesture`). Hors mode ajustement, ce `Listener` ne fait
+          // qu'arrêter la veille d'appui long ; la moitié gère alors seule son
+          // propre tap via `onTapUp`/`onTapCancel`, qui restent câblés
+          // uniquement sur `_confirmTap`/`_cancelPress` (jamais sur le mode
+          // ajustement).
+          // MINEUR CONNU, DÉLIBÉRÉMENT NON CORRIGÉ (revue finale, mineur
+          // reporté n°11) : `isAdjusting` est lu au-dessus, à la
+          // CONSTRUCTION de ce `Listener`, et capturé dans cette closure.
+          // Si le doigt se lève dans le même tour de boucle que le
+          // déclenchement du timer d'appui long — le `build` déclenché par
+          // `enterAdjustMode()` n'a pas encore eu lieu —, la closure
+          // exécutée voit encore `isAdjusting == false`, ne passe pas par
+          // `_endAdjustGesture`, et `exitAdjustMode()` n'est jamais appelé.
+          // La fenêtre ne dure qu'une frame, MAIS si elle est prise le mode
+          // ajustement reste armé INDÉFINIMENT (plus aucun doigt posé pour
+          // le refermer) : c'est exactement le bug utilisateur d'origine.
+          //
+          // Le correctif serait de relire l'état via
+          // `ref.read(playerZoneNotifierProvider(widget.playerId))` DANS la
+          // closure plutôt que de capturer la valeur du build. Il n'est pas
+          // appliqué ici : ce défaut est hérité, hors du périmètre de cette
+          // passe, et le toucher reviendrait à changer la source de vérité
+          // du geste sans test capable de reproduire une fenêtre d'une
+          // frame. Documenté pour que le prochain ne le redécouvre pas.
+          onPointerUp: (event) {
+            if (event.pointer != _trackedPointer) return;
+            _trackedPointer = null;
             _cancelLongPressWatch();
-          }
-        }
-      },
-      // N'arrête ici que l'appui long : le `Listener` racine reçoit le
-      // relâchement *avant* que l'arène de la moitié ne se résolve (son
-      // callback brut s'exécute pendant le routage, alors que `onTapUp` n'est
-      // appelé qu'au balayage de l'arène qui suit) — y annuler aussi le tap
-      // en attente le viderait avant que `_confirmTap` ne puisse l'émettre.
-      // La moitié restant montée en permanence (voir plus bas), c'est elle
-      // qui gère fiablement son propre tap via `onTapUp`/`onTapCancel`.
-      onPointerUp: (event) {
-        if (event.pointer != _trackedPointer) return;
-        _trackedPointer = null;
-        _cancelLongPressWatch();
-      },
-      onPointerCancel: (event) {
-        if (event.pointer != _trackedPointer) return;
-        _trackedPointer = null;
-        _cancelLongPressWatch();
-      },
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Les moitiés restent montées en permanence (jamais retirées de
-          // l'arbre) : les enlever couperait net le pointeur en cours (Flutter
-          // annule un geste quand le widget qu'il touche disparaît), ce qui
-          // interromprait son tap en plein geste dès l'entrée en mode
-          // ajustement. `IgnorePointer` les neutralise sans les démonter.
-          IgnorePointer(
-            ignoring: isAdjusting,
-            child: Row(
-              children: [
-                Expanded(child: _half(-1)),
-                Expanded(child: _half(1)),
-              ],
-            ),
+            if (isAdjusting) {
+              _endAdjustGesture(notifier, event.position);
+            }
+          },
+          onPointerCancel: (event) {
+            if (event.pointer != _trackedPointer) return;
+            _trackedPointer = null;
+            _cancelLongPressWatch();
+            // Un `PointerCancelEvent` (interruption système, pas un
+            // relâchement délibéré) sort du mode sans appliquer de palier :
+            // il n'y a pas de position de relâchement à faire confiance ici.
+            //
+            // Round de correction 3 (MINOR mais porteur) : remet aussi
+            // `_wheelSumSinceAdjust` à zéro ici, plutôt que de compter sur la
+            // remise à zéro de la PROCHAINE entrée en mode ajustement — ce
+            // chemin ne passe jamais par `_endAdjustGesture` (pas de palier à
+            // résoudre), donc rien d'autre ne nettoie ce compteur, qui
+            // resterait sinon sale jusqu'à la prochaine ouverture du mode et
+            // fausserait son annulation.
+            if (isAdjusting) notifier.exitAdjustMode();
+            _wheelSumSinceAdjust = 0;
+          },
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Les moitiés restent montées en permanence (jamais retirées de
+              // l'arbre) : les enlever couperait net le pointeur en cours (Flutter
+              // annule un geste quand le widget qu'il touche disparaît), ce qui
+              // interromprait son tap en plein geste dès l'entrée en mode
+              // ajustement. `IgnorePointer` les neutralise sans les démonter.
+              IgnorePointer(
+                ignoring: isAdjusting,
+                child: Row(
+                  children: [
+                    Expanded(child: _half(-1)),
+                    Expanded(child: _half(1)),
+                  ],
+                ),
+              ),
+              IgnorePointer(child: _readout(color)),
+              if (isAdjusting)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _stepRow(constraints.maxWidth),
+                ),
+            ],
           ),
-          IgnorePointer(child: _readout(color)),
-          if (isAdjusting) ...[
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: notifier.exitAdjustMode,
-              child: const SizedBox.expand(),
-            ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: _stepRow(),
-            ),
-          ],
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -219,20 +408,38 @@ class _LifeDialState extends ConsumerState<LifeDial> {
 
   /// Paliers ±5 / ±10 (spec §2.4). Ils couvrent les montants ronds ; la
   /// molette couvre le reste.
-  Widget _stepRow() {
+  ///
+  /// Aucun bouton ne porte plus son propre `GestureDetector` : la sélection
+  /// se fait en glissant le doigt de l'appui long jusqu'ici, sans jamais le
+  /// lever (`_endAdjustGesture` résout le palier survolé via `_stepKeys` au
+  /// relâchement). Chaque bouton ne sert donc que de cible géométrique.
+  Widget _stepRow(double zoneWidth) {
+    final inset = zoneWidth * _stepRowSideMargin;
     return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          for (final delta in const [-10, -5, 5, 10])
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => _emit(delta),
+      // La clé porte sur la `Row`, pas sur ce `Padding` : un `Padding` qui
+      // déflate puis relaie une largeur illimitée à son enfant (une `Row` en
+      // `mainAxisSize.max`, le défaut) reprend exactement la largeur qu'il
+      // vient de retirer — son PROPRE rendu mesure donc toujours la largeur
+      // du parent, quel que soit `inset`. Le test de géométrie (§5.4) doit
+      // mesurer la largeur réellement resserrée, pas celle de ce wrapper.
+      padding: EdgeInsets.fromLTRB(inset, 8, inset, 8),
+      // `IntrinsicHeight` borne la hauteur de la rangée à celle de son
+      // contenu : sans lui, chaque bouton (dont le `Container` a un
+      // `alignment` non nul) s'étire pour remplir toute la hauteur lâche mais
+      // bornée que lui offre l'`Align(bottomCenter)` du `Stack` — soit
+      // quasiment toute la hauteur du cadran, ce qui rendrait n'importe quel
+      // relâchement (même loin du bas visuel) éligible à un palier.
+      child: IntrinsicHeight(
+        child: Row(
+          key: const ValueKey('life_step_row'),
+          children: [
+            for (final delta in const [-10, -5, 5, 10])
+              Expanded(
+                child: Padding(
+                  key: ValueKey('life_step_$delta'),
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
                   child: Container(
+                    key: _stepKeys[delta],
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color: delta < 0
@@ -252,8 +459,8 @@ class _LifeDialState extends ConsumerState<LifeDial> {
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -269,6 +476,9 @@ class _LifeDialState extends ConsumerState<LifeDial> {
       // sur l'une ou l'autre moitié, est annulé avant de basculer, pour
       // qu'aucun ±1 ne fuite au moment de l'entrée en mode ajustement.
       _cancelAllPendingTaps();
+      // Round de correction 2 : nouvelle entrée en mode ajustement, nouveau
+      // geste à comptabiliser depuis zéro (voir `_wheelSumSinceAdjust`).
+      _wheelSumSinceAdjust = 0;
       HapticFeedback.mediumImpact();
       notifier.enterAdjustMode();
     });
@@ -279,6 +489,14 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     _longPressTimer = null;
   }
 
+  /// `onTapUp`/`onTapCancel` ne connaissent QUE le tap ±1 (spec §2.1),
+  /// jamais le mode ajustement : câbler `_endAdjustGesture` ici serait faux,
+  /// parce que ces deux callbacks se déclenchent à la résolution de
+  /// l'ARÈNE de gestes, pas au lever du doigt — `onTapCancel` en particulier
+  /// part dès que le pointeur dépasse `kTouchSlop` (18px), donc en plein
+  /// glissement vers un palier, bien avant que le doigt ne l'atteigne. Voir
+  /// le doc-comment de `_endAdjustGesture`, câblée uniquement sur
+  /// `onPointerUp` du `Listener` racine.
   Widget _half(int delta) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

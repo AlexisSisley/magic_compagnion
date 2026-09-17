@@ -16,6 +16,7 @@ import '../../providers/player_zone_notifier.dart';
 // Sub-widgets
 import 'player_header.dart';
 import 'life_log.dart';
+import 'layouts/density_tier.dart';
 import 'zone/life_dial.dart';
 import 'zone/conditional_handle.dart';
 import 'zone/player_skin_picker.dart';
@@ -71,7 +72,16 @@ class PlayerZone extends ConsumerStatefulWidget {
   /// élimination et dégâts de commandant y vivent désormais tous (voir
   /// player_drawer.dart) — PlayerZone n'a plus besoin de callbacks dédiés à
   /// chacun d'eux.
-  final VoidCallback? onOpenDrawer;
+  ///
+  /// Ronde de correction 1 (tâche 2, v2 multijoueur) : reçoit maintenant
+  /// `_rotate90Degrees` et l'ouverture du sélecteur de couleur en argument.
+  /// L'appelant (`life_counter_page.dart`, seul à connaître la session pour
+  /// construire `showPlayerDrawer(...)`) les relaie tels quels au tiroir, qui
+  /// devient le point d'accès GARANTI à la rotation et à la couleur à tous
+  /// les crans de densité -- y compris `minimal`, où `PlayerHeader` (leur
+  /// seul autre point d'accès) est masqué.
+  final void Function(VoidCallback onRotate, VoidCallback onShowColorPicker)?
+      onOpenDrawer;
 
   final Function(Color) onColorChanged;
   final Function(int)? onRotationChanged;
@@ -99,7 +109,10 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
 
   /// Hauteur réservée à l'en-tête (palette, rotation, nom) au-dessus du
   /// cadran de vie (spec §2.1 : le chiffre occupe le reste de la zone).
-  static const double _headerHeight = 40.0;
+  ///
+  /// DÉRIVÉE de `density_tier.dart` (tâche 2), jamais recopiée : c'est la
+  /// même valeur que `kZoneHeaderHeight`, dont `kZoneShortEdgeFloor` dépend.
+  static const double _headerHeight = kZoneHeaderHeight;
 
   // --- US-14.3 : Animation controllers ---
   late final AnimationController _pulseController;
@@ -189,8 +202,17 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
   /// Remonte un delta de vie : la zone ne mute plus le `Player` en place
   /// (V4 — voir le tiroir pour les compteurs), elle se contente d'émettre et
   /// de jouer le retour visuel (pulse/shake + nombre flottant).
-  void _triggerChange(int change) {
+  ///
+  /// [silent] (round de correction 3 de `LifeDial`) : un delta d'annulation
+  /// interne (la molette croisée en route vers un palier, jamais un geste de
+  /// l'utilisateur) ne doit produire NI bulle, NI pulsation/tremblement — la
+  /// mutation de vie elle-même (`onLifeChanged`) a quand même lieu, puisque
+  /// c'est elle qui rend le NET juste au buffer de la page. Sans ce garde,
+  /// l'utilisateur verrait une bulle annonçant un gain (ou une perte) de vie
+  /// qui n'a jamais eu lieu, juste avant celle du palier réellement visé.
+  void _triggerChange(int change, {bool silent = false}) {
     widget.onLifeChanged(change);
+    if (silent) return;
     _showFloatingNumber(change);
     if (change > 0) {
       _pulseController.forward(from: 0);
@@ -281,172 +303,225 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
           .fold<int>(0, (max, v) => v > max ? v : max),
     );
 
-    // US-14.3 : Glow monarch via AnimatedBuilder
-    Widget content = AnimatedBuilder(
-      animation: _glowController,
-      builder: (context, child) {
-        final bool isMonarch = widget.player.isMonarch;
-        final double glowOpacity = isMonarch && _glowController.isAnimating ? _glowAnimation.value : 0.0;
-        return Container(
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(18),
-            border: widget.isHighlighted
-                ? Border.all(color: AppColors.textPrimary, width: 4)
-                : isMonarch
-                    ? Border.all(color: AppColors.primaryBright.withValues(alpha: glowOpacity), width: 3)
-                    : Border.all(color: AppColors.borderSubtle, width: 1),
-            boxShadow: [
-              BoxShadow(color: AppColors.textOnPrimary.withValues(alpha: 0.4), blurRadius: 4, offset: const Offset(2, 2)),
-              if (isMonarch)
-                BoxShadow(color: AppColors.primaryBright.withValues(alpha: glowOpacity * 0.6), blurRadius: 16, spreadRadius: 2),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: child,
+    // Extrait pour être réutilisé tel quel par le tiroir (ronde de
+    // correction 1, tâche 2) : PlayerHeader et PlayerDrawer doivent ouvrir
+    // EXACTEMENT le même sélecteur, sans dupliquer ces paramètres.
+    void openColorPicker() => showPlayerSkinPicker(
+          context: context,
+          player: widget.player,
+          onColorChanged: widget.onColorChanged,
+          onSkinChanged: widget.onSkinChanged,
+          localCardService: _localCardService,
         );
-      },
-      child: Stack(
-        children: [
-          // Background
-          Positioned.fill(child: backgroundWidget),
-          Positioned.fill(child: Container(color: AppColors.textOnPrimary.withValues(alpha: 0.3))),
 
-          // Corps central : en-tête (palette/rotation/nom), le chiffre de vie
-          // occupe tout le reste (spec §2.1), la poignée conditionnelle ferme
-          // la zone en bas (spec §2.2).
-          Positioned.fill(
-            child: Column(
-              children: [
-                SizedBox(
-                  height: _headerHeight,
-                  child: PlayerHeader(
-                    onShowColorPicker: () => showPlayerSkinPicker(
-                      context: context,
-                      player: widget.player,
-                      onColorChanged: widget.onColorChanged,
-                      onSkinChanged: widget.onSkinChanged,
-                      localCardService: _localCardService,
-                    ),
-                    onRotate: _rotate90Degrees,
-                    onLongPressStart: (details) {
-                      // Un nouveau geste ne doit pas hériter du résidu d'un
-                      // geste précédent, achevé sans franchir le seuil (voir
-                      // le doc-comment de `resetRotationDrag`).
-                      _notifier.resetRotationDrag();
-                      _lastLongPressPosition = details.localPosition;
-                      HapticFeedback.selectionClick();
-                    },
-                    onLongPressMoveUpdate: (details) {
-                      final double delta = details.localPosition.dx - _lastLongPressPosition.dx;
-                      _lastLongPressPosition = details.localPosition;
-                      _handleRotationDrag(delta);
-                    },
-                    playerName: widget.player.name,
-                    onNameTap: widget.onNameTap,
-                  ),
-                ),
-                Expanded(
-                  // US-14.3 : pulse (gain de vie) et shake (dégâts) — le
-                  // chiffre occupe tout le cadran désormais, l'animation
-                  // s'applique donc au cadran entier plutôt qu'à un Text isolé
-                  // comme au temps de LifeDisplay.
-                  child: AnimatedBuilder(
-                    animation: Listenable.merge([_pulseController, _shakeController]),
-                    builder: (context, child) {
-                      final double scale = _pulseController.isAnimating ? _pulseAnimation.value : 1.0;
-                      final double shakeX = _shakeController.isAnimating ? _shakeAnimation.value : 0.0;
-                      return Transform.translate(
-                        offset: Offset(shakeX, 0),
-                        child: Transform.scale(scale: scale, child: child),
-                      );
-                    },
-                    child: LifeDial(
-                      playerId: widget.player.id,
-                      life: widget.player.life,
-                      onDelta: _triggerChange,
-                    ),
-                  ),
-                ),
-                ConditionalHandle(
-                  summary: counterSummary,
-                  onTap: widget.onOpenDrawer,
-                ),
+    // Tâche 2 (v2 multijoueur) : construit le corps de la zone pour un
+    // `DensityTier` donné. Extrait en fonction plutôt qu'assigné directement
+    // à une variable locale, car il doit être appelé DEPUIS le `LayoutBuilder`
+    // posé DANS le `RotatedBox` ci-dessous -- le seul endroit où les
+    // contraintes sont exprimées dans le repère du joueur (voir le
+    // doc-comment de `tierFor`).
+    Widget buildContent(DensityTier tier) {
+      final double handleHeight = handleHeightFor(tier);
+
+      // US-14.3 : Glow monarch via AnimatedBuilder
+      return AnimatedBuilder(
+        animation: _glowController,
+        builder: (context, child) {
+          final bool isMonarch = widget.player.isMonarch;
+          final double glowOpacity = isMonarch && _glowController.isAnimating ? _glowAnimation.value : 0.0;
+          return Container(
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(18),
+              border: widget.isHighlighted
+                  ? Border.all(color: AppColors.textPrimary, width: 4)
+                  : isMonarch
+                      ? Border.all(color: AppColors.primaryBright.withValues(alpha: glowOpacity), width: 3)
+                      : Border.all(color: AppColors.borderSubtle, width: 1),
+              boxShadow: [
+                BoxShadow(color: AppColors.textOnPrimary.withValues(alpha: 0.4), blurRadius: 4, offset: const Offset(2, 2)),
+                if (isMonarch)
+                  BoxShadow(color: AppColors.primaryBright.withValues(alpha: glowOpacity * 0.6), blurRadius: 16, spreadRadius: 2),
               ],
             ),
-          ),
+            clipBehavior: Clip.antiAlias,
+            child: child,
+          );
+        },
+        child: Stack(
+          children: [
+            // Background
+            Positioned.fill(child: backgroundWidget),
+            Positioned.fill(child: Container(color: AppColors.textOnPrimary.withValues(alpha: 0.3))),
 
-          // Floating numbers overlay — la liste vit dans le notifier (voir
-          // `_showFloatingNumber`) : `watch` pour reconstruire l'overlay
-          // quand un nombre apparaît, s'anime ou disparaît.
-          LifeLog(
-            floatingNumbers: ref
-                .watch(playerZoneNotifierProvider(widget.player.id))
-                .floatingNumbers,
-          ),
-
-          // Commander gallery quick-switch (top-right)
-          if (widget.player.commanderGallery.isNotEmpty)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: GestureDetector(
-                onTap: () => showCommanderGallery(
-                  context: context,
-                  player: widget.player,
-                  onSkinChanged: widget.onSkinChanged,
-                ),
-                child: Container(
-                  width: 32, height: 32,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.surfaceDarkest.withAlpha(180),
-                    border: Border.all(color: AppColors.borderMedium, width: 1),
+            // Corps central : en-tête (palette/rotation/nom), le chiffre de vie
+            // occupe tout le reste (spec §2.1), la poignée conditionnelle ferme
+            // la zone en bas (spec §2.2).
+            //
+            // Cran de densité (tâche 2) : au cran `minimal`, la zone n'a plus
+            // la place pour le nom -- l'en-tête entier (`PlayerHeader`) est
+            // masqué, seuls les PV restent lisibles.
+            Positioned.fill(
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: tier == DensityTier.minimal ? 0 : _headerHeight,
+                    child: tier == DensityTier.minimal
+                        ? const SizedBox.shrink()
+                        : PlayerHeader(
+                            key: const ValueKey('player-zone-header'),
+                            onShowColorPicker: openColorPicker,
+                            onRotate: _rotate90Degrees,
+                            onLongPressStart: (details) {
+                              // Un nouveau geste ne doit pas hériter du résidu d'un
+                              // geste précédent, achevé sans franchir le seuil (voir
+                              // le doc-comment de `resetRotationDrag`).
+                              _notifier.resetRotationDrag();
+                              _lastLongPressPosition = details.localPosition;
+                              HapticFeedback.selectionClick();
+                            },
+                            onLongPressMoveUpdate: (details) {
+                              final double delta = details.localPosition.dx - _lastLongPressPosition.dx;
+                              _lastLongPressPosition = details.localPosition;
+                              _handleRotationDrag(delta);
+                            },
+                            playerName: widget.player.name,
+                            onNameTap: widget.onNameTap,
+                          ),
                   ),
-                  child: const Icon(Icons.swap_horiz, color: AppColors.textPrimary, size: 18),
-                ),
+                  Expanded(
+                    // US-14.3 : pulse (gain de vie) et shake (dégâts) — le
+                    // chiffre occupe tout le cadran désormais, l'animation
+                    // s'applique donc au cadran entier plutôt qu'à un Text isolé
+                    // comme au temps de LifeDisplay.
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([_pulseController, _shakeController]),
+                      builder: (context, child) {
+                        final double scale = _pulseController.isAnimating ? _pulseAnimation.value : 1.0;
+                        final double shakeX = _shakeController.isAnimating ? _shakeAnimation.value : 0.0;
+                        return Transform.translate(
+                          offset: Offset(shakeX, 0),
+                          child: Transform.scale(scale: scale, child: child),
+                        );
+                      },
+                      child: LifeDial(
+                        playerId: widget.player.id,
+                        life: widget.player.life,
+                        onDelta: _triggerChange,
+                      ),
+                    ),
+                  ),
+                  ConditionalHandle(
+                    summary: counterSummary,
+                    onTap: widget.onOpenDrawer == null
+                        ? null
+                        : () => widget.onOpenDrawer!(
+                              _rotate90Degrees,
+                              openColorPicker,
+                            ),
+                    height: handleHeight,
+                    // Sous le cran `comfort`, plus de place pour le résumé
+                    // des compteurs secondaires : la poignée reste un simple
+                    // trait, mais demeure le point d'entrée du tiroir.
+                    showSummary: tier == DensityTier.comfort,
+                  ),
+                ],
               ),
             ),
 
-          // Rangée d'attribution à la volée (spec S2.6) — voir le
-          // doc-comment de `attributionOpponents` : ancrée juste au-dessus
-          // de la poignée conditionnelle, comme la rangée de paliers
-          // ±5/±10 de `LifeDial._stepRow()`. Les deux ne coexistent jamais
-          // (l'appelant masque `attributionOpponents` en mode ajustement,
-          // ronde de correction finale Critical #1) : plus besoin de
-          // partager le même 30px du bas sans se recouvrir.
-          if (widget.attributionOpponents != null &&
-              widget.attributionOpponents!.isNotEmpty)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: ConditionalHandle.reservedHeight,
-              child: Center(
-                child: DamageAttributionRow(
-                  opponents: widget.attributionOpponents!,
-                  onAttribute: widget.onAttributeDamage!,
-                ),
-              ),
+            // Floating numbers overlay — la liste vit dans le notifier (voir
+            // `_showFloatingNumber`) : `watch` pour reconstruire l'overlay
+            // quand un nombre apparaît, s'anime ou disparaît.
+            LifeLog(
+              floatingNumbers: ref
+                  .watch(playerZoneNotifierProvider(widget.player.id))
+                  .floatingNumbers,
             ),
 
-          // Highlight overlay
-          if (widget.isHighlighted)
-            Container(
-              color: AppColors.overlayMedium,
-              alignment: Alignment.center,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(border: Border.all(color: AppColors.textPrimary, width: 2), borderRadius: BorderRadius.circular(8)),
-                child: Text('Start ?', style: AppTextStyles.pageTitle()),
+            // Commander gallery quick-switch (top-right)
+            if (widget.player.commanderGallery.isNotEmpty)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: GestureDetector(
+                  onTap: () => showCommanderGallery(
+                    context: context,
+                    player: widget.player,
+                    onSkinChanged: widget.onSkinChanged,
+                  ),
+                  child: Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.surfaceDarkest.withAlpha(180),
+                      border: Border.all(color: AppColors.borderMedium, width: 1),
+                    ),
+                    child: const Icon(Icons.swap_horiz, color: AppColors.textPrimary, size: 18),
+                  ),
+                ),
               ),
-            )
-        ],
-      ),
-    );
+
+            // Rangée d'attribution à la volée (spec S2.6) — voir le
+            // doc-comment de `attributionOpponents` : ancrée juste au-dessus
+            // de la poignée conditionnelle, comme la rangée de paliers
+            // ±5/±10 de `LifeDial._stepRow()`. Les deux ne coexistent jamais
+            // (l'appelant masque `attributionOpponents` en mode ajustement,
+            // ronde de correction finale Critical #1) : plus besoin de
+            // partager le même 30px du bas sans se recouvrir.
+            if (widget.attributionOpponents != null &&
+                widget.attributionOpponents!.isNotEmpty)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: handleHeight,
+                child: Center(
+                  child: DamageAttributionRow(
+                    opponents: widget.attributionOpponents!,
+                    onAttribute: widget.onAttributeDamage!,
+                  ),
+                ),
+              ),
+
+            // Highlight overlay
+            if (widget.isHighlighted)
+              Container(
+                color: AppColors.overlayMedium,
+                alignment: Alignment.center,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(border: Border.all(color: AppColors.textPrimary, width: 2), borderRadius: BorderRadius.circular(8)),
+                  child: Text('Start ?', style: AppTextStyles.pageTitle()),
+                ),
+              )
+          ],
+        ),
+      );
+    }
 
     return RotatedBox(
       quarterTurns: widget.player.quarterTurns,
-      child: content,
+      // Le `LayoutBuilder` vit DANS le `RotatedBox` pour que la `Size` qu'il
+      // lit soit exprimée dans le repère du joueur (spec tâche 2).
+      //
+      // Ronde de correction 2 : ce placement n'a AUCUN effet observable
+      // aujourd'hui, et aucun test ne peut le garantir. `RenderRotatedBox`
+      // retourne déjà lui-même les contraintes retournées à son enfant
+      // (`constraints.flipped` pour un `quarterTurns` impair), et `tierFor`
+      // ne regarde que `math.min(width, height)`, symétrique par
+      // construction : `min(W, H) == min(H, W)`. Le déplacer hors du
+      // `RotatedBox` ne changerait donc aucun résultat mesurable ici.
+      //
+      // Il tient par convention -- pas par nécessité actuelle -- et ne
+      // deviendrait réellement load-bearing que le jour où `tierFor`
+      // cesserait d'être symétrique (une règle différente selon l'axe,
+      // par exemple). D'ici là, ne le lis pas comme une garantie testée :
+      // c'en est une pour l'avenir, pas pour le présent.
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tier = tierFor(Size(constraints.maxWidth, constraints.maxHeight));
+          return buildContent(tier);
+        },
+      ),
     );
   }
 }

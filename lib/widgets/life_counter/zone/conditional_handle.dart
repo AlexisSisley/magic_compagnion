@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:magic_companion/models/counter_type.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
+import '../layouts/density_tier.dart';
 
 /// Ce qui menace un joueur, condensé.
 class CounterSummary {
@@ -55,6 +56,8 @@ class ConditionalHandle extends StatelessWidget {
     required this.summary,
     this.onTap,
     this.maxVisibleChips = 4,
+    this.height = reservedHeight,
+    this.showSummary = true,
   });
 
   final CounterSummary summary;
@@ -63,13 +66,11 @@ class ConditionalHandle extends StatelessWidget {
   /// Nombre maximal de puces rendues avant troncature en "+N" (voir
   /// `_visibleChips`).
   ///
-  /// PARAMÉTRABLE À DESSEIN, à ne pas figer : la poignée peut désormais
-  /// recevoir n'importe quel nombre de compteurs (compteurs personnalisés),
-  /// et la largeur disponible varie selon le cran de densité choisi par la
-  /// disposition de la table. Ce fichier ne sait que résumer N compteurs ;
-  /// combien en montrer à chaque cran est une décision de mise en page qui
-  /// revient à la session qui refond cette disposition, sur sa maquette --
-  /// pas à ce widget.
+  /// PARAMÉTRABLE À DESSEIN, à ne pas figer : la poignée peut recevoir
+  /// n'importe quel nombre de compteurs (compteurs personnalisés), et la
+  /// largeur disponible varie selon le cran de densité. Ce fichier ne sait
+  /// que résumer N compteurs ; combien en montrer à chaque cran est une
+  /// décision de mise en page qui revient à la disposition de la table.
   ///
   /// Le défaut ci-dessous (4, la limite historique à quatre champs fixes)
   /// est PROVISOIRE : priorisation par gravité (valeur décroissante) puis
@@ -81,24 +82,31 @@ class ConditionalHandle extends StatelessWidget {
   /// tient pas se compte, il ne se cache pas.
   final int maxVisibleChips;
 
-  /// Hauteur réservée en permanence, calme ou non. Sans réservation, la zone
+  /// Hauteur effective de la poignée : dépend du `DensityTier` de la zone
+  /// parente, via `handleHeightFor`. Reste au-dessus de [reservedHeight] par
+  /// construction de `handleHeightFor` — voir `density_tier.dart`.
+  final double height;
+
+  /// Sous le cran `comfort` (voir `DensityTier`), la zone n'a plus la place
+  /// d'afficher le résumé des compteurs secondaires : la poignée reste un
+  /// simple trait, tout en restant un point d'entrée tactile vers le tiroir.
+  final bool showSummary;
+
+  /// Hauteur minimale, calme ou non, en dessous de laquelle la poignée
+  /// devient impossible à attraper. Sans réservation permanente, la zone
   /// changerait de hauteur utile en cours de partie et le chiffre de PV
   /// sauterait — visible surtout à 8 joueurs sur petit écran.
   ///
-  /// NE PAS CHANGER cette valeur sans concertation : le chantier de
-  /// disposition de la table en dérive `kZoneShortEdgeFloor`, qui gouverne à
-  /// son tour si une zone peut recevoir une colonne latérale.
-  ///
-  /// Volontairement, ce commentaire ne recopie NI la somme NI le total : ces
-  /// valeurs vivent là-bas et y ont déjà bougé une fois (l'en-tête est passé
-  /// de 40 à 48, mesuré sur la cible minimale d'un `IconButton` Material,
-  /// donc le plancher de 70 à 78). Un nombre recopié ici se périmerait en
-  /// silence — c'est exactement le défaut qui a valu au lot 6 de devoir
-  /// dériver `kZoneShortEdgeFloor` au lieu de le figer.
+  /// DÉRIVÉE de `density_tier.dart`, jamais recopiée : c'est le même 30 px
+  /// que `kZoneHandleHeight`, dont la disposition de la table dérive à son
+  /// tour `kZoneShortEdgeFloor` — qui gouverne si une zone peut recevoir une
+  /// colonne latérale. Recopier un nombre ici le périmerait en silence : le
+  /// lot 6 l'a payé une fois avec une somme figée, et l'en-tête a bougé
+  /// depuis (40 → 48, mesuré sur la cible minimale d'un `IconButton`).
   ///
   /// Si le contenu de la poignée manque de place, la réponse est
   /// `maxVisibleChips` ci-dessus, jamais cette constante.
-  static const double reservedHeight = 30.0;
+  static const double reservedHeight = kZoneHandleHeight;
 
   /// Clé du marqueur minimal non textuel (voir `_overflowMarker`) rendu à la
   /// place du "+N" quand même celui-ci ne tient plus dans la largeur
@@ -142,8 +150,8 @@ class ConditionalHandle extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: SizedBox(
-        height: reservedHeight,
-        child: summary.isCalm ? _grip() : _band(),
+        height: height,
+        child: (showSummary && !summary.isCalm) ? _band() : _grip(),
       ),
     );
   }

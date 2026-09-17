@@ -1,6 +1,7 @@
 // lib/models/game_session.dart
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/player_config.dart';
+import 'package:magic_companion/models/table_seat.dart';
 
 class LifeEvent {
   final int delta;
@@ -207,6 +208,13 @@ class GameSession {
   }
 
   Map<String, dynamic> toJson() => {
+    // Marqueur de migration des rotations (spec §8.1). Tout snapshot écrit par
+    // ce code porte déjà ses `quarterTurns` définitifs : `_migrateLegacyRotation`
+    // ne doit plus jamais s'exécuter dessus, sans quoi un joueur qui choisit
+    // délibérément « Même sens » (soit [0, 0, 0, 0], exactement ce que
+    // l'heuristique prend pour un ancien snapshot) verrait son choix écrasé par
+    // les défauts de sièges à chaque rechargement.
+    'rotationsMigrated': true,
     'id': id,
     'format': format.toJson(),
     'players': players.map((p) => p.toJson()).toList(),
@@ -225,9 +233,15 @@ class GameSession {
         .map((p) => PlayerState.fromJson(p as Map<String, dynamic>))
         .toList();
     final rawPlayerOrder = (json['playerOrder'] as List?)?.cast<int>() ?? [];
-    final (players, playerOrder) = rawPlayerOrder.length == rawPlayers.length
+    final (orderedPlayers, playerOrder) = rawPlayerOrder.length == rawPlayers.length
         ? _migrateLegacyOrder(rawPlayers, rawPlayerOrder)
         : (rawPlayers, rawPlayerOrder);
+
+    // Le marqueur est absent de tous les snapshots antérieurs à cette version :
+    // ce sont eux, et eux seuls, que la migration doit toucher.
+    final players = json['rotationsMigrated'] == true
+        ? orderedPlayers
+        : _migrateLegacyRotation(orderedPlayers, playerOrder);
 
     return GameSession(
       id: json['id'] as String,
@@ -278,6 +292,43 @@ class GameSession {
       return (canonicalPlayers, physicalOrder);
     }
     return (players, playerOrder);
+  }
+
+  /// Migration silencieuse des rotations de siège (spec §8.1), gardée par le
+  /// marqueur `rotationsMigrated` de [toJson]/[fromJson].
+  ///
+  /// Ne s'exécute que sur un snapshot antérieur au marqueur. Sans le garde de
+  /// [fromJson], l'heuristique ci-dessous — « tous les `quarterTurns` à 0 » —
+  /// confondrait un choix délibéré (le preset « Même sens » produit
+  /// exactement `[0, 0, 0, 0]`) avec un ancien snapshot, et l'écraserait à
+  /// chaque rechargement.
+  static List<PlayerState> _migrateLegacyRotation(
+      List<PlayerState> players, List<int> playerOrder) {
+    if (players.length <= 1) return players;
+    if (players.any((p) => p.quarterTurns != 0)) return players;
+    // `playerOrder` est vide pour tout snapshot antérieur à ce champ : sans
+    // cette retombée, la migration ne toucherait aucun joueur réel.
+    final effectiveOrder = playerOrder.length == players.length
+        ? playerOrder
+        : players.map((p) => p.playerId).toList();
+    // Revue finale (ruling 21) : `allowSideColumns: false`, explicitement.
+    // Le modèle n'a pas accès à la taille de l'écran, et `seatsFor` sans
+    // drapeau pose des sièges latéraux — c'est exactement ce que le ruling 12
+    // a interdit ailleurs (deux sources de vérité sur la géométrie qui
+    // divergent). Un snapshot hérité ouvert sur téléphone en PORTRAIT poserait
+    // alors 90° et 270° dans des cases horizontales dès le premier lancement
+    // après mise à jour : texte couché pour deux joueurs sur quatre.
+    //
+    // Le repli face-à-face est le seul choix lisible sur TOUS les écrans. Si
+    // la géométrie réelle veut des colonnes latérales, le joueur la retrouve
+    // en un tap sur le preset « Table », qui, lui, connaît l'écran.
+    final seats = seatsFor(effectiveOrder.length, allowSideColumns: false);
+    final byId = {for (final p in players) p.playerId: p};
+    for (int i = 0; i < effectiveOrder.length; i++) {
+      final id = effectiveOrder[i];
+      byId[id] = byId[id]!.copyWith(quarterTurns: seats[i].quarterTurns);
+    }
+    return players.map((p) => byId[p.playerId]!).toList();
   }
 
   static bool _intListEquals(List<int> a, List<int> b) {

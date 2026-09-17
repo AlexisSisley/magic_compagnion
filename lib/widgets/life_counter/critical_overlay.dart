@@ -124,34 +124,54 @@ class _CriticalOverlayState extends State<CriticalOverlay>
     super.dispose();
   }
 
+  /// Revue finale (Critical #2) : la PROFONDEUR de l'arbre rendu ici est
+  /// INVARIANTE — l'`AnimatedBuilder` et son `DecoratedBox` sont toujours
+  /// montés, seule la décoration varie.
+  ///
+  /// La version précédente renvoyait `widget.child` nu au cran `safe` et
+  /// l'enveloppait au-delà. C'est mot pour mot la cause racine documentée
+  /// dans `life_counter_page.dart` (« profondeur d'arbre invariante ») :
+  /// envelopper conditionnellement insère un niveau, `Element.updateChild`
+  /// ne retrouve plus le même type de widget à ce niveau, Flutter détruit le
+  /// sous-arbre et le reconstruit — le `State` de `LifeDial` est recréé AVEC
+  /// LE DOIGT ENCORE POSÉ, `_trackedPointer` repart à `null`, et le geste
+  /// meurt en silence. Mesuré : un glissé vers « −5 » depuis 21 PV donnait
+  /// −1 au lieu de −5, parce que la descente franchissait le seuil
+  /// `safe → warning` en route. Depuis 40 ou depuis 11 PV, où la descente ne
+  /// franchit aucun seuil, le même geste donnait bien −5.
+  ///
+  /// Toute évolution de ce `build` doit conserver cette propriété : une
+  /// branche qui renvoie `widget.child` sans passer par le même
+  /// enveloppement ressuscite le défaut.
   @override
   Widget build(BuildContext context) {
-    if (widget.level == CriticalLevel.safe) {
-      return widget.child;
-    }
-
+    final isSafe = widget.level == CriticalLevel.safe;
     final baseColor = CriticalOverlay.borderColorForLevel(widget.level);
 
     return AnimatedBuilder(
       animation: _opacityAnimation,
       builder: (context, child) {
         return DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: baseColor.withValues(alpha: _opacityAnimation.value),
-              width: widget.level == CriticalLevel.lethal ? 4.0 : 3.0,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: baseColor.withValues(
-                  alpha: _opacityAnimation.value * 0.5,
+          decoration: isSafe
+              // Au cran `safe`, la décoration est vide : rien n'est peint,
+              // mais le niveau d'arbre reste occupé par le même widget.
+              ? const BoxDecoration()
+              : BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: baseColor.withValues(alpha: _opacityAnimation.value),
+                    width: widget.level == CriticalLevel.lethal ? 4.0 : 3.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: baseColor.withValues(
+                        alpha: _opacityAnimation.value * 0.5,
+                      ),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
-                blurRadius: 12,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
           child: child,
         );
       },
