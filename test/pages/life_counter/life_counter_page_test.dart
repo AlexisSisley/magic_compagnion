@@ -21,7 +21,6 @@ import 'package:magic_companion/services/counter_type_service.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/widgets/life_counter/death_confirmation_overlay.dart';
-import 'package:magic_companion/widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/layouts/table_layout.dart';
 import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
