@@ -39,12 +39,12 @@ void main() {
     });
 
     test('une colonne rendue n\'est JAMAIS sous le plancher', () {
-      for (final size in [phoneLandscape, tabletPortrait, tabletLandscape]) {
+      for (final size in [phoneLandscape, Size(400, 380), tabletPortrait, tabletLandscape]) {
         for (int n = 2; n <= 8; n++) {
           final layout = tableLayoutFor(size, n);
           if (layout.useSideColumns) {
             expect(layout.sideWidth,
-                greaterThanOrEqualTo(kZoneShortEdgeFloor),
+                greaterThanOrEqualTo(kSideColumnNeed),
                 reason: '$size à $n joueurs');
           }
         }
