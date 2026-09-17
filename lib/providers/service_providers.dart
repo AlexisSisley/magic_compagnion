@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/database/app_database.dart';
 import '../services/backup_service.dart';
 import '../services/bulk_data_service.dart';
+import '../services/card_resolver.dart';
 import '../services/collection_service.dart';
 import '../services/counter_type_service.dart';
 import '../services/deck_service.dart';
@@ -46,10 +47,17 @@ final scryfallApiServiceProvider = Provider<ScryfallApiService>((ref) {
 
 // --- Services avec injection de la base drift + API ---
 
+final cardResolverProvider = Provider<CardResolver>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  final api = ref.watch(scryfallApiServiceProvider);
+  return CardResolver(api: api, db: db);
+});
+
 final collectionServiceProvider = Provider<CollectionService>((ref) {
   final db = ref.watch(appDatabaseProvider);
   final api = ref.watch(scryfallApiServiceProvider);
-  return CollectionService(database: db, api: api);
+  final resolver = ref.watch(cardResolverProvider);
+  return CollectionService(database: db, api: api, resolver: resolver);
 });
 
 final deckServiceProvider = Provider<DeckService>((ref) {
