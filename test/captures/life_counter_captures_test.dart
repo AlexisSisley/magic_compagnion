@@ -83,14 +83,23 @@ ThemeData _appTheme() => ThemeData(
       scaffoldBackgroundColor: AppColors.scaffoldBackground,
     );
 
-/// Charge une police REELLE du systeme (jamais copiee dans le depot, jamais
-/// une dependance pubspec) et l'enregistre sous [family] pour ce process de
-/// test -- voir le commentaire de fichier.
+/// Charge une pile de polices REELLES du systeme (jamais copiees dans le
+/// depot, jamais une dependance pubspec) sous UNE seule famille [family],
+/// pour ce process de test -- voir le commentaire de fichier.
 ///
-/// Echoue bruyamment (`fail`, pas une exception avalee) si [absolutePath]
-/// n'existe pas : une capture qui retombe silencieusement sur du tofu est
-/// exactement le piege que ce mecanisme existe pour eviter, pas une
-/// degradation acceptable.
+/// Plusieurs [absolutePaths], pas un seul : un `FontLoader` accepte
+/// plusieurs `addFont` pour la MEME famille, et Flutter essaie chaque
+/// police de la pile, dans l'ordre, jusqu'a trouver un glyphe -- c'est ce
+/// qui permet a Segoe UI Emoji de prendre le relais glyphe par glyphe la ou
+/// Segoe UI (texte) n'en a pas, sous le MEME nom de famille compose, sans
+/// toucher `fontFamilyFallback` (dont la trouvaille precedente a montre
+/// qu'il ne prend pas le relais ici -- voir le commentaire de
+/// `_loadRealFontsForCaptures`).
+///
+/// Echoue bruyamment (`fail`, pas une exception avalee) si l'un des
+/// [absolutePaths] n'existe pas : une capture qui retombe silencieusement
+/// sur du tofu est exactement le piege que ce mecanisme existe pour eviter,
+/// pas une degradation acceptable.
 ///
 /// Lecture SYNCHRONE (`readAsBytesSync`), pas `await file.readAsBytes()` --
 /// verifie empiriquement (probe isole) que la variante async reste bloquee
@@ -100,20 +109,23 @@ ThemeData _appTheme() => ThemeData(
 /// haut). La lecture synchrone d'un petit fichier local est un simple appel
 /// bloquant, sans cette dependance -- pas la meme classe de risque qu'un
 /// `tester.runAsync` sur un appel reseau (explicitement ecarte).
-Future<void> _loadSystemFont(String family, String absolutePath) async {
-  final file = File(absolutePath);
-  if (!file.existsSync()) {
-    fail(
-      'Police systeme introuvable : "$absolutePath" (attendue pour charger '
-      'la famille "$family"). Sans elle, cette capture rendrait du texte en '
-      'tofu illisible au lieu d\'echouer -- voir le commentaire de fichier '
-      'sur `_loadSystemFont`. Ajuste le chemin pour la machine qui '
-      'regenere ces PNG.',
-    );
+Future<void> _loadSystemFont(String family, List<String> absolutePaths) async {
+  final loader = FontLoader(family);
+  for (final absolutePath in absolutePaths) {
+    final file = File(absolutePath);
+    if (!file.existsSync()) {
+      fail(
+        'Police systeme introuvable : "$absolutePath" (attendue pour charger '
+        'la famille "$family"). Sans elle, cette capture rendrait du texte en '
+        'tofu illisible au lieu d\'echouer -- voir le commentaire de fichier '
+        'sur `_loadSystemFont`. Ajuste le chemin pour la machine qui '
+        'regenere ces PNG.',
+      );
+    }
+    final bytes = file.readAsBytesSync();
+    final byteData = ByteData.view(Uint8List.fromList(bytes).buffer);
+    loader.addFont(Future.value(byteData));
   }
-  final bytes = file.readAsBytesSync();
-  final byteData = ByteData.view(Uint8List.fromList(bytes).buffer);
-  final loader = FontLoader(family)..addFont(Future.value(byteData));
   await loader.load();
 }
 
@@ -127,7 +139,10 @@ String get _windowsFontsDir {
 
 /// Charge les polices reelles dont le rendu de ces captures a besoin (voir
 /// le commentaire de fichier) : Segoe UI pour le texte courant ('Roboto',
-/// repli Flutter par defaut) ET pour celui de `AppTextStyles` (Cinzel).
+/// repli Flutter par defaut) ET pour celui de `AppTextStyles` (Cinzel), PLUS
+/// Segoe UI Emoji en second de pile sur ces memes familles -- l'emoji EST
+/// l'icone d'un compteur (pas de selecteur d'icones pour un compteur
+/// personnalise), donc sa lisibilite n'est pas cosmetique dans ce lot.
 ///
 /// **Trouvaille (probe isole, a consigner) :** `fontFamilyFallback` ne
 /// prend PAS le relais quand la famille primaire est introuvable, contre
@@ -148,10 +163,28 @@ String get _windowsFontsDir {
 /// style `AppTextStyles` (poids different, ou `lifeNumeral`/`Roboto Mono`),
 /// reimprime son `.fontFamily` et ajoute la famille composee correspondante
 /// ici -- le nom nu ('Cinzel', 'Roboto Mono') ne suffit pas.
+///
+/// **L'emoji, glyphe par glyphe -- et l'ORDRE de la pile, pas seulement sa
+/// composition :** un `FontLoader` accepte plusieurs `addFont` pour UNE
+/// MEME famille, ce qui evite `fontFamilyFallback` (dont la trouvaille
+/// ci-dessus a montre qu'il ne prend pas le relais ici). Mais l'hypothese
+/// initiale -- Segoe UI (texte) en premier, Segoe UI Emoji en second, "l'un
+/// apres l'autre jusqu'a trouver le glyphe" -- ne tenait pas : verifie par
+/// un probe A/B isole, Segoe UI PUIS Segoe UI Emoji laissait l'emoji en
+/// tofu (le moteur semble committer la police du PREMIER fichier qui
+/// couvre le TEXTE du passage entier, pas retenter le suivant glyphe par
+/// glyphe). Segoe UI Emoji PUIS Segoe UI, dans le meme probe, rendait a la
+/// fois le texte ET l'emoji -- Segoe UI Emoji couvre suffisamment le Latin
+/// de base pour servir de police de tete. D'ou l'ordre choisi ci-dessous :
+/// l'emoji EN PREMIER dans la pile.
 Future<void> _loadRealFontsForCaptures() async {
-  await _loadSystemFont('Roboto', '$_windowsFontsDir\\segoeui.ttf');
-  await _loadSystemFont('Cinzel_600', '$_windowsFontsDir\\segoeui.ttf'); // AppTextStyles.cardTitle()
-  await _loadSystemFont('Cinzel_regular', '$_windowsFontsDir\\segoeui.ttf'); // AppTextStyles.body()
+  final textAndEmoji = [
+    '$_windowsFontsDir\\seguiemj.ttf',
+    '$_windowsFontsDir\\segoeui.ttf',
+  ];
+  await _loadSystemFont('Roboto', textAndEmoji);
+  await _loadSystemFont('Cinzel_600', textAndEmoji); // AppTextStyles.cardTitle()
+  await _loadSystemFont('Cinzel_regular', textAndEmoji); // AppTextStyles.body()
 
   // Bonus (pas demande explicitement, mais gratuit et directement utile a
   // la lisibilite de ces captures) : les boutons +/- (`Icons.remove`/
@@ -167,10 +200,10 @@ Future<void> _loadRealFontsForCaptures() async {
     final materialIconsPath =
         '$flutterRoot\\bin\\cache\\artifacts\\material_fonts\\MaterialIcons-Regular.otf';
     if (File(materialIconsPath).existsSync()) {
-      await _loadSystemFont('MaterialIcons', materialIconsPath);
+      await _loadSystemFont('MaterialIcons', [materialIconsPath]);
     }
     // Absent : pas de `fail()` ici (contrairement a `_loadSystemFont`) --
-    // ce n'est pas une des trois polices minimales demandees, seulement un
+    // ce n'est pas une des polices minimales demandees, seulement un
     // bonus. Les icones +/- resteraient alors en tofu, visible et signale
     // dans le rapport, jamais une illisibilite qui se cache.
   }
