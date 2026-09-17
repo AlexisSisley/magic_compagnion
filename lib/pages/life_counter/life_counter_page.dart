@@ -100,6 +100,35 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   // Edit mode state
   bool _isEditMode = false;
 
+  // Ronde de correction 2 (tâche 5) : `MediaQuery.sizeOf(context)` donne la
+  // taille de l'ÉCRAN, pas celle que `AdaptiveGrid` reçoit réellement de son
+  // propre `LayoutBuilder` -- un `Scaffold` porteur d'une
+  // `bottomNavigationBar` (le shell de production, `AppShellScaffold`)
+  // ampute cette dernière de la hauteur de la barre. Deux sources de vérité
+  // sur la géométrie, la même classe de défaut que le double-pivotement du
+  // lot 6 et que la ronde de correction précédente de cette tâche. Cette clé
+  // permet de lire la taille RÉELLEMENT mesurée par la grille (après sa
+  // disposition), au lieu de la deviner depuis l'écran.
+  final GlobalKey _gridKey = GlobalKey();
+
+  /// Taille réellement occupée par `AdaptiveGrid`, lue sur son `RenderBox`
+  /// après disposition -- jamais mutée pendant un `build()`, seulement lue
+  /// depuis des callbacks post-frame (gestes, feuilles modales).
+  ///
+  /// Retombée sur `MediaQuery.sizeOf(context)` si la grille n'a pas encore de
+  /// contexte (premier appel avant le tout premier `build()`, ou test qui
+  /// n'a monté que la grille sans lui laisser une frame) : c'est la taille de
+  /// l'écran, donc potentiellement en excès de la hauteur d'une barre de
+  /// navigation -- une approximation, pas la source de vérité, et signalée
+  /// comme telle ici plutôt que silencieuse.
+  Size _measuredGridSize(BuildContext context) {
+    final renderObject = _gridKey.currentContext?.findRenderObject();
+    if (renderObject is RenderBox && renderObject.hasSize) {
+      return renderObject.size;
+    }
+    return MediaQuery.sizeOf(context);
+  }
+
   // History sheet state
   int? _historyFilterPlayerId;
 
@@ -948,6 +977,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     }).toList();
 
     return AdaptiveGrid(
+      key: _gridKey,
       playerZones: playerZones,
       centralBar: _buildCentralBar(),
       // TODO(task 6): remplacer par le vrai hub d'actions.
@@ -1073,8 +1103,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // divergeaient, la même classe de défaut que le double-pivotement du lot
     // 6. Il faut lire les sièges dans la MÊME disposition que celle que
     // `AdaptiveGrid` a réellement rendue, donc via `tableLayoutFor`.
+    //
+    // Ronde de correction 2 : `MediaQuery.sizeOf(context)` donnait la taille
+    // de l'ÉCRAN, encore une source différente de celle qu'`AdaptiveGrid`
+    // mesure réellement (voir `_measuredGridSize`) — remplacé taille de la
+    // grille mesurée via `_gridKey`.
     final seats =
-        tableLayoutFor(MediaQuery.sizeOf(context), order.length).seats;
+        tableLayoutFor(_measuredGridSize(context), order.length).seats;
     for (final displayIndex in {oldIndex, newIndex}) {
       _controller.updateRotation(
           order[displayIndex], seats[displayIndex].quarterTurns);
@@ -1467,8 +1502,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // porte déjà la rotation « face à face » correcte pour un siège donné,
     // quel que soit son côté (haut/bas/gauche/droite) : pas besoin de la
     // recalculer ici.
-    final seats =
-        tableLayoutFor(MediaQuery.of(context).size, count).seats;
+    //
+    // Ronde de correction 2 (tâche 5) : `_measuredGridSize` lit la taille
+    // RÉELLEMENT occupée par `AdaptiveGrid`, pas celle de l'écran — voir sa
+    // docstring pour la raison (barre de navigation du shell de production).
+    final seats = tableLayoutFor(_measuredGridSize(context), count).seats;
     final faceToFace = [for (final seat in seats) seat.quarterTurns];
     final allSame = List.filled(count, 0);
     return [
@@ -1506,7 +1544,10 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // obéir. Un topCount supposé (moitié haute / moitié basse) est faux dès
     // que des colonnes latérales entrent en jeu : à 4 joueurs, les index 1
     // et 3 finissent à droite et à gauche, pas en bas.
-    final seats = tableLayoutFor(MediaQuery.of(context).size, count).seats;
+    //
+    // Ronde de correction 2 (tâche 5) : taille RÉELLE de la grille, pas celle
+    // de l'écran (voir `_measuredGridSize`).
+    final seats = tableLayoutFor(_measuredGridSize(context), count).seats;
 
     List<int> indicesOn(TableSide side) {
       final indices = <int>[];
