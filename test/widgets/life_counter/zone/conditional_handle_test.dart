@@ -273,7 +273,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull,
-        reason: 'aucun débordement, à AUCUNE largeur -- pas de '
+        reason: 'aucun débordement à cette largeur -- pas de '
             'RenderFlex overflowed, même silencieux en release : c\'est '
             'exactement le mécanisme qui a fait revenir en arrière le lot 6');
 
@@ -326,7 +326,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull,
-        reason: 'aucun débordement, à AUCUNE largeur -- même quand il n\'y a '
+        reason: 'aucun débordement à cette largeur -- même quand il n\'y a '
             'plus la place de compter, "+N" compris');
     expect(find.byKey(ConditionalHandle.overflowMarkerKey), findsOneWidget,
         reason: 'un contenu qui ne tient nulle part ne doit ni déborder ni '
@@ -458,5 +458,102 @@ void main() {
             'hiddenCount vaut encore 3 ici, c\'est que la coupe par largeur '
             'n\'a pas eu lieu -- ce test ne prouverait alors que le cas '
             'maxVisibleChips déjà couvert par un autre test');
+  });
+
+  testWidgets(
+      'cas combiné : le résultat peut être INTERMÉDIAIRE (ni zéro, ni le '
+      'nombre que maxVisibleChips seul aurait laissé) -- ici, exactement '
+      'deux puces visibles', (tester) async {
+    // Mêmes 6 entrées que le test combiné ci-dessus, mais une largeur
+    // choisie pour s'arrêter sur un résultat non trivial : ni les 3 puces
+    // que maxVisibleChips seul aurait laissées, ni 0 (marqueur).
+    const summary = CounterSummary(
+      counters: [
+        MapEntry(_poison, 90),
+        MapEntry(_energy, 80),
+        MapEntry(_custom, 70),
+        MapEntry(_alpha, 60),
+        MapEntry(_beta, 50),
+      ],
+      worstCommanderDamage: 100,
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 210,
+              child: ConditionalHandle(summary: summary, maxVisibleChips: 4),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(ConditionalHandle.overflowMarkerKey), findsNothing,
+        reason: 'ce cas doit rester dans le régime "chiffres", pas tomber '
+            'jusqu\'au marqueur -- sinon il ne prouve rien d\'intermédiaire');
+
+    final overflowFinder = find.textContaining('+');
+    expect(overflowFinder, findsOneWidget);
+    final overflowText = tester.widget<Text>(overflowFinder).data!;
+    final hiddenCount = int.parse(overflowText.substring(1));
+    final visibleChipsCount =
+        tester.widgetList<Text>(find.byType(Text)).length - 1; // - le "+N"
+
+    expect(visibleChipsCount, 2,
+        reason: 'résultat intermédiaire attendu : ni les 3 puces que '
+            'maxVisibleChips seul aurait laissées, ni 0');
+    expect(visibleChipsCount + hiddenCount, 6);
+  });
+
+  // --- Ronde de correction 3 : la revue a mesuré un écart d'environ 1,5px
+  // entre la mesure isolée d'une puce (TextPainter sans contrainte) et sa
+  // mise en page réelle (le même Text dans un Padding puis une Row
+  // contrainte), concentré dans une bande étroite de largeurs (~88,5-90px
+  // dans son scénario) où la mesure répondait "ça tient" alors que le rendu
+  // débordait de 0,5 à 1,5px. `_layoutSafetyMargin` absorbe cet écart.
+
+  testWidgets(
+      'la marge de sécurité absorbe l\'écart mesure/mise en page réelle : '
+      'aucune exception dans la bande de largeurs où l\'écart se produisait '
+      '(~88,5-90px, scénario donné par la revue)', (tester) async {
+    const summary = CounterSummary(
+      counters: [
+        MapEntry(_poison, 9),
+        MapEntry(_energy, 8),
+        MapEntry(_custom, 7),
+      ],
+      worstCommanderDamage: 6,
+    );
+
+    for (final width in <double>[90, 89, 88.5]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: width,
+                child: const ConditionalHandle(
+                  summary: summary,
+                  maxVisibleChips: 10,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull,
+          reason: 'largeur ${width}px : aucune exception de débordement, '
+              'y compris dans la bande où la mesure isolée et le rendu '
+              'réel divergeaient de ~1,5px');
+    }
   });
 }

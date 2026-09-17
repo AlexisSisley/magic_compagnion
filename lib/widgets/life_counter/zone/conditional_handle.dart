@@ -96,6 +96,22 @@ class ConditionalHandle extends StatelessWidget {
   /// privé.
   static const overflowMarkerKey = ValueKey('conditional_handle_overflow_marker');
 
+  /// Marge de sécurité entre la mesure isolée d'une puce (`TextPainter`,
+  /// posé sans contrainte, voir `_chipTextWidth`) et sa mise en page réelle
+  /// (le même `Text`, empaqueté dans un `Padding` puis dans une `Row`
+  /// contrainte par la largeur disponible) : les deux ne se posent jamais
+  /// tout à fait pareil.
+  ///
+  /// Ronde de correction 3 : la revue a mesuré un écart d'environ 1,5px
+  /// entre les deux, concentré dans une bande étroite de largeurs
+  /// (~88,5-90px dans son scénario), où la mesure isolée répondait « ça
+  /// tient » alors que le rendu réel débordait de 0,5 à 1,5px -- ni un
+  /// problème de police, ni de direction de texte (vérifié dans les deux
+  /// sens). `2.0` arrondit cet écart mesuré au pixel logique supérieur :
+  /// large marge sur ~1,5px sans retirer une puce plus tôt que nécessaire
+  /// dans les cas usuels.
+  static const double _layoutSafetyMargin = 2.0;
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -176,18 +192,24 @@ class ConditionalHandle extends StatelessWidget {
   /// -- puces affichées + `"+N"` le cas échéant -- ne tient toujours pas
   /// dans `maxWidth`, les puces les moins graves cèdent une à une leur
   /// place au `"+N"`, qui recompte alors TOUTES celles qui manquent (pas
-  /// seulement celles que `maxVisibleChips` avait écartées).
+  /// seulement celles que `maxVisibleChips` avait écartées). Si même le
+  /// `"+N"` seul ne tient plus, un marqueur minimal non textuel
+  /// (`_overflowMarker`) prend sa place -- jamais de défilement, jamais de
+  /// puce rétrécie sous le seuil lisible.
   ///
-  /// Ronde de correction 2, Critical 1 : cette boucle protège la
-  /// TRANSITION vers le "+N", jamais le "+N" lui-même une fois qu'il est le
-  /// seul contenu restant -- une largeur assez extrême (peu de place, ou
-  /// une seule valeur énorme) peut faire déborder le "+N" à son tour. Le
-  /// dernier contrôle ci-dessous couvre ce cas : si même `"+N"` seul ne
-  /// tient pas, on rend un marqueur minimal non textuel (`_overflowMarker`)
-  /// plutôt que de laisser déborder -- jamais de défilement, jamais de
-  /// puce rétrécie sous le seuil lisible : la seule variable qui cède est
-  /// COMBIEN de puces sont effectivement rendues, et en dernier recours,
-  /// s'il faut même renoncer à dire combien.
+  /// **Ce que cette méthode garantit, et ce qu'elle ne garantit PAS**
+  /// (ronde de correction 3, après un troisième débordement, sous-pixel
+  /// celui-là, trouvé par la revue) : c'est une troncature par largeur
+  /// MESURÉE, avec `_layoutSafetyMargin` en coussin -- elle vise l'absence
+  /// de débordement VISIBLE, pas une garantie exacte au pixel. La mesure
+  /// (`_chipTextWidth`, un `TextPainter` isolé sans contrainte) et la mise
+  /// en page réelle (les mêmes `Text` empaquetés dans des `Padding` puis
+  /// dans la `Row` contrainte de `_band`) ne se posent jamais tout à fait
+  /// pareil ; la marge absorbe cet écart plutôt que de prétendre le
+  /// supprimer. Un précédent commentaire ici annonçait « aucun débordement,
+  /// à aucune largeur » -- c'était faux (un écart sous-pixel est passé au
+  /// travers, voir le rapport de la ronde 3) et c'est cette formulation,
+  /// pas le mécanisme, qu'il fallait corriger.
   _ChipsFit _fitChips(double maxWidth, TextScaler textScaler) {
     final entries = <_ChipData>[
       if (summary.worstCommanderDamage > 0)
@@ -204,17 +226,23 @@ class ConditionalHandle extends StatelessWidget {
     var hiddenCount = entries.length - shown.length;
 
     if (maxWidth.isFinite) {
+      // Le budget retranche `_layoutSafetyMargin` à `maxWidth` : on exige
+      // que le contenu tienne dans la largeur disponible MOINS ce coussin,
+      // pas exactement dedans (voir le doc-comment de la méthode et de
+      // `_layoutSafetyMargin`).
+      final budget = maxWidth - _layoutSafetyMargin;
+
       while (shown.isNotEmpty &&
-          _rowWidth(shown, hiddenCount, textScaler) > maxWidth) {
+          _rowWidth(shown, hiddenCount, textScaler) > budget) {
         shown = shown.sublist(0, shown.length - 1);
         hiddenCount = entries.length - shown.length;
       }
 
       // Le "+N" seul peut encore déborder : la boucle ci-dessus s'arrête
       // dès que `shown` est vide sans jamais vérifier que le "+N" restant,
-      // seul, tient dans `maxWidth`.
+      // seul, tient dans le budget.
       if (hiddenCount > 0 &&
-          _rowWidth(const [], hiddenCount, textScaler) > maxWidth) {
+          _rowWidth(const [], hiddenCount, textScaler) > budget) {
         return const _ChipsFit.marker();
       }
     }
