@@ -19,19 +19,47 @@ class TranslationWorker {
 
   /// Traite les taches pretes. Rend le nombre de taches retirees de la file.
   /// Un seul drain a la fois : un second appel concurrent rend 0 immediatement.
+  ///
+  /// Aucun acces base n'est laisse a decouvert : une panne se consigne (via
+  /// `log`, comme pour une traduction reportee) et le drain rend ce qu'il a
+  /// pu accomplir plutot que de lever. Une panne sur une tache ne condamne
+  /// pas les suivantes de la meme passe.
   Future<int> drain({int maxTasks = 50}) async {
     if (_running) return 0;
     _running = true;
     int completed = 0;
 
     try {
-      final tasks = await _db.nextTranslationTasks(limit: maxTasks);
+      List<DbTranslationTask> tasks;
+      try {
+        tasks = await _db.nextTranslationTasks(limit: maxTasks);
+      } catch (e) {
+        // Rien a traiter si on ne peut meme pas lire la file.
+        log('Lecture de la file de traduction impossible: $e',
+            name: 'TranslationWorker');
+        return 0;
+      }
+
       for (final task in tasks) {
-        final owned = await _db.getCardPrint(task.scryfallId);
+        DbCardPrint? owned;
+        try {
+          owned = await _db.getCardPrint(task.scryfallId);
+        } catch (e) {
+          // Panne isolee a cette tache : on passe a la suivante de la passe.
+          log('Lecture du tirage possede impossible (${task.scryfallId}): $e',
+              name: 'TranslationWorker');
+          continue;
+        }
+
         if (owned == null) {
           // Le tirage possede n'est plus en cache : la tache n'a plus d'objet.
-          await _db.completeTranslationTask(task.id);
-          completed++;
+          try {
+            await _db.completeTranslationTask(task.id);
+            completed++;
+          } catch (e) {
+            log('Cloture de la tache orpheline impossible (${task.id}): $e',
+                name: 'TranslationWorker');
+          }
           continue;
         }
 
@@ -49,7 +77,12 @@ class TranslationWorker {
         } catch (e) {
           log('Traduction reportee (${task.scryfallId}/${task.lang}): $e',
               name: 'TranslationWorker');
-          await _db.failTranslationTask(task.id, e.toString());
+          try {
+            await _db.failTranslationTask(task.id, e.toString());
+          } catch (e2) {
+            log('Enregistrement de l\'echec impossible (${task.id}): $e2',
+                name: 'TranslationWorker');
+          }
         }
       }
     } finally {

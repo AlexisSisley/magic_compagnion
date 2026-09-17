@@ -26,6 +26,23 @@ Dio _mockDio(Object Function(RequestOptions) handler) {
   return dio;
 }
 
+/// Double pour prouver qu'une panne base isolee a une tache n'empeche pas
+/// le traitement des taches suivantes de la meme passe : [getCardPrint]
+/// leve pour [_failingScryfallId] et delegue normalement pour le reste.
+class _FlakyCardPrintDb extends AppDatabase {
+  final String _failingScryfallId;
+
+  _FlakyCardPrintDb(super.executor, this._failingScryfallId);
+
+  @override
+  Future<DbCardPrint?> getCardPrint(String scryfallId) {
+    if (scryfallId == _failingScryfallId) {
+      throw Exception('panne simulee getCardPrint');
+    }
+    return super.getCardPrint(scryfallId);
+  }
+}
+
 void main() {
   late AppDatabase db;
 
@@ -124,5 +141,66 @@ void main() {
 
     expect(done, 1);
     expect(await db.select(db.translationTasks).get(), isEmpty);
+  });
+
+  test('une panne de lecture de la file fait rendre 0 sans lever', () async {
+    final brokenDb = AppDatabase(NativeDatabase.memory());
+    await brokenDb.close();
+    final dio = _mockDio((_) => 503);
+    final worker = TranslationWorker(
+      resolver: CardResolver(api: ScryfallApiService(dio: dio), db: brokenDb),
+      db: brokenDb,
+    );
+
+    final done = await worker.drain();
+
+    expect(done, 0);
+  });
+
+  test('une panne sur une tache n empeche pas le traitement des autres',
+      () async {
+    final flakyDb = _FlakyCardPrintDb(NativeDatabase.memory(), 'panne-id');
+    await flakyDb.upsertCardPrint(DbCardPrint(
+      scryfallId: _enId,
+      oracleId: _oracleId,
+      setCode: 'eld',
+      collectorNumber: '146',
+      lang: 'en',
+      oracleName: 'Thrill of Possibility',
+      printedName: null,
+      printedText: null,
+      imageUri: null,
+      fetchedAt: DateTime.utc(2026, 9, 17),
+    ));
+    final dio = _mockDio((_) => {
+          'id': 'fr-id',
+          'oracle_id': _oracleId,
+          'name': 'Thrill of Possibility',
+          'printed_name': 'Frisson de probabilité',
+          'set': 'eld',
+          'collector_number': '146',
+          'lang': 'fr',
+        });
+    final worker = TranslationWorker(
+      resolver: CardResolver(api: ScryfallApiService(dio: dio), db: flakyDb),
+      db: flakyDb,
+    );
+    // Enfilee en premier : sa lecture de tirage possede va lever.
+    await flakyDb.enqueueTranslation(
+      scryfallId: 'panne-id', setCode: 'xxx', collectorNumber: '1', lang: 'fr',
+    );
+    // Enfilee ensuite : doit quand meme etre traitee malgre la panne precedente.
+    await flakyDb.enqueueTranslation(
+      scryfallId: _enId, setCode: 'eld', collectorNumber: '146', lang: 'fr',
+    );
+
+    final done = await worker.drain();
+
+    expect(done, 1);
+    final remaining = await flakyDb.select(flakyDb.translationTasks).get();
+    expect(remaining, hasLength(1));
+    expect(remaining.first.scryfallId, 'panne-id');
+
+    await flakyDb.close();
   });
 }
