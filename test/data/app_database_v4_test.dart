@@ -67,6 +67,21 @@ void main() {
     });
   });
 
+  group('Index de projection', () {
+    test(
+        "l'index idx_card_prints_oracle_lang existe sur une base fraichement creee (onCreate)",
+        () async {
+      final rows = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'index' AND name = 'idx_card_prints_oracle_lang'",
+          )
+          .get();
+
+      expect(rows, hasLength(1));
+    });
+  });
+
   group('Absences de traduction', () {
     test('une absence non enregistree est fausse', () async {
       expect(await db.isTranslationAbsent('oracle-dreadbore', 'fr'), isFalse);
@@ -137,6 +152,53 @@ void main() {
       );
 
       expect(await db.nextTranslationTasks(), hasLength(1));
+    });
+
+    test(
+        'une tache en echec est exclue de nextTranslationTasks mais reste dans la table',
+        () async {
+      await db.enqueueTranslation(
+        scryfallId: 'en-id', setCode: 'eld', collectorNumber: '146', lang: 'fr',
+      );
+      final task = (await db.nextTranslationTasks()).first;
+
+      await db.failTranslationTask(task.id, 'SocketException');
+
+      // La conjonction des deux faits est ce qui prouve le filtre temporel :
+      // si la clause WHERE nextAttemptAt <= now disparaissait un jour de
+      // nextTranslationTasks(), la premiere assertion se mettrait a echouer
+      // alors que la seconde resterait vraie.
+      expect(await db.nextTranslationTasks(), isEmpty);
+      expect(await db.select(db.translationTasks).get(), hasLength(1));
+    });
+
+    test(
+        'le backoff borne l exposant avant le decalage : pas de debordement, '
+        'plafond d une heure respecte meme avec beaucoup de tentatives',
+        () async {
+      await db.enqueueTranslation(
+        scryfallId: 'en-id', setCode: 'eld', collectorNumber: '146', lang: 'fr',
+      );
+      final task = (await db.nextTranslationTasks()).first;
+
+      // 70 echecs successifs : avec l'ancien code (1 << (attempts - 1)),
+      // ceci deborderait l'int64 et produirait un delai negatif des
+      // attempts = 64, remettant la tache immediatement en file.
+      for (var i = 0; i < 70; i++) {
+        await db.failTranslationTask(task.id, 'SocketException');
+      }
+
+      final after = await db.select(db.translationTasks).get();
+      expect(after, hasLength(1));
+      expect(after.first.attempts, 70);
+
+      final delay = after.first.nextAttemptAt.difference(DateTime.now());
+      expect(after.first.nextAttemptAt.isAfter(DateTime.now()), isTrue);
+      expect(delay.inSeconds, lessThanOrEqualTo(3600));
+      expect(delay.inSeconds, greaterThan(3500));
+
+      // La tache plafonnee reste hors file tant que l'heure n'est pas passee.
+      expect(await db.nextTranslationTasks(), isEmpty);
     });
   });
 }

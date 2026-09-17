@@ -293,6 +293,7 @@ class AppDatabase extends _$AppDatabase {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
         await m.createAll();
+        await _createCardPrintsOracleLangIndex(m);
       },
       onUpgrade: (Migrator m, int from, int to) async {
         if (from < 2) {
@@ -312,15 +313,23 @@ class AppDatabase extends _$AppDatabase {
           await m.createTable(cardPrints);
           await m.createTable(translationAbsences);
           await m.createTable(translationTasks);
-          await m.createIndex(Index(
-            'idx_card_prints_oracle_lang',
-            'CREATE INDEX IF NOT EXISTS idx_card_prints_oracle_lang '
-            'ON card_prints (oracle_id, lang)',
-          ));
+          await _createCardPrintsOracleLangIndex(m);
         }
       },
     );
   }
+
+  /// Cree l'index utilise par [findTranslation]. Appele depuis `onCreate`
+  /// (via `createAll`, qui n'itere que les tables, jamais les index en dur)
+  /// ET depuis la marche `if (from < 4)`, pour que les installations neuves
+  /// et les mises a jour aient toutes deux l'index.
+  Future<void> _createCardPrintsOracleLangIndex(Migrator m) => m.createIndex(
+        Index(
+          'idx_card_prints_oracle_lang',
+          'CREATE INDEX IF NOT EXISTS idx_card_prints_oracle_lang '
+          'ON card_prints (oracle_id, lang)',
+        ),
+      );
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'magic_companion');
@@ -840,7 +849,13 @@ class AppDatabase extends _$AppDatabase {
     if (task == null) return;
 
     final attempts = task.attempts + 1;
-    final delaySeconds = (1 << (attempts - 1)) * 30;
+    // L'exposant est borne AVANT le decalage : au-dela de 7, `1 << exponent`
+    // depasse deja le plafond d'une heure, et un `attempts` sans limite
+    // (des dizaines de tentatives) ferait deborder l'entier si on decalait
+    // par (attempts - 1) directement, produisant un delai negatif qui
+    // court-circuiterait le plafond ci-dessous.
+    final exponent = (attempts - 1) > 7 ? 7 : (attempts - 1);
+    final delaySeconds = (1 << exponent) * 30;
     final capped = delaySeconds > 3600 ? 3600 : delaySeconds;
 
     await (update(translationTasks)..where((t) => t.id.equals(id))).write(
