@@ -5,6 +5,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../data/database/app_database.dart';
 import '../data/secondary_breakfast.dart';
 import '../models/card_print.dart';
 import '../models/deck_model.dart';
@@ -109,6 +110,12 @@ class DeckListController extends StateNotifier<DeckListState> {
   /// Client de recuperation d'un deck Moxfield par URL.
   final MoxfieldDeckClient _moxfieldClient;
 
+  /// Acces direct a la base pour enfiler les traductions manquantes des
+  /// tirages resolus par [importDeckFromMoxfieldUrl] -- [_cardResolver]
+  /// (contrairement a [CollectionService.resolveImportedEntries], utilise
+  /// par [importDeck]) n'enfile rien lui-meme.
+  final AppDatabase _db;
+
   static const Map<String, Map<String, List<String>>> colorFamilies = {
     'Mono': {
       'Blanc': ['W'], 'Bleu': ['U'], 'Noir': ['B'], 'Rouge': ['R'], 'Vert': ['G'], 'Incolore': []
@@ -137,12 +144,14 @@ class DeckListController extends StateNotifier<DeckListState> {
     required TranslationWorker translationWorker,
     required CardResolver cardResolver,
     required MoxfieldDeckClient moxfieldClient,
+    required AppDatabase db,
   })  : _deckService = deckService,
         _localCardService = localCardService,
         _collectionService = collectionService,
         _translationWorker = translationWorker,
         _cardResolver = cardResolver,
         _moxfieldClient = moxfieldClient,
+        _db = db,
         super(const DeckListState()) {
     loadDecks();
   }
@@ -449,8 +458,25 @@ class DeckListController extends StateNotifier<DeckListState> {
 
       await _deckService.updateDeck(newDeck);
 
-      // Les traductions enfilees par la resolution partent sans etre
-      // attendues, exactement comme dans importDeck.
+      // A la difference de CollectionService.resolveImportedEntries (utilise
+      // par importDeck), CardResolver.resolveEditions n'enfile aucune
+      // traduction lui-meme : sans cette boucle, `drain()` ci-dessous videra
+      // une file vide, et un deck importe par URL resterait dans sa langue
+      // d'origine indefiniment, meme si l'utilisateur a choisi une langue
+      // preferee differente.
+      final preferredLang = await readPreferredLanguage();
+      for (final print in resolution.resolved) {
+        if (print.lang == preferredLang) continue;
+        await _db.enqueueTranslation(
+          scryfallId: print.scryfallId,
+          setCode: print.setCode,
+          collectorNumber: print.collectorNumber,
+          lang: preferredLang,
+        );
+      }
+
+      // Les traductions enfilees ci-dessus partent sans etre attendues,
+      // exactement comme dans importDeck.
       unawaited(_translationWorker.drain());
 
       final unresolved = requetes.length - resolution.resolved.length;
@@ -545,6 +571,7 @@ final deckListControllerProvider = StateNotifierProvider.autoDispose<DeckListCon
     final translationWorker = ref.watch(translationWorkerProvider);
     final cardResolver = ref.watch(cardResolverProvider);
     final moxfieldClient = ref.watch(moxfieldDeckClientProvider);
+    final db = ref.watch(appDatabaseProvider);
 
     return DeckListController(
       deckService: deckService,
@@ -553,6 +580,7 @@ final deckListControllerProvider = StateNotifierProvider.autoDispose<DeckListCon
       translationWorker: translationWorker,
       cardResolver: cardResolver,
       moxfieldClient: moxfieldClient,
+      db: db,
     );
   },
 );

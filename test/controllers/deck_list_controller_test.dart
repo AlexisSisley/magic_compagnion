@@ -110,6 +110,7 @@ DeckListController _createImportController({
     // test/controllers/deck_list_moxfield_test.dart pour ces chemins.
     cardResolver: resolver,
     moxfieldClient: MoxfieldDeckClient(),
+    db: db,
   );
 }
 

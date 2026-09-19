@@ -129,6 +129,7 @@ DeckListController _buildController({
     translationWorker: TranslationWorker(resolver: resolver, db: db),
     cardResolver: resolver,
     moxfieldClient: MoxfieldDeckClient(dio: moxfieldDio),
+    db: db,
   );
 }
 
@@ -227,6 +228,115 @@ void main() {
       expect(result.success, isFalse);
       expect(result.message, contains('public'));
       expect(result.message, isNot(contains('DioException')));
+    });
+
+    // =================================================================
+    // La chaine de traduction doit etre fermee (constat 1 de la relecture) :
+    // CardResolver.resolveEditions (impose par la resolution par identifiant
+    // exact) n'enfile rien lui-meme, a la difference de
+    // CollectionService.resolveImportedEntries -- sans une boucle explicite
+    // d'enfilement, `unawaited(_translationWorker.drain())` viderait une
+    // file vide, et un deck importe par URL resterait dans sa langue
+    // d'origine indefiniment.
+    // =================================================================
+
+    test(
+        'les tirages anglais enfilent une traduction vers la langue preferee '
+        '(francais par defaut)', () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final controller = _buildController(
+        moxfieldDio: _mockMoxfieldDio(),
+        // Rend des cartes 'lang': 'en' pour chaque identifiant -- voir
+        // _mockScryfallDio.
+        scryfallDio: _mockScryfallDio([]),
+        db: db,
+      );
+
+      final result = await controller.importDeckFromMoxfieldUrl(
+          'https://moxfield.com/decks/f-27i01CpkmBPljy89HQeA');
+
+      expect(result.success, isTrue, reason: result.message);
+
+      // Verifie IMMEDIATEMENT apres le retour de importDeckFromMoxfieldUrl,
+      // avant que le drain (unawaited, donc pas encore attendu) n'ait eu la
+      // moindre chance de vider la file -- le vidage reel necessite
+      // plusieurs tours de boucle d'evenements (voir _waitForEmptyQueue dans
+      // deck_list_controller_test.dart), jamais un seul `await`.
+      final tasks = await db.nextTranslationTasks();
+      expect(tasks, isNotEmpty,
+          reason: 'les tirages resolus sont en anglais et la langue '
+              'preferee par defaut est le francais : sans enfilement, ce '
+              'deck resterait en anglais indefiniment');
+      expect(tasks.every((t) => t.lang == 'fr'), isTrue);
+    });
+
+    test('un tirage deja dans la langue preferee n\'enfile aucune traduction',
+        () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final scryfallDio = _mockDio((options) {
+        final body = options.data as Map;
+        final identifiers =
+            (body['identifiers'] as List).cast<Map<String, dynamic>>();
+        final data = [
+          for (final identifier in identifiers)
+            {
+              'id': identifier['id'],
+              'oracle_id': 'oracle-${identifier['id']}',
+              'name': identifier['id'],
+              'set': 'tst',
+              'collector_number': '1',
+              // Deja dans la langue preferee par defaut (francais) : aucune
+              // traduction ne doit etre enfilee pour ce tirage.
+              'lang': 'fr',
+              'color_identity': <String>[],
+            },
+        ];
+        return {'data': data, 'not_found': []};
+      });
+      final controller = _buildController(
+        moxfieldDio: _mockMoxfieldDio(),
+        scryfallDio: scryfallDio,
+        db: db,
+      );
+
+      final result = await controller.importDeckFromMoxfieldUrl(
+          'https://moxfield.com/decks/f-27i01CpkmBPljy89HQeA');
+
+      expect(result.success, isTrue, reason: result.message);
+      expect(await db.nextTranslationTasks(), isEmpty);
+    });
+
+    // =================================================================
+    // Le commandant doit figurer dans le mainboard (constat 2 de la
+    // relecture) : Moxfield le decrit dans un board "commanders" distinct du
+    // "mainboard" -- _deckJson() ne place 'toph-id' que dans "commanders".
+    // =================================================================
+
+    test(
+        'le commandant absent du mainboard Moxfield rejoint le mainboard '
+        'avec quantite 1', () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final controller = _buildController(
+        moxfieldDio: _mockMoxfieldDio(),
+        scryfallDio: _mockScryfallDio([]),
+        db: db,
+      );
+
+      final result = await controller.importDeckFromMoxfieldUrl(
+          'https://moxfield.com/decks/f-27i01CpkmBPljy89HQeA');
+
+      expect(result.success, isTrue, reason: result.message);
+
+      final deckService = DeckService();
+      final decks = await deckService.loadDecks();
+      final deck = decks.firstWhere((d) => d.name == 'Invincible toph');
+
+      final commanderCard =
+          deck.mainboard.firstWhere((c) => c.scryfallId == 'toph-id');
+      expect(commanderCard.quantity, 1);
     });
   });
 }
