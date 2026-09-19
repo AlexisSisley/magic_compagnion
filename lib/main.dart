@@ -22,7 +22,6 @@
 
 import 'dart:async';
 
-import 'package:magic_companion/theme/app_colors.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,6 +39,7 @@ import 'services/card_resolver.dart';
 import 'services/print_backfill_service.dart';
 import 'services/scryfall_api_service.dart';
 import 'services/translation_worker.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -141,17 +141,7 @@ class MagicCompanionApp extends StatelessWidget {
       ],
       supportedLocales: const [Locale('fr', 'FR'), Locale('en', 'US')],
       locale: const Locale('fr', 'FR'),
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: AppColors.scaffoldBackground,
-        appBarTheme:
-            const AppBarTheme(backgroundColor: AppColors.textOnPrimary, elevation: 0),
-        bottomNavigationBarTheme: BottomNavigationBarThemeData(
-          backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.9),
-          selectedItemColor: AppColors.primaryShade800,
-          unselectedItemColor: AppColors.textMuted,
-          type: BottomNavigationBarType.fixed,
-        ),
-      ),
+      theme: buildAppTheme(),
     );
   }
 }
