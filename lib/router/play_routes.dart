@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import '../pages/glossary/glossary_page.dart';
 import '../pages/life_counter/life_counter_page.dart';
 import '../pages/oracle/magic_oracle_page.dart';
+import '../pages/play/play_setup_page.dart';
 import '../pages/tools/hypergeometric_page.dart';
 import '../pages/tournaments/tournament_page.dart';
 import 'app_routes.dart';
@@ -22,10 +23,14 @@ import 'play_shell.dart';
 /// de partie. Cette barre remplace celle de l'app : c'est pour ca que ces
 /// routes sont a la racine du router et non dans le shell d'onglets.
 ///
-/// L'ecran de mise en place (`/play/setup`) arrive a la tache suivante, avec
-/// son provider de partie en cours.
+/// La mise en place, elle, est hors du ShellRoute : il n'y a pas encore de
+/// partie, donc pas de barre d'outils de partie a poser.
 List<RouteBase> playRoutes() {
   return [
+    GoRoute(
+      path: AppRoutes.playSetup,
+      builder: (context, state) => const PlaySetupPage(),
+    ),
     ShellRoute(
       builder: (context, state, child) => PlayShell(
         currentLocation: state.uri.toString(),

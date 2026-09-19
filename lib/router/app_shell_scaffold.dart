@@ -357,7 +357,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
                 style: AppTextStyles.text(fontSize: 11)),
             onTap: () {
               Navigator.pop(context);
-              context.go(AppRoutes.playCounter);
+              context.go(AppRoutes.playSetup);
             },
           ),
           if (kDebugMode)
