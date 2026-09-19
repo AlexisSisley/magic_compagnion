@@ -4,26 +4,31 @@
 
 import 'package:flutter/material.dart';
 
-import 'app_colors.dart';
 import 'magic_palette.dart';
 
-/// Palette du theme sombre.
+/// Palette Grimoire — theme sombre officiel.
 ///
-/// Lot A : valeurs strictement identiques aux AppColors actuelles, pour que
-/// l'introduction de l'extension ne deplace aucun pixel. Les valeurs Grimoire
-/// arrivent au lot B.
+/// Noir d'encre et or patine. L'or remplace `Colors.yellow` : le jaune pur
+/// vibre sur fond noir et fatigue en lecture longue.
+///
+/// Les trois surfaces forment une echelle monotone croissante en luminance
+/// (canvas < raised < overlay) : c'est ce qui permet de lire l'elevation
+/// d'un element sans lui ajouter une ombre.
 const MagicPalette darkPalette = MagicPalette(
-  canvas: AppColors.scaffoldBackground,
-  raised: AppColors.cardBackground,
-  overlay: AppColors.dialogBackground,
-  line: AppColors.borderMedium,
-  inkPrimary: AppColors.textPrimary,
-  inkSecondary: AppColors.textSecondary,
-  inkMuted: AppColors.textMuted,
-  accent: AppColors.primary,
-  onAccent: AppColors.textOnPrimary,
+  canvas: Color(0xFF0E0E11),
+  raised: Color(0xFF191820),
+  overlay: Color(0xFF2A2733),
+  line: Color(0xFF3A3646),
+
+  inkPrimary: Color(0xFFF2EFE6),
+  inkSecondary: Color(0xFFA9A396),
+  inkMuted: Color(0xFF75705F),
+
+  accent: Color(0xFFC9A227),
+  onAccent: Color(0xFF14120B),
+
   // Semantique : valeurs propres, volontairement decalees des couleurs de
-  // mana. Avant ce lot, success valait exactement manaGreen (0xFF4CAF50) et
+  // mana. Avant le lot B, success valait exactement manaGreen (0xFF4CAF50) et
   // un badge "possedee" etait indiscernable d'une carte verte.
   success: Color(0xFF6FD98F),
   warning: Color(0xFFFFA94D),
@@ -39,8 +44,8 @@ ThemeData buildAppTheme() {
       elevation: 0,
     ),
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
-      backgroundColor: darkPalette.onAccent.withValues(alpha: 0.9),
-      selectedItemColor: AppColors.primaryShade800,
+      backgroundColor: darkPalette.raised,
+      selectedItemColor: darkPalette.accent,
       unselectedItemColor: darkPalette.inkMuted,
       type: BottomNavigationBarType.fixed,
     ),

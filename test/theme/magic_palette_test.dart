@@ -1,7 +1,14 @@
 // Fichier : test/theme/magic_palette_test.dart
-// Verifie que MagicPalette est atteignable depuis le contexte, que les jetons
-// de surface et d'encre n'ont pas bouge, et que les jetons semantiques ne se
-// confondent plus avec les couleurs de mana.
+// Verifie que MagicPalette est atteignable depuis le contexte, que lerp
+// interpole bien chaque jeton, et que les jetons semantiques ne se confondent
+// plus avec les couleurs de mana.
+//
+// Le test de non-regression du lot A ("aucune valeur n'a bouge") a disparu :
+// sa fonction etait de prouver que brancher la ThemeExtension ne deplacait
+// aucun pixel, et elle est remplie depuis que le lot A est commite. Au lot B
+// tous les jetons changent de valeur, y compris onAccent — le garder serait
+// verrouiller l'ancienne palette. Le garde-fou durable est contrast_test.dart,
+// qui verifie une propriete vraie quelles que soient les valeurs.
 
 import 'dart:math' as math;
 
@@ -24,33 +31,6 @@ void main() {
     ));
 
     expect(palette, isNotNull);
-  });
-
-  // Les quatre jetons semantiques (success, warning, danger, info) sont
-  // modifies par le lot B : ils n'ont rien a faire dans un test de
-  // non-regression. Ce test ne verrouille donc que les surfaces, les encres
-  // et l'accent.
-  testWidgets("les jetons de surface et d'encre sont inchanges au lot B",
-      (tester) async {
-    late MagicPalette p;
-
-    await tester.pumpWidget(MaterialApp(
-      theme: buildAppTheme(),
-      home: Builder(builder: (context) {
-        p = MagicPalette.of(context);
-        return const SizedBox.shrink();
-      }),
-    ));
-
-    expect(p.canvas, AppColors.scaffoldBackground);
-    expect(p.raised, AppColors.cardBackground);
-    expect(p.overlay, AppColors.dialogBackground);
-    expect(p.line, AppColors.borderMedium);
-    expect(p.inkPrimary, AppColors.textPrimary);
-    expect(p.inkSecondary, AppColors.textSecondary);
-    expect(p.inkMuted, AppColors.textMuted);
-    expect(p.accent, AppColors.primary);
-    expect(p.onAccent, AppColors.textOnPrimary);
   });
 
   test('lerp interpole chaque jeton', () {
