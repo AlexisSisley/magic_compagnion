@@ -151,7 +151,7 @@ class PlaySetupPage extends ConsumerWidget {
                   foregroundColor: p.onAccent,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: Text('Demarrer',
+                child: Text('Démarrer',
                     style: AppTextStyles.buttonText(color: p.onAccent)),
               ),
             ],

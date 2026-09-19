@@ -33,7 +33,7 @@ void main() {
     await tester.pumpWidget(harness(partie: () async => null));
     await tester.pumpAndSettle();
 
-    expect(find.text('Demarrer'), findsOneWidget);
+    expect(find.text('Démarrer'), findsOneWidget);
     expect(find.text('Reprendre la partie en cours'), findsNothing);
   });
 
@@ -44,7 +44,7 @@ void main() {
 
     expect(find.text('Reprendre la partie en cours'), findsOneWidget);
     // Le bouton de creation reste : on peut vouloir abandonner et repartir.
-    expect(find.text('Demarrer'), findsOneWidget);
+    expect(find.text('Démarrer'), findsOneWidget);
   });
 
   testWidgets("l'ecran porte une sortie vers l'accueil", (tester) async {
