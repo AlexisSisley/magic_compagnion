@@ -6,6 +6,16 @@
 //                     name, set, cn, lang } }
 //
 // Voir docs/superpowers/specs/2026-09-19-import-moxfield-design.md
+//
+// Robustesse: une reponse inattendue (API non documentee) ne doit pas casser l'import.
+// Politique de degradation : une structure inattendue produit zero ligne pour ce board ;
+// une entree inattendue est ignoree ; jamais d'exception.
+//
+// Notes de conception :
+// - Une carte presente a la fois dans mainboard et maybeboard produit DEUX lignes
+//   (les deux boards sont semantiquement distincts).
+// - L'ordre des commandants s'appuie sur l'ordre d'iteration de la Map JSON, qui est
+//   deterministe avec dart:convert (LinkedHashMap, ordre d'insertion).
 
 /// Une ligne de deck telle que Moxfield la decrit.
 class MoxfieldCardLine {
@@ -59,22 +69,43 @@ class MoxfieldDeckMapper {
     final lines = <MoxfieldCardLine>[];
 
     for (final entry in _boards.entries) {
-      final cards = ((boards[entry.key] as Map?)?['cards'] as Map?) ?? {};
+      final cardBoard = boards[entry.key];
+      if (cardBoard is! Map) continue;
+      final cardsRaw = cardBoard['cards'];
+      if (cardsRaw is! Map) continue;
+      final cards = cardsRaw.cast<String, dynamic>();
       for (final raw in cards.values) {
         final line = _line(raw, entry.value);
         if (line != null) lines.add(line);
       }
     }
 
-    final commandants = ((boards['commanders'] as Map?)?['cards'] as Map?)?.values.toList() ?? [];
-    final ids = commandants
-        .map((c) => ((c as Map)['card'] as Map?)?['scryfall_id'] as String?)
-        .whereType<String>()
-        .toList();
+    final ids = <String>[];
+    final commandersBoard = boards['commanders'];
+    if (commandersBoard is Map) {
+      final cardsMap = (commandersBoard['cards'] as Map?)?.cast<String, dynamic>();
+      if (cardsMap != null) {
+        for (final raw in cardsMap.values) {
+          if (raw is! Map) continue;
+          final card = raw['card'];
+          if (card is! Map) continue;
+          final id = card['scryfall_id'] as String?;
+          if (id != null && id.isNotEmpty) {
+            ids.add(id);
+          }
+        }
+      }
+    }
+
+    // Normalise la casse du format pour l'affichage utilisateur.
+    String normalizeFormat(String? raw) {
+      if (raw == null || raw.isEmpty) return 'Commander';
+      return raw[0].toUpperCase() + raw.substring(1).toLowerCase();
+    }
 
     return MoxfieldDeckData(
       name: json['name'] as String? ?? 'Deck importé',
-      format: json['format'] as String? ?? 'Commander',
+      format: normalizeFormat(json['format'] as String?),
       lines: lines,
       commanderScryfallId: ids.isNotEmpty ? ids.first : null,
       partnerScryfallId: ids.length > 1 ? ids[1] : null,
@@ -89,10 +120,15 @@ class MoxfieldDeckMapper {
     final id = card['scryfall_id'] as String?;
     if (id == null || id.isEmpty) return null;
 
+    // Valide que quantity est un nombre (pas une chaîne, par ex).
+    final qty = raw['quantity'];
+    final quantity = (qty is num) ? qty.toInt() : (qty is int) ? qty : null;
+    if (quantity == null || quantity < 1) return null;
+
     return MoxfieldCardLine(
       scryfallId: id,
       name: card['name'] as String? ?? '',
-      quantity: (raw['quantity'] as num?)?.toInt() ?? 1,
+      quantity: quantity,
       isFoil: raw['isFoil'] as bool? ?? false,
       isProxy: raw['isProxy'] as bool? ?? false,
       board: board,

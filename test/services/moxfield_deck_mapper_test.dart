@@ -54,7 +54,7 @@ void main() {
     final d = MoxfieldDeckMapper.fromJson(_deck());
 
     expect(d.name, 'Invincible toph');
-    expect(d.format, 'commander');
+    expect(d.format, 'Commander');
   });
 
   test('le commandant est extrait du board commanders', () {
@@ -137,5 +137,64 @@ void main() {
 
     expect(d.lines, hasLength(1));
     expect(d.lines.single.scryfallId, 'bon-id');
+  });
+
+  test('le format est normalise : minuscule en capitalisé', () {
+    final d = MoxfieldDeckMapper.fromJson(_deck());
+
+    expect(d.format, 'Commander');
+  });
+
+  test('boards.mainboard.cards qui n\'est pas une Map est ignoré silencieusement', () {
+    final d = MoxfieldDeckMapper.fromJson(_deck(boards: {
+      'mainboard': {
+        'cards': [
+          {'quantity': 1, 'card': {'scryfall_id': 'x', 'name': 'Bad'}}
+        ]
+      }
+    }));
+
+    expect(d.lines, isEmpty);
+  });
+
+  test('boards.mainboard lui-même qui n\'est pas une Map est ignoré silencieusement', () {
+    final d = MoxfieldDeckMapper.fromJson(_deck(boards: {
+      'mainboard': ['not a map']
+    }));
+
+    expect(d.lines, isEmpty);
+  });
+
+  test('une entrée dans commanders.cards qui n\'est pas une Map n\'explose pas', () {
+    final d = MoxfieldDeckMapper.fromJson(_deck(boards: {
+      'commanders': {
+        'cards': {
+          'a': 'not a map'
+        }
+      },
+      'mainboard': {'cards': <String, dynamic>{}}
+    }));
+
+    expect(d.commanderScryfallId, isNull);
+    expect(d.partnerScryfallId, isNull);
+  });
+
+  test('une quantity qui est une chaine plutot qu\'un nombre est ignoree', () {
+    final d = MoxfieldDeckMapper.fromJson({
+      'name': 'x',
+      'format': 'commander',
+      'boards': {
+        'mainboard': {
+          'cards': {
+            'a': {
+              'quantity': 'deux',
+              'card': {'scryfall_id': 'id', 'name': 'Card'}
+            }
+          }
+        }
+      },
+    });
+
+    expect(d.lines, isEmpty);
   });
 }
