@@ -65,20 +65,37 @@ class CollectionParseResult {
 }
 
 /// Ce qu'un import a produit dans la collection.
+///
+/// Regle 4 : aucune ligne ne disparait en silence. Toute ligne de
+/// [CollectionParseResult.entries] est comptee soit dans [imported], soit
+/// dans [notIdentified] -- jamais ni l'un ni l'autre. Avec les lignes
+/// illisibles du parser (deja comptees en amont, jamais retraitees ici),
+/// l'egalite `imported + notIdentified + unreadableLines.length ==
+/// linesRead` est l'assertion centrale de la suite de tests.
 class CollectionImportResult {
   final int imported;
   final int added;
   final int updated;
   final int tagged;
+
+  /// Nombre de lignes dont aucun tirage n'a pu etre identifie, ni par
+  /// edition exacte ni par repli sur le nom seul.
+  final int notIdentified;
+
   final List<String> unreadableLines;
   final List<String> taggedNames;
+
+  /// Noms des lignes comptees dans [notIdentified], dans l'ordre du fichier.
+  final List<String> notIdentifiedNames;
 
   const CollectionImportResult({
     this.imported = 0,
     this.added = 0,
     this.updated = 0,
     this.tagged = 0,
+    this.notIdentified = 0,
     this.unreadableLines = const [],
     this.taggedNames = const [],
+    this.notIdentifiedNames = const [],
   });
 }

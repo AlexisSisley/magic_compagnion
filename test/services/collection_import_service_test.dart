@@ -238,4 +238,113 @@ void main() {
     expect(r.unreadableLines, ['beaucoup,Sol Ring']);
     expect(r.imported, 0);
   });
+
+  test(
+      'une ligne introuvable par edition ET par nom est comptee non identifiee, '
+      'jamais perdue en silence (regle 4 : imported + notIdentified + illisibles = lignes lues)',
+      () async {
+    final dio = _mockDio((options) {
+      final ids = (options.data as Map)['identifiers'] as List;
+      final data = <Map<String, dynamic>>[];
+      final notFound = <dynamic>[];
+      for (final raw in ids) {
+        final id = raw as Map;
+        if (id['collector_number'] == '284') {
+          data.add(_carte(id: 'ltc-284-en'));
+        } else {
+          // Ni l'edition precise de "Carte Fantome", ni son repli par nom,
+          // ne trouvent de tirage : elle doit rester introuvable partout.
+          notFound.add(id);
+        }
+      }
+      return {'data': data, 'not_found': notFound};
+    });
+
+    const parsed = CollectionParseResult(
+      entries: [
+        CollectionEntry(name: 'Sol Ring', quantity: 2, setCode: 'ltc', collectorNumber: '284'),
+        CollectionEntry(
+            name: 'Carte Fantome', quantity: 1, setCode: 'xxx', collectorNumber: '1'),
+      ],
+      unreadableLines: ['???,???'],
+    );
+
+    final r = await _service(dio).import(parsed, preferredLang: 'fr');
+
+    expect(r.imported, 1);
+    expect(r.notIdentified, 1);
+    expect(r.notIdentifiedNames, contains('Carte Fantome'));
+    expect(r.unreadableLines, ['???,???']);
+    expect(
+      r.imported + r.notIdentified + r.unreadableLines.length,
+      parsed.linesRead,
+      reason: 'aucune ligne ne doit disparaitre en silence',
+    );
+  });
+
+  test(
+      'deux lignes de meme nom mais d editions differentes restent deux lignes '
+      'distinctes avec leurs quantites propres (pas de fusion par appariement partage)',
+      () async {
+    final dio = _mockDio((options) {
+      final ids = (options.data as Map)['identifiers'] as List;
+      final data = <Map<String, dynamic>>[];
+      final notFound = <dynamic>[];
+      for (final raw in ids) {
+        final id = raw as Map;
+        if (id['collector_number'] == '284') {
+          // Edition exacte de la premiere ligne : trouvee.
+          data.add(_carte(id: 'ltc-284-en'));
+        } else if (id.containsKey('collector_number')) {
+          // Edition exacte de la seconde ligne (m19/1) : introuvable, elle
+          // devra passer par le repli sur le nom.
+          notFound.add(id);
+        } else {
+          // Repli par nom seul : rend un tirage DIFFERENT de la premiere
+          // ligne, pour prouver que la seconde ne lui est pas fusionnee.
+          data.add(_carte(id: 'repli-sol-ring', set: 'm19', cn: '1'));
+        }
+      }
+      return {'data': data, 'not_found': notFound};
+    });
+
+    await _service(dio).import(
+      const CollectionParseResult(entries: [
+        CollectionEntry(name: 'Sol Ring', quantity: 3, setCode: 'ltc', collectorNumber: '284'),
+        CollectionEntry(name: 'Sol Ring', quantity: 5, setCode: 'm19', collectorNumber: '1'),
+      ]),
+      preferredLang: 'fr',
+    );
+
+    final rows = await db.getAllCollectionCards();
+    expect(rows, hasLength(2), reason: 'deux tirages distincts, jamais fusionnes');
+
+    final exact = rows.firstWhere((r) => r.scryfallId == 'ltc-284-en');
+    final replie = rows.firstWhere((r) => r.scryfallId == 'repli-sol-ring');
+    expect(exact.quantity, 3);
+    expect(replie.quantity, 5);
+    expect(replie.tags, contains(kNeedsCheckTag));
+  });
+
+  test(
+      'une entree sans edition introuvable n est pas retentee par nom '
+      '(deja tentee au Temps 1, un repli redondant gaspillerait une requete)',
+      () async {
+    var appels = 0;
+    final dio = _mockDio((options) {
+      appels++;
+      final ids = (options.data as Map)['identifiers'] as List;
+      return {'data': <dynamic>[], 'not_found': ids};
+    });
+
+    final r = await _service(dio).import(
+      const CollectionParseResult(entries: [
+        CollectionEntry(name: 'Carte Inconnue', quantity: 1),
+      ]),
+      preferredLang: 'fr',
+    );
+
+    expect(appels, 1);
+    expect(r.notIdentified, 1);
+  });
 }
