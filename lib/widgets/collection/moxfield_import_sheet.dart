@@ -42,6 +42,12 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
   CollectionImportResult? _result;
   bool _busy = false;
 
+  /// Message affiche sur l'ecran d'explication quand la selection ou la
+  /// lecture du fichier a echoue (permission refusee, fichier supprime,
+  /// encodage invalide...). Un echec de cette etape ne doit jamais rester
+  /// silencieux : c'est tout l'argument de ce parcours.
+  String? _pickError;
+
   @override
   void initState() {
     super.initState();
@@ -54,13 +60,18 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
   }
 
   Future<void> _pickFile() async {
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _pickError = null;
+    });
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv'],
       );
-      if (result == null || result.files.single.path == null) return;
+      if (result == null || result.files.isEmpty || result.files.single.path == null) {
+        return;
+      }
       final file = File(result.files.single.path!);
       final content = await file.readAsString();
       final parsed = MoxfieldCollectionParser.parse(content);
@@ -69,6 +80,14 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
         _parsed = parsed;
         _screen = _Screen.verification;
       });
+    } catch (e) {
+      // Selection annulee/refusee, fichier supprime entre la selection et la
+      // lecture, encodage invalide... quelle que soit la cause, l'utilisateur
+      // doit le savoir : un echec silencieux serait le pire comportement
+      // possible pour une fonctionnalite dont l'argument est de ne jamais se
+      // tromper sans le dire.
+      if (!mounted) return;
+      setState(() => _pickError = 'Impossible de lire le fichier : $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -141,6 +160,19 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
         _step(2, 'Va dans Collection, puis More → Export'),
         _step(3, 'Choisis le format CSV et telecharge'),
         _step(4, 'Reviens ici et selectionne le fichier'),
+        if (_pickError != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: AppColors.error.withValues(alpha: 0.45)),
+            ),
+            child: Text(_pickError!, style: AppTextStyles.body(color: AppColors.error)),
+          ),
+        ],
         const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
@@ -308,13 +340,19 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
 
   Widget _chip(String label, {required bool ok}) {
     final color = ok ? AppColors.success : AppColors.amber;
+    // Une colonne manquante porte une croix en prefixe plutot qu'un adjectif
+    // accorde ("absente"/"absent" selon le genre du nom de colonne serait
+    // faux pour "Collector Number") : indice textuel, aucun accord invente,
+    // et l'information ne repose plus seulement sur la couleur (accessibilite
+    // daltonisme).
+    final text = ok ? label : '✕ $label';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: color.withValues(alpha: 0.45)),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 11)),
+      child: Text(text, style: AppTextStyles.cinzel(color: color, fontSize: 11)),
     );
   }
 
