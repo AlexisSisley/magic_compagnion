@@ -197,4 +197,108 @@ void main() {
 
     expect(d.lines, isEmpty);
   });
+
+  test('boards lui-même qui n\'est pas une Map (une List) est ignoré silencieusement', () {
+    final d = MoxfieldDeckMapper.fromJson({
+      'name': 'Test',
+      'format': 'commander',
+      'boards': [
+        {'mainboard': {}}
+      ]
+    });
+
+    expect(d.name, 'Test');
+    expect(d.lines, isEmpty);
+  });
+
+  test('scryfall_id qui est un entier plutot qu\'une chaine n\'explose pas', () {
+    final d = MoxfieldDeckMapper.fromJson({
+      'name': 'Test',
+      'format': 'commander',
+      'boards': {
+        'mainboard': {
+          'cards': {
+            'a': {
+              'quantity': 1,
+              'card': {'scryfall_id': 12345, 'name': 'Card'}
+            }
+          }
+        }
+      },
+    });
+
+    expect(d.lines, isEmpty);
+  });
+
+  test('isFoil qui n\'est pas un booléen est ignoré silencieusement', () {
+    final d = MoxfieldDeckMapper.fromJson({
+      'name': 'Test',
+      'format': 'commander',
+      'boards': {
+        'mainboard': {
+          'cards': {
+            'a': {
+              'quantity': 1,
+              'isFoil': 'yes',
+              'card': {'scryfall_id': 'id', 'name': 'Card'}
+            }
+          }
+        }
+      },
+    });
+
+    expect(d.lines, hasLength(1));
+    expect(d.lines.single.isFoil, isFalse);
+  });
+
+  test('isProxy qui n\'est pas un booléen est ignoré silencieusement', () {
+    final d = MoxfieldDeckMapper.fromJson({
+      'name': 'Test',
+      'format': 'commander',
+      'boards': {
+        'mainboard': {
+          'cards': {
+            'a': {
+              'quantity': 1,
+              'isProxy': 1,
+              'card': {'scryfall_id': 'id', 'name': 'Card'}
+            }
+          }
+        }
+      },
+    });
+
+    expect(d.lines, hasLength(1));
+    expect(d.lines.single.isProxy, isFalse);
+  });
+
+  test('le format normalise chaque mot (standard brawl → Standard Brawl)', () {
+    final d = MoxfieldDeckMapper.fromJson({
+      'name': 'Test',
+      'format': 'standard brawl',
+      'boards': {'mainboard': {'cards': {}}}
+    });
+
+    expect(d.format, 'Standard Brawl');
+  });
+
+  test('le format deja correct n\'est pas degrade (Duel Commander reste Duel Commander)', () {
+    final d = MoxfieldDeckMapper.fromJson({
+      'name': 'Test',
+      'format': 'Duel Commander',
+      'boards': {'mainboard': {'cards': {}}}
+    });
+
+    expect(d.format, 'Duel Commander');
+  });
+
+  test('le format mixte est normalise correctement', () {
+    final d = MoxfieldDeckMapper.fromJson({
+      'name': 'Test',
+      'format': 'moDErn sToRm',
+      'boards': {'mainboard': {'cards': {}}}
+    });
+
+    expect(d.format, 'Modern Storm');
+  });
 }

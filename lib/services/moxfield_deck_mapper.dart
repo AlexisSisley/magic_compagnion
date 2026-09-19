@@ -65,7 +65,11 @@ class MoxfieldDeckMapper {
   };
 
   static MoxfieldDeckData fromJson(Map<String, dynamic> json) {
-    final boards = (json['boards'] as Map?)?.cast<String, dynamic>() ?? {};
+    // Garde l'accès à boards: si ce n'est pas une Map, on ignore silencieusement.
+    final boardsRaw = json['boards'];
+    final boards = (boardsRaw is Map<String, dynamic>)
+        ? boardsRaw
+        : <String, dynamic>{};
     final lines = <MoxfieldCardLine>[];
 
     for (final entry in _boards.entries) {
@@ -83,13 +87,15 @@ class MoxfieldDeckMapper {
     final ids = <String>[];
     final commandersBoard = boards['commanders'];
     if (commandersBoard is Map) {
-      final cardsMap = (commandersBoard['cards'] as Map?)?.cast<String, dynamic>();
-      if (cardsMap != null) {
-        for (final raw in cardsMap.values) {
+      final cardsRaw = commandersBoard['cards'];
+      if (cardsRaw is Map<String, dynamic>) {
+        for (final raw in cardsRaw.values) {
           if (raw is! Map) continue;
           final card = raw['card'];
           if (card is! Map) continue;
-          final id = card['scryfall_id'] as String?;
+          final idRaw = card['scryfall_id'];
+          // Accepte seulement String pour scryfall_id, pas int ou autre.
+          final id = idRaw is String ? idRaw : null;
           if (id != null && id.isNotEmpty) {
             ids.add(id);
           }
@@ -98,14 +104,24 @@ class MoxfieldDeckMapper {
     }
 
     // Normalise la casse du format pour l'affichage utilisateur.
-    String normalizeFormat(String? raw) {
-      if (raw == null || raw.isEmpty) return 'Commander';
-      return raw[0].toUpperCase() + raw.substring(1).toLowerCase();
+    // Capitalise chaque mot séparé par espace, préservant les formats multi-mots.
+    String normalizeFormat(dynamic raw) {
+      if (raw is! String || raw.isEmpty) return 'Commander';
+      final words = raw.split(' ');
+      return words
+          .map((word) => word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1).toLowerCase())
+          .join(' ');
     }
 
+    // Garde l'accès à name et format: accepte seulement String.
+    final nameRaw = json['name'];
+    final name = (nameRaw is String) ? nameRaw : 'Deck importé';
+    final formatRaw = json['format'];
+    final format = normalizeFormat(formatRaw);
+
     return MoxfieldDeckData(
-      name: json['name'] as String? ?? 'Deck importé',
-      format: normalizeFormat(json['format'] as String?),
+      name: name,
+      format: format,
       lines: lines,
       commanderScryfallId: ids.isNotEmpty ? ids.first : null,
       partnerScryfallId: ids.length > 1 ? ids[1] : null,
@@ -117,7 +133,9 @@ class MoxfieldDeckMapper {
     final card = raw['card'];
     if (card is! Map) return null;
 
-    final id = card['scryfall_id'] as String?;
+    // Accepte seulement String pour scryfall_id.
+    final idRaw = card['scryfall_id'];
+    final id = idRaw is String ? idRaw : null;
     if (id == null || id.isEmpty) return null;
 
     // Valide que quantity est un nombre (pas une chaîne, par ex).
@@ -125,12 +143,22 @@ class MoxfieldDeckMapper {
     final quantity = (qty is num) ? qty.toInt() : (qty is int) ? qty : null;
     if (quantity == null || quantity < 1) return null;
 
+    // Accepte seulement String pour name, accepte seulement bool pour isFoil/isProxy.
+    final nameRaw = card['name'];
+    final name = (nameRaw is String) ? nameRaw : '';
+
+    final isFoilRaw = raw['isFoil'];
+    final isFoil = (isFoilRaw is bool) ? isFoilRaw : false;
+
+    final isProxyRaw = raw['isProxy'];
+    final isProxy = (isProxyRaw is bool) ? isProxyRaw : false;
+
     return MoxfieldCardLine(
       scryfallId: id,
-      name: card['name'] as String? ?? '',
+      name: name,
       quantity: quantity,
-      isFoil: raw['isFoil'] as bool? ?? false,
-      isProxy: raw['isProxy'] as bool? ?? false,
+      isFoil: isFoil,
+      isProxy: isProxy,
       board: board,
     );
   }
