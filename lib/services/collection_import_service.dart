@@ -5,11 +5,12 @@
 // absolue rend l'import idempotent -- reimporter le meme fichier par doute est
 // le geste naturel, il ne doit pas doubler la collection.
 //
-// Toute ligne du fichier est comptee exactement une fois : importee ou non
-// identifiee (les lignes illisibles, elles, sont deja comptees par le
-// parser et simplement reportees ici). C'est la regle 4 de la spec, et
+// Toute ligne du fichier est comptee exactement une fois : importee, non
+// identifiee, en echec reseau transitoire, ou illisible (deja comptee par
+// le parser et simplement reportee ici). C'est la regle 4 de la spec, et
 // l'assertion centrale de la suite de tests :
-//   imported + notIdentified + unreadableLines.length == linesRead
+//   imported + notIdentified + failedTransient + unreadableLines.length
+//       == linesRead
 //
 // Voir docs/superpowers/specs/2026-09-19-import-moxfield-design.md
 
@@ -37,15 +38,14 @@ class CollectionImportService {
     // Temps 1a : entrees porteuses d'une identite de tirage complete --
     // resolues par edition et numero de collection exacts.
     final avecIdentite = parsed.entries.where((e) => e.hasIdentity).toList();
-    final editionRes = await _resolver.resolveEditions(
-      avecIdentite
-          .map((e) => PrintRequest(
-                name: e.name,
-                setCode: e.setCode,
-                collectorNumber: e.collectorNumber,
-              ))
-          .toList(),
-    );
+    final editionReqs = avecIdentite
+        .map((e) => PrintRequest(
+              name: e.name,
+              setCode: e.setCode,
+              collectorNumber: e.collectorNumber,
+            ))
+        .toList();
+    final editionRes = await _resolver.resolveEditions(editionReqs);
     final parEdition = <String, ResolvedPrint>{};
     for (final p in editionRes.resolved) {
       parEdition['${p.setCode.toLowerCase()}|${p.collectorNumber}'] = p;
@@ -55,20 +55,29 @@ class CollectionImportService {
     // ici meme. Les rejouer au Temps 2 leur ferait subir une seconde
     // requete pour un resultat necessairement identique.
     final sansIdentite = parsed.entries.where((e) => !e.hasIdentity).toList();
-    final nomRes = await _resolver.resolveEditions(
-      sansIdentite.map((e) => PrintRequest(name: e.name)).toList(),
-    );
+    final nomReqs = sansIdentite.map((e) => PrintRequest(name: e.name)).toList();
+    final nomRes = await _resolver.resolveEditions(nomReqs);
 
     // Temps 2 : seules les entrees qui AVAIENT une identite mais dont la
     // resolution exacte a echoue repassent par leur nom -- celles qui n'en
-    // avaient pas l'ont deja tente au Temps 1b, ci-dessus.
-    final identiteEchouee =
-        avecIdentite.where((e) => _parEdition(e, parEdition) == null).toList();
-    final secoursRes = identiteEchouee.isEmpty
-        ? null
-        : await _resolver.resolveEditions(
-            identiteEchouee.map((e) => PrintRequest(name: e.name)).toList(),
-          );
+    // avaient pas l'ont deja tente au Temps 1b, ci-dessus. `indicesEchoues`
+    // retient la position de chaque entree DANS `avecIdentite`/`editionReqs`,
+    // pour pouvoir retrouver plus bas, requete par requete, si son echec
+    // initial venait d'une panne reseau plutot que d'un not_found.
+    final indicesEchoues = <int>[
+      for (var i = 0; i < avecIdentite.length; i++)
+        if (_parEdition(avecIdentite[i], parEdition) == null) i,
+    ];
+    final secoursReqs =
+        indicesEchoues.map((i) => PrintRequest(name: avecIdentite[i].name)).toList();
+    final secoursRes =
+        secoursReqs.isEmpty ? null : await _resolver.resolveEditions(secoursReqs);
+    // Position, dans `secoursReqs`, de la requete de repli pour l'entree
+    // situee a tel index dans `avecIdentite` -- pour retrouver son eventuel
+    // echec reseau au Temps 2.
+    final secoursIndexPour = <int, int>{
+      for (var k = 0; k < indicesEchoues.length; k++) indicesEchoues[k]: k,
+    };
 
     // File de repli par nom, consommee une entree a la fois -- jamais un
     // lookup dans une map partagee. Deux lignes de meme nom mais d'edition
@@ -95,16 +104,47 @@ class CollectionImportService {
       return file.removeAt(0);
     }
 
-    int imported = 0, added = 0, updated = 0, tagged = 0, notIdentified = 0;
+    int imported = 0, added = 0, updated = 0, tagged = 0;
+    int notIdentified = 0, failedTransient = 0;
     final tagues = <String>[];
     final nonIdentifiees = <String>[];
 
+    var iAvecIdentite = 0;
+    var iSansIdentite = 0;
+
     for (final e in parsed.entries) {
-      final exact = _parEdition(e, parEdition);
-      final tirage = exact ?? repli(e.name);
+      ResolvedPrint? exact;
+      ResolvedPrint? tirage;
+      // Vrai quand l'absence de tirage vient d'un lot reseau qui n'a pas
+      // abouti (voir EditionResolution.failed), et non d'un not_found
+      // confirme par Scryfall -- la distinction de la regle 5 : definitif
+      // contre transitoire.
+      var echecReseau = false;
+
+      if (e.hasIdentity) {
+        final i = iAvecIdentite++;
+        exact = _parEdition(e, parEdition);
+        tirage = exact ?? repli(e.name);
+        if (tirage == null) {
+          final k = secoursIndexPour[i];
+          echecReseau = editionRes.failed.contains(editionReqs[i]) ||
+              (k != null && secoursRes != null && secoursRes.failed.contains(secoursReqs[k]));
+        }
+      } else {
+        final i = iSansIdentite++;
+        tirage = repli(e.name);
+        if (tirage == null) {
+          echecReseau = nomRes.failed.contains(nomReqs[i]);
+        }
+      }
+
       if (tirage == null) {
-        notIdentified++;
-        nonIdentifiees.add(e.name);
+        if (echecReseau) {
+          failedTransient++;
+        } else {
+          notIdentified++;
+          nonIdentifiees.add(e.name);
+        }
         continue;
       }
 
@@ -145,6 +185,7 @@ class CollectionImportService {
       updated: updated,
       tagged: tagged,
       notIdentified: notIdentified,
+      failedTransient: failedTransient,
       unreadableLines: parsed.unreadableLines,
       taggedNames: tagues,
       notIdentifiedNames: nonIdentifiees,

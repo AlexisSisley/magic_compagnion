@@ -67,20 +67,34 @@ class CollectionParseResult {
 /// Ce qu'un import a produit dans la collection.
 ///
 /// Regle 4 : aucune ligne ne disparait en silence. Toute ligne de
-/// [CollectionParseResult.entries] est comptee soit dans [imported], soit
-/// dans [notIdentified] -- jamais ni l'un ni l'autre. Avec les lignes
+/// [CollectionParseResult.entries] est comptee dans exactement l'un de
+/// [imported], [notIdentified] ou [failedTransient]. Avec les lignes
 /// illisibles du parser (deja comptees en amont, jamais retraitees ici),
-/// l'egalite `imported + notIdentified + unreadableLines.length ==
-/// linesRead` est l'assertion centrale de la suite de tests.
+/// l'egalite `imported + notIdentified + failedTransient +
+/// unreadableLines.length == linesRead` est l'assertion centrale de la
+/// suite de tests.
+///
+/// [notIdentified] et [failedTransient] distinguent deux raisons opposees
+/// pour lesquelles une ligne n'a pas de tirage : la premiere est definitive
+/// (Scryfall a repondu qu'il ne connait pas cette carte -- reessayer ne
+/// changera rien), la seconde est transitoire (un lot n'a pas abouti --
+/// reseau, 5xx, 429 -- et reessayer l'import peut suffire). Les confondre
+/// ferait dire a l'app "cette carte n'a pas pu etre identifiee" alors que
+/// la vraie cause est une panne reseau passagere.
 class CollectionImportResult {
   final int imported;
   final int added;
   final int updated;
   final int tagged;
 
-  /// Nombre de lignes dont aucun tirage n'a pu etre identifie, ni par
-  /// edition exacte ni par repli sur le nom seul.
+  /// Nombre de lignes dont Scryfall a confirme ne connaitre aucun tirage,
+  /// ni par edition exacte ni par repli sur le nom seul. Definitif.
   final int notIdentified;
+
+  /// Nombre de lignes dont la resolution est restee sans reponse a cause
+  /// d'un lot reseau qui n'a pas abouti (voir [EditionResolution.failed]
+  /// dans `card_print.dart`). Transitoire : reessayer l'import peut suffire.
+  final int failedTransient;
 
   final List<String> unreadableLines;
   final List<String> taggedNames;
@@ -94,6 +108,7 @@ class CollectionImportResult {
     this.updated = 0,
     this.tagged = 0,
     this.notIdentified = 0,
+    this.failedTransient = 0,
     this.unreadableLines = const [],
     this.taggedNames = const [],
     this.notIdentifiedNames = const [],

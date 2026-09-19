@@ -241,7 +241,8 @@ void main() {
 
   test(
       'une ligne introuvable par edition ET par nom est comptee non identifiee, '
-      'jamais perdue en silence (regle 4 : imported + notIdentified + illisibles = lignes lues)',
+      'jamais perdue en silence (regle 4 : imported + notIdentified + failedTransient '
+      '+ illisibles = lignes lues)',
       () async {
     final dio = _mockDio((options) {
       final ids = (options.data as Map)['identifiers'] as List;
@@ -254,6 +255,8 @@ void main() {
         } else {
           // Ni l'edition precise de "Carte Fantome", ni son repli par nom,
           // ne trouvent de tirage : elle doit rester introuvable partout.
+          // Un not_found propre, jamais une panne reseau -- cette ligne
+          // doit rejoindre notIdentified, pas failedTransient.
           notFound.add(id);
         }
       }
@@ -274,12 +277,43 @@ void main() {
     expect(r.imported, 1);
     expect(r.notIdentified, 1);
     expect(r.notIdentifiedNames, contains('Carte Fantome'));
+    expect(r.failedTransient, 0, reason: 'un not_found propre n est pas une panne reseau');
     expect(r.unreadableLines, ['???,???']);
     expect(
-      r.imported + r.notIdentified + r.unreadableLines.length,
+      r.imported + r.notIdentified + r.failedTransient + r.unreadableLines.length,
       parsed.linesRead,
       reason: 'aucune ligne ne doit disparaitre en silence',
     );
+  });
+
+  test(
+      'un echec reseau (5xx) est distingue d un not_found propre : '
+      'failedTransient d un cote, notIdentified de l autre, jamais les deux confondus',
+      () async {
+    final dioEnPanne = _mockDio((_) => 500);
+    final rEnPanne = await _service(dioEnPanne).import(
+      const CollectionParseResult(entries: [
+        CollectionEntry(name: 'Sol Ring', quantity: 1),
+      ]),
+      preferredLang: 'fr',
+    );
+    expect(rEnPanne.failedTransient, 1);
+    expect(rEnPanne.notIdentified, 0);
+    expect(rEnPanne.imported, 0);
+
+    final dioIntrouvable = _mockDio((options) {
+      final ids = (options.data as Map)['identifiers'] as List;
+      return {'data': <dynamic>[], 'not_found': ids};
+    });
+    final rIntrouvable = await _service(dioIntrouvable).import(
+      const CollectionParseResult(entries: [
+        CollectionEntry(name: 'Sol Ring', quantity: 1),
+      ]),
+      preferredLang: 'fr',
+    );
+    expect(rIntrouvable.notIdentified, 1);
+    expect(rIntrouvable.failedTransient, 0);
+    expect(rIntrouvable.imported, 0);
   });
 
   test(
