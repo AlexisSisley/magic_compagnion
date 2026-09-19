@@ -41,6 +41,55 @@ void main() {
     test('rend null sur du texte quelconque', () {
       expect(extractPublicId('bonjour'), isNull);
     });
+
+    test('accepte des parametres de requete (?utm_source=...)', () {
+      expect(
+          extractPublicId(
+              'https://moxfield.com/decks/abc123?utm_source=twitter'),
+          'abc123');
+    });
+
+    test('accepte un fragment (#primer)', () {
+      expect(extractPublicId('https://moxfield.com/decks/abc123#primer'),
+          'abc123');
+    });
+
+    test('accepte une sous-page du deck (/primer)', () {
+      expect(extractPublicId('https://moxfield.com/decks/abc123/primer'),
+          'abc123');
+    });
+
+    test('rend null quand le separateur apres l identifiant est absent '
+        '(abc123.evil.com)', () {
+      expect(
+          extractPublicId('https://moxfield.com/decks/abc123.evil.com'),
+          isNull);
+    });
+
+    test('rend null sur un domaine usurpe par sous-domaine '
+        '(moxfield.com.evil.com)', () {
+      expect(
+          extractPublicId('https://moxfield.com.evil.com/decks/abc123'),
+          isNull);
+    });
+
+    test('rend null sur un chemin qui ne correspond pas exactement a '
+        '/decks/ (/decksomething/abc)', () {
+      expect(
+          extractPublicId('https://moxfield.com/decksomething/abc'),
+          isNull);
+    });
+
+    test('rend null sur un domaine usurpe par userinfo '
+        '(moxfield.com@evil.com)', () {
+      expect(
+          extractPublicId('https://moxfield.com@evil.com/decks/abc123'),
+          isNull);
+    });
+
+    test('rend null quand l identifiant de deck est vide (/decks/)', () {
+      expect(extractPublicId('https://moxfield.com/decks/'), isNull);
+    });
   });
 
   group('fetchDeck', () {
