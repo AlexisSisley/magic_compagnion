@@ -16,6 +16,7 @@ import '../data/database/app_database.dart';
 import '../services/backup_service.dart';
 import '../services/bulk_data_service.dart';
 import '../services/card_resolver.dart';
+import '../services/collection_import_service.dart';
 import '../services/collection_service.dart';
 import '../services/counter_type_service.dart';
 import '../services/deck_service.dart';
@@ -90,6 +91,12 @@ final translationWorkerProvider = Provider<TranslationWorker>((ref) {
   final db = ref.watch(appDatabaseProvider);
   final resolver = ref.watch(cardResolverProvider);
   return TranslationWorker(resolver: resolver, db: db);
+});
+
+final collectionImportServiceProvider = Provider<CollectionImportService>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  final resolver = ref.watch(cardResolverProvider);
+  return CollectionImportService(db: db, resolver: resolver);
 });
 
 // --- Services sans dépendance à la base ---

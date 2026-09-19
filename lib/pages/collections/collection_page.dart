@@ -16,6 +16,7 @@ import '../../utils/price_helper.dart';
 import '../../widgets/search/universal_filter_modal.dart';
 import '../../widgets/collection/collection_list_tab.dart';
 import '../../widgets/collection/collection_sets_tab.dart';
+import '../../widgets/collection/moxfield_import_sheet.dart';
 
 class CollectionPage extends ConsumerStatefulWidget {
   const CollectionPage({super.key});
@@ -165,7 +166,12 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
   }
 
   Future<void> _importBulk() async {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fonction d'import conservée (TODO: Implémenter appel modale)")));
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.scaffoldBackground,
+      isScrollControlled: true,
+      builder: (_) => const MoxfieldImportSheet(),
+    );
   }
 
   Widget _buildCollectionValueHeader(CollectionValueState valueState) {
@@ -316,7 +322,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
                       if (val == 'clear') _controller.clearCollection();
                     },
                     itemBuilder: (ctx) => [
-                      const PopupMenuItem(value: 'import', child: Text('Importer (Masse)')),
+                      const PopupMenuItem(value: 'import', child: Text('Importer depuis Moxfield')),
                       const PopupMenuItem(value: 'clear', child: Text('Tout effacer', style: TextStyle(color: AppColors.error))),
                     ],
                   ),
