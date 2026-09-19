@@ -98,7 +98,7 @@ class GameHistoryDetailPage extends StatelessWidget {
                     backgroundColor: AppColors.greyShade800,
                     child: p.imageUrl == null ? Text(p.name[0]) : null,
                   ),
-                  title: Text(p.name, style: AppTextStyles.cinzel(color: isWinner ? AppColors.accentGreen : AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                  title: Text(p.name, style: AppTextStyles.text(color: isWinner ? AppColors.accentGreen : AppColors.textPrimary, fontWeight: FontWeight.bold)),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

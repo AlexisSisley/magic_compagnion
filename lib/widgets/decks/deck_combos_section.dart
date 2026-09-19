@@ -126,7 +126,7 @@ class _DeckCombosSectionState extends ConsumerState<DeckCombosSection> {
             padding: const EdgeInsets.all(16),
             child: Text(
               'Aucun combo connu pour ce commandant.',
-              style: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 13),
+              style: AppTextStyles.text(color: AppColors.textMuted, fontSize: 13),
             ),
           ),
         if (_hasLoaded && _comboStatuses.isNotEmpty)

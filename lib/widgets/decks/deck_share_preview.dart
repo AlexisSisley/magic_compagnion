@@ -183,7 +183,7 @@ class DeckSharePreview extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             alignment: Alignment.center,
             color: AppColors.textPrimary.withValues(alpha: 0.05),
-            child: Text('Généré par Magic Companion', style: AppTextStyles.cinzel(color: AppColors.textDisabled, fontSize: 10)),
+            child: Text('Généré par Magic Companion', style: AppTextStyles.text(color: AppColors.textDisabled, fontSize: 10)),
           ),
         ],
       ),

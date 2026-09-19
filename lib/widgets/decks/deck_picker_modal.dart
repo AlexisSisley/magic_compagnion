@@ -114,10 +114,10 @@ class _DeckPickerModalState extends State<DeckPickerModal> {
               const SizedBox(height: 16),
               TextField(
                 controller: _newDeckController,
-                style: AppTextStyles.cinzel(fontSize: 16),
+                style: AppTextStyles.text(fontSize: 16),
                 decoration: InputDecoration(
                   hintText: '...ou créer un nouveau deck',
-                  hintStyle: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 16),
+                  hintStyle: AppTextStyles.text(color: AppColors.textMuted, fontSize: 16),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.add_circle, color: AppColors.primary),
                     onPressed: _createNewDeck,
@@ -139,7 +139,7 @@ class _DeckPickerModalState extends State<DeckPickerModal> {
                         ? Center(
                             child: Text(
                               'Aucun deck. Créez-en un ci-dessus.',
-                              style: AppTextStyles.cinzel(color: AppColors.textSecondary),
+                              style: AppTextStyles.text(color: AppColors.textSecondary),
                             ),
                           )
                         : ListView.builder(
@@ -150,7 +150,7 @@ class _DeckPickerModalState extends State<DeckPickerModal> {
                                 leading: const Icon(Icons.style_outlined, color: AppColors.textSecondary),
                                 title: Text(
                                   deck.name,
-                                  style: AppTextStyles.cinzel(fontSize: 18),
+                                  style: AppTextStyles.text(fontSize: 18),
                                 ),
                                 onTap: () => _addCardToDeck(deck),
                               );

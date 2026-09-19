@@ -196,7 +196,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
       padding: const EdgeInsets.all(12.0),
       child: TextField(
         controller: _searchController,
-        style: AppTextStyles.cinzel(fontSize: 16),
+        style: AppTextStyles.text(fontSize: 16),
         onChanged: _onSearchChanged,
         decoration: InputDecoration(
           hintText: state.activeFilters.setCode != null ? 'Dans: ${state.activeFilters.setCode!.toUpperCase()}...' : 'Nom de la carte...',
@@ -355,7 +355,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
     }
 
     if (state.searchResults.isEmpty) {
-      return Center(child: Text(state.statusMessage, style: AppTextStyles.cinzel(color: AppColors.textSecondary)));
+      return Center(child: Text(state.statusMessage, style: AppTextStyles.text(color: AppColors.textSecondary)));
     }
 
     return GridView.builder(
@@ -386,7 +386,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
               children: [
                 imageUrl.isNotEmpty
                     ? Image.network(imageUrl, fit: BoxFit.cover)
-                    : Container(color: AppColors.greyShade900, child: Center(child: Text(card.name, textAlign: TextAlign.center, style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 10)))),
+                    : Container(color: AppColors.greyShade900, child: Center(child: Text(card.name, textAlign: TextAlign.center, style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 10)))),
                 Positioned(bottom: 0, left: 0, right: 0, height: 40, child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withValues(alpha: 0.9), AppColors.transparent])))),
                 Positioned(
                   bottom: 4, left: 4, right: 4,
@@ -457,7 +457,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                   ),
                   ListTile(
                     leading: const Icon(Icons.add_circle, color: AppColors.accentGreen),
-                    title: Text('Creer une nouvelle liste', style: AppTextStyles.cinzel()),
+                    title: Text('Creer une nouvelle liste', style: AppTextStyles.text()),
                     onTap: () async {
                       final name = await _showCreateWishlistDialog();
                       if (name != null && context.mounted) {

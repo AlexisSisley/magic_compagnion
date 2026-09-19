@@ -115,7 +115,7 @@ class DeckPowerLevelBadge extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Fermer', style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+            child: Text('Fermer', style: AppTextStyles.text(color: AppColors.textSecondary)),
           ),
         ],
       ),

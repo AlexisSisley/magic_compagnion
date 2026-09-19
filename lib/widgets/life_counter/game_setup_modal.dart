@@ -209,7 +209,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text('Joueurs : ', style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 13)),
+        Text('Joueurs : ', style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 13)),
         for (int n = _selectedFormat.minPlayers; n <= _selectedFormat.maxPlayers && n <= 8; n++)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -276,7 +276,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
         leading: _buildProfileAvatar(profile, index),
         title: Text(
           profile?.name ?? 'Invité ${index + 1}',
-          style: AppTextStyles.cinzel(fontSize: 14),
+          style: AppTextStyles.text(fontSize: 14),
         ),
         subtitle: profile?.commanderName != null
             ? Text('Cmd: ${profile!.commanderName}',
@@ -356,7 +356,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
             ),
             const SizedBox(width: 4),
             Text('Paramètres avancés',
-              style: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 12),
+              style: AppTextStyles.text(color: AppColors.textMuted, fontSize: 12),
             ),
           ],
         ),
@@ -378,7 +378,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
           // Custom starting life
           Row(
             children: [
-              Text('PV de départ : ', style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 12)),
+              Text('PV de départ : ', style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 12)),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.remove, color: AppColors.textMuted, size: 18),
@@ -411,7 +411,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
           // Timer toggle
           Row(
             children: [
-              Text('Timer de partie', style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 12)),
+              Text('Timer de partie', style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 12)),
               const Spacer(),
               Switch(
                 value: _timerEnabled,
@@ -427,7 +427,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text('Conditions de défaite',
-              style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+              style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
             ),
           ),
 
@@ -436,7 +436,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
             children: [
               const Icon(Icons.favorite_border, color: AppColors.accentRed, size: 16),
               const SizedBox(width: 6),
-              Text('PV à 0 = éliminé', style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 12)),
+              Text('PV à 0 = éliminé', style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 12)),
               const Spacer(),
               Switch(
                 value: _lethalAtZeroLife,
@@ -451,7 +451,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
             children: [
               const Icon(Icons.science, color: AppColors.accentGreen, size: 16),
               const SizedBox(width: 6),
-              Text('Poison létal : ', style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 12)),
+              Text('Poison létal : ', style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 12)),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.remove, color: AppColors.textMuted, size: 18),
@@ -489,7 +489,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
             children: [
               const Icon(Icons.shield, color: AppColors.accentOrange, size: 16),
               const SizedBox(width: 6),
-              Text('Cmd létal : ', style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 12)),
+              Text('Cmd létal : ', style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 12)),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.remove, color: AppColors.textMuted, size: 18),
@@ -623,7 +623,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
       builder: (context) => StatefulBuilder(builder: (context, setState) {
         return AlertDialog(
           backgroundColor: AppColors.surfaceDark,
-          title: Text(existingProfile == null ? 'Nouveau Profil' : 'Modifier Profil', style: AppTextStyles.cinzel()),
+          title: Text(existingProfile == null ? 'Nouveau Profil' : 'Modifier Profil', style: AppTextStyles.text()),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,

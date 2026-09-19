@@ -136,7 +136,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                       child: DropdownButtonFormField<String>(
                         isExpanded: true, // Important pour éviter l'overflow horizontal
                         initialValue: _selectedType,
-                        hint: Text('Type...', style: AppTextStyles.cinzel(color: AppColors.textMuted)),
+                        hint: Text('Type...', style: AppTextStyles.text(color: AppColors.textMuted)),
                         dropdownColor: AppColors.cardBackground,
                         decoration: _buildInputDecoration(hintText: '', icon: Icons.category),
                         items: _cardTypes.map((t) => DropdownMenuItem(
@@ -247,7 +247,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                 DropdownButtonFormField<String>(
                   isExpanded: true,
                   initialValue: _selectedLanguage,
-                  hint: Text('Par défaut', style: AppTextStyles.cinzel(color: AppColors.textMuted)),
+                  hint: Text('Par défaut', style: AppTextStyles.text(color: AppColors.textMuted)),
                   dropdownColor: AppColors.cardBackground,
                   decoration: _buildInputDecoration(hintText: '', icon: Icons.language),
                   items: [

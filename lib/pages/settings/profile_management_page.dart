@@ -56,7 +56,7 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
       body: _isLoading 
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _profiles.isEmpty 
-              ? Center(child: Text('Aucun profil créé.', style: AppTextStyles.cinzel(color: AppColors.borderFaint)))
+              ? Center(child: Text('Aucun profil créé.', style: AppTextStyles.text(color: AppColors.borderFaint)))
               : ListView.builder(
                   padding: const EdgeInsets.all(12),
                   itemCount: _profiles.length,
@@ -141,7 +141,7 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
       builder: (dialogCtx) => StatefulBuilder(builder: (dialogCtx, setModalState) {
         return AlertDialog(
           backgroundColor: AppColors.surfaceDark,
-          title: Text(existing == null ? 'Nouveau Profil' : 'Modifier Profil', style: AppTextStyles.cinzel()),
+          title: Text(existing == null ? 'Nouveau Profil' : 'Modifier Profil', style: AppTextStyles.text()),
           content: SizedBox(
             width: double.maxFinite,
             child: SingleChildScrollView(
@@ -417,7 +417,7 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
           children: [
             Icon(Icons.workspace_premium, color: AppColors.accentOrange, size: 28),
             const SizedBox(width: 8),
-            Text('Premium', style: AppTextStyles.cinzel(color: AppColors.accentOrange)),
+            Text('Premium', style: AppTextStyles.text(color: AppColors.accentOrange)),
           ],
         ),
         content: Column(

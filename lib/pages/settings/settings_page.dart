@@ -61,7 +61,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           SnackBar(
             content: Text(
               path != null ? 'Base de cartes mise à jour avec succès !' : 'Échec du téléchargement.',
-              style: AppTextStyles.cinzel(),
+              style: AppTextStyles.text(),
             ),
             backgroundColor: path != null ? AppColors.success : AppColors.error,
             duration: const Duration(seconds: 3),
@@ -96,7 +96,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Données restaurées avec succès ! Redémarrez l'app pour voir les changements.", style: AppTextStyles.cinzel()),
+            content: Text("Données restaurées avec succès ! Redémarrez l'app pour voir les changements.", style: AppTextStyles.text()),
             backgroundColor: AppColors.success,
             duration: const Duration(seconds: 4),
           )

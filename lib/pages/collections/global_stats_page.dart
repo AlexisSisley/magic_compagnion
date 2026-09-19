@@ -295,7 +295,7 @@ class _GlobalStatsPageState extends State<GlobalStatsPage> {
             ? Image.network(item['image'], width: 30, fit: BoxFit.cover) 
             : const Icon(Icons.image),
         ),
-        title: Text(item['name'], style: AppTextStyles.cinzel()),
+        title: Text(item['name'], style: AppTextStyles.text()),
         subtitle: Text("${item['set']} • x${item['quantity']}", style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
         trailing: Text("${item['price']} €", style: AppTextStyles.bold(color: AppColors.primaryShade700)),
       ),

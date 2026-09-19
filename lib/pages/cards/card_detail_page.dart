@@ -107,7 +107,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text(state.pageState == ResultPageState.selection ? 'Choisissez la carte' : 'Détail Carte', style: AppTextStyles.cinzel(fontWeight: FontWeight.w600)),
+        title: Text(state.pageState == ResultPageState.selection ? 'Choisissez la carte' : 'Détail Carte', style: AppTextStyles.text(fontWeight: FontWeight.w600)),
         backgroundColor: AppColors.textOnPrimary,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -146,7 +146,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
 
     switch (state.pageState) {
       case ResultPageState.loading:
-        return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text(state.statusMessage, style: AppTextStyles.cinzel())]));
+        return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text(state.statusMessage, style: AppTextStyles.text())]));
 
       case ResultPageState.selection:
         return Column(
@@ -269,13 +269,13 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
                           _buildManaCostRow(displayManaCost),
                           const SizedBox(height: 8),
                           Text(displayName, style: AppTextStyles.pageTitle(), textAlign: TextAlign.center),
-                          Text(displayTypeLine, style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 16, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+                          Text(displayTypeLine, style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 16, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
                           if (foundCard.isDoubleFaced)
                             Padding(
                               padding: const EdgeInsets.only(top: 6),
                               child: Text(
                                 _showingBackFace ? '▲ Face recto' : '▼ Face verso',
-                                style: AppTextStyles.cinzel(color: AppColors.primary, fontSize: 12),
+                                style: AppTextStyles.text(color: AppColors.primary, fontSize: 12),
                               ),
                             ),
                           if (state.collectionNormalCount > 0 || state.collectionFoilCount > 0)
@@ -311,16 +311,16 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(state.statusMessage, style: AppTextStyles.cinzel(color: Colors.red.shade300), textAlign: TextAlign.center),
+              Text(state.statusMessage, style: AppTextStyles.text(color: Colors.red.shade300), textAlign: TextAlign.center),
               const SizedBox(height: 20),
               TextField(
                 controller: _searchController,
-                style: AppTextStyles.cinzel(),
+                style: AppTextStyles.text(),
                 decoration: InputDecoration(hintText: 'Nom de la carte', filled: true, fillColor: AppColors.borderLight, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
                 onSubmitted: (val) => controller.searchForCandidates(val),
               ),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: () => controller.searchForCandidates(_searchController.text), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800), child: Text('Rechercher', style: AppTextStyles.cinzel())),
+              ElevatedButton(onPressed: () => controller.searchForCandidates(_searchController.text), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800), child: Text('Rechercher', style: AppTextStyles.text())),
             ],
           ),
         );
@@ -403,7 +403,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.scaffoldBackground,
-        title: Text('Ajouter à la Wishlist', style: AppTextStyles.cinzel()),
+        title: Text('Ajouter à la Wishlist', style: AppTextStyles.text()),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -479,7 +479,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
                   Padding(padding: const EdgeInsets.all(16.0), child: Text('Choisir une Wishlist', style: AppTextStyles.sectionTitle())),
                   ListTile(
                     leading: const Icon(Icons.add_circle, color: AppColors.accentGreen),
-                    title: Text('Créer une nouvelle liste', style: AppTextStyles.cinzel()),
+                    title: Text('Créer une nouvelle liste', style: AppTextStyles.text()),
                     onTap: () async {
                       final name = await _showCreateWishlistDialog(controller);
                       if (name != null && mounted) {
@@ -552,9 +552,9 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            Column(children: [Text('Normal', style: AppTextStyles.cinzel(color: AppColors.textSecondary)), Text(priceEur, style: AppTextStyles.pageTitle(fontSize: 20))]),
+            Column(children: [Text('Normal', style: AppTextStyles.text(color: AppColors.textSecondary)), Text(priceEur, style: AppTextStyles.pageTitle(fontSize: 20))]),
             Container(width: 1, height: 30, color: AppColors.borderMedium),
-            Column(children: [Text('Foil (Brillant)', style: AppTextStyles.cinzel(color: Colors.amber.shade200)), Text(priceEurFoil, style: AppTextStyles.pageTitle(fontSize: 20))]),
+            Column(children: [Text('Foil (Brillant)', style: AppTextStyles.text(color: Colors.amber.shade200)), Text(priceEurFoil, style: AppTextStyles.pageTitle(fontSize: 20))]),
           ],
         ),
         // US-14.10 : Sparkline evolution prix (proxy via historique collection)
@@ -566,7 +566,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
 
   Widget _buildRulingsList(CardDetailState state) {
     if (state.isLoadingRulings) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    if (state.rulings.isEmpty) return Text('(Aucune décision)', style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
+    if (state.rulings.isEmpty) return Text('(Aucune décision)', style: AppTextStyles.text(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: state.rulings.map((r) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(r.date, style: AppTextStyles.bold()), Text(r.comment, style: const TextStyle(color: AppColors.textPrimary))]))).toList());
   }
 
@@ -574,7 +574,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
     return Card(
       color: AppColors.textOnPrimary.withValues(alpha: 0.4), elevation: 2, margin: const EdgeInsets.symmetric(vertical: 6),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: AppColors.primaryShade800.withValues(alpha: 0.6))),
-      child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: AppTextStyles.cinzel(fontSize: 20, fontWeight: FontWeight.w600)), const Divider(color: AppColors.borderMedium), const SizedBox(height: 8), child])),
+      child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: AppTextStyles.text(fontSize: 20, fontWeight: FontWeight.w600)), const Divider(color: AppColors.borderMedium), const SizedBox(height: 8), child])),
     );
   }
 
@@ -624,7 +624,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
   }
 
   Widget _buildClickableRulesText(String text, String lang, CardDetailController controller) {
-    if (text.isEmpty) return Text('(Pas de texte)', style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
+    if (text.isEmpty) return Text('(Pas de texte)', style: AppTextStyles.text(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
     // US-14.5 : Dispose les anciens recognizers avant d'en creer de nouveaux.
     for (final recognizer in _tapRecognizers) {
       recognizer.dispose();

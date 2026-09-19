@@ -97,7 +97,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 onPressed: _skip,
                 child: Text(
                   'Passer',
-                  style: AppTextStyles.cinzel(color: AppColors.textMuted),
+                  style: AppTextStyles.text(color: AppColors.textMuted),
                 ),
               ),
             ),
@@ -204,7 +204,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           // Description
           Text(
             step.description,
-            style: AppTextStyles.cinzel(
+            style: AppTextStyles.text(
               color: AppColors.textSecondary,
               fontSize: 14,
             ),

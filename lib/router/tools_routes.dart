@@ -38,7 +38,8 @@ List<RouteBase> toolsRoutes() {
     GoRoute(
       path: AppRoutes.glossary,
       builder: (context, state) => Scaffold(
-        appBar: AppBar(title: Text('Glossaire', style: AppTextStyles.cinzel())),
+        appBar: AppBar(
+            title: Text('Glossaire', style: AppTextStyles.appBarTitle())),
         backgroundColor: AppColors.scaffoldBackground,
         body: const GlossaryPage(),
       ),

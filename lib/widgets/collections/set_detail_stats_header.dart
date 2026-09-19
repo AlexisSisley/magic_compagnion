@@ -44,7 +44,7 @@ class SetDetailStatsHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('PROGRESSION',
-                      style: AppTextStyles.cinzel(color: AppColors.borderFaint, fontSize: 10).copyWith(letterSpacing: 1.5, fontWeight: FontWeight.bold)),
+                      style: AppTextStyles.text(color: AppColors.borderFaint, fontSize: 10).copyWith(letterSpacing: 1.5, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -53,7 +53,7 @@ class SetDetailStatsHeader extends StatelessWidget {
                       Text('$ownedCount',
                           style: AppTextStyles.bold(color: AppColors.accentGreen, fontSize: 20)),
                       Text(' / $totalCount',
-                          style: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 14)),
+                          style: AppTextStyles.text(color: AppColors.textMuted, fontSize: 14)),
                       const SizedBox(width: 8),
                       Text('$percentage%',
                           style: GoogleFonts.roboto(
@@ -133,7 +133,7 @@ class SetDetailStatsHeader extends StatelessWidget {
       child: Row(
         children: [
           Text(letter,
-              style: AppTextStyles.cinzel(color: color, fontSize: 10, fontWeight: FontWeight.w900)),
+              style: AppTextStyles.text(color: color, fontSize: 10, fontWeight: FontWeight.w900)),
           const SizedBox(width: 4),
           Text('$count',
               style: TextStyle(

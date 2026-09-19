@@ -33,7 +33,7 @@ class RulingsSection extends StatelessWidget {
     if (rulings.isEmpty) {
       return Text(
         'Aucune regle specifique pour cette carte',
-        style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontStyle: FontStyle.italic),
+        style: AppTextStyles.text(color: AppColors.textSecondary, fontStyle: FontStyle.italic),
       );
     }
 

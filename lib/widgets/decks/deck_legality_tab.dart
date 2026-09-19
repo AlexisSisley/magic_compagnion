@@ -126,7 +126,7 @@ class DeckLegalityTab extends StatelessWidget {
           leading: Icon(statusIcon, color: statusColor, size: 22),
           title: Text(
             formatLabel,
-            style: AppTextStyles.cinzel(fontSize: 14, fontWeight: FontWeight.w600),
+            style: AppTextStyles.text(fontSize: 14, fontWeight: FontWeight.w600),
           ),
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -153,7 +153,7 @@ class DeckLegalityTab extends StatelessWidget {
           children: [
             Text(
               formatLabel,
-              style: AppTextStyles.cinzel(fontSize: 14, fontWeight: FontWeight.w600),
+              style: AppTextStyles.text(fontSize: 14, fontWeight: FontWeight.w600),
             ),
             const Spacer(),
             Container(

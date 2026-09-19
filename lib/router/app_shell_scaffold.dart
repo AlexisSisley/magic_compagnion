@@ -93,7 +93,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
             ),
             content: Text(
               'Une sauvegarde a \u00e9t\u00e9 trouv\u00e9e sur votre Google Drive datant du $dateStr.\nVoulez-vous la restaurer maintenant ?',
-              style: AppTextStyles.cinzel(color: AppColors.textSecondary),
+              style: AppTextStyles.text(color: AppColors.textSecondary),
             ),
             actions: [
               TextButton(
@@ -237,7 +237,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
                 Text('Magic Companion',
                     style: AppTextStyles.bold(fontSize: 24)),
                 Text('Outils & R\u00e9f\u00e9rences',
-                    style: AppTextStyles.cinzel(color: AppColors.primaryShade800, fontSize: 14)),
+                    style: AppTextStyles.text(color: AppColors.primaryShade800, fontSize: 14)),
               ],
             ),
           ),
@@ -256,7 +256,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
                     leading:
                         const Icon(Icons.cloud_done, color: AppColors.success),
                     title: Text(userEmail ?? 'Compte Google',
-                        style: AppTextStyles.cinzel(fontSize: 14)),
+                        style: AppTextStyles.text(fontSize: 14)),
                     subtitle: const Text('Sauvegarde auto active',
                         style: TextStyle(
                             color: AppColors.accentGreen, fontSize: 10)),
@@ -298,7 +298,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
                   leading:
                       const Icon(Icons.cloud_off, color: AppColors.textMuted),
                   title: Text('Connexion Drive',
-                      style: AppTextStyles.cinzel()),
+                      style: AppTextStyles.text()),
                   subtitle: const Text('Activer la sauvegarde auto',
                       style:
                           TextStyle(color: AppColors.borderFaint, fontSize: 10)),
@@ -398,7 +398,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
             leading:
                 const Icon(Icons.group_outlined, color: AppColors.textSecondary),
             title: Text('Gestion des Profils',
-                style: AppTextStyles.cinzel()),
+                style: AppTextStyles.text()),
             subtitle: const Text(
                 'G\u00e9rez vos joueurs et leurs commandants',
                 style: TextStyle(color: AppColors.borderFaint, fontSize: 10)),
@@ -418,7 +418,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
             leading:
                 const Icon(Icons.info_outline, color: AppColors.textDisabled),
             title: Text('\u00c0 propos & Licences',
-                style: AppTextStyles.cinzel(color: AppColors.textMuted)),
+                style: AppTextStyles.text(color: AppColors.textMuted)),
             onTap: () {
               Navigator.pop(context);
               _showAppAboutDialog(context);
@@ -436,7 +436,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
   }) {
     return ListTile(
       leading: Icon(icon, color: AppColors.textSecondary),
-      title: Text(label, style: AppTextStyles.cinzel()),
+      title: Text(label, style: AppTextStyles.text()),
       onTap: () {
         Navigator.pop(context); // ferme le drawer
         context.push(route);
@@ -466,7 +466,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
         const SizedBox(height: 24),
         Text(
           'D\u00e9velopp\u00e9 avec Flutter et Passion.',
-          style: AppTextStyles.cinzel(color: AppColors.textSecondary),
+          style: AppTextStyles.text(color: AppColors.textSecondary),
         ),
         const SizedBox(height: 12),
         const Text(

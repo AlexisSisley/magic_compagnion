@@ -25,7 +25,7 @@ class DeckTokensTab extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 'Ce deck ne necessite aucun token',
-                style: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 16),
+                style: AppTextStyles.text(color: AppColors.textMuted, fontSize: 16),
                 textAlign: TextAlign.center,
               ),
             ],

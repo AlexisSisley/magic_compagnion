@@ -104,7 +104,7 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary)) 
         : _history.isEmpty 
-          ? Center(child: Text('Aucune partie enregistrée.', style: AppTextStyles.cinzel(color: AppColors.textMuted)))
+          ? Center(child: Text('Aucune partie enregistrée.', style: AppTextStyles.text(color: AppColors.textMuted)))
           : ListView.builder(
               itemCount: _history.length,
               padding: const EdgeInsets.all(12), // Un peu de padding autour de la liste
@@ -178,7 +178,7 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
                   children: [
                     const Icon(Icons.emoji_events, color: AppColors.primary, size: 20),
                     const SizedBox(width: 8),
-                    Text('Vainqueur : ', style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+                    Text('Vainqueur : ', style: AppTextStyles.text(color: AppColors.textSecondary)),
                     Text(game.winnerName, style: AppTextStyles.bold(color: AppColors.primary, fontSize: 16)),
                   ],
                 ),

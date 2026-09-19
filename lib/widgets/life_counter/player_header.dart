@@ -72,7 +72,7 @@ class PlayerHeader extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.cinzel(
+                style: AppTextStyles.text(
                   fontSize: 12,
                   color: AppColors.textSecondary,
                 ).copyWith(

@@ -128,7 +128,7 @@ void showPlayerSkinPicker({
     context: context,
     builder: (dialogCtx) => AlertDialog(
       backgroundColor: AppColors.scaffoldBackground,
-      title: Text('Personnalisation J${player.id + 1}', style: AppTextStyles.cinzel()),
+      title: Text('Personnalisation J${player.id + 1}', style: AppTextStyles.text()),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -201,7 +201,7 @@ void showCommanderGallery({
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Commanders', style: AppTextStyles.cinzel(fontSize: 18)),
+          Text('Commanders', style: AppTextStyles.text(fontSize: 18)),
           const SizedBox(height: 12),
           SizedBox(
             height: 120,
@@ -339,12 +339,12 @@ class _ArtworkSearchModalState extends State<_ArtworkSearchModal> {
         ),
         child: Column(
           children: [
-            Text('Choisir un Artwork', style: AppTextStyles.cinzel(fontSize: 18)),
+            Text('Choisir un Artwork', style: AppTextStyles.text(fontSize: 18)),
             const SizedBox(height: 12),
             TextField(
               controller: _controller,
               autofocus: true,
-              style: AppTextStyles.cinzel(),
+              style: AppTextStyles.text(),
               decoration: const InputDecoration(
                 hintText: 'Nom de la carte...',
                 hintStyle: TextStyle(color: AppColors.textDisabled),
@@ -358,7 +358,7 @@ class _ArtworkSearchModalState extends State<_ArtworkSearchModal> {
             const SizedBox(height: 10),
             Expanded(
               child: _results.isEmpty
-                  ? Center(child: Text("Tapez le nom d'une carte", style: AppTextStyles.cinzel(color: AppColors.textDisabled)))
+                  ? Center(child: Text("Tapez le nom d'une carte", style: AppTextStyles.text(color: AppColors.textDisabled)))
                   : GridView.builder(
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 3,

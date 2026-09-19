@@ -50,7 +50,7 @@ void showSetDetailFilterModal({
 
                   // --- 1. COULEURS ---
                   Text('Couleurs',
-                      style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+                      style: AppTextStyles.text(color: AppColors.textSecondary)),
                   const SizedBox(height: 10),
                   Wrap(
                     spacing: 12,
@@ -85,7 +85,7 @@ void showSetDetailFilterModal({
 
                   // --- 2. TYPES ---
                   Text('Type de carte',
-                      style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+                      style: AppTextStyles.text(color: AppColors.textSecondary)),
                   const SizedBox(height: 10),
                   Wrap(
                     spacing: 8,
@@ -123,7 +123,7 @@ void showSetDetailFilterModal({
 
                   // --- 3. OPTIONS ---
                   Text("Options d'affichage",
-                      style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+                      style: AppTextStyles.text(color: AppColors.textSecondary)),
                   const SizedBox(height: 10),
                   Row(
                     children: [

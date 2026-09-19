@@ -57,7 +57,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
       return Center(
         child: Text(
           'Aucun Commandant defini.',
-          style: AppTextStyles.cinzel(color: AppColors.textSecondary),
+          style: AppTextStyles.text(color: AppColors.textSecondary),
         ),
       );
     }
@@ -114,7 +114,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
       return Center(
         child: Text(
           'Aucune suggestion trouvee.',
-          style: AppTextStyles.cinzel(color: AppColors.textMuted),
+          style: AppTextStyles.text(color: AppColors.textMuted),
         ),
       );
     }
@@ -326,7 +326,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
         padding: const EdgeInsets.all(16),
         child: Text(
           'Aucune carte pour ce theme.',
-          style: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 13),
+          style: AppTextStyles.text(color: AppColors.textMuted, fontSize: 13),
         ),
       );
     }
@@ -384,7 +384,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
         },
         title: Text(
           suggestion.name,
-          style: AppTextStyles.cinzel(fontSize: 13),
+          style: AppTextStyles.text(fontSize: 13),
         ),
         subtitle: Row(
           children: [
@@ -498,7 +498,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
                   ),
                 ),
         ),
-        title: Text(card.name, style: AppTextStyles.cinzel(fontSize: 16)),
+        title: Text(card.name, style: AppTextStyles.text(fontSize: 16)),
         subtitle: isFallback
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

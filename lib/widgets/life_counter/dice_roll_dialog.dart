@@ -70,7 +70,7 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
     return AlertDialog(
       backgroundColor: AppColors.scaffoldBackground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.2))),
-      title: _isAnimating ? null : Center(child: Text(_getTitle(), style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 18))),
+      title: _isAnimating ? null : Center(child: Text(_getTitle(), style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 18))),
       content: SizedBox(
         height: 150,
         child: Center(child: _isAnimating ? _buildAnimatedView() : _buildFinalResultView()),
@@ -136,7 +136,7 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
       contentColor = Colors.cyanAccent; 
     }
 
-    return Text(content, textAlign: TextAlign.center, style: AppTextStyles.cinzel(color: contentColor, fontSize: fontSize, fontWeight: FontWeight.bold).copyWith(shadows: [BoxShadow(color: contentColor.withValues(alpha: 0.5), blurRadius: 20)]));
+    return Text(content, textAlign: TextAlign.center, style: AppTextStyles.text(color: contentColor, fontSize: fontSize, fontWeight: FontWeight.bold).copyWith(shadows: [BoxShadow(color: contentColor.withValues(alpha: 0.5), blurRadius: 20)]));
   }
 
   List<Widget> _buildActions() {
@@ -144,8 +144,8 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          TextButton.icon(onPressed: widget.onReroll, icon: const Icon(Icons.refresh, color: AppColors.textMuted), label: Text('Relancer', style: AppTextStyles.cinzel(color: AppColors.textMuted))),
-          ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: AppColors.borderLight), child: Text('OK', style: AppTextStyles.cinzel())),
+          TextButton.icon(onPressed: widget.onReroll, icon: const Icon(Icons.refresh, color: AppColors.textMuted), label: Text('Relancer', style: AppTextStyles.text(color: AppColors.textMuted))),
+          ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: AppColors.borderLight), child: Text('OK', style: AppTextStyles.text())),
         ],
       ),
     ];

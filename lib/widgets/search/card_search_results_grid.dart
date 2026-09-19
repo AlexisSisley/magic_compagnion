@@ -39,7 +39,7 @@ class CardSearchResultsGrid extends StatelessWidget {
     if (state.searchResults.isEmpty) {
       return Center(
           child: Text(state.statusMessage,
-              style: AppTextStyles.cinzel(color: AppColors.textSecondary)));
+              style: AppTextStyles.text(color: AppColors.textSecondary)));
     }
 
     return GridView.builder(
@@ -84,7 +84,7 @@ class CardSearchResultsGrid extends StatelessWidget {
                         child: Center(
                             child: Text(card.name,
                                 textAlign: TextAlign.center,
-                                style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 10)))),
+                                style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 10)))),
                 Positioned(
                     bottom: 0,
                     left: 0,

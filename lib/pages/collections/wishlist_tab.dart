@@ -265,7 +265,7 @@ class _WishlistTabState extends State<WishlistTab> {
             child: widget.wishlists.isEmpty 
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  children: [SizedBox(height: MediaQuery.of(context).size.height * 0.5, child: Center(child: Text('Aucune wishlist créée.', style: AppTextStyles.cinzel(color: AppColors.borderFaint))))]
+                  children: [SizedBox(height: MediaQuery.of(context).size.height * 0.5, child: Center(child: Text('Aucune wishlist créée.', style: AppTextStyles.text(color: AppColors.borderFaint))))]
                 )
               : ListView.builder(
                   physics: const AlwaysScrollableScrollPhysics(),

@@ -53,19 +53,19 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.scaffoldBackground,
-        title: Text('Vider l\'historique ?', style: AppTextStyles.cinzel()),
+        title: Text('Vider l\'historique ?', style: AppTextStyles.text()),
         content: Text(
           'Tous les scans de votre historique seront supprimés.',
-          style: AppTextStyles.cinzel(color: AppColors.textSecondary),
+          style: AppTextStyles.text(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Annuler', style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+            child: Text('Annuler', style: AppTextStyles.text(color: AppColors.textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Vider', style: AppTextStyles.cinzel(color: Colors.red.shade300)),
+            child: Text('Vider', style: AppTextStyles.text(color: Colors.red.shade300)),
           ),
         ],
       ),
@@ -103,7 +103,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
       appBar: AppBar(
         title: Text(
           'Historique des Scans',
-          style: AppTextStyles.cinzel(fontWeight: FontWeight.w600),
+          style: AppTextStyles.text(fontWeight: FontWeight.w600),
         ),
         backgroundColor: AppColors.textOnPrimary,
         actions: [
@@ -182,7 +182,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
             ),
             title: Text(
               item.cardName,
-              style: AppTextStyles.cinzel(fontSize: 18, fontWeight: FontWeight.w600),
+              style: AppTextStyles.text(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
               _dateFormatter.format(item.timestamp), // Affiche la date

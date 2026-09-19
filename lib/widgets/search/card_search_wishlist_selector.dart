@@ -43,7 +43,7 @@ class CardSearchWishlistSelector {
                   ListTile(
                     leading: const Icon(Icons.add_circle, color: AppColors.accentGreen),
                     title: Text('Creer une nouvelle liste',
-                        style: AppTextStyles.cinzel()),
+                        style: AppTextStyles.text()),
                     onTap: () async {
                       final name = await _showCreateWishlistDialog();
                       if (name != null && context.mounted) {

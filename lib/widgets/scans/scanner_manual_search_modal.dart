@@ -69,7 +69,7 @@ class _ScannerManualSearchModalState extends State<ScannerManualSearchModal> {
                     child: TextField(
                       controller: _controller,
                       autofocus: true,
-                      style: AppTextStyles.cinzel(),
+                      style: AppTextStyles.text(),
                       decoration: const InputDecoration(
                         hintText: 'Nom de la carte (FR/EN)...',
                         hintStyle: TextStyle(color: AppColors.textDisabled),
@@ -93,7 +93,7 @@ class _ScannerManualSearchModalState extends State<ScannerManualSearchModal> {
                         _controller.text.isEmpty
                             ? "Tapez le nom d'une carte"
                             : 'Aucun resultat local.',
-                        style: AppTextStyles.cinzel(color: AppColors.textDisabled),
+                        style: AppTextStyles.text(color: AppColors.textDisabled),
                       ),
                     )
                   : ListView.builder(
@@ -102,7 +102,7 @@ class _ScannerManualSearchModalState extends State<ScannerManualSearchModal> {
                         final card = _results[index];
                         return ListTile(
                           title: Text(card.name,
-                              style: AppTextStyles.cinzel()),
+                              style: AppTextStyles.text()),
                           subtitle: Text(card.typeLine,
                               style: const TextStyle(
                                   color: AppColors.textMuted, fontSize: 12)),

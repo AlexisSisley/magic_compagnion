@@ -138,7 +138,7 @@ class _TournamentPageState extends ConsumerState<TournamentPage> with SingleTick
       builder: (ctx) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(padding: const EdgeInsets.all(16.0), child: Text('Choisir des joueurs', style: AppTextStyles.cinzel(fontSize: 18))),
+          Padding(padding: const EdgeInsets.all(16.0), child: Text('Choisir des joueurs', style: AppTextStyles.text(fontSize: 18))),
           Flexible(
             child: ListView.builder(
               shrinkWrap: true,
@@ -269,7 +269,7 @@ class _TournamentPageState extends ConsumerState<TournamentPage> with SingleTick
             ],
           ),
           const SizedBox(height: 24),
-          Expanded(child: ListView.builder(itemCount: _players.length, itemBuilder: (ctx, i) => Card(color: AppColors.textPrimary.withValues(alpha: 0.05), child: ListTile(leading: CircleAvatar(backgroundColor: Colors.blueGrey, child: Text('${i+1}')), title: Text(_players[i].name, style: AppTextStyles.cinzel()), trailing: IconButton(icon: const Icon(Icons.close, color: AppColors.error), onPressed: () => setState(() => _players.removeAt(i))))))),
+          Expanded(child: ListView.builder(itemCount: _players.length, itemBuilder: (ctx, i) => Card(color: AppColors.textPrimary.withValues(alpha: 0.05), child: ListTile(leading: CircleAvatar(backgroundColor: Colors.blueGrey, child: Text('${i+1}')), title: Text(_players[i].name, style: AppTextStyles.text()), trailing: IconButton(icon: const Icon(Icons.close, color: AppColors.error), onPressed: () => setState(() => _players.removeAt(i))))))),
           ElevatedButton(onPressed: _players.length >= 2 ? _startTournament : null, style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800, foregroundColor: AppColors.textOnPrimary), child: Text("Générer l'Arbre", style: AppTextStyles.bold())),
         ],
       ),

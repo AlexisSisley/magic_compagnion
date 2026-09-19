@@ -192,12 +192,12 @@ class _DetailedPriceTag extends PriceTag {
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         Column(children: [
-          Text('Normal', style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+          Text('Normal', style: AppTextStyles.text(color: AppColors.textSecondary)),
           Text(priceEur, style: AppTextStyles.pageTitle(fontSize: effectiveFontSize)),
         ]),
         Container(width: 1, height: 30, color: AppColors.borderMedium),
         Column(children: [
-          Text('Foil (Brillant)', style: AppTextStyles.cinzel(color: Colors.amber.shade200)),
+          Text('Foil (Brillant)', style: AppTextStyles.text(color: Colors.amber.shade200)),
           Text(priceEurFoil, style: AppTextStyles.pageTitle(fontSize: effectiveFontSize)),
         ]),
       ],

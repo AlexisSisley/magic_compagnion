@@ -156,12 +156,12 @@ class _GlossaryPageState extends ConsumerState<GlossaryPage> {
               Expanded(
                 child: TextField(
                   controller: _searchController,
-                  style: AppTextStyles.cinzel(fontSize: 16),
+                  style: AppTextStyles.text(fontSize: 16),
                   decoration: InputDecoration(
                     hintText: _currentLang == 'fr' 
                               ? 'Rechercher un mot-clé...' 
                               : 'Search a keyword...',
-                    hintStyle: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 16),
+                    hintStyle: AppTextStyles.text(color: AppColors.textMuted, fontSize: 16),
                     prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
                     filled: true,
                     fillColor: AppColors.textOnPrimary.withValues(alpha: 0.5),
@@ -286,7 +286,7 @@ class _GlossaryPageState extends ConsumerState<GlossaryPage> {
         ),
         title: Text(
           keyword.term,
-          style: AppTextStyles.cinzel(fontSize: 18, fontWeight: FontWeight.w600),
+          style: AppTextStyles.text(fontSize: 18, fontWeight: FontWeight.w600),
         ),
         trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
         splashColor: Colors.yellow.withValues(alpha: 0.1),

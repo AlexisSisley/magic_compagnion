@@ -138,7 +138,7 @@ class _VersionsSelectorSheetState extends ConsumerState<VersionsSelectorSheet> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary))
                 : _errorMessage.isNotEmpty
-                    ? Center(child: Text(_errorMessage, style: AppTextStyles.cinzel(color: AppColors.error)))
+                    ? Center(child: Text(_errorMessage, style: AppTextStyles.text(color: AppColors.error)))
                     : GridView.builder(
                         padding: const EdgeInsets.all(12),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

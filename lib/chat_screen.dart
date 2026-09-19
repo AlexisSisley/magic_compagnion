@@ -148,7 +148,7 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
               _controller.text = 'Comment fonctionne la sauvegarde des decks ?';
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade900),
-            child: Text('Tester un exemple', style: AppTextStyles.cinzel()),
+            child: Text('Tester un exemple', style: AppTextStyles.text()),
           )
         ],
       ),
@@ -167,7 +167,7 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
     return Scaffold(
       extendBodyBehindAppBar: true, // Important pour le design immersif
       appBar: AppBar(
-        title: Text('Grimoire Code', style: AppTextStyles.cinzel(fontWeight: FontWeight.w900, color: AppColors.primaryBright)),
+        title: Text('Grimoire Code', style: AppTextStyles.text(fontWeight: FontWeight.w900, color: AppColors.primaryBright)),
         backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.4),
         centerTitle: true,
         elevation: 0,
@@ -251,7 +251,7 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
                 children: [
                   const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.amber)),
                   const SizedBox(width: 10),
-                  Text('Invocation...', style: AppTextStyles.cinzel(color: AppColors.amber, fontSize: 12))
+                  Text('Invocation...', style: AppTextStyles.text(color: AppColors.amber, fontSize: 12))
                 ],
               )
             : isUser
