@@ -32,9 +32,15 @@ Future<String?> _familyOf(TextStyle Function() build) async {
   runZonedGuarded(() async {
     result.complete(build().fontFamily);
   }, (error, stack) {
-    // Chargement de police rejete : sans interet ici, le nom de famille est
-    // calcule sans la police.
-    if (!result.isCompleted) result.complete(null);
+    // Rejet POSTERIEUR au calcul (le chargement de police avorte) : sans
+    // interet ici, `result` est deja complete et ce `completeError` ne fait
+    // rien.
+    //
+    // Mais si c'est `build()` LUI-MEME qui a leve, alors rien n'est encore
+    // complete, et il faut propager. Completer a `null` ferait rendre `false`
+    // a `_isCinzel(null)`, et les huit assertions `isFalse` du fichier
+    // passeraient sans avoir rien mesure -- un test vert qui ne teste plus.
+    if (!result.isCompleted) result.completeError(error, stack);
   });
   return result.future;
 }
@@ -77,15 +83,21 @@ void main() {
   });
 
   group("l'echappatoire cinzel() a disparu du code", () {
-    test('plus aucun appel a AppTextStyles.cinzel( sous lib/', () {
-      final offenders = <String>[];
-
+    /// Tous les .dart sous lib/, avec leur chemin normalise en separateurs
+    /// POSIX pour que les exclusions marchent aussi sous Windows.
+    Iterable<(String, List<String>)> fichiersLib() sync* {
       for (final entity in Directory('lib').listSync(recursive: true)) {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;
-        final lines = entity.readAsLinesSync();
-        for (var i = 0; i < lines.length; i++) {
-          if (lines[i].contains('AppTextStyles.cinzel(')) {
-            offenders.add('${entity.path}:${i + 1}');
+        yield (entity.path.replaceAll(r'\', '/'), entity.readAsLinesSync());
+      }
+    }
+
+    test('plus aucun appel a AppTextStyles.cinzel( sous lib/', () {
+      final offenders = <String>[];
+      for (final (chemin, lignes) in fichiersLib()) {
+        for (var i = 0; i < lignes.length; i++) {
+          if (lignes[i].contains('AppTextStyles.cinzel(')) {
+            offenders.add('$chemin:${i + 1}');
           }
         }
       }
@@ -93,6 +105,28 @@ void main() {
       expect(offenders, isEmpty,
           reason: 'Migrer ces appels vers text() (texte courant) ou vers '
               'sectionTitle()/cardTitle() (titres) :\n${offenders.join('\n')}');
+    });
+
+    test('aucun appel direct a GoogleFonts.cinzel( hors du fichier de styles',
+        () {
+      // L'autre facon de rouvrir l'echappatoire : contourner AppTextStyles et
+      // appeler google_fonts directement. Le depot en comptait 325 avant la
+      // centralisation ; rien n'empeche d'en reintroduire un.
+      const source = 'lib/theme/app_text_styles.dart';
+      final offenders = <String>[];
+      for (final (chemin, lignes) in fichiersLib()) {
+        if (chemin.endsWith(source)) continue;
+        for (var i = 0; i < lignes.length; i++) {
+          if (lignes[i].contains('GoogleFonts.cinzel(')) {
+            offenders.add('$chemin:${i + 1}');
+          }
+        }
+      }
+
+      expect(offenders, isEmpty,
+          reason: "Cinzel ne se choisit qu'au travers d'AppTextStyles, et "
+              'seulement pour un titre. Passer par un helper de titre :\n'
+              '${offenders.join('\n')}');
     });
   });
 }
