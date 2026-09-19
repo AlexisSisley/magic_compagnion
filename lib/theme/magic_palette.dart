@@ -98,6 +98,49 @@ class MagicPalette extends ThemeExtension<MagicPalette> {
     );
   }
 
+  /// Egalite par valeur.
+  ///
+  /// Sans elle, deux palettes de memes couleurs sont des objets distincts,
+  /// `ThemeData ==` devient faux, et Flutter reconstruit tout l'arbre a chaque
+  /// fois qu'une palette est reconstruite. Sans consequence tant qu'il n'y a
+  /// qu'une seule instance `const`, mais le theme clair "Table" en
+  /// construira dynamiquement : le piege est pose maintenant, pas plus tard.
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is MagicPalette &&
+        other.canvas == canvas &&
+        other.raised == raised &&
+        other.overlay == overlay &&
+        other.line == line &&
+        other.inkPrimary == inkPrimary &&
+        other.inkSecondary == inkSecondary &&
+        other.inkMuted == inkMuted &&
+        other.accent == accent &&
+        other.onAccent == onAccent &&
+        other.success == success &&
+        other.warning == warning &&
+        other.danger == danger &&
+        other.info == info;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        canvas,
+        raised,
+        overlay,
+        line,
+        inkPrimary,
+        inkSecondary,
+        inkMuted,
+        accent,
+        onAccent,
+        success,
+        warning,
+        danger,
+        info,
+      );
+
   @override
   MagicPalette lerp(ThemeExtension<MagicPalette>? other, double t) {
     if (other is! MagicPalette) return this;

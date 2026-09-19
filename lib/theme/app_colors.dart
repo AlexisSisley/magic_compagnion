@@ -24,14 +24,19 @@ abstract final class AppColors {
   // BACKGROUNDS
   // ============================================================
 
-  /// Fond principal des scaffolds et pages (0xFF1A1A1A - utilise 87 fois)
-  static const Color scaffoldBackground = Color(0xFF1A1A1A);
+  /// Fond principal des scaffolds et pages. Vaut MagicPalette.canvas.
+  ///
+  /// Les 84 ecrans qui posent ce fond a la main doivent afficher le meme noir
+  /// que ceux qui laissent faire `ThemeData.scaffoldBackgroundColor` -- sinon
+  /// deux noirs coexistent, y compris entre un ecran et la modale posee
+  /// dessus.
+  static const Color scaffoldBackground = Color(0xFF0E0E11);
 
-  /// Fond secondaire pour les dialogs, modals (0xFF1A1A2E)
-  static const Color dialogBackground = Color(0xFF1A1A2E);
+  /// Fond des dialogues et modales. Vaut MagicPalette.overlay.
+  static const Color dialogBackground = Color(0xFF2A2733);
 
-  /// Fond des cartes/containers sureleves (0xFF2A2A2A)
-  static const Color cardBackground = Color(0xFF2A2A2A);
+  /// Fond des cartes et containers sureleves. Vaut MagicPalette.raised.
+  static const Color cardBackground = Color(0xFF191820);
 
   /// Fond des surfaces sombres (0xFF1E1E1E)
   static const Color surfaceDark = Color(0xFF1E1E1E);
@@ -52,8 +57,10 @@ abstract final class AppColors {
   // PRIMARY / ACCENT
   // ============================================================
 
-  /// Couleur primaire d'accent (jaune dore MTG)
-  static const Color primary = Colors.yellow;
+  /// Couleur primaire d'accent. Vaut MagicPalette.accent : l'or patine
+  /// Grimoire, et non plus `Colors.yellow` -- le jaune pur vibre sur fond
+  /// noir et fatigue en lecture longue.
+  static const Color primary = Color(0xFFC9A227);
   static const Color primaryDark = Color(0xFFC7A94E);
   static const Color primaryGold = Color(0xFFD4AF37);
   static const Color primaryBright = Color(0xFFFFD700);
@@ -124,10 +131,14 @@ abstract final class AppColors {
   // STATUS / FEEDBACK
   // ============================================================
 
-  static const Color success = Colors.green;
-  static const Color warning = Colors.orange;
-  static const Color error = Colors.red;
-  static const Color info = Colors.blue;
+  // Valeurs Grimoire, volontairement decalees des couleurs de mana ci-dessus.
+  // Avant ce lot, `success` valait EXACTEMENT `manaGreen` (0xFF4CAF50) : un
+  // badge "possedee" et une carte verte etaient indiscernables a l'ecran.
+  // L'ecart minimal est verrouille par test/theme/magic_palette_test.dart.
+  static const Color success = Color(0xFF6FD98F);
+  static const Color warning = Color(0xFFFFA94D);
+  static const Color error = Color(0xFFFF7A6E);
+  static const Color info = Color(0xFF7FB2FF);
 
   // ============================================================
   // SYNERGY / SALT / POWER LEVEL (Sprint 11-12)
