@@ -311,3 +311,72 @@ Voir [[visual-work-needs-eyes]].
   par deck, par URL.
 - **La collection par API** est impossible (401), et le restera sans compte
   authentifié.
+- **L'identité de collection par langue est reportée.** La colonne `Language`
+  du fichier est lue puis ignorée : `POST /cards/collection` ne parle que
+  l'anglais et ignore le paramètre de langue, si bien que résoudre chaque
+  carte dans sa langue coûterait une requête par carte — inacceptable sur
+  1247 lignes. Plutôt que d'afficher `Language` comme une colonne reconnue et
+  de mentir à l'utilisateur sur ce que l'app a compris de son fichier, la
+  colonne a été retirée du modèle, du parser et de l'écran de vérification.
+  Les traductions restent gérées, après coup, par la file de `TranslationWorker`
+  selon la langue **préférée** de l'utilisateur, pas selon celle du fichier.
+
+## Dette connue après implémentation (2026-09-19)
+
+Le chantier est fusionné (19 commits, 1230 → 1332 tests). La revue finale de
+branche a trouvé trois Critical et huit Important, tous corrigés. Ce qui suit
+est ce qui reste, dont **deux régressions introduites par la vague de
+correction elle-même**.
+
+### Introduit par la vague de correction
+
+1. **Un tag utilisateur nommé « à vérifier » est perdu.** La constante
+   `kNeedsCheckTag` vaut littéralement `'à vérifier'`, sans préfixe ni espace de
+   noms : le code ne distingue pas le tag système du tag homonyme qu'un
+   utilisateur aurait posé lui-même, et le retire quand la carte redevient
+   identifiable. Avant la vague, le tag n'était jamais retiré — le problème
+   n'existait donc pas. Correctif : préfixer le tag système (`sys:à vérifier`).
+
+2. **`createNewDeck` fait un N+1 à chaque création de deck.** Pour garantir
+   l'unicité des identifiants (générés à la milliseconde, donc en collision
+   possible), la méthode appelle `loadDecks()`, qui charge les cartes de chaque
+   deck alors que seuls les identifiants sont nécessaires. Le chemin
+   SharedPreferences l'appelle deux fois. Concerne aussi les créations
+   manuelles. Correctif : `getAllDecksRaw()`.
+
+### Non couvert par un test
+
+3. **Les trois correctifs d'interface du chemin URL** — messenger capturé avant
+   le `pop`, `try/catch` de `_doImport`, message d'échec partiel — n'ont aucun
+   test ; `deck_import_modal.dart` n'a aucun fichier de test dans le dépôt.
+   C'est le résidu à traiter en premier lors d'une reprise : c'est le seul canal
+   de retour d'information de ce chemin.
+
+4. **Le test de l'invariant « la collection ne contacte jamais Moxfield »
+   n'intercepte que le Dio injecté**, pas toute requête. Il garde la composition
+   actuelle, pas la propriété dans l'absolu : un client construit en interne lui
+   échapperait.
+
+### Préexistant, réparable en une ligne depuis ce chantier
+
+5. **`CollectionController.createNewDeckAndGetId`** fait encore
+   `createNewDeck(name)` puis `decks.last.id`, et dépend donc de l'ordre non
+   trié de `getAllDecksRaw` — même famille de bug que celui corrigé sur l'import
+   par URL. `createNewDeck` rendant désormais l'identifiant créé, la correction
+   tient en une ligne.
+
+### Assumé
+
+- `added + updated` peut être **inférieur** à `imported` quand plusieurs lignes
+  du fichier fusionnent sur un même tirage : ce sont deux unités différentes
+  (lignes de fichier contre lignes de collection). Le bilan ne l'explique pas,
+  et les affiche l'un sous l'autre, ce qui invite à l'addition.
+- La liste des cartes non identifiées n'est **pas copiable**, alors que cette
+  spec le promet.
+- Aucune progression n'est affichée pendant un import long : un fichier de 1 247
+  cartes tient l'isolate UI le temps de 17 lots réseau séquentiels.
+- Les écrans d'explication et de vérification ne défilent pas ; l'écran de bilan
+  si. En paysage ou avec une grande police système, les deux premiers débordent.
+- Duplication de trois conteneurs d'affichage quasi identiques entre la feuille
+  et le rapport ; nommage mêlant français et anglais dans
+  `collection_import_service.dart` ; `Dio` du client Moxfield jamais fermé.

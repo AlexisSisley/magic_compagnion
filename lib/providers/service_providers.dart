@@ -16,6 +16,7 @@ import '../data/database/app_database.dart';
 import '../services/backup_service.dart';
 import '../services/bulk_data_service.dart';
 import '../services/card_resolver.dart';
+import '../services/collection_import_service.dart';
 import '../services/collection_service.dart';
 import '../services/counter_type_service.dart';
 import '../services/deck_service.dart';
@@ -23,6 +24,7 @@ import '../services/edhrec_service.dart';
 import '../services/game_history_service.dart';
 import '../services/google_drive_service.dart';
 import '../services/local_card_service.dart';
+import '../services/moxfield_deck_client.dart';
 import '../services/oracle_service.dart';
 import '../services/profile_service.dart';
 import '../services/scan_history_service.dart';
@@ -56,9 +58,8 @@ final cardResolverProvider = Provider<CardResolver>((ref) {
 
 final collectionServiceProvider = Provider<CollectionService>((ref) {
   final db = ref.watch(appDatabaseProvider);
-  final api = ref.watch(scryfallApiServiceProvider);
   final resolver = ref.watch(cardResolverProvider);
-  return CollectionService(database: db, api: api, resolver: resolver);
+  return CollectionService(database: db, resolver: resolver);
 });
 
 final deckServiceProvider = Provider<DeckService>((ref) {
@@ -90,6 +91,18 @@ final translationWorkerProvider = Provider<TranslationWorker>((ref) {
   final db = ref.watch(appDatabaseProvider);
   final resolver = ref.watch(cardResolverProvider);
   return TranslationWorker(resolver: resolver, db: db);
+});
+
+final collectionImportServiceProvider = Provider<CollectionImportService>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  final resolver = ref.watch(cardResolverProvider);
+  return CollectionImportService(db: db, resolver: resolver);
+});
+
+// --- Client Moxfield (import de deck par URL) ---
+
+final moxfieldDeckClientProvider = Provider<MoxfieldDeckClient>((ref) {
+  return MoxfieldDeckClient();
 });
 
 // --- Services sans dépendance à la base ---

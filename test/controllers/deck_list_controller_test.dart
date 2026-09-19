@@ -12,6 +12,7 @@ import 'package:magic_companion/services/collection_service.dart';
 import 'package:magic_companion/services/deck_format_service.dart';
 import 'package:magic_companion/services/deck_service.dart';
 import 'package:magic_companion/services/local_card_service.dart';
+import 'package:magic_companion/services/moxfield_deck_client.dart';
 import 'package:magic_companion/services/scryfall_api_service.dart';
 import 'package:magic_companion/services/translation_worker.dart';
 
@@ -104,6 +105,12 @@ DeckListController _createImportController({
     // tests d'import ci-dessous verifient que la file est VIDE apres un
     // import, pas seulement que chaque piece marche isolement.
     translationWorker: TranslationWorker(resolver: resolver, db: db),
+    // Non exerces par importDeck (chemin texte/CSV) : requis par le
+    // constructeur depuis l'ajout de l'import Moxfield (Task 7), voir
+    // test/controllers/deck_list_moxfield_test.dart pour ces chemins.
+    cardResolver: resolver,
+    moxfieldClient: MoxfieldDeckClient(),
+    db: db,
   );
 }
 

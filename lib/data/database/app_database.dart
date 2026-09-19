@@ -353,6 +353,12 @@ class AppDatabase extends _$AppDatabase {
   Future<List<DbCollectionCard>> getAllCollectionCards() =>
       select(collectionCards).get();
 
+  /// Une carte de collection par tirage et finition, ou null.
+  Future<DbCollectionCard?> getCollectionCard(String scryfallId, bool isFoil) =>
+      (select(collectionCards)
+            ..where((c) => c.scryfallId.equals(scryfallId) & c.isFoil.equals(isFoil)))
+          .getSingleOrNull();
+
   Future<void> upsertCollectionCard({
     required String scryfallId,
     required String cardName,
