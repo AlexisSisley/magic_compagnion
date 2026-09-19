@@ -1,0 +1,232 @@
+// Tests de DeckListController.importDeckFromMoxfieldUrl (Task 7).
+//
+// Deux Dio mockes distincts, comme le vrai controller : un pour
+// MoxfieldDeckClient (recupere le JSON du deck), un pour ScryfallApiService
+// (resout chaque scryfall_id via POST /cards/collection). Squelette de
+// montage calque sur test/controllers/deck_list_controller_test.dart.
+
+import 'package:dio/dio.dart';
+import 'package:drift/native.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:magic_companion/controllers/deck_list_controller.dart';
+import 'package:magic_companion/data/database/app_database.dart';
+import 'package:magic_companion/services/card_resolver.dart';
+import 'package:magic_companion/services/collection_service.dart';
+import 'package:magic_companion/services/deck_service.dart';
+import 'package:magic_companion/services/local_card_service.dart';
+import 'package:magic_companion/services/moxfield_deck_client.dart';
+import 'package:magic_companion/services/scryfall_api_service.dart';
+import 'package:magic_companion/services/translation_worker.dart';
+
+/// Dio mocke generique : [handler] rend soit une Map (200), soit un int
+/// (code d'erreur HTTP, encapsule en badResponse). Recopie du helper de
+/// test/services/card_resolver_test.dart et test/controllers/deck_list_controller_test.dart.
+Dio _mockDio(Object Function(RequestOptions) handler) {
+  final dio = Dio();
+  dio.interceptors.add(InterceptorsWrapper(onRequest: (options, h) {
+    final result = handler(options);
+    if (result is int) {
+      h.reject(DioException(
+        requestOptions: options,
+        response: Response(requestOptions: options, statusCode: result),
+        type: DioExceptionType.badResponse,
+      ));
+      return;
+    }
+    h.resolve(Response(requestOptions: options, statusCode: 200, data: result));
+  }));
+  return dio;
+}
+
+/// Le deck Moxfield fixture reutilise par les tests : un mainboard (Wurmcoil
+/// Engine, une seconde carte), un commandant (Toph) dans son propre board, et
+/// une carte au maybeboard (Contagion Engine) qui doit atterrir dans
+/// `considering`.
+Map<String, dynamic> _deckJson() => {
+      'name': 'Invincible toph',
+      'format': 'commander',
+      'boards': {
+        'commanders': {
+          'cards': {
+            'c1': {
+              'quantity': 1,
+              'isFoil': false,
+              'isProxy': false,
+              'card': {'scryfall_id': 'toph-id', 'name': 'Toph, Metalbender'},
+            },
+          },
+        },
+        'mainboard': {
+          'cards': {
+            'm1': {
+              'quantity': 1,
+              'isFoil': false,
+              'isProxy': false,
+              'card': {'scryfall_id': 'wurmcoil-id', 'name': 'Wurmcoil Engine'},
+            },
+            'm2': {
+              'quantity': 1,
+              'isFoil': false,
+              'isProxy': false,
+              'card': {'scryfall_id': 'lattice-id', 'name': 'Trinisphere'},
+            },
+          },
+        },
+        'sideboard': {'cards': {}},
+        'maybeboard': {
+          'cards': {
+            'mb1': {
+              'quantity': 1,
+              'isFoil': false,
+              'isProxy': false,
+              'card': {'scryfall_id': 'contagion-id', 'name': 'Contagion Engine'},
+            },
+          },
+        },
+      },
+    };
+
+/// Dio Moxfield mocke : rend le deck fixture pour n'importe quel publicId,
+/// sur la route v3 des decks.
+Dio _mockMoxfieldDio() => _mockDio((_) => _deckJson());
+
+/// Dio Scryfall mocke qui echoue une carte plausible pour chaque identifiant
+/// recu (tous par `id`, jamais par `name` -- voir test 2). Capture aussi les
+/// identifiants envoyes dans [sentIdentifiers] pour inspection.
+Dio _mockScryfallDio(List<dynamic> sentIdentifiers) {
+  return _mockDio((options) {
+    final body = options.data as Map;
+    final identifiers = (body['identifiers'] as List).cast<Map<String, dynamic>>();
+    sentIdentifiers.addAll(identifiers);
+    final data = [
+      for (final identifier in identifiers)
+        {
+          'id': identifier['id'],
+          'oracle_id': 'oracle-${identifier['id']}',
+          'name': identifier['id'],
+          'set': 'tst',
+          'collector_number': '1',
+          'lang': 'en',
+          'color_identity': <String>[],
+        },
+    ];
+    return {'data': data, 'not_found': []};
+  });
+}
+
+DeckListController _buildController({
+  required Dio moxfieldDio,
+  required Dio scryfallDio,
+  required AppDatabase db,
+}) {
+  final resolver = CardResolver(api: ScryfallApiService(dio: scryfallDio), db: db);
+  final collectionService = CollectionService(database: db, resolver: resolver);
+  return DeckListController(
+    deckService: DeckService(),
+    localCardService: LocalCardService(),
+    collectionService: collectionService,
+    translationWorker: TranslationWorker(resolver: resolver, db: db),
+    cardResolver: resolver,
+    moxfieldClient: MoxfieldDeckClient(dio: moxfieldDio),
+  );
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('DeckListController.importDeckFromMoxfieldUrl', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    test('un deck importe par URL porte les tirages exacts de Moxfield', () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final controller = _buildController(
+        moxfieldDio: _mockMoxfieldDio(),
+        scryfallDio: _mockScryfallDio([]),
+        db: db,
+      );
+
+      final result = await controller.importDeckFromMoxfieldUrl(
+          'https://moxfield.com/decks/f-27i01CpkmBPljy89HQeA');
+
+      expect(result.success, isTrue, reason: result.message);
+
+      final deckService = DeckService();
+      final decks = await deckService.loadDecks();
+      final deck = decks.firstWhere((d) => d.name == 'Invincible toph');
+
+      expect(deck.mainboard.map((c) => c.scryfallId),
+          containsAll(['wurmcoil-id', 'lattice-id']));
+      expect(deck.commanderScryfallId, 'toph-id');
+      expect(deck.considering.map((c) => c.name), contains('Contagion Engine'));
+    });
+
+    test('les identifiants envoyes a Scryfall sont des scryfall_id, jamais des noms',
+        () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final sentIdentifiers = <dynamic>[];
+      final controller = _buildController(
+        moxfieldDio: _mockMoxfieldDio(),
+        scryfallDio: _mockScryfallDio(sentIdentifiers),
+        db: db,
+      );
+
+      final result = await controller
+          .importDeckFromMoxfieldUrl('https://moxfield.com/decks/abc');
+
+      expect(result.success, isTrue, reason: result.message);
+      expect(sentIdentifiers, isNotEmpty);
+      expect(sentIdentifiers.every((i) => (i as Map).containsKey('id')), isTrue);
+      expect(sentIdentifiers.any((i) => (i as Map).containsKey('name')), isFalse);
+    });
+
+    test('une URL invalide ne declenche AUCUNE requete', () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      int moxfieldAppels = 0;
+      int scryfallAppels = 0;
+      final moxfieldDio = _mockDio((_) {
+        moxfieldAppels++;
+        return _deckJson();
+      });
+      final scryfallDio = _mockDio((_) {
+        scryfallAppels++;
+        return {'data': [], 'not_found': []};
+      });
+      final controller = _buildController(
+        moxfieldDio: moxfieldDio,
+        scryfallDio: scryfallDio,
+        db: db,
+      );
+
+      final result = await controller.importDeckFromMoxfieldUrl('bonjour');
+
+      expect(result.success, isFalse);
+      expect(result.message, contains('URL'));
+      expect(moxfieldAppels, 0);
+      expect(scryfallAppels, 0);
+    });
+
+    test('un deck prive rend un message parlant, pas une trace technique', () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final moxfieldDio = _mockDio((_) => 404);
+      final controller = _buildController(
+        moxfieldDio: moxfieldDio,
+        scryfallDio: _mockScryfallDio([]),
+        db: db,
+      );
+
+      final result = await controller
+          .importDeckFromMoxfieldUrl('https://moxfield.com/decks/prive');
+
+      expect(result.success, isFalse);
+      expect(result.message, contains('public'));
+      expect(result.message, isNot(contains('DioException')));
+    });
+  });
+}

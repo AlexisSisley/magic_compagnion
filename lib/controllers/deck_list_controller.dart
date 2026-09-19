@@ -11,10 +11,13 @@ import '../models/deck_model.dart';
 import '../providers/preferred_language_provider.dart';
 import '../providers/service_providers.dart';
 import '../utils/price_helper.dart';
+import '../services/card_resolver.dart';
 import '../services/collection_service.dart';
 import '../services/deck_format_service.dart';
 import '../services/deck_service.dart';
 import '../services/local_card_service.dart';
+import '../services/moxfield_deck_client.dart';
+import '../services/moxfield_deck_mapper.dart';
 import '../services/translation_worker.dart';
 
 // --- RESULT OBJECT pour les actions ---
@@ -97,6 +100,15 @@ class DeckListController extends StateNotifier<DeckListState> {
   /// glossaire, que rien n'oblige a visiter.
   final TranslationWorker _translationWorker;
 
+  /// Resolution par identifiant exact pour l'import Moxfield : chaque ligne
+  /// porte deja son scryfall_id, donc aucune heuristique par nom n'est
+  /// necessaire (contrairement a [importDeck], qui ne connait le tirage
+  /// exact que si la ligne l'a precise).
+  final CardResolver _cardResolver;
+
+  /// Client de recuperation d'un deck Moxfield par URL.
+  final MoxfieldDeckClient _moxfieldClient;
+
   static const Map<String, Map<String, List<String>>> colorFamilies = {
     'Mono': {
       'Blanc': ['W'], 'Bleu': ['U'], 'Noir': ['B'], 'Rouge': ['R'], 'Vert': ['G'], 'Incolore': []
@@ -123,10 +135,14 @@ class DeckListController extends StateNotifier<DeckListState> {
     required LocalCardService localCardService,
     required CollectionService collectionService,
     required TranslationWorker translationWorker,
+    required CardResolver cardResolver,
+    required MoxfieldDeckClient moxfieldClient,
   })  : _deckService = deckService,
         _localCardService = localCardService,
         _collectionService = collectionService,
         _translationWorker = translationWorker,
+        _cardResolver = cardResolver,
+        _moxfieldClient = moxfieldClient,
         super(const DeckListState()) {
     loadDecks();
   }
@@ -314,10 +330,7 @@ class DeckListController extends StateNotifier<DeckListState> {
     newDeck.format = parseResult.commanderName != null ? 'Commander' : 'Standard';
     newDeck.mainboard = parseResult.mainboard.map(toDeckCard).toList();
     newDeck.sideboard = parseResult.sideboard.map(toDeckCard).toList();
-
-    const order = {'W': 0, 'U': 1, 'B': 2, 'R': 3, 'G': 4, 'C': 5};
-    newDeck.colors = deckColors.toList()
-      ..sort((a, b) => (order[a] ?? 9).compareTo(order[b] ?? 9));
+    newDeck.colors = _sortedColorIdentity(deckColors);
 
     if (parseResult.commanderName != null) {
       final commanderCard = newDeck.mainboard
@@ -346,6 +359,116 @@ class DeckListController extends StateNotifier<DeckListState> {
     return DeckListActionResult(success: resolution.isComplete, message: message);
   }
 
+  /// Importe un deck depuis une URL Moxfield.
+  ///
+  /// Chaque carte porte son scryfall_id : la resolution se fait par
+  /// identifiant exact, sans heuristique d'appariement par nom -- a la
+  /// difference d'[importDeck], qui ne connait le tirage exact que si la
+  /// ligne texte le precisait.
+  ///
+  /// Une URL non reconnue rend l'echec immediatement, avant tout appel
+  /// reseau (ni Moxfield, ni Scryfall) : [extractPublicId] est pure et
+  /// s'evalue avant que [state] ne bascule en import.
+  Future<DeckListActionResult> importDeckFromMoxfieldUrl(String url) async {
+    final publicId = extractPublicId(url);
+    if (publicId == null) {
+      return const DeckListActionResult(
+        success: false,
+        message: 'URL Moxfield non reconnue. Attendu : moxfield.com/decks/…',
+      );
+    }
+
+    state = state.copyWith(isImporting: true, isLoading: true);
+    try {
+      final json = await _moxfieldClient.fetchDeck(publicId);
+      final data = MoxfieldDeckMapper.fromJson(json);
+
+      // Le commandant (et son eventuel partenaire) sont decrits par
+      // Moxfield dans un board "commanders" distinct de `data.lines` : sans
+      // les requeter eux aussi, leur identite de couleur serait absente du
+      // tri WUBRG ci-dessous, et ils ne pourraient pas rejoindre le
+      // mainboard s'ils n'y figurent pas deja.
+      final lineIds = data.lines.map((l) => l.scryfallId).toSet();
+      final commanderIds = [data.commanderScryfallId, data.partnerScryfallId]
+          .whereType<String>()
+          .where((id) => !lineIds.contains(id))
+          .toSet();
+
+      final requetes = [
+        for (final l in data.lines) PrintRequest(name: l.name, scryfallId: l.scryfallId),
+        for (final id in commanderIds) PrintRequest(name: id, scryfallId: id),
+      ];
+      final resolution = await _cardResolver.resolveEditions(requetes);
+
+      // Index des tirages resolus par scryfallId : la resolution etant
+      // faite par identifiant exact, la correspondance est directe et sans
+      // ambiguite -- contrairement a importDeck, aucune cle par nom n'est
+      // necessaire.
+      final parId = {for (final p in resolution.resolved) p.scryfallId: p};
+
+      DeckCard toDeckCard(MoxfieldCardLine l) => DeckCard(
+            scryfallId: parId[l.scryfallId]?.scryfallId ?? 'LOCAL:${l.name}',
+            name: l.name,
+            quantity: l.quantity,
+            proxyQuantity: l.isProxy ? l.quantity : 0,
+            isFoil: l.isFoil,
+          );
+
+      await _deckService.createNewDeck(data.name);
+      final decks = await _deckService.loadDecks();
+      final newDeck = decks.firstWhere((d) => d.name == data.name);
+
+      newDeck.format = data.format;
+      newDeck.mainboard =
+          data.lines.where((l) => l.board == 'mainboard').map(toDeckCard).toList();
+      newDeck.sideboard =
+          data.lines.where((l) => l.board == 'sideboard').map(toDeckCard).toList();
+      newDeck.considering =
+          data.lines.where((l) => l.board == 'considering').map(toDeckCard).toList();
+      newDeck.commanderScryfallId = data.commanderScryfallId;
+      newDeck.commanderSecondaryScryfallId = data.partnerScryfallId;
+
+      // Le commandant doit figurer dans le mainboard s'il n'y est pas deja,
+      // comme c'est toujours le cas pour importDeck (dont le parser texte
+      // range d'emblee la ligne "Commander" dans le mainboard). Moxfield ne
+      // duplique pas cette ligne : sans cet ajout explicite, un deck
+      // Commander importe par URL n'aurait pas son commandant au mainboard.
+      for (final id in commanderIds) {
+        if (newDeck.mainboard.any((c) => c.scryfallId == id)) continue;
+        final print = parId[id];
+        final name = print?.displayName ?? id;
+        newDeck.mainboard.add(DeckCard(
+          scryfallId: print != null ? id : 'LOCAL:$name',
+          name: name,
+          quantity: 1,
+        ));
+      }
+
+      newDeck.colors =
+          _sortedColorIdentity(resolution.resolved.expand((p) => p.colorIdentity));
+
+      await _deckService.updateDeck(newDeck);
+
+      // Les traductions enfilees par la resolution partent sans etre
+      // attendues, exactement comme dans importDeck.
+      unawaited(_translationWorker.drain());
+
+      final unresolved = requetes.length - resolution.resolved.length;
+      return DeckListActionResult(
+        success: resolution.isComplete,
+        message: resolution.isComplete
+            ? 'Deck « ${data.name} » importé depuis Moxfield.'
+            : '$unresolved carte(s) sur ${requetes.length} n\'ont pas pu être '
+                'identifiées.',
+      );
+    } on MoxfieldException catch (e) {
+      return DeckListActionResult(success: false, message: e.message);
+    } finally {
+      state = state.copyWith(isImporting: false, isLoading: false);
+      await loadDecks();
+    }
+  }
+
   // --- HELPERS ---
 
   /// Cle d'association entre un [DecklistEntry] et le [ResolvedPrint] qui lui
@@ -372,6 +495,17 @@ class DeckListController extends StateNotifier<DeckListState> {
   /// n'etait prevenu de rien. Normaliser les deux cotes de la meme facon
   /// (face avant, espaces retires, minuscules) referme ce trou.
   String _printKey(String name) => name.split('//').first.trim().toLowerCase();
+
+  /// Trie une identite de couleur dans l'ordre WUBRG (Blanc, Bleu, Noir,
+  /// Rouge, Vert), toute couleur inconnue placee en queue. Partagee entre
+  /// [importDeck] (couleurs accumulees carte par carte au fil de la
+  /// resolution) et [importDeckFromMoxfieldUrl] (couleurs derivees des
+  /// tirages resolus, chacun portant deja la sienne).
+  List<String> _sortedColorIdentity(Iterable<String> colors) {
+    const order = {'W': 0, 'U': 1, 'B': 2, 'R': 3, 'G': 4, 'C': 5};
+    return colors.toSet().toList()
+      ..sort((a, b) => (order[a] ?? 9).compareTo(order[b] ?? 9));
+  }
 
   /// Consomme, dans [printsByKey], le tirage resolu correspondant a [entry].
   /// Rend `null` sans correspondance (carte non resolue : `notFound`,
@@ -409,12 +543,16 @@ final deckListControllerProvider = StateNotifierProvider.autoDispose<DeckListCon
     final localCardService = ref.watch(localCardServiceProvider);
     final collectionService = ref.watch(collectionServiceProvider);
     final translationWorker = ref.watch(translationWorkerProvider);
+    final cardResolver = ref.watch(cardResolverProvider);
+    final moxfieldClient = ref.watch(moxfieldDeckClientProvider);
 
     return DeckListController(
       deckService: deckService,
       localCardService: localCardService,
       collectionService: collectionService,
       translationWorker: translationWorker,
+      cardResolver: cardResolver,
+      moxfieldClient: moxfieldClient,
     );
   },
 );

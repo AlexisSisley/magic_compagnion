@@ -24,6 +24,7 @@ import '../services/edhrec_service.dart';
 import '../services/game_history_service.dart';
 import '../services/google_drive_service.dart';
 import '../services/local_card_service.dart';
+import '../services/moxfield_deck_client.dart';
 import '../services/oracle_service.dart';
 import '../services/profile_service.dart';
 import '../services/scan_history_service.dart';
@@ -97,6 +98,12 @@ final collectionImportServiceProvider = Provider<CollectionImportService>((ref) 
   final db = ref.watch(appDatabaseProvider);
   final resolver = ref.watch(cardResolverProvider);
   return CollectionImportService(db: db, resolver: resolver);
+});
+
+// --- Client Moxfield (import de deck par URL) ---
+
+final moxfieldDeckClientProvider = Provider<MoxfieldDeckClient>((ref) {
+  return MoxfieldDeckClient();
 });
 
 // --- Services sans dépendance à la base ---

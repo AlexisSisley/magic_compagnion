@@ -24,13 +24,20 @@ class _DeckImportModalState extends ConsumerState<DeckImportModal>
   late TabController _tabController;
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _textController = TextEditingController();
+  final TextEditingController _urlController = TextEditingController();
   String? _selectedFileName;
   String? _fileContent;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
+    // Le champ "Nom du nouveau deck" ne s'applique pas a l'onglet URL (le
+    // nom vient de Moxfield) : il doit disparaitre/reapparaitre au fil des
+    // changements d'onglet.
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -38,6 +45,7 @@ class _DeckImportModalState extends ConsumerState<DeckImportModal>
     _tabController.dispose();
     _nameController.dispose();
     _textController.dispose();
+    _urlController.dispose();
     super.dispose();
   }
 
@@ -58,6 +66,23 @@ class _DeckImportModalState extends ConsumerState<DeckImportModal>
   }
 
   Future<void> _doImport() async {
+    final controller = ref.read(deckListControllerProvider.notifier);
+
+    if (_tabController.index == 2) {
+      // Tab "URL Moxfield" : le nom du deck vient de Moxfield lui-meme, pas
+      // du champ "Nom du nouveau deck" (qui ne s'applique qu'aux deux
+      // premiers onglets).
+      final url = _urlController.text.trim();
+      if (url.isEmpty) return;
+
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      final result = await controller.importDeckFromMoxfieldUrl(url);
+      _showResultSnackBar(result);
+      return;
+    }
+
     final String deckName = _nameController.text.trim();
     if (deckName.isEmpty) return;
 
@@ -72,8 +97,6 @@ class _DeckImportModalState extends ConsumerState<DeckImportModal>
 
     if (content.isEmpty) return;
 
-    final controller = ref.read(deckListControllerProvider.notifier);
-
     // Easter egg check
     final (resolvedName, resolvedContent) =
         controller.resolveEasterEgg(deckName, content);
@@ -82,7 +105,10 @@ class _DeckImportModalState extends ConsumerState<DeckImportModal>
     Navigator.pop(context);
 
     final result = await controller.importDeck(resolvedName, resolvedContent);
+    _showResultSnackBar(result);
+  }
 
+  void _showResultSnackBar(DeckListActionResult result) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -120,18 +146,21 @@ class _DeckImportModalState extends ConsumerState<DeckImportModal>
             ),
             const SizedBox(height: 12),
 
-            // Nom du deck
-            TextField(
-              controller: _nameController,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
-                labelText: 'Nom du nouveau deck',
-                labelStyle: TextStyle(color: AppColors.textMuted),
-                filled: true,
-                fillColor: AppColors.overlayDark,
+            // Nom du deck : ne s'applique pas a l'onglet URL Moxfield, qui
+            // reprend son propre nom depuis Moxfield.
+            if (_tabController.index != 2) ...[
+              TextField(
+                controller: _nameController,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: const InputDecoration(
+                  labelText: 'Nom du nouveau deck',
+                  labelStyle: TextStyle(color: AppColors.textMuted),
+                  filled: true,
+                  fillColor: AppColors.overlayDark,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
+            ],
 
             // Tabs
             TabBar(
@@ -142,6 +171,7 @@ class _DeckImportModalState extends ConsumerState<DeckImportModal>
               tabs: const [
                 Tab(text: 'Coller du texte'),
                 Tab(text: 'Depuis un fichier'),
+                Tab(text: 'URL Moxfield'),
               ],
             ),
             const SizedBox(height: 12),
@@ -196,6 +226,33 @@ class _DeckImportModalState extends ConsumerState<DeckImportModal>
                           style: TextStyle(color: AppColors.textDisabled, fontSize: 12),
                           textAlign: TextAlign.center,
                         ),
+                    ],
+                  ),
+
+                  // Tab 3: Moxfield URL
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextField(
+                        controller: _urlController,
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: 'URL du deck Moxfield',
+                          hintText: 'https://moxfield.com/decks/...',
+                          hintStyle: TextStyle(color: AppColors.textDisabled),
+                          labelStyle: TextStyle(color: AppColors.textMuted),
+                          filled: true,
+                          fillColor: AppColors.overlayDark,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Colle le lien d\'un deck Moxfield public. Le nom et '
+                        'le format sont repris depuis Moxfield.',
+                        style: TextStyle(color: AppColors.textDisabled, fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
                     ],
                   ),
                 ],
