@@ -243,6 +243,13 @@ Future<void> _loadRealFontsForCaptures() async {
   await _loadSystemFont('Roboto', textStack);
   await _loadSystemFont('Cinzel_700', textStack); // fontWeight: FontWeight.bold
   await _loadSystemFont('Cinzel_regular', textStack); // sans fontWeight explicite
+  await _loadSystemFont('Cinzel_600', textStack); // appBarTitle/cardTitle
+  // Source Sans 3 : le texte courant est passe dessus (Cinzel reste aux
+  // titres). Sans ces trois familles COMPOSEES, tout le texte de ces
+  // captures rend en tofu -- le nom nu 'Source Sans 3' ne suffit pas.
+  await _loadSystemFont('SourceSans3_regular', textStack);
+  await _loadSystemFont('SourceSans3_600', textStack);
+  await _loadSystemFont('SourceSans3_700', textStack);
 
   // Bonus, comme dans le modele : icones Material (check_circle, star,
   // more_vert, close, image_not_supported) sinon en tofu.

@@ -185,6 +185,13 @@ Future<void> _loadRealFontsForCaptures() async {
   await _loadSystemFont('Roboto', textAndEmoji);
   await _loadSystemFont('Cinzel_600', textAndEmoji); // AppTextStyles.cardTitle()
   await _loadSystemFont('Cinzel_regular', textAndEmoji); // AppTextStyles.body()
+  await _loadSystemFont('Cinzel_700', textAndEmoji); // pageTitle/sectionTitle
+  // Source Sans 3 : le texte courant est passe dessus (Cinzel reste aux
+  // titres). Sans ces trois familles COMPOSEES, tout le texte de ces
+  // captures rend en tofu -- le nom nu 'Source Sans 3' ne suffit pas.
+  await _loadSystemFont('SourceSans3_regular', textAndEmoji);
+  await _loadSystemFont('SourceSans3_600', textAndEmoji);
+  await _loadSystemFont('SourceSans3_700', textAndEmoji);
 
   // Bonus (pas demande explicitement, mais gratuit et directement utile a
   // la lisibilite de ces captures) : les boutons +/- (`Icons.remove`/
