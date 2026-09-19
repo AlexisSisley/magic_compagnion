@@ -20,6 +20,7 @@ import '../../providers/service_providers.dart';
 import '../../services/moxfield_collection_parser.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import 'moxfield_import_report.dart';
 
 enum _Screen { explanation, verification, result }
 
@@ -362,50 +363,22 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
 
   Widget _buildResult() {
     final result = _result!;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Import termine', style: AppTextStyles.sectionTitle()),
-        const SizedBox(height: 12),
-        _statLine('Cartes importees', '${result.imported}', color: AppColors.success),
-        _statLine('Ajoutees', '${result.added}'),
-        _statLine('Quantite mise a jour', '${result.updated}'),
-        if (result.tagged > 0) _statLine('Taguees a verifier', '${result.tagged}', color: AppColors.amber),
-        if (result.notIdentified > 0) _statLine('Non identifiees', '${result.notIdentified}', color: AppColors.error),
-        if (result.failedTransient > 0)
-          _statLine('Echecs reseau (a reessayer)', '${result.failedTransient}', color: AppColors.amber),
-        if (result.unreadableLines.isNotEmpty)
-          _statLine('Lignes illisibles', '${result.unreadableLines.length}', color: AppColors.error),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => Navigator.of(context).maybePop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryShade800,
-              foregroundColor: AppColors.textOnPrimary,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            child: const Text('Fermer'),
-          ),
+    // Pas de bouton d'action ici : la feuille se ferme par le geste natif
+    // du bottom sheet (glisser vers le bas / toucher en dehors), comme les
+    // ecrans 1 et 2. Un CTA "Fermer" redondant sous un bilan qui peut
+    // s'allonger avec des listes de noms n'ajoute rien.
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Import termine', style: AppTextStyles.sectionTitle()),
+            const SizedBox(height: 12),
+            MoxfieldImportReport(result: result),
+          ],
         ),
-      ],
-    );
-  }
-
-  Widget _statLine(String label, String value, {Color? color}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.borderMedium)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: AppTextStyles.body(color: AppColors.textSecondary)),
-          Text(value, style: AppTextStyles.body(color: color ?? AppColors.textPrimary)),
-        ],
       ),
     );
   }
