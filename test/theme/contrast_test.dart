@@ -28,6 +28,15 @@ double contrastRatio(Color a, Color b) {
 void main() {
   final p = darkPalette;
 
+  // Les surfaces sur lesquelles du texte peut se poser. Un jeton de feedback
+  // vit sur une carte ou dans une modale, pas seulement sur le fond de page :
+  // le tester sur `canvas` seul laisse passer un badge illisible sur `raised`.
+  final surfaces = <String, Color>{
+    'canvas': p.canvas,
+    'raised': p.raised,
+    'overlay': p.overlay,
+  };
+
   group('contraste sur le fond de page', () {
     test('le texte principal atteint AAA (7:1)', () {
       expect(contrastRatio(p.inkPrimary, p.canvas), greaterThanOrEqualTo(7.0));
@@ -53,15 +62,19 @@ void main() {
   });
 
   group('contraste des jetons semantiques', () {
-    test('chaque couleur de feedback atteint AA sur le fond de page', () {
-      for (final entry in {
+    test('chaque couleur de feedback atteint AA sur les trois surfaces', () {
+      for (final token in {
         'success': p.success,
         'warning': p.warning,
         'danger': p.danger,
         'info': p.info,
+        'accent': p.accent,
       }.entries) {
-        expect(contrastRatio(entry.value, p.canvas), greaterThanOrEqualTo(4.5),
-            reason: '${entry.key} est illisible sur le fond de page');
+        for (final surface in surfaces.entries) {
+          expect(contrastRatio(token.value, surface.value),
+              greaterThanOrEqualTo(4.5),
+              reason: '${token.key} est illisible sur ${surface.key}');
+        }
       }
     });
   });
@@ -69,6 +82,40 @@ void main() {
   group("contraste du texte pose sur l'accent", () {
     test('onAccent atteint AA sur accent', () {
       expect(contrastRatio(p.onAccent, p.accent), greaterThanOrEqualTo(4.5));
+    });
+  });
+
+  // Le trou par lequel C-1 est passe : contrast_test verrouillait les JETONS,
+  // mais rien ne verifiait ce que `buildAppTheme()` en FAIT. La premiere
+  // version de ce lot posait `inkMuted` (#75705F) en couleur de libelle
+  // d'onglet inactif sur `raised` (#191820), soit 3,56:1 -- sous AA, et
+  // contre la doc du jeton, qui interdit explicitement son usage pour du
+  // texte. Ces assertions regardent le ThemeData reellement construit.
+  group('contraste des couleurs de texte posees par buildAppTheme', () {
+    final theme = buildAppTheme();
+    final navBar = theme.bottomNavigationBarTheme;
+
+    test("le fond de la barre d'onglets est bien une surface connue", () {
+      expect(navBar.backgroundColor, isNotNull);
+      expect(surfaces.values, contains(navBar.backgroundColor));
+    });
+
+    test("le libelle d'un onglet INACTIF atteint AA sur le fond de la barre",
+        () {
+      expect(
+        contrastRatio(navBar.unselectedItemColor!, navBar.backgroundColor!),
+        greaterThanOrEqualTo(4.5),
+        reason: "les libelles d'onglets inactifs sont du texte : inkMuted, "
+            "documente comme non textuel, n'a rien a faire ici",
+      );
+    });
+
+    test("le libelle d'un onglet ACTIF atteint AA sur le fond de la barre",
+        () {
+      expect(
+        contrastRatio(navBar.selectedItemColor!, navBar.backgroundColor!),
+        greaterThanOrEqualTo(4.5),
+      );
     });
   });
 

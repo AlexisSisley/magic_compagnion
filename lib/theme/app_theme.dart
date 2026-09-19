@@ -46,7 +46,10 @@ ThemeData buildAppTheme() {
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
       backgroundColor: darkPalette.raised,
       selectedItemColor: darkPalette.accent,
-      unselectedItemColor: darkPalette.inkMuted,
+      // inkSecondary, PAS inkMuted : ce sont de vrais libelles de texte, et
+      // inkMuted est documente comme reserve au non-textuel -- il tombait ici
+      // a 3,56:1 sur raised, sous le seuil AA de 4,5.
+      unselectedItemColor: darkPalette.inkSecondary,
       type: BottomNavigationBarType.fixed,
     ),
     extensions: const <ThemeExtension<dynamic>>[darkPalette],
