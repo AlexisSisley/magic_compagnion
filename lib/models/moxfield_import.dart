@@ -22,6 +22,14 @@ class CollectionEntry {
     this.lang,
     this.isFoil = false,
   });
+
+  /// Vrai quand CETTE ligne porte une identite de tirage complete.
+  ///
+  /// `CollectionParseResult.isDegraded` ne dit que si le fichier entier a les
+  /// colonnes ; une colonne presente mais vide sur une ligne precise doit
+  /// etre detectee ici, ligne par ligne, pour que l'import puisse taguer
+  /// `à vérifier` uniquement les cartes qui en ont besoin.
+  bool get hasIdentity => setCode != null && collectorNumber != null;
 }
 
 /// Ce que le parser a compris du fichier.

@@ -34,6 +34,10 @@ class MoxfieldCollectionParser {
   };
 
   static CollectionParseResult parse(String csv) {
+    // Une ligne blanche ne porte aucune carte : elle est ecartee avant tout
+    // comptage, donc avant `linesRead`. Ce n'est pas un oubli, c'est le choix :
+    // une ligne blanche n'est ni une entree ni une ligne illisible, elle
+    // n'existe simplement pas pour l'invariant de somme.
     final lines = csv.split('\n').where((l) => l.trim().isNotEmpty).toList();
     if (lines.isEmpty) {
       return const CollectionParseResult(
@@ -89,6 +93,15 @@ class MoxfieldCollectionParser {
     for (var i = 1; i < lines.length; i++) {
       final raw = lines[i].trim();
       final cols = _parseLine(raw, delimiter);
+
+      // Une ligne avec plus de colonnes que l'en-tete signale une valeur non
+      // echappee contenant le delimiteur : les colonnes suivantes se
+      // decalent. On refuse cette ligne plutot que de lire une carte fausse
+      // sous une identite plausible — c'est le pire resultat possible.
+      if (cols.length > header.length) {
+        illisibles.add(raw);
+        continue;
+      }
 
       final name = at(cols, nameIdx);
       final rawCount = at(cols, countIdx);

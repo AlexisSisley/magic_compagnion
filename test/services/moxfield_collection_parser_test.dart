@@ -1,7 +1,6 @@
 // Tests du parser d'export de collection Moxfield.
 // Dart pur : aucune dependance Flutter, aucun mock, aucune base.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:magic_companion/models/moxfield_import.dart';
 import 'package:magic_companion/services/moxfield_collection_parser.dart';
 
 const _entete =
@@ -81,6 +80,32 @@ void main() {
       expect(r.missingIdentityColumns, containsAll(['Edition', 'Collector Number']));
       expect(r.entries.single.setCode, isNull);
     });
+
+    test('un fichier separe par des points virgules est reconnu', () {
+      final r = MoxfieldCollectionParser.parse(
+          'Count;Name;Edition;Collector Number\n1;Sol Ring;ltc;284');
+
+      expect(r.refusal, isNull);
+      expect(r.entries.single.name, 'Sol Ring');
+      expect(r.entries.single.setCode, 'ltc');
+      expect(r.entries.single.collectorNumber, '284');
+    });
+
+    test(
+        'l identite d une entree est evaluee ligne par ligne, pas seulement '
+        'au niveau du fichier', () {
+      final r = MoxfieldCollectionParser.parse(
+          'Count,Name,Edition,Collector Number\n'
+          '1,Sol Ring,ltc,284\n'
+          '1,Cultivate,,177');
+
+      expect(r.isDegraded, isFalse,
+          reason: 'les colonnes existent bien au niveau du fichier');
+      expect(r.entries, hasLength(2));
+      expect(r.entries[0].hasIdentity, isTrue);
+      expect(r.entries[1].hasIdentity, isFalse,
+          reason: 'edition vide sur cette ligne precise');
+    });
   });
 
   group('Valeurs', () {
@@ -118,6 +143,13 @@ void main() {
 
       expect(r.entries.single.name, 'Erebos, God of the Dead');
     });
+
+    test('un guillemet echappe a l interieur d un champ est conserve', () {
+      final r = MoxfieldCollectionParser.parse(
+          'Count,Name\n1,"Say ""Hi"" Sol Ring"');
+
+      expect(r.entries.single.name, 'Say "Hi" Sol Ring');
+    });
   });
 
   group('Lignes illisibles', () {
@@ -141,6 +173,16 @@ void main() {
           'Count,Name,Edition\n1,Sol Ring,ltc\n1\n2,Cultivate,m21');
 
       expect(r.entries, hasLength(2));
+      expect(r.unreadableLines, hasLength(1));
+    });
+
+    test(
+        'une ligne avec plus de colonnes que l entete est illisible, '
+        'jamais lue en decalé', () {
+      final r = MoxfieldCollectionParser.parse(
+          'Count,Name\n1,Sol Ring,valeur en trop,encore une');
+
+      expect(r.entries, isEmpty);
       expect(r.unreadableLines, hasLength(1));
     });
   });
@@ -167,6 +209,18 @@ void main() {
       expect(r.refusal, isNotNull);
       expect(r.entries, isEmpty);
       expect(r.linesRead, 0);
+    });
+
+    test(
+        'une ligne blanche au milieu du fichier ne cree pas d entree fantome '
+        'et ne casse pas l invariant', () {
+      final r = MoxfieldCollectionParser.parse(
+          'Count,Name,Edition\n1,Sol Ring,ltc\n\n2,Cultivate,m21');
+
+      expect(r.entries, hasLength(2));
+      expect(r.unreadableLines, isEmpty);
+      expect(r.linesRead, 2);
+      expect(r.entries.length + r.unreadableLines.length, r.linesRead);
     });
   });
 }
