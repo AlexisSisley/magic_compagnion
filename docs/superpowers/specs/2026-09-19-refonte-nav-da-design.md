@@ -255,7 +255,7 @@ DA qu'on change ensuite, et on repasse deux fois sur les mêmes écrans.
 
 | Lot | Contenu | Validation |
 |-----|---------|------------|
-| **1a** | `ThemeExtension<MagicPalette>` introduite **à valeurs identiques** à l'existant. Aucun pixel ne bouge. | 652 tests verts |
+| **1a** | `ThemeExtension<MagicPalette>` introduite **à valeurs identiques** à l'existant. Aucun pixel ne bouge. | 1332 tests verts |
 | **1b** | Valeurs Grimoire appliquées + séparation sémantique/domaine + typo (182 sites de corps de texte). | **Captures d'écran** |
 | **2** | `StatefulShellRoute.indexedStack`, 5 branches, `cardDetailRoute()`, suppression du Drawer, sortie des effets Drive du scaffold. | Tests de navigation neufs |
 | **3** | `/settings` à sections, absorbe les 11 entrées du tiroir. | Tests + captures |

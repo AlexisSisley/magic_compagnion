@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **Ordre des lots corrige par rapport a la spec** (la spec sera mise a jour en consequence). La spec livre la nav (son lot 2) avant le mode Jeu (son lot 4) et les Réglages (son lot 3). C'est impossible : le Drawer est le **seul** accès à Tournoi, Oracle, Glossaire, Calculateur, Profils, Drive et À propos. Le supprimer avant que `/play` et `/settings` existent orpheline sept écrans. L'ordre exécutable est : socle de thème → mode Jeu → Réglages → nav.
-- **La suite de tests doit être verte à la fin de chaque tâche.** Commande : `flutter test`. Référence de départ : 652 tests.
+- **La suite de tests doit être verte à la fin de chaque tâche.** Commande : `flutter test`. Référence de départ : 1332 tests (97 fichiers, ~2 min).
 - **Les captures visuelles sont des goldens tagués.** Génération : `flutter test --tags capture --run-skipped --update-goldens <fichier>`. Elles vivent dans `test/captures/`, les PNG dans `test/captures/goldens/`. `flutter test` seul les ignore (voir `dart_test.yaml`).
 - **Un lot qui déplace des pixels ne se clôt pas sur des tests verts.** Les tâches marquées **CAPTURE BLOQUANTE** exigent qu'un humain regarde les PNG avant de passer à la suite.
 - **Frontière des jetons :** `MagicPalette` porte ce qui change avec le thème (surfaces, encres, accent, sémantique). `AppColors` garde ce qui ne change pas avec le thème — les couleurs de domaine Magic (`mana*`, `rarity*`, `power*`, `badge*`). Aucune valeur n'est partagée entre les deux familles.
@@ -329,7 +329,7 @@ Expected: PASS — 3 tests
 - [ ] **Step 6: Lancer toute la suite**
 
 Run: `flutter test`
-Expected: PASS — aucune régression (652 tests de référence)
+Expected: PASS — aucune régression (1332 tests de référence)
 
 - [ ] **Step 7: Commit**
 
@@ -904,10 +904,27 @@ void main() {
 }
 ```
 
+**Trois captures de plus, sur de vrais écrans.** Les trois ci-dessus sont des
+spécimens : elles montrent la palette et l'échelle typographique, pas l'app.
+Or la Task 4 modifie 59 fichiers par un `sed` aveugle, dont **52 n'ont aucun
+test** — et aucun des 1332 tests du dépôt ne regarde une police. Des
+spécimens ne couvrent pas ce risque.
+
+Ajouter donc trois captures des écrans réellement les plus vus, montés avec
+leurs providers surchargés sur des données d'exemple :
+
+- `23_grimoire_collection.png` — `CollectionPage` avec une douzaine de cartes.
+- `24_grimoire_deck_list.png` — `DeckListPage` avec quatre decks.
+- `25_grimoire_card_detail.png` — la fiche d'une carte, texte de règles compris.
+
+Ce sont elles qui diront si la migration typographique a cassé une mise en
+page — un texte qui passe de Cinzel à Source Sans 3 change de largeur, et un
+libellé qui tenait sur une ligne peut déborder.
+
 - [ ] **Step 2: Générer les PNG**
 
 Run: `flutter test --tags capture --run-skipped --update-goldens test/captures/grimoire_captures_test.dart`
-Expected: 3 PNG créés dans `test/captures/goldens/`
+Expected: 6 PNG créés dans `test/captures/goldens/`
 
 - [ ] **Step 3: Regarder les trois PNG — étape humaine, bloquante**
 
@@ -1704,6 +1721,57 @@ void main() {
     expect(find.text('app'), findsOneWidget);
   });
 
+  testWidgets('une mise en pause declenche la sauvegarde automatique',
+      (tester) async {
+    // LE test de ce lot. `didChangeAppLifecycleState` n'apparait aujourd'hui
+    // dans AUCUN fichier de test du depot : si le deplacement casse le
+    // declencheur, la sauvegarde automatique s'arrete en silence et personne
+    // ne le voit avant d'avoir perdu des donnees.
+    final drive = _FakeDriveService(signedIn: true);
+    final backup = _FakeBackupService();
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        googleDriveServiceProvider.overrideWithValue(drive),
+        backupServiceProvider.overrideWithValue(backup),
+      ],
+      child: const MaterialApp(
+        home: DriveLifecycleObserver(child: Text('app')),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(drive.uploadCount, 0);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pumpAndSettle();
+
+    expect(drive.uploadCount, 1,
+        reason: 'passer en arriere-plan doit televerser une sauvegarde');
+  });
+
+  testWidgets('ne televerse rien si l\'utilisateur n\'est pas connecte',
+      (tester) async {
+    final drive = _FakeDriveService(signedIn: false);
+    final backup = _FakeBackupService();
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        googleDriveServiceProvider.overrideWithValue(drive),
+        backupServiceProvider.overrideWithValue(backup),
+      ],
+      child: const MaterialApp(
+        home: DriveLifecycleObserver(child: Text('app')),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pumpAndSettle();
+
+    expect(drive.uploadCount, 0);
+  });
+
   testWidgets('se desabonne du binding a la destruction', (tester) async {
     await tester.pumpWidget(const ProviderScope(
       child: MaterialApp(
@@ -1723,6 +1791,13 @@ void main() {
   });
 }
 ```
+
+Les deux doubles `_FakeDriveService` et `_FakeBackupService` sont à écrire en
+haut du fichier de test, d'après les interfaces réelles de
+`lib/services/google_drive_service.dart` et `lib/services/backup_service.dart`.
+`_FakeDriveService` expose `isSignedIn`, `signIn({bool silent})`,
+`findBackupFile()`, `uploadBackup(String)` et compte ses appels à
+`uploadBackup` dans `uploadCount`.
 
 - [ ] **Step 2: Lancer le test pour vérifier qu'il échoue**
 
