@@ -126,6 +126,19 @@ class CollectionImportService {
         exact = _parEdition(e, parEdition);
         tirage = exact ?? repli(e.name);
         if (tirage == null) {
+          // Une ligne avec identite peut avoir ete tentee jusqu'a deux fois
+          // (edition exacte au Temps 1a, puis repli par nom au Temps 2) --
+          // le OU ci-dessous est volontaire : IL SUFFIT QU'UNE SEULE de ces
+          // tentatives ait subi une panne reseau pour classer la ligne en
+          // transitoire, MEME SI L'AUTRE a recu un not_found propre de
+          // Scryfall. On ne peut pas garantir que ce not_found aurait ete
+          // le meme sans la panne (une edition introuvable a cause d'une
+          // panne aurait peut-etre ete trouvee par nom, et inversement) ; se
+          // fier a la seule tentative qui a repondu ferait passer pour
+          // definitive une absence qu'on n'a en verite jamais pu confirmer
+          // sur les deux voies. Mieux vaut donc, dans le doute, inviter a
+          // reessayer plutot que d'affirmer a tort qu'une carte n'existe
+          // pas.
           final k = secoursIndexPour[i];
           echecReseau = editionRes.failed.contains(editionReqs[i]) ||
               (k != null && secoursRes != null && secoursRes.failed.contains(secoursReqs[k]));
