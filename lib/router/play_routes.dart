@@ -14,35 +14,45 @@ import '../pages/oracle/magic_oracle_page.dart';
 import '../pages/tools/hypergeometric_page.dart';
 import '../pages/tournaments/tournament_page.dart';
 import 'app_routes.dart';
+import 'play_shell.dart';
 
 /// Routes du mode Jeu, greffees a la racine du router (hors ShellRoute).
 ///
-/// Plates pour l'instant : la barre d'outils de partie qui les enveloppera
-/// arrive a la tache suivante, et l'ecran de mise en place (`/play/setup`) a
-/// celle d'apres. Les cinq outils sont deja atteignables des maintenant, ce
-/// qui evite de laisser une tache intermediaire avec des routes qui ne
-/// compilent pas.
+/// Les cinq outils vivent dans un ShellRoute qui leur pose la barre d'outils
+/// de partie. Cette barre remplace celle de l'app : c'est pour ca que ces
+/// routes sont a la racine du router et non dans le shell d'onglets.
+///
+/// L'ecran de mise en place (`/play/setup`) arrive a la tache suivante, avec
+/// son provider de partie en cours.
 List<RouteBase> playRoutes() {
   return [
-    GoRoute(
-      path: AppRoutes.playCounter,
-      builder: (context, state) => const LifeCounterPage(isInShell: true),
-    ),
-    GoRoute(
-      path: AppRoutes.playTournament,
-      builder: (context, state) => const TournamentPage(),
-    ),
-    GoRoute(
-      path: AppRoutes.playOracle,
-      builder: (context, state) => const MagicOraclePage(),
-    ),
-    GoRoute(
-      path: AppRoutes.playGlossary,
-      builder: (context, state) => const GlossaryPage(),
-    ),
-    GoRoute(
-      path: AppRoutes.playOdds,
-      builder: (context, state) => const HypergeometricPage(),
+    ShellRoute(
+      builder: (context, state, child) => PlayShell(
+        currentLocation: state.uri.toString(),
+        child: child,
+      ),
+      routes: [
+        GoRoute(
+          path: AppRoutes.playCounter,
+          builder: (context, state) => const LifeCounterPage(isInShell: true),
+        ),
+        GoRoute(
+          path: AppRoutes.playTournament,
+          builder: (context, state) => const TournamentPage(),
+        ),
+        GoRoute(
+          path: AppRoutes.playOracle,
+          builder: (context, state) => const MagicOraclePage(),
+        ),
+        GoRoute(
+          path: AppRoutes.playGlossary,
+          builder: (context, state) => const GlossaryPage(),
+        ),
+        GoRoute(
+          path: AppRoutes.playOdds,
+          builder: (context, state) => const HypergeometricPage(),
+        ),
+      ],
     ),
   ];
 }
