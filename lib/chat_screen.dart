@@ -167,7 +167,7 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
     return Scaffold(
       extendBodyBehindAppBar: true, // Important pour le design immersif
       appBar: AppBar(
-        title: Text('Grimoire Code', style: AppTextStyles.text(fontWeight: FontWeight.w900, color: AppColors.primaryBright)),
+        title: Text('Grimoire Code', style: AppTextStyles.appBarTitle(color: AppColors.primaryBright)),
         backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.4),
         centerTitle: true,
         elevation: 0,

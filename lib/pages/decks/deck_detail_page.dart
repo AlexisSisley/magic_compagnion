@@ -197,7 +197,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
           insetPadding: const EdgeInsets.all(16),
           title: Column(
             children: [
-              Text('Apercu avant partage', style: AppTextStyles.text()),
+              Text('Apercu avant partage', style: AppTextStyles.sectionTitle()),
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(

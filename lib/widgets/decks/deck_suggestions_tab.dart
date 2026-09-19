@@ -498,7 +498,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
                   ),
                 ),
         ),
-        title: Text(card.name, style: AppTextStyles.text(fontSize: 16)),
+        title: Text(card.name, style: AppTextStyles.cardTitle()),
         subtitle: isFallback
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

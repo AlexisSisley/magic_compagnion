@@ -374,7 +374,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text('Ajouter des cartes', style: AppTextStyles.text()),
+        title: Text('Ajouter des cartes', style: AppTextStyles.appBarTitle()),
         backgroundColor: AppColors.textOnPrimary,
         bottom: TabBar(
           controller: _tabController,

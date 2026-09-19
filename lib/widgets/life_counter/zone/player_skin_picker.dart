@@ -201,7 +201,7 @@ void showCommanderGallery({
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Commanders', style: AppTextStyles.text(fontSize: 18)),
+          Text('Commanders', style: AppTextStyles.sectionTitle(fontSize: 18)),
           const SizedBox(height: 12),
           SizedBox(
             height: 120,
@@ -339,7 +339,7 @@ class _ArtworkSearchModalState extends State<_ArtworkSearchModal> {
         ),
         child: Column(
           children: [
-            Text('Choisir un Artwork', style: AppTextStyles.text(fontSize: 18)),
+            Text('Choisir un Artwork', style: AppTextStyles.sectionTitle(fontSize: 18)),
             const SizedBox(height: 12),
             TextField(
               controller: _controller,

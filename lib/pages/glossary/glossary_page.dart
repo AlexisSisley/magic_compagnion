@@ -286,7 +286,7 @@ class _GlossaryPageState extends ConsumerState<GlossaryPage> {
         ),
         title: Text(
           keyword.term,
-          style: AppTextStyles.text(fontSize: 18, fontWeight: FontWeight.w600),
+          style: AppTextStyles.cardTitle(fontSize: 18),
         ),
         trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
         splashColor: Colors.yellow.withValues(alpha: 0.1),

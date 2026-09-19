@@ -103,7 +103,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
       appBar: AppBar(
         title: Text(
           'Historique des Scans',
-          style: AppTextStyles.text(fontWeight: FontWeight.w600),
+          style: AppTextStyles.appBarTitle(),
         ),
         backgroundColor: AppColors.textOnPrimary,
         actions: [
@@ -182,7 +182,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
             ),
             title: Text(
               item.cardName,
-              style: AppTextStyles.text(fontSize: 18, fontWeight: FontWeight.w600),
+              style: AppTextStyles.cardTitle(fontSize: 18),
             ),
             subtitle: Text(
               _dateFormatter.format(item.timestamp), // Affiche la date

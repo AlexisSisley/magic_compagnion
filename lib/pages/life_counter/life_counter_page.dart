@@ -1677,7 +1677,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Orientation des zones', style: AppTextStyles.text(fontSize: 18)),
+              Text('Orientation des zones', style: AppTextStyles.sectionTitle(fontSize: 18)),
               const SizedBox(height: 4),
               Text('$count joueurs', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
               const SizedBox(height: 16),
@@ -1898,7 +1898,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(child: Text('Infos Partie', style: AppTextStyles.text(fontSize: 22))),
+                  Center(child: Text('Infos Partie', style: AppTextStyles.sectionTitle(fontSize: 22))),
                   const SizedBox(height: 16),
                   _infoRow(Icons.category, 'Format', _currentFormat.name),
                   _infoRow(Icons.favorite, 'Vie de départ', '${_currentFormat.startingLife}'),
@@ -1954,7 +1954,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     showModalBottomSheet(context: context, backgroundColor: AppColors.scaffoldBackground, builder: (context) {
         final dice = [2, 4, 6, 8, 10, 12, 20, 100];
         return Container(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('Lancer un dé', style: AppTextStyles.text(fontSize: 22)),
+            Text('Lancer un dé', style: AppTextStyles.sectionTitle(fontSize: 22)),
             const SizedBox(height: 24),
             GridView.builder(shrinkWrap: true, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 12, mainAxisSpacing: 12), itemCount: dice.length, itemBuilder: (context, i) => ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.borderLight, padding: EdgeInsets.zero),

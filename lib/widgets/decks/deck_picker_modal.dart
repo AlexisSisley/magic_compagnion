@@ -150,7 +150,7 @@ class _DeckPickerModalState extends State<DeckPickerModal> {
                                 leading: const Icon(Icons.style_outlined, color: AppColors.textSecondary),
                                 title: Text(
                                   deck.name,
-                                  style: AppTextStyles.text(fontSize: 18),
+                                  style: AppTextStyles.cardTitle(fontSize: 18),
                                 ),
                                 onTap: () => _addCardToDeck(deck),
                               );

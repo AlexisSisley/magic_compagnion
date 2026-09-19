@@ -15,7 +15,7 @@ class TurnGuidePage extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           'Phases d\'un Tour',
-          style: AppTextStyles.text(fontWeight: FontWeight.w600),
+          style: AppTextStyles.appBarTitle(),
         ),
         backgroundColor: AppColors.textOnPrimary,
       ),

@@ -138,7 +138,7 @@ class _TournamentPageState extends ConsumerState<TournamentPage> with SingleTick
       builder: (ctx) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(padding: const EdgeInsets.all(16.0), child: Text('Choisir des joueurs', style: AppTextStyles.text(fontSize: 18))),
+          Padding(padding: const EdgeInsets.all(16.0), child: Text('Choisir des joueurs', style: AppTextStyles.sectionTitle(fontSize: 18))),
           Flexible(
             child: ListView.builder(
               shrinkWrap: true,

@@ -107,7 +107,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text(state.pageState == ResultPageState.selection ? 'Choisissez la carte' : 'Détail Carte', style: AppTextStyles.text(fontWeight: FontWeight.w600)),
+        title: Text(state.pageState == ResultPageState.selection ? 'Choisissez la carte' : 'Détail Carte', style: AppTextStyles.appBarTitle()),
         backgroundColor: AppColors.textOnPrimary,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -403,7 +403,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.scaffoldBackground,
-        title: Text('Ajouter à la Wishlist', style: AppTextStyles.text()),
+        title: Text('Ajouter à la Wishlist', style: AppTextStyles.sectionTitle()),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -574,7 +574,7 @@ class _RecognitionResultPageState extends ConsumerState<RecognitionResultPage> w
     return Card(
       color: AppColors.textOnPrimary.withValues(alpha: 0.4), elevation: 2, margin: const EdgeInsets.symmetric(vertical: 6),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: AppColors.primaryShade800.withValues(alpha: 0.6))),
-      child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: AppTextStyles.text(fontSize: 20, fontWeight: FontWeight.w600)), const Divider(color: AppColors.borderMedium), const SizedBox(height: 8), child])),
+      child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: AppTextStyles.sectionTitle(fontSize: 20)), const Divider(color: AppColors.borderMedium), const SizedBox(height: 8), child])),
     );
   }
 

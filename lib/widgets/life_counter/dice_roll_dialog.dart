@@ -70,7 +70,7 @@ class _DiceRollAnimationDialogState extends State<DiceRollAnimationDialog> with 
     return AlertDialog(
       backgroundColor: AppColors.scaffoldBackground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.2))),
-      title: _isAnimating ? null : Center(child: Text(_getTitle(), style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 18))),
+      title: _isAnimating ? null : Center(child: Text(_getTitle(), style: AppTextStyles.sectionTitle(color: AppColors.textSecondary, fontSize: 18))),
       content: SizedBox(
         height: 150,
         child: Center(child: _isAnimating ? _buildAnimatedView() : _buildFinalResultView()),

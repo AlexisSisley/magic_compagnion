@@ -193,7 +193,7 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text(_currentWishlist.name, style: AppTextStyles.text()),
+        title: Text(_currentWishlist.name, style: AppTextStyles.appBarTitle()),
         backgroundColor: AppColors.textOnPrimary,
         actions: [
           PopupMenuButton<String>(

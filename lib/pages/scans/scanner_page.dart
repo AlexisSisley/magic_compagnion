@@ -207,7 +207,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
     return Scaffold(
       backgroundColor: AppColors.textOnPrimary,
       appBar: AppBar(
-        title: Text('Scanner', style: AppTextStyles.text(fontWeight: FontWeight.w600)),
+        title: Text('Scanner', style: AppTextStyles.appBarTitle()),
         backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.5),
         elevation: 0, 
         actions: [

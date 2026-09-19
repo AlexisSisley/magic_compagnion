@@ -34,7 +34,7 @@ class CardDetailInfoCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: AppTextStyles.text(fontSize: 20, fontWeight: FontWeight.w600)),
+                    style: AppTextStyles.sectionTitle(fontSize: 20)),
                 const Divider(color: AppColors.borderMedium),
                 const SizedBox(height: 8),
                 child

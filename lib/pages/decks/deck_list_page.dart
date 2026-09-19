@@ -60,7 +60,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.scaffoldBackground,
-        title: Text('Nouveau Deck', style: AppTextStyles.text()),
+        title: Text('Nouveau Deck', style: AppTextStyles.sectionTitle()),
         content: TextField(
           controller: controller,
           style: const TextStyle(color: AppColors.textPrimary),

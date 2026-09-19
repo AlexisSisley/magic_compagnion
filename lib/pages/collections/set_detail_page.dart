@@ -384,7 +384,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.set.name, style: AppTextStyles.text(fontSize: 16)),
+            Text(widget.set.name, style: AppTextStyles.appBarTitle()),
             Text(
                 '${widget.set.code.toUpperCase()} \u2022 ${state.gridItems.length} items',
                 style: GoogleFonts.roboto(
