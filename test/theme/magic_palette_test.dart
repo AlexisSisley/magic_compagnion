@@ -1,7 +1,9 @@
 // Fichier : test/theme/magic_palette_test.dart
-// Verifie que MagicPalette est atteignable depuis le contexte et que le lot A
-// n'a change aucune valeur : chaque jeton doit valoir exactement la couleur
-// AppColors qu'il remplace.
+// Verifie que MagicPalette est atteignable depuis le contexte, que les jetons
+// de surface et d'encre n'ont pas bouge, et que les jetons semantiques ne se
+// confondent plus avec les couleurs de mana.
+
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,7 +26,12 @@ void main() {
     expect(palette, isNotNull);
   });
 
-  testWidgets('lot A ne change aucune valeur', (tester) async {
+  // Les quatre jetons semantiques (success, warning, danger, info) sont
+  // modifies par le lot B : ils n'ont rien a faire dans un test de
+  // non-regression. Ce test ne verrouille donc que les surfaces, les encres
+  // et l'accent.
+  testWidgets("les jetons de surface et d'encre sont inchanges au lot B",
+      (tester) async {
     late MagicPalette p;
 
     await tester.pumpWidget(MaterialApp(
@@ -44,10 +51,6 @@ void main() {
     expect(p.inkMuted, AppColors.textMuted);
     expect(p.accent, AppColors.primary);
     expect(p.onAccent, AppColors.textOnPrimary);
-    expect(p.success, AppColors.success);
-    expect(p.warning, AppColors.warning);
-    expect(p.danger, AppColors.error);
-    expect(p.info, AppColors.info);
   });
 
   test('lerp interpole chaque jeton', () {
@@ -86,5 +89,32 @@ void main() {
 
     expect(mid.canvas, Color.lerp(a.canvas, b.canvas, 0.5));
     expect(mid.accent, Color.lerp(a.accent, b.accent, 0.5));
+  });
+
+  group('separation semantique / domaine Magic', () {
+    /// Distance euclidienne dans l'espace RGB. Grossiere, mais suffisante
+    /// pour detecter deux couleurs qu'un oeil ne separera pas : en-dessous
+    /// de 60, les deux pastilles se confondent sur un fond sombre.
+    double rgbDistance(Color a, Color b) {
+      final dr = ((a.r - b.r) * 255).abs();
+      final dg = ((a.g - b.g) * 255).abs();
+      final db = ((a.b - b.b) * 255).abs();
+      return math.sqrt(dr * dr + dg * dg + db * db);
+    }
+
+    test('le vert succes ne se confond pas avec le vert mana', () {
+      expect(rgbDistance(darkPalette.success, AppColors.manaGreen),
+          greaterThan(60));
+    });
+
+    test('le rouge danger ne se confond pas avec le rouge mana', () {
+      expect(rgbDistance(darkPalette.danger, AppColors.manaRed),
+          greaterThan(60));
+    });
+
+    test('le bleu info ne se confond pas avec le bleu mana', () {
+      expect(rgbDistance(darkPalette.info, AppColors.manaBlue),
+          greaterThan(60));
+    });
   });
 }

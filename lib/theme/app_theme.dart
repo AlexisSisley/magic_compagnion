@@ -22,10 +22,13 @@ const MagicPalette darkPalette = MagicPalette(
   inkMuted: AppColors.textMuted,
   accent: AppColors.primary,
   onAccent: AppColors.textOnPrimary,
-  success: AppColors.success,
-  warning: AppColors.warning,
-  danger: AppColors.error,
-  info: AppColors.info,
+  // Semantique : valeurs propres, volontairement decalees des couleurs de
+  // mana. Avant ce lot, success valait exactement manaGreen (0xFF4CAF50) et
+  // un badge "possedee" etait indiscernable d'une carte verte.
+  success: Color(0xFF6FD98F),
+  warning: Color(0xFFFFA94D),
+  danger: Color(0xFFFF7A6E),
+  info: Color(0xFF7FB2FF),
 );
 
 ThemeData buildAppTheme() {
