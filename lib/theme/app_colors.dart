@@ -178,14 +178,25 @@ abstract final class AppColors {
   // LEGACY COMPATIBILITY HELPERS
   // ============================================================
 
-  /// Pour les usages de Colors.yellow.shade700
-  static Color get primaryShade700 => Colors.yellow.shade700;
+  /// Rampe d'accent, derivee de [primary] (#C9A227).
+  ///
+  /// Trois `const`, et non plus des getters `Colors.yellow.shade*` : 142
+  /// sites lisent cette rampe, et tant qu'elle restait Material, l'app
+  /// portait deux accents concurrents -- l'or patine du jeton d'un cote,
+  /// le jaune vif de la rampe de l'autre, souvent dans le meme ecran.
+  ///
+  /// Echelle decroissante en luminance (700 > 800 > 900), verrouillee par
+  /// test/theme/contrast_test.dart.
+  ///
+  /// Ces trois valeurs sont des FONDS et des BORDURES. `shade900` n'atteint
+  /// que 3,82:1 sur le canvas : ne pas s'en servir pour du texte. L'encre a
+  /// poser dessus est [textOnPrimary], jamais [textPrimary] -- du blanc n'y
+  /// depasse pas 3,8:1.
+  static const Color primaryShade700 = Color(0xFFB8922A);
 
-  /// Pour les usages de Colors.yellow.shade800
-  static Color get primaryShade800 => Colors.yellow.shade800;
+  static const Color primaryShade800 = Color(0xFFA37E22);
 
-  /// Pour les usages de Colors.yellow.shade900
-  static Color get primaryShade900 => Colors.yellow.shade900;
+  static const Color primaryShade900 = Color(0xFF8A6A1B);
 
   /// Pour les usages de Colors.grey.shade800
   static Color get greyShade800 => Colors.grey.shade800;

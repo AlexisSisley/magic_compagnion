@@ -210,7 +210,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
           child: FloatingActionButton.extended(
             onPressed: _showCreateDeckDialog,
             backgroundColor: AppColors.primaryShade800,
-            foregroundColor: AppColors.textPrimary,
+            foregroundColor: AppColors.textOnPrimary,
             icon: const Icon(Icons.add),
             label: Text('Nouveau Deck', style: AppTextStyles.bold()),
           ),

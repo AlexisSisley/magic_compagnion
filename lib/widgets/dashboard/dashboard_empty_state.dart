@@ -75,7 +75,7 @@ class _DashboardEmptyStateState extends State<DashboardEmptyState>
               onPressed: widget.onAction,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryShade800,
-                foregroundColor: AppColors.textPrimary,
+                foregroundColor: AppColors.textOnPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
