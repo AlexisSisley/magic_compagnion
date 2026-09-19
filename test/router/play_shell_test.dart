@@ -37,12 +37,88 @@ void main() {
     ));
 
     expect(find.text('contenu'), findsOneWidget);
-    for (final label in ['Vies', 'Tournoi', 'Oracle', 'Regles', 'Fin']) {
+    for (final label in ['Vies', 'Tournoi', 'Oracle', 'Règles', 'Fin']) {
       expect(find.text(label), findsOneWidget,
           reason: "$label manque dans la barre d'outils de partie");
     }
     expect(find.byType(BottomNavigationBar), findsNothing,
         reason: "le mode Jeu ne doit pas porter la barre d'onglets de l'app");
+  });
+
+  group('"Fin" se lit comme une sortie, pas comme un outil', () {
+    testWidgets('son icone porte la couleur danger, jamais accent',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: buildAppTheme(),
+        home: PlayShell(
+          currentLocation: AppRoutes.playCounter,
+          child: const SizedBox.shrink(),
+        ),
+      ));
+
+      final icone = tester.widget<Icon>(find.byIcon(Icons.flag_outlined));
+      expect(icone.color, darkPalette.danger,
+          reason: '"Fin" est une action de sortie : elle ne doit se '
+              "confondre ni avec un outil actif ni avec un outil inactif");
+      expect(icone.color, isNot(darkPalette.accent));
+      expect(icone.color, isNot(darkPalette.inkSecondary));
+    });
+
+    testWidgets('un separateur la detache des cinq outils', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: buildAppTheme(),
+        home: PlayShell(
+          currentLocation: AppRoutes.playCounter,
+          child: const SizedBox.shrink(),
+        ),
+      ));
+
+      final separateurs = tester
+          .widgetList<Container>(find.byType(Container))
+          .where((c) => c.constraints?.maxWidth == 1)
+          .toList();
+      expect(separateurs, hasLength(1),
+          reason: 'sans separateur, "Fin" se lit comme un sixieme outil');
+    });
+
+    testWidgets('elle mene a la mise en place, pas a la racine',
+        (tester) async {
+      // Ruling 12 : tant que '/' sert encore LifeCounterPage, sortir du
+      // compteur VERS le compteur fait desactiver le wakelock par le dispose
+      // de l'instance qu'on quitte, APRES que la nouvelle l'a active. Ce test
+      // tient la destination corrigee jusqu'a la Task 12.
+      final router = GoRouter(
+        initialLocation: AppRoutes.playCounter,
+        routes: [
+          ShellRoute(
+            builder: (context, state, child) => PlayShell(
+              currentLocation: state.uri.toString(),
+              child: child,
+            ),
+            routes: [
+              GoRoute(
+                path: AppRoutes.playCounter,
+                builder: (_, __) => const Text('compteur'),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: AppRoutes.playSetup,
+            builder: (_, __) => const Text('mise en place'),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+          MaterialApp.router(theme: buildAppTheme(), routerConfig: router));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Fin'));
+      await tester.pumpAndSettle();
+
+      expect(router.routerDelegate.currentConfiguration.uri.toString(),
+          AppRoutes.playSetup);
+    });
   });
 
   // Le piege recurrent de ce depot : un widget correct, teste, et jamais

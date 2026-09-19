@@ -29,8 +29,28 @@ import '../../theme/app_text_styles.dart';
 import '../../theme/magic_palette.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
 
-class PlaySetupPage extends ConsumerWidget {
+class PlaySetupPage extends ConsumerStatefulWidget {
   const PlaySetupPage({super.key});
+
+  @override
+  ConsumerState<PlaySetupPage> createState() => _PlaySetupPageState();
+}
+
+class _PlaySetupPageState extends ConsumerState<PlaySetupPage> {
+  @override
+  void initState() {
+    super.initState();
+    // La feuille de configuration s'ouvre d'elle-meme : sans ca, l'ecran
+    // annonce "choisissez un format, les points de vie et les joueurs" sans
+    // offrir aucun moyen de le faire, et la refonte allongerait le parcours
+    // qu'elle existe pour raccourcir.
+    //
+    // Apres la premiere frame, parce que showModalBottomSheet a besoin d'un
+    // Navigator installe.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _ouvrirConfiguration(context, ref);
+    });
+  }
 
   /// Couleurs de repli quand un joueur n'a pas de profil, alignees sur celles
   /// de `LifeCounterPage`.
@@ -88,7 +108,7 @@ class PlaySetupPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final p = MagicPalette.of(context);
     final partieEnCours = ref.watch(activeGameProvider);
 
@@ -144,6 +164,10 @@ class PlaySetupPage extends ConsumerWidget {
                 orElse: () => const SizedBox.shrink(),
               ),
 
+              // "Configurer la partie", pas "Demarrer" : le bouton ouvre
+              // la feuille, il ne lance rien. Nommer l'action par son effet
+              // evite de promettre un demarrage qui n'arrive qu'apres la
+              // configuration.
               FilledButton(
                 onPressed: () => _ouvrirConfiguration(context, ref),
                 style: FilledButton.styleFrom(
@@ -151,7 +175,7 @@ class PlaySetupPage extends ConsumerWidget {
                   foregroundColor: p.onAccent,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: Text('Démarrer',
+                child: Text('Configurer la partie',
                     style: AppTextStyles.buttonText(color: p.onAccent)),
               ),
             ],

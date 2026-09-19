@@ -47,7 +47,7 @@ class PlayShell extends StatelessWidget {
       route: AppRoutes.playTournament
     ),
     (label: 'Oracle', icon: Icons.all_inclusive, route: AppRoutes.playOracle),
-    (label: 'Regles', icon: Icons.menu_book, route: AppRoutes.playGlossary),
+    (label: 'Règles', icon: Icons.menu_book, route: AppRoutes.playGlossary),
     (label: 'Probas', icon: Icons.calculate_outlined, route: AppRoutes.playOdds),
   ];
 
@@ -78,13 +78,39 @@ class PlayShell extends StatelessWidget {
                     onTap: () => context.go(_tools[i].route),
                   ),
                 ),
+              // Separateur : "Fin" n'est pas un sixieme outil, c'est la
+              // sortie. Sans cette barre, elle se lit comme une destination
+              // de plus dans la rangee.
+              Container(
+                width: 1,
+                height: 28,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                color: p.line,
+              ),
               Expanded(
                 child: _ToolButton(
                   label: 'Fin',
                   icon: Icons.flag_outlined,
                   selected: false,
-                  // La sortie ne detruit rien : le snapshot de partie reste.
-                  onTap: () => context.go(AppRoutes.home),
+                  // En `danger`, jamais en `accent` : "Fin" n'a pas d'etat
+                  // actif, elle n'est pas une destination ou l'on reste.
+                  color: p.danger,
+                  // Vers la mise en place, PAS vers `home` -- et c'est une
+                  // correction de fuite, pas une preference.
+                  //
+                  // Tant que `home` vaut '/', cette racine sert encore
+                  // LifeCounterPage. Or le `initState` de la page d'arrivee
+                  // s'execute AVANT le `dispose` de celle qu'on quitte
+                  // (mesure par sonde) : la nouvelle instance activerait le
+                  // wakelock, puis l'ancienne le desactiverait en mourant.
+                  // On sortirait donc du compteur vers le compteur, wakelock
+                  // coupe et barres systeme revenues -- ecran libre de
+                  // s'eteindre en pleine partie.
+                  //
+                  // A repointer sur `AppRoutes.home` a la Task 12, quand '/'
+                  // deviendra l'Accueil et que les deux instances cesseront
+                  // de se chevaucher.
+                  onTap: () => context.go(AppRoutes.playSetup),
                 ),
               ),
             ],
@@ -101,6 +127,7 @@ class _ToolButton extends StatelessWidget {
     required this.icon,
     required this.selected,
     required this.onTap,
+    this.color,
   });
 
   final String label;
@@ -108,10 +135,16 @@ class _ToolButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  /// Couleur imposee, qui court-circuite le jeu actif/inactif.
+  ///
+  /// Sert a "Fin", qui doit rester lisible comme une sortie quelle que soit
+  /// la page ouverte -- elle n'a pas d'etat actif a signaler.
+  final Color? color;
+
   @override
   Widget build(BuildContext context) {
     final p = MagicPalette.of(context);
-    final color = selected ? p.accent : p.inkSecondary;
+    final color = this.color ?? (selected ? p.accent : p.inkSecondary);
 
     return InkWell(
       onTap: onTap,
