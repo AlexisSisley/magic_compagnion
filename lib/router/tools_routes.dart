@@ -11,29 +11,19 @@ import '../data/glossary_data.dart';
 import '../pages/glossary/glossary_detail_page.dart';
 import '../pages/glossary/glossary_page.dart';
 import '../pages/glossary/turn_guide_page.dart';
-import '../pages/oracle/magic_oracle_page.dart';
-import '../pages/tools/hypergeometric_page.dart';
-import '../pages/tournaments/tournament_page.dart';
 import 'app_routes.dart';
 
-/// Routes pour les outils (drawer et detail).
+/// Routes pour les outils restes hors du mode Jeu.
+///
+/// Tournoi, Oracle et Calculateur sont partis sous /play : ils ne s'utilisent
+/// que sur place, une partie en cours. Le glossaire, lui, reste ici EN PLUS
+/// d'y etre : un mot-cle se croise en jeu, mais se consulte aussi a froid
+/// depuis l'onglet Rechercher (spec 6.1).
 List<RouteBase> toolsRoutes() {
   return [
     GoRoute(
-      path: AppRoutes.tournament,
-      builder: (context, state) => const TournamentPage(),
-    ),
-    GoRoute(
-      path: AppRoutes.oracle,
-      builder: (context, state) => const MagicOraclePage(),
-    ),
-    GoRoute(
       path: AppRoutes.grimoire,
       builder: (context, state) => const ChatScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.calculator,
-      builder: (context, state) => const HypergeometricPage(),
     ),
     GoRoute(
       path: AppRoutes.glossary,

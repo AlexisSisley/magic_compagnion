@@ -14,10 +14,14 @@ void main() {
         AppRoutes.decks,
         AppRoutes.collection,
         AppRoutes.gameHistory,
-        AppRoutes.tournament,
-        AppRoutes.oracle,
+        AppRoutes.play,
+        AppRoutes.playSetup,
+        AppRoutes.playCounter,
+        AppRoutes.playTournament,
+        AppRoutes.playOracle,
+        AppRoutes.playGlossary,
+        AppRoutes.playOdds,
         AppRoutes.grimoire,
-        AppRoutes.calculator,
         AppRoutes.glossary,
         AppRoutes.turnGuide,
         AppRoutes.profiles,
@@ -38,10 +42,14 @@ void main() {
         AppRoutes.decks,
         AppRoutes.collection,
         AppRoutes.gameHistory,
-        AppRoutes.tournament,
-        AppRoutes.oracle,
+        AppRoutes.play,
+        AppRoutes.playSetup,
+        AppRoutes.playCounter,
+        AppRoutes.playTournament,
+        AppRoutes.playOracle,
+        AppRoutes.playGlossary,
+        AppRoutes.playOdds,
         AppRoutes.grimoire,
-        AppRoutes.calculator,
         AppRoutes.glossary,
         AppRoutes.turnGuide,
         AppRoutes.profiles,
@@ -64,12 +72,18 @@ void main() {
     test('drawer routes have meaningful paths', () {
       expect(AppRoutes.dashboard, '/dashboard');
       expect(AppRoutes.gameHistory, '/game-history');
-      expect(AppRoutes.tournament, '/tournament');
-      expect(AppRoutes.oracle, '/oracle');
-      expect(AppRoutes.calculator, '/calculator');
       expect(AppRoutes.glossary, '/glossary');
       expect(AppRoutes.profiles, '/profiles');
       expect(AppRoutes.settings, '/settings');
+    });
+
+    // Tournoi, Oracle et Calculateur ont quitte le tiroir pour le mode Jeu :
+    // ils ne s'utilisent qu'une partie en cours. Le glossaire, lui, garde sa
+    // route hors /play -- il se consulte aussi a froid.
+    test('les outils de partie ont demenage sous /play', () {
+      expect(AppRoutes.playTournament, '/play/tournament');
+      expect(AppRoutes.playOracle, '/play/oracle');
+      expect(AppRoutes.playOdds, '/play/odds');
     });
 
     test('turn guide is nested under glossary', () {

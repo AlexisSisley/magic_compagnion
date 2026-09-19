@@ -16,6 +16,7 @@ import 'collections_routes.dart';
 import 'dashboard_routes.dart';
 import 'decks_routes.dart';
 import 'life_counter_routes.dart';
+import 'play_routes.dart';
 import 'scanner_routes.dart';
 import 'settings_routes.dart';
 import 'tools_routes.dart';
@@ -71,6 +72,7 @@ GoRouter createAppRouter() {
       // US-LC03 : Dashboard est maintenant une route Drawer
       ...dashboardRoutes(),
       ...lifeCounterRoutes(),
+      ...playRoutes(),
       ...toolsRoutes(),
       ...settingsRoutes(),
       ...cardDetailRoutes(),

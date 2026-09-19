@@ -4,6 +4,7 @@
 
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
+import 'package:magic_companion/theme/magic_palette.dart';
 import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
@@ -348,22 +349,15 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
             label: 'Historique Parties',
             route: AppRoutes.gameHistory,
           ),
-          _drawerItem(
-            icon: Icons.emoji_events_outlined,
-            label: 'Gestion Tournoi',
-            route: AppRoutes.tournament,
-          ),
           ListTile(
-            leading:
-                const Icon(Icons.all_inclusive, color: AppColors.accentPurple),
-            title: Text('Oracle (IA)',
-                style: AppTextStyles.bold()),
-            subtitle: const Text('Posez vos questions de r\u00e8gles',
-                style: TextStyle(color: AppColors.borderFaint, fontSize: 10)),
-            tileColor: Colors.purple.withValues(alpha: 0.1),
+            leading: Icon(Icons.sports_esports,
+                color: MagicPalette.of(context).accent),
+            title: Text('Mode Jeu', style: AppTextStyles.sectionTitle()),
+            subtitle: Text('Compteur, tournoi, oracle, regles, probabilites',
+                style: AppTextStyles.text(fontSize: 11)),
             onTap: () {
               Navigator.pop(context);
-              context.push(AppRoutes.oracle);
+              context.go(AppRoutes.playCounter);
             },
           ),
           if (kDebugMode)
@@ -382,11 +376,6 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
 
           // --- SECTION OUTILS ---
           const Divider(color: AppColors.borderLight),
-          _drawerItem(
-            icon: Icons.calculate_outlined,
-            label: 'Calculateur Proba',
-            route: AppRoutes.calculator,
-          ),
           _drawerItem(
             icon: Icons.menu_book,
             label: 'Glossaire',

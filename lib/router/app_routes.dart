@@ -8,19 +8,39 @@ class AppRoutes {
   static const String onboarding = '/onboarding';
 
   // Onglets principaux (shell) - US-LC01 : LifeCounter devient tab0
-  static const String lifeCounter = '/';
+  //
+  // `home` et `lifeCounter` valent la meme chose et coexistent volontairement
+  // jusqu'a la Task 17 : le compteur quitte la racine pour /play/counter, et
+  // l'Accueil la prend. Ecrire `home` des maintenant evite de semer des
+  // `lifeCounter` dans les ecrans neufs du mode Jeu, qu'il faudrait ensuite
+  // retrouver un par un.
+  static const String home = '/';
+  static const String lifeCounter = home;
   static const String scanner = '/scanner';
   static const String search = '/search';
   static const String decks = '/decks';
   static const String collection = '/collection';
 
+  // Mode Jeu (plein ecran, hors shell). Regroupe tout ce qui s'utilise
+  // carte en main : le compteur, et les quatre outils qui etaient dans le
+  // Drawer.
+  static const String play = '/play';
+  static const String playSetup = '/play/setup';
+  static const String playCounter = '/play/counter';
+  static const String playTournament = '/play/tournament';
+  static const String playOracle = '/play/oracle';
+  static const String playGlossary = '/play/glossary';
+  static const String playOdds = '/play/odds';
+
   // Drawer routes - US-LC03 : Dashboard descend dans le Drawer
   static const String dashboard = '/dashboard';
   static const String gameHistory = '/game-history';
-  static const String tournament = '/tournament';
-  static const String oracle = '/oracle';
   static const String grimoire = '/grimoire';
-  static const String calculator = '/calculator';
+
+  // `glossary` reste : le glossaire est aussi consultable a froid depuis
+  // l'onglet Rechercher, pas seulement en partie (spec 6.1). `tournament`,
+  // `oracle` et `calculator` ont disparu -- ces trois ecrans ne s'utilisent
+  // que sur place, donc uniquement sous /play.
   static const String glossary = '/glossary';
   static const String turnGuide = '/glossary/turn-guide';
   static const String profiles = '/profiles';
