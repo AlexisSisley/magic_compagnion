@@ -363,10 +363,13 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
 
   Widget _buildResult() {
     final result = _result!;
-    // Pas de bouton d'action ici : la feuille se ferme par le geste natif
-    // du bottom sheet (glisser vers le bas / toucher en dehors), comme les
-    // ecrans 1 et 2. Un CTA "Fermer" redondant sous un bilan qui peut
-    // s'allonger avec des listes de noms n'ajoute rien.
+    // Round de correction 1 : le geste natif du bottom sheet (glisser vers
+    // le bas / toucher en dehors) n'est pas une affordance visible -- un
+    // ecran terminal sans issue visible est un defaut d'utilisabilite,
+    // meme si le geste marche. On retablit donc un bouton de sortie
+    // explicite, comme sur les ecrans 1 et 2 (le widget MoxfieldImportReport
+    // lui-meme reste sans bouton, conformement au brief : c'est la feuille
+    // qui porte l'affordance, pas le bilan).
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
       child: SingleChildScrollView(
@@ -377,6 +380,19 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
             Text('Import termine', style: AppTextStyles.sectionTitle()),
             const SizedBox(height: 12),
             MoxfieldImportReport(result: result),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryShade800,
+                  foregroundColor: AppColors.textOnPrimary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: Text('Fermer', style: AppTextStyles.buttonText(color: AppColors.textOnPrimary)),
+              ),
+            ),
           ],
         ),
       ),

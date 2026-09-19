@@ -34,7 +34,7 @@ class MoxfieldImportReport extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _counterRow('Cartes importées', r.imported),
+        _counterRow('Cartes importées', r.imported, color: AppColors.success),
         _counterRow('Ajoutées', r.added),
         _counterRow('Quantité mise à jour', r.updated),
         if (r.tagged > 0)
@@ -77,13 +77,17 @@ class MoxfieldImportReport extends StatelessWidget {
         ],
         if (r.unreadableLines.isNotEmpty) ...[
           const SizedBox(height: 12),
+          // Ton distinct de "Non identifiees" (error/rouge) : une ligne
+          // illisible est un probleme de format du fichier, pas une carte
+          // que Scryfall a rejetee -- moins grave, un second ton d'alerte
+          // (warning/orange) evite de confondre les deux categories.
           _namesPanel(
             label: 'Lignes illisibles',
             explanation:
                 "Ces lignes du fichier n'ont pas pu être lues, citées "
                 'telles quelles :',
             names: r.unreadableLines,
-            color: AppColors.error,
+            color: AppColors.warning,
           ),
         ],
       ],

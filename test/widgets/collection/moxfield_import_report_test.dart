@@ -15,10 +15,15 @@ void main() {
     )));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('1247'), findsWidgets);
-    expect(find.textContaining('1114'), findsWidgets);
-    expect(find.textContaining('133'), findsWidgets);
-    expect(find.textContaining('12'), findsWidgets);
+    // Assertions exactes plutot que "contains" : '12' est une sous-chaine de
+    // '1247', donc find.textContaining('12') passerait meme si la ligne
+    // "Tagees a verifier" n'etait pas rendue du tout. find.text() exige une
+    // egalite stricte du contenu du widget Text, donc chaque assertion ne
+    // peut etre satisfaite que par la ligne de compteur qu'elle vise.
+    expect(find.text('1247'), findsOneWidget);
+    expect(find.text('1114'), findsOneWidget);
+    expect(find.text('133'), findsOneWidget);
+    expect(find.text('12'), findsOneWidget);
   });
 
   testWidgets('les cartes tagees sont NOMMEES, pas seulement comptees', (tester) async {
@@ -90,7 +95,9 @@ void main() {
     )));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('4'), findsWidgets);
+    // Assertion exacte sur la ligne de compteur (pas juste "contient '4'",
+    // qui matcherait aussi un fragment de la phrase d'explication).
+    expect(find.text('4'), findsOneWidget);
     expect(find.textContaining('réessaie'), findsOneWidget);
     // Ne doit pas se confondre avec le message des non identifiees.
     expect(find.textContaining('ne connaît pas'), findsNothing);
