@@ -58,9 +58,8 @@ final cardResolverProvider = Provider<CardResolver>((ref) {
 
 final collectionServiceProvider = Provider<CollectionService>((ref) {
   final db = ref.watch(appDatabaseProvider);
-  final api = ref.watch(scryfallApiServiceProvider);
   final resolver = ref.watch(cardResolverProvider);
-  return CollectionService(database: db, api: api, resolver: resolver);
+  return CollectionService(database: db, resolver: resolver);
 });
 
 final deckServiceProvider = Provider<DeckService>((ref) {

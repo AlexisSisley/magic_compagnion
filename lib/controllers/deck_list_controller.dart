@@ -333,9 +333,13 @@ class DeckListController extends StateNotifier<DeckListState> {
       );
     }
 
-    await _deckService.createNewDeck(deckName);
+    // Le deck est retrouve par son IDENTIFIANT, jamais par son nom : deux
+    // decks peuvent porter le meme nom, et `updateDeck` ci-dessous vide les
+    // cartes du deck qu'il recoit avant de les reinserer -- viser un homonyme
+    // detruirait un deck existant.
+    final newDeckId = await _deckService.createNewDeck(deckName);
     final decks = await _deckService.loadDecks();
-    Deck newDeck = decks.where((d) => d.name == deckName).first;
+    Deck newDeck = decks.firstWhere((d) => d.id == newDeckId);
     newDeck.format = parseResult.commanderName != null ? 'Commander' : 'Standard';
     newDeck.mainboard = parseResult.mainboard.map(toDeckCard).toList();
     newDeck.sideboard = parseResult.sideboard.map(toDeckCard).toList();
@@ -398,14 +402,20 @@ class DeckListController extends StateNotifier<DeckListState> {
       // tri WUBRG ci-dessous, et ils ne pourraient pas rejoindre le
       // mainboard s'ils n'y figurent pas deja.
       final lineIds = data.lines.map((l) => l.scryfallId).toSet();
+      // TOUS les commandants, meme ceux qui figurent deja dans un board :
+      // filtrer ici sur `lineIds` (qui couvre mainboard ET sideboard ET
+      // considering) laisserait hors du mainboard un commandant present au
+      // seul sideboard. La garde anti-duplication porte plus bas sur le seul
+      // mainboard ; `lineIds` ne sert qu'a ne pas requeter deux fois le meme
+      // identifiant.
       final commanderIds = [data.commanderScryfallId, data.partnerScryfallId]
           .whereType<String>()
-          .where((id) => !lineIds.contains(id))
           .toSet();
 
       final requetes = [
         for (final l in data.lines) PrintRequest(name: l.name, scryfallId: l.scryfallId),
-        for (final id in commanderIds) PrintRequest(name: id, scryfallId: id),
+        for (final id in commanderIds)
+          if (!lineIds.contains(id)) PrintRequest(name: id, scryfallId: id),
       ];
       final resolution = await _cardResolver.resolveEditions(requetes);
 
@@ -423,9 +433,13 @@ class DeckListController extends StateNotifier<DeckListState> {
             isFoil: l.isFoil,
           );
 
-      await _deckService.createNewDeck(data.name);
+      // Par identifiant, jamais par nom : le nom vient de Moxfield et
+      // l'utilisateur ne le choisit pas. Importer deux fois le meme deck, ou
+      // un deck homonyme d'un deck local, viderait sinon le deck le plus
+      // ancien de ce nom (`updateDeck` fait clearDeckCards puis reinsere).
+      final newDeckId = await _deckService.createNewDeck(data.name);
       final decks = await _deckService.loadDecks();
-      final newDeck = decks.firstWhere((d) => d.name == data.name);
+      final newDeck = decks.firstWhere((d) => d.id == newDeckId);
 
       newDeck.format = data.format;
       newDeck.mainboard =
@@ -484,8 +498,11 @@ class DeckListController extends StateNotifier<DeckListState> {
         success: resolution.isComplete,
         message: resolution.isComplete
             ? 'Deck « ${data.name} » importé depuis Moxfield.'
-            : '$unresolved carte(s) sur ${requetes.length} n\'ont pas pu être '
-                'identifiées.',
+            // Le deck EST cree, meme quand des cartes manquent : le dire
+            // evite que l'utilisateur ne reimporte en croyant que rien n'a
+            // ete fait (le chemin texte le disait deja, pas celui-ci).
+            : 'Deck « ${data.name} » créé : $unresolved carte(s) sur '
+                '${requetes.length} n\'ont pas pu être identifiées.',
       );
     } on MoxfieldException catch (e) {
       return DeckListActionResult(success: false, message: e.message);

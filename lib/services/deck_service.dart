@@ -100,8 +100,25 @@ class DeckService with CardListUpsertMixin {
     await _saveDecksList(decks);
   }
 
-  Future<void> createNewDeck(String name) async {
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
+  /// Cree un deck et rend son identifiant.
+  ///
+  /// L'id est INDISPENSABLE a l'appelant qui veut ensuite remplir ce deck :
+  /// le retrouver par son nom rendrait le plus ancien deck homonyme (rien ne
+  /// trie `getAllDecksRaw`), et `updateDeck` vide ses cartes avant de les
+  /// reinserer -- importer deux fois le meme deck Moxfield, ou un deck
+  /// homonyme d'un deck local, detruirait alors le deck existant.
+  Future<String> createNewDeck(String name) async {
+    // L'horloge a la milliseconde ne suffit pas a identifier : deux creations
+    // successives (importer deux fois de suite le meme deck) peuvent tomber
+    // dans la meme milliseconde et produire le MEME id -- l'identifiant ne
+    // distinguerait alors pas mieux que le nom. Un suffixe est ajoute tant
+    // que l'id est deja pris.
+    final base = DateTime.now().millisecondsSinceEpoch.toString();
+    final pris = (await loadDecks()).map((d) => d.id).toSet();
+    var id = base;
+    for (var n = 1; pris.contains(id); n++) {
+      id = '$base-$n';
+    }
     if (_db != null) {
       await _db.insertDeck(DecksCompanion.insert(
         id: id,
@@ -109,7 +126,7 @@ class DeckService with CardListUpsertMixin {
         format: const Value('Standard'),
         colors: const Value('[]'),
       ));
-      return;
+      return id;
     }
     final newDeck = Deck(
       id: id,
@@ -120,6 +137,7 @@ class DeckService with CardListUpsertMixin {
     final decks = await loadDecks();
     decks.add(newDeck);
     await _saveDecksList(decks);
+    return id;
   }
 
   Future<void> updateDeck(Deck updatedDeck) async {

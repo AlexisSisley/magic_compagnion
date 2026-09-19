@@ -76,10 +76,15 @@ class _DeckImportModalState extends ConsumerState<DeckImportModal>
       if (url.isEmpty) return;
 
       if (!mounted) return;
+      // Le messenger est capture AVANT le pop : apres, ce State n'est plus
+      // monte, `context` ne vaut plus rien et le moindre `if (!mounted)`
+      // avalerait le resultat. Aucun message n'atteignait l'utilisateur --
+      // pas meme « verifie que le deck est public ».
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
 
       final result = await controller.importDeckFromMoxfieldUrl(url);
-      _showResultSnackBar(result);
+      _showResultSnackBar(messenger, result);
       return;
     }
 
@@ -102,15 +107,20 @@ class _DeckImportModalState extends ConsumerState<DeckImportModal>
         controller.resolveEasterEgg(deckName, content);
 
     if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
 
     final result = await controller.importDeck(resolvedName, resolvedContent);
-    _showResultSnackBar(result);
+    _showResultSnackBar(messenger, result);
   }
 
-  void _showResultSnackBar(DeckListActionResult result) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+  /// Affiche le bilan sur le messenger capture avant le `pop`.
+  ///
+  /// Ne lit ni `context` ni `mounted` : ce State est demonte des la fermeture
+  /// de la feuille, bien avant que l'import ne rende la main.
+  void _showResultSnackBar(
+      ScaffoldMessengerState messenger, DeckListActionResult result) {
+    messenger.showSnackBar(
       SnackBar(
         content: Text(result.message),
         backgroundColor: result.success ? Colors.green.shade800 : Colors.red.shade800,

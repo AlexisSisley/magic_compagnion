@@ -10,7 +10,6 @@ class CollectionEntry {
   final String name;
   final String? setCode;
   final String? collectorNumber;
-  final String? lang;
   final bool isFoil;
   final int quantity;
 
@@ -19,7 +18,6 @@ class CollectionEntry {
     required this.quantity,
     this.setCode,
     this.collectorNumber,
-    this.lang,
     this.isFoil = false,
   });
 

@@ -49,6 +49,10 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
   /// silencieux : c'est tout l'argument de ce parcours.
   String? _pickError;
 
+  /// Message affiche sur l'ecran de verification quand l'import lui-meme a
+  /// leve. Meme regle que [_pickError] : aucun echec silencieux.
+  String? _importError;
+
   @override
   void initState() {
     super.initState();
@@ -97,22 +101,33 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
   Future<void> _doImport() async {
     final parsed = _parsed;
     if (parsed == null) return;
-    setState(() => _busy = true);
-
-    final lang = await readPreferredLanguage();
-    final service = ref.read(collectionImportServiceProvider);
-    final result = await service.import(parsed, preferredLang: lang);
-
-    // Le drain part sans etre attendu : l'utilisateur voit son bilan tout de
-    // suite, les traductions arrivent ensuite en tache de fond.
-    unawaited(ref.read(translationWorkerProvider).drain());
-
-    if (!mounted) return;
     setState(() {
-      _result = result;
-      _busy = false;
-      _screen = _Screen.result;
+      _busy = true;
+      _importError = null;
     });
+    try {
+      final lang = await readPreferredLanguage();
+      final service = ref.read(collectionImportServiceProvider);
+      final result = await service.import(parsed, preferredLang: lang);
+
+      // Le drain part sans etre attendu : l'utilisateur voit son bilan tout de
+      // suite, les traductions arrivent ensuite en tache de fond.
+      unawaited(ref.read(translationWorkerProvider).drain());
+
+      if (!mounted) return;
+      setState(() {
+        _result = result;
+        _screen = _Screen.result;
+      });
+    } catch (e) {
+      // Sans ce catch, une panne laissait `_busy` a true : le spinner tournait
+      // indefiniment, sans message. C'est exactement l'echec silencieux que ce
+      // parcours existe pour interdire -- `_pickFile` est protege de meme.
+      if (!mounted) return;
+      setState(() => _importError = 'L’import a échoué : $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -153,14 +168,14 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
         const SizedBox(height: 8),
         Text(
           "Moxfield permet d'exporter ta collection. L'app lit le fichier — "
-          'elle ne se connecte jamais a ton compte.',
+          'elle ne se connecte jamais à ton compte.',
           style: AppTextStyles.body(color: AppColors.textSecondary),
         ),
         const SizedBox(height: 16),
         _step(1, 'Ouvre moxfield.com et connecte-toi'),
         _step(2, 'Va dans Collection, puis More → Export'),
-        _step(3, 'Choisis le format CSV et telecharge'),
-        _step(4, 'Reviens ici et selectionne le fichier'),
+        _step(3, 'Choisis le format CSV et télécharge'),
+        _step(4, 'Reviens ici et sélectionne le fichier'),
         if (_pickError != null) ...[
           const SizedBox(height: 12),
           Container(
@@ -231,7 +246,7 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Verification du fichier', style: AppTextStyles.sectionTitle()),
+          Text('Vérification du fichier', style: AppTextStyles.sectionTitle()),
           const SizedBox(height: 12),
           Container(
             width: double.infinity,
@@ -264,7 +279,7 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Verification du fichier', style: AppTextStyles.sectionTitle()),
+        Text('Vérification du fichier', style: AppTextStyles.sectionTitle()),
         const SizedBox(height: 12),
         _panel(
           label: 'Lignes lues',
@@ -295,12 +310,25 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
         const SizedBox(height: 12),
         Text(
           degraded
-              ? 'Sans edition ni numero, les cartes seront identifiees par leur '
-                  'nom seul : tu obtiendras une edition arbitraire, en anglais.'
-              : 'Les quantites du fichier remplaceront les tiennes pour ces '
-                  'tirages. Rien ne sera supprime.',
+              ? 'Sans édition ni numéro, les cartes seront identifiées par leur '
+                  'nom seul : tu obtiendras une édition arbitraire, en anglais.'
+              : 'Les quantités du fichier remplaceront les tiennes pour ces '
+                  'tirages. Rien ne sera supprimé.',
           style: AppTextStyles.body(color: AppColors.textSecondary),
         ),
+        if (_importError != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: AppColors.error.withValues(alpha: 0.45)),
+            ),
+            child: Text(_importError!, style: AppTextStyles.body(color: AppColors.error)),
+          ),
+        ],
         const SizedBox(height: 16),
         Row(
           children: [
@@ -377,7 +405,7 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Import termine', style: AppTextStyles.sectionTitle()),
+            Text('Import terminé', style: AppTextStyles.sectionTitle()),
             const SizedBox(height: 12),
             MoxfieldImportReport(result: result),
             const SizedBox(height: 16),

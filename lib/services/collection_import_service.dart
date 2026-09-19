@@ -5,6 +5,18 @@
 // absolue rend l'import idempotent -- reimporter le meme fichier par doute est
 // le geste naturel, il ne doit pas doubler la collection.
 //
+// Plusieurs lignes DISTINCTES du fichier peuvent retomber sur le meme tirage :
+// deux lignes de meme nom en mode degrade (un Sol Ring possede en LTC et un
+// autre en M19, sans colonne d'edition), ou deux lignes de meme set+numero
+// dans des langues differentes (POST /cards/collection ignore la langue).
+// Leurs quantites sont donc SOMMEES et le tirage n'est ecrit qu'une fois : une
+// ecriture par ligne ferait ecraser 3 par 2 au lieu d'ecrire 5.
+//
+// Les tags ne sont jamais remplaces : les tags utilisateur d'une carte deja en
+// collection (« a echanger », « deck Atraxa ») survivent a l'import. Seul le
+// tag systeme kNeedsCheckTag est ajoute (ligne resolue par son nom seul) ou
+// retire (ligne redevenue resolue exactement).
+//
 // Toute ligne du fichier est comptee exactement une fois : importee, non
 // identifiee, en echec reseau transitoire, ou illisible (deja comptee par
 // le parser et simplement reportee ici). C'est la regle 4 de la spec, et
@@ -112,6 +124,9 @@ class CollectionImportService {
     var iAvecIdentite = 0;
     var iSansIdentite = 0;
 
+    // Ecritures agregees par (scryfallId, isFoil), dans l'ordre du fichier.
+    final parTirage = <String, _Ecriture>{};
+
     for (final e in parsed.entries) {
       ResolvedPrint? exact;
       ResolvedPrint? tirage;
@@ -161,32 +176,70 @@ class CollectionImportService {
         continue;
       }
 
-      final existant = await _db.getCollectionCard(tirage.scryfallId, e.isFoil);
+      // La ligne est comptee ici, mais rien n'est ecrit encore : plusieurs
+      // lignes peuvent viser le meme tirage, et c'est la SOMME de leurs
+      // quantites qui doit atterrir en base (voir l'entete du fichier).
+      imported++;
+      final cle = '${tirage.scryfallId}|${e.isFoil}';
+      final deja = parTirage[cle];
+      if (deja == null) {
+        parTirage[cle] = _Ecriture(
+          tirage: tirage,
+          isFoil: e.isFoil,
+          quantite: e.quantity,
+          exact: exact != null,
+          nom: e.name,
+        );
+      } else {
+        deja.quantite += e.quantity;
+        // Il suffit qu'UNE des lignes fusionnees ait ete resolue par son nom
+        // seul pour que le tirage retenu reste incertain : le tag est pose.
+        if (exact == null) deja.exact = false;
+      }
+    }
+
+    // Une seule ecriture par tirage : added/updated comptent des lignes de
+    // collection, pas des lignes de fichier (imported, lui, reste par ligne --
+    // c'est l'invariant de somme de la regle 4).
+    for (final w in parTirage.values) {
+      final existant = await _db.getCollectionCard(w.tirage.scryfallId, w.isFoil);
       if (existant == null) {
         added++;
       } else {
         updated++;
       }
 
-      await _db.upsertCollectionCard(
-        scryfallId: tirage.scryfallId,
-        cardName: tirage.name,
-        absoluteQuantity: e.quantity,
-        isFoil: e.isFoil,
-        newTags: exact == null ? const [kNeedsCheckTag] : null,
-      );
-      imported++;
-
-      if (exact == null) {
-        tagged++;
-        tagues.add(e.name);
+      // Fusion des tags, jamais remplacement : `upsertCollectionCard` ecrase
+      // les tags existants quand `newTags` est non nul (convention de
+      // card_list_upsert_mixin.dart). On relit donc les tags de la carte et
+      // on n'y touche que pour poser ou retirer le tag systeme.
+      final tags = existant == null
+          ? <String>[]
+          : AppDatabase.decodeTags(existant.tags).toList();
+      if (w.exact) {
+        tags.remove(kNeedsCheckTag);
+      } else if (!tags.contains(kNeedsCheckTag)) {
+        tags.add(kNeedsCheckTag);
       }
 
-      if (tirage.lang != preferredLang) {
+      await _db.upsertCollectionCard(
+        scryfallId: w.tirage.scryfallId,
+        cardName: w.tirage.name,
+        absoluteQuantity: w.quantite,
+        isFoil: w.isFoil,
+        newTags: tags,
+      );
+
+      if (!w.exact) {
+        tagged++;
+        tagues.add(w.nom);
+      }
+
+      if (w.tirage.lang != preferredLang) {
         await _db.enqueueTranslation(
-          scryfallId: tirage.scryfallId,
-          setCode: tirage.setCode,
-          collectorNumber: tirage.collectorNumber,
+          scryfallId: w.tirage.scryfallId,
+          setCode: w.tirage.setCode,
+          collectorNumber: w.tirage.collectorNumber,
           lang: preferredLang,
         );
       }
@@ -209,4 +262,23 @@ class CollectionImportService {
     if (!e.hasIdentity) return null;
     return index['${e.setCode!.toLowerCase()}|${e.collectorNumber}'];
   }
+}
+
+/// Une ecriture de collection en preparation : le tirage retenu, la somme des
+/// quantites des lignes du fichier qui y retombent, et si TOUTES ces lignes
+/// ont ete resolues par leur edition exacte.
+class _Ecriture {
+  final ResolvedPrint tirage;
+  final bool isFoil;
+  final String nom;
+  int quantite;
+  bool exact;
+
+  _Ecriture({
+    required this.tirage,
+    required this.isFoil,
+    required this.nom,
+    required this.quantite,
+    required this.exact,
+  });
 }

@@ -338,5 +338,90 @@ void main() {
           deck.mainboard.firstWhere((c) => c.scryfallId == 'toph-id');
       expect(commanderCard.quantity, 1);
     });
+
+    // =================================================================
+    // `commanderIds` etait calcule en excluant TOUS les boards : un
+    // commandant present au sideboard (ou en considering) mais absent du
+    // mainboard n'y etait donc jamais ajoute. La garde anti-duplication doit
+    // porter sur le seul mainboard.
+    // =================================================================
+
+    test(
+        'un commandant present au SIDEBOARD mais absent du mainboard rejoint '
+        'quand meme le mainboard', () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final json = _deckJson();
+      // Toph est desormais aussi listee au sideboard : sans correctif, son id
+      // figure dans `lineIds` et elle est ecartee de `commanderIds`.
+      (json['boards'] as Map)['sideboard'] = {
+        'cards': {
+          's1': {
+            'quantity': 1,
+            'isFoil': false,
+            'isProxy': false,
+            'card': {'scryfall_id': 'toph-id', 'name': 'Toph, Metalbender'},
+          },
+        },
+      };
+      final controller = _buildController(
+        moxfieldDio: _mockDio((_) => json),
+        scryfallDio: _mockScryfallDio([]),
+        db: db,
+      );
+
+      final result = await controller.importDeckFromMoxfieldUrl(
+          'https://moxfield.com/decks/f-27i01CpkmBPljy89HQeA');
+
+      expect(result.success, isTrue, reason: result.message);
+
+      final decks = await DeckService().loadDecks();
+      final deck = decks.firstWhere((d) => d.name == 'Invincible toph');
+
+      expect(deck.mainboard.where((c) => c.scryfallId == 'toph-id'), hasLength(1),
+          reason: 'le commandant doit etre au mainboard, une seule fois');
+      expect(deck.sideboard.map((c) => c.scryfallId), contains('toph-id'),
+          reason: 'le sideboard de Moxfield est rendu tel quel');
+    });
+
+    // =================================================================
+    // Le deck a remplir etait retrouve par son NOM, et `getAllDecksRaw` ne
+    // trie pas : `firstWhere` rendait le plus ancien deck de ce nom, dont
+    // `updateDeck` vide les cartes avant de les reinserer. Importer deux fois
+    // le meme deck Moxfield (ou un deck homonyme d'un deck local) detruisait
+    // le deck existant -- et le nom vient de Moxfield, l'utilisateur ne le
+    // choisit ni ne le voit avant.
+    // =================================================================
+
+    test(
+        'importer DEUX FOIS le meme deck par URL ne detruit pas le premier '
+        '(le deck est retrouve par son identifiant, jamais par son nom)',
+        () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final controller = _buildController(
+        moxfieldDio: _mockMoxfieldDio(),
+        scryfallDio: _mockScryfallDio([]),
+        db: db,
+      );
+
+      const url = 'https://moxfield.com/decks/f-27i01CpkmBPljy89HQeA';
+      expect((await controller.importDeckFromMoxfieldUrl(url)).success, isTrue);
+      expect((await controller.importDeckFromMoxfieldUrl(url)).success, isTrue);
+
+      final decks = await DeckService().loadDecks();
+      final homonymes =
+          decks.where((d) => d.name == 'Invincible toph').toList();
+
+      expect(homonymes, hasLength(2),
+          reason: 'deux imports, deux decks : rien n a ete efface');
+      for (final deck in homonymes) {
+        expect(deck.mainboard, isNotEmpty,
+            reason: 'aucun des deux decks ne doit avoir ete vide par le second '
+                'import (clearDeckCards puis reinsertion dans le mauvais deck)');
+        expect(deck.mainboard.map((c) => c.scryfallId),
+            containsAll(['wurmcoil-id', 'lattice-id']));
+      }
+    });
   });
 }

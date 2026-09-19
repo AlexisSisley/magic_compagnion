@@ -26,8 +26,12 @@ void main() {
       expect(r.refusal, isNull);
       expect(r.isDegraded, isFalse);
       expect(r.missingIdentityColumns, isEmpty);
+      expect(r.recognizedColumns, isNot(contains('Language')),
+          reason: 'la colonne Language est ignoree : l identite de collection '
+              'par langue est hors perimetre, l afficher comme reconnue '
+              'mentirait a l utilisateur');
       expect(r.recognizedColumns,
-          containsAll(['Count', 'Name', 'Edition', 'Collector Number', 'Language', 'Foil']));
+          containsAll(['Count', 'Name', 'Edition', 'Collector Number', 'Foil']));
       expect(r.entries.single.name, 'Sol Ring');
       expect(r.entries.single.setCode, 'ltc');
       expect(r.entries.single.collectorNumber, '284');
@@ -123,20 +127,6 @@ void main() {
       }
     });
 
-    test('la langue accepte le code, le nom anglais et le nom francais', () {
-      for (final v in ['fr', 'FR', 'French', 'Français']) {
-        final r = MoxfieldCollectionParser.parse('$_entete\n${_ligne(language: v)}');
-        expect(r.entries.single.lang, 'fr', reason: 'valeur "$v"');
-      }
-    });
-
-    test('une langue inconnue vaut "pas de langue" et ne perd pas la ligne', () {
-      final r = MoxfieldCollectionParser.parse('$_entete\n${_ligne(language: 'klingon')}');
-
-      expect(r.entries, hasLength(1));
-      expect(r.entries.single.lang, isNull);
-    });
-
     test('un nom contenant une virgule entre guillemets reste entier', () {
       final r = MoxfieldCollectionParser.parse(
           'Count,Name\n1,"Erebos, God of the Dead"');
@@ -184,6 +174,24 @@ void main() {
 
       expect(r.entries, isEmpty);
       expect(r.unreadableLines, hasLength(1));
+    });
+
+    test(
+        'la colonne surnumeraire placee AVANT Edition decalerait reellement '
+        'l identite du tirage : la ligne est refusee, jamais lue de travers',
+        () {
+      // Version forte de la garde : la valeur en trop est inseree entre Name
+      // et Edition. Sans le refus, `Edition` lirait "valeur en trop" et
+      // `Collector Number` lirait "ltc" -- une carte fausse sous une identite
+      // parfaitement plausible, le pire resultat possible.
+      final r = MoxfieldCollectionParser.parse(
+          'Count,Name,Edition,Collector Number\n'
+          '1,Sol Ring,valeur en trop,ltc,284');
+
+      expect(r.entries, isEmpty,
+          reason: 'aucune entree ne doit naitre d une ligne decalee');
+      expect(r.unreadableLines, hasLength(1));
+      expect(r.unreadableLines.single, contains('Sol Ring'));
     });
   });
 

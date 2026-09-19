@@ -311,3 +311,12 @@ Voir [[visual-work-needs-eyes]].
   par deck, par URL.
 - **La collection par API** est impossible (401), et le restera sans compte
   authentifié.
+- **L'identité de collection par langue est reportée.** La colonne `Language`
+  du fichier est lue puis ignorée : `POST /cards/collection` ne parle que
+  l'anglais et ignore le paramètre de langue, si bien que résoudre chaque
+  carte dans sa langue coûterait une requête par carte — inacceptable sur
+  1247 lignes. Plutôt que d'afficher `Language` comme une colonne reconnue et
+  de mentir à l'utilisateur sur ce que l'app a compris de son fichier, la
+  colonne a été retirée du modèle, du parser et de l'écran de vérification.
+  Les traductions restent gérées, après coup, par la file de `TranslationWorker`
+  selon la langue **préférée** de l'utilisateur, pas selon celle du fichier.

@@ -1,7 +1,6 @@
 // Fichier : lib/services/collection_service.dart
 
 import 'dart:convert';
-import 'dart:developer';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/database/app_database.dart';
@@ -9,18 +8,15 @@ import '../models/card_print.dart';
 import '../models/deck_model.dart';
 import 'card_resolver.dart';
 import 'deck_format_service.dart';
-import 'scryfall_api_service.dart';
 import '../utils/card_list_upsert_mixin.dart';
 
 class CollectionService with CardListUpsertMixin {
   static const _collectionKey = 'user_collection';
   final AppDatabase? _db;
-  final ScryfallApiService? _api;
   final CardResolver? _resolver;
 
-  CollectionService({AppDatabase? database, ScryfallApiService? api, CardResolver? resolver})
+  CollectionService({AppDatabase? database, CardResolver? resolver})
       : _db = database,
-        _api = api,
         _resolver = resolver;
 
   Future<List<DeckCard>> loadCollection() async {
@@ -141,78 +137,6 @@ class CollectionService with CardListUpsertMixin {
      }
 
      return resolution;
-   }
-
-   // --- IMPORTATION DE MASSE ---
-   Future<Map<String, int>> importBatchCards(List<String> rawNames) async {
-     final collection = await loadCollection();
-     int addedCount = 0;
-     int errorCount = 0;
-
-     final RegExp regex = RegExp(r'^(\d+)?\s?x?\s?(.*)$');
-     Map<String, int> cardsToFetch = {};
-
-     for (String line in rawNames) {
-       final match = regex.firstMatch(line.trim());
-       if (match != null) {
-         int q = int.tryParse(match.group(1) ?? '1') ?? 1;
-         String name = match.group(2)?.trim() ?? line;
-         if (name.isNotEmpty) {
-           cardsToFetch[name] = (cardsToFetch[name] ?? 0) + q;
-         }
-       }
-     }
-
-     final List<String> uniqueNames = cardsToFetch.keys.toList();
-
-     // Chunking (Paquets de 75)
-     const int chunkSize = 75;
-     for (var i = 0; i < uniqueNames.length; i += chunkSize) {
-       final end = (i + chunkSize < uniqueNames.length) ? i + chunkSize : uniqueNames.length;
-       final batchNames = uniqueNames.sublist(i, end);
-
-       final identifiers = batchNames.map((name) => {'name': name}).toList();
-
-       try {
-         final apiService = _api ?? ScryfallApiService();
-         final data = await apiService.fetchCollection(identifiers);
-         {
-           final List<dynamic> foundCards = data['data'] ?? [];
-
-           for (var cardJson in foundCards) {
-             final scCard = ScryfallCard.fromJson(cardJson);
-             String originalKey = cardsToFetch.keys.firstWhere(
-               (k) => scCard.name.toLowerCase().contains(k.toLowerCase()) || k.toLowerCase().contains(scCard.name.toLowerCase()),
-               orElse: () => scCard.name
-             );
-
-             int qtyToAdd = cardsToFetch[originalKey] ?? 1;
-
-             if (_db != null) {
-               await _db.upsertCollectionCard(
-                 scryfallId: scCard.id,
-                 cardName: scCard.name,
-                 quantityToAdd: qtyToAdd,
-                 isFoil: false,
-               );
-             } else {
-               upsertCardInList(collection, scryfallId: scCard.id, cardName: scCard.name, quantityToAdd: qtyToAdd, matchByFoil: true, isFoil: false);
-             }
-             addedCount += qtyToAdd;
-           }
-         }
-       } catch (e) {
-         log('Erreur batch import: $e');
-         errorCount += batchNames.length;
-       }
-
-       await Future.delayed(const Duration(milliseconds: 100));
-     }
-
-     if (_db == null) {
-       await _saveCollection(collection);
-     }
-     return {'added': addedCount, 'errors': errorCount};
    }
 
     // Gestion de l'historique financier

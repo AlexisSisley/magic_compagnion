@@ -14,24 +14,9 @@ class MoxfieldCollectionParser {
   static const List<String> _nameAliases = ['name', 'card', 'card name'];
   static const List<String> _editionAliases = ['edition', 'set', 'set code'];
   static const List<String> _cnAliases = ['collector number', 'collectornumber', 'card number'];
-  static const List<String> _langAliases = ['language', 'lang'];
   static const List<String> _foilAliases = ['foil', 'finish', 'foiling'];
 
   static const Set<String> _foilTrue = {'foil', 'true', '1', 'yes', 'etched', 'oui'};
-
-  /// Langues connues de Scryfall, avec leurs noms usuels.
-  static const Map<String, String> _langMap = {
-    'en': 'en', 'english': 'en', 'anglais': 'en',
-    'fr': 'fr', 'french': 'fr', 'français': 'fr', 'francais': 'fr',
-    'de': 'de', 'german': 'de', 'allemand': 'de', 'deutsch': 'de',
-    'es': 'es', 'spanish': 'es', 'espagnol': 'es', 'español': 'es',
-    'it': 'it', 'italian': 'it', 'italien': 'it', 'italiano': 'it',
-    'pt': 'pt', 'portuguese': 'pt', 'portugais': 'pt',
-    'ja': 'ja', 'japanese': 'ja', 'japonais': 'ja',
-    'ko': 'ko', 'korean': 'ko', 'coreen': 'ko',
-    'ru': 'ru', 'russian': 'ru', 'russe': 'ru',
-    'zhs': 'zhs', 'zht': 'zht', 'ph': 'ph',
-  };
 
   static CollectionParseResult parse(String csv) {
     // Une ligne blanche ne porte aucune carte : elle est ecartee avant tout
@@ -57,7 +42,6 @@ class MoxfieldCollectionParser {
     final nameIdx = idx(_nameAliases);
     final editionIdx = idx(_editionAliases);
     final cnIdx = idx(_cnAliases);
-    final langIdx = idx(_langAliases);
     final foilIdx = idx(_foilAliases);
 
     final manquantes = <String>[
@@ -76,7 +60,6 @@ class MoxfieldCollectionParser {
       'Count', 'Name',
       if (editionIdx != -1) 'Edition',
       if (cnIdx != -1) 'Collector Number',
-      if (langIdx != -1) 'Language',
       if (foilIdx != -1) 'Foil',
     ];
     final identiteManquante = <String>[
@@ -114,7 +97,6 @@ class MoxfieldCollectionParser {
 
       final edition = at(cols, editionIdx);
       final cn = at(cols, cnIdx);
-      final rawLang = at(cols, langIdx)?.toLowerCase();
       final rawFoil = at(cols, foilIdx)?.toLowerCase();
 
       entries.add(CollectionEntry(
@@ -122,7 +104,6 @@ class MoxfieldCollectionParser {
         quantity: qty,
         setCode: (edition == null || edition.isEmpty) ? null : edition,
         collectorNumber: (cn == null || cn.isEmpty) ? null : cn,
-        lang: rawLang == null ? null : _langMap[rawLang],
         isFoil: rawFoil != null && _foilTrue.contains(rawFoil),
       ));
     }

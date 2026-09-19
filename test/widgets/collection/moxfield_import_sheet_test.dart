@@ -74,12 +74,15 @@ void main() {
     await tester.pumpWidget(_host(const MoxfieldImportSheet(
       debugParsed: CollectionParseResult(
         entries: [CollectionEntry(name: 'Sol Ring', quantity: 1, setCode: 'ltc', collectorNumber: '284')],
-        recognizedColumns: ['Count', 'Name', 'Edition', 'Collector Number', 'Language', 'Foil'],
+        recognizedColumns: ['Count', 'Name', 'Edition', 'Collector Number', 'Foil'],
       ),
     )));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('1'), findsWidgets);
+    // Egalite stricte, pas `textContaining('1')` : '1' est une sous-chaine de
+    // '1247' comme de 'Collector Number', et l assertion passait meme si le
+    // compteur de lignes lues n etait pas rendu du tout.
+    expect(find.text('1'), findsOneWidget);
     expect(find.text('Edition'), findsOneWidget);
     expect(find.text('Importer'), findsOneWidget);
   });
@@ -159,7 +162,7 @@ void main() {
     }
 
     expect(gatedWorker.drainCalls, 1);
-    expect(find.text('Import termine'), findsOneWidget);
+    expect(find.text('Import terminé'), findsOneWidget);
 
     // Nettoyage : libere le Future en suspens pour ne pas le laisser fuiter
     // hors du test.

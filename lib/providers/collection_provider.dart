@@ -38,13 +38,6 @@ class CollectionNotifier extends AsyncNotifier<List<DeckCard>> {
     ref.invalidateSelf();
   }
 
-  Future<Map<String, int>> importBatchCards(List<String> rawNames) async {
-    final service = ref.read(collectionServiceProvider);
-    final result = await service.importBatchCards(rawNames);
-    ref.invalidateSelf();
-    return result;
-  }
-
   Future<void> clearCollection() async {
     final service = ref.read(collectionServiceProvider);
     await service.clearCollection();

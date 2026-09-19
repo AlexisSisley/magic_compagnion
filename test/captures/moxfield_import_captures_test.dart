@@ -256,7 +256,6 @@ void main() {
               'Name',
               'Edition',
               'Collector Number',
-              'Language',
               'Foil',
             ],
           ),
@@ -303,7 +302,6 @@ void main() {
                       'Name',
                       'Edition',
                       'Collector Number',
-                      'Language',
                       'Foil',
                     ],
                   ),
@@ -320,7 +318,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       // Preuve qu'on capture bien l'ecran de bilan, pas la verification.
-      expect(find.text('Import termine'), findsOneWidget);
+      expect(find.text('Import terminé'), findsOneWidget);
 
       await expectLater(
         find.byType(MaterialApp),
@@ -337,7 +335,7 @@ void main() {
         await tester.pumpWidget(_host(MoxfieldImportSheet(
           debugParsed: CollectionParseResult(
             entries: _entries(1247),
-            recognizedColumns: const ['Count', 'Name', 'Language', 'Foil'],
+            recognizedColumns: const ['Count', 'Name', 'Foil'],
             missingIdentityColumns: const ['Edition', 'Collector Number'],
           ),
         )));

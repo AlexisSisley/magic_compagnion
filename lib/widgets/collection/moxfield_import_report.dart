@@ -38,7 +38,7 @@ class MoxfieldImportReport extends StatelessWidget {
         _counterRow('Ajoutées', r.added),
         _counterRow('Quantité mise à jour', r.updated),
         if (r.tagged > 0)
-          _counterRow('Tagées à vérifier', r.tagged, color: AppColors.amber),
+          _counterRow('Marquées à vérifier', r.tagged, color: AppColors.amber),
         if (r.notIdentified > 0)
           _counterRow('Non identifiées', r.notIdentified, color: AppColors.error),
         if (r.failedTransient > 0)
@@ -46,7 +46,7 @@ class MoxfieldImportReport extends StatelessWidget {
         if (r.tagged > 0) ...[
           const SizedBox(height: 12),
           _namesPanel(
-            label: 'Tagées à vérifier',
+            label: 'Marquées à vérifier',
             explanation:
                 "Identifiées par leur nom seul, faute d'édition dans le "
                 'fichier : vérifie le tirage retenu pour ces cartes.',
