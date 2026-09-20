@@ -11,7 +11,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 import '../providers/service_providers.dart';
 import 'app_routes.dart';
@@ -212,8 +211,6 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
   }
 
   Widget _buildDrawer(BuildContext context) {
-    final driveService = ref.read(googleDriveServiceProvider);
-
     return Drawer(
       backgroundColor: AppColors.scaffoldBackground,
       child: ListView(
@@ -241,98 +238,6 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
                     style: AppTextStyles.text(color: AppColors.primaryShade800, fontSize: 14)),
               ],
             ),
-          ),
-
-          // --- INDICATEUR DE CONNEXION DRIVE ---
-          FutureBuilder<bool>(
-            future: driveService.signIn(silent: true),
-            builder: (context, snapshot) {
-              final isConnected = snapshot.data ?? false;
-              final userEmail = driveService.currentUser?.email;
-
-              if (isConnected) {
-                return Container(
-                  color: Colors.green.withValues(alpha: 0.1),
-                  child: ListTile(
-                    leading:
-                        const Icon(Icons.cloud_done, color: AppColors.success),
-                    title: Text(userEmail ?? 'Compte Google',
-                        style: AppTextStyles.text(fontSize: 14)),
-                    subtitle: const Text('Sauvegarde auto active',
-                        style: TextStyle(
-                            color: AppColors.accentGreen, fontSize: 10)),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.logout,
-                          color: AppColors.textMuted, size: 20),
-                      tooltip: 'D\u00e9connecter',
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (c) => AlertDialog(
-                            backgroundColor: AppColors.scaffoldBackground,
-                            title: const Text('D\u00e9connexion',
-                                style: TextStyle(color: AppColors.textPrimary)),
-                            content: const Text(
-                                'Arr\u00eater la sauvegarde automatique ?',
-                                style: TextStyle(color: AppColors.textSecondary)),
-                            actions: [
-                              TextButton(
-                                  onPressed: () => Navigator.pop(c, false),
-                                  child: const Text('Annuler')),
-                              TextButton(
-                                  onPressed: () => Navigator.pop(c, true),
-                                  child: const Text('D\u00e9connecter',
-                                      style: TextStyle(color: AppColors.error))),
-                            ],
-                          ),
-                        );
-                        if (confirm == true) {
-                          await driveService.signOut();
-                          if (mounted) setState(() {});
-                        }
-                      },
-                    ),
-                  ),
-                );
-              } else {
-                return ListTile(
-                  leading:
-                      const Icon(Icons.cloud_off, color: AppColors.textMuted),
-                  title: Text('Connexion Drive',
-                      style: AppTextStyles.text()),
-                  subtitle: const Text('Activer la sauvegarde auto',
-                      style:
-                          TextStyle(color: AppColors.borderFaint, fontSize: 10)),
-                  onTap: () async {
-                    bool success =
-                        await driveService.signIn(silent: false);
-
-                    if (success) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text(
-                                  'Connexion r\u00e9ussie. Sauvegarde en cours...')),
-                        );
-                      }
-
-                      await _performAutoBackup();
-
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content:
-                                  Text('Premi\u00e8re sauvegarde effectu\u00e9e !'),
-                              backgroundColor: AppColors.success),
-                        );
-                      }
-                    }
-
-                    if (mounted) setState(() {});
-                  },
-                );
-              }
-            },
           ),
 
           const Divider(color: AppColors.borderLight),
@@ -401,18 +306,6 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
             label: 'Param\u00e8tres & Sauvegarde',
             route: AppRoutes.settings,
           ),
-
-          // --- BOUTON \u00c0 PROPOS ---
-          ListTile(
-            leading:
-                const Icon(Icons.info_outline, color: AppColors.textDisabled),
-            title: Text('\u00c0 propos & Licences',
-                style: AppTextStyles.text(color: AppColors.textMuted)),
-            onTap: () {
-              Navigator.pop(context);
-              _showAppAboutDialog(context);
-            },
-          ),
         ],
       ),
     );
@@ -433,39 +326,4 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
     );
   }
 
-  Future<void> _showAppAboutDialog(BuildContext context) async {
-    final PackageInfo info = await PackageInfo.fromPlatform();
-
-    if (!context.mounted) return;
-
-    showAboutDialog(
-      context: context,
-      applicationName: 'Magic Companion',
-      applicationVersion: 'v${info.version} (Build ${info.buildNumber})',
-      applicationIcon: Image.asset(
-        'assets/icone.png',
-        width: 60,
-        height: 60,
-        fit: BoxFit.contain,
-        errorBuilder: (c, e, s) =>
-            const Icon(Icons.auto_awesome, size: 48, color: AppColors.borderMedium),
-      ),
-      applicationLegalese: '\u00a9 2025 - Compagnon non-officiel',
-      children: [
-        const SizedBox(height: 24),
-        Text(
-          'D\u00e9velopp\u00e9 avec Flutter et Passion.',
-          style: AppTextStyles.text(color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          "Ce projet utilise l'API Scryfall pour les donn\u00e9es de cartes. "
-          'Les informations textuelles et graphiques litt\u00e9rales et artistiques '
-          'pr\u00e9sent\u00e9es sur ce site au sujet de Magic: The Gathering, y compris les images de cartes, '
-          'le mana, et le symbole Tap sont la propri\u00e9t\u00e9 de Wizards of the Coast, LLC.',
-          style: TextStyle(color: AppColors.textDisabled, fontSize: 10),
-        ),
-      ],
-    );
-  }
 }

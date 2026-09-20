@@ -1,11 +1,17 @@
 // Fichier : lib/pages/settings_page.dart
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../router/app_routes.dart';
 import '../../services/backup_service.dart';
 import '../../services/bulk_data_service.dart';
 import '../../providers/service_providers.dart';
+import 'sections/about_section.dart';
+import 'sections/backup_section.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -122,11 +128,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         : ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _buildSectionTitle('Sauvegarde & Données'),
+            _buildSectionTitle('Sauvegarde'),
             Card(
               color: AppColors.textPrimary.withValues(alpha: 0.05),
               child: Column(
                 children: [
+                  // Etat de connexion Drive : vient du Drawer, ou un
+                  // FutureBuilder de connexion n'avait rien a faire.
+                  const BackupSection(),
+                  const Divider(color: AppColors.borderLight),
                   ListTile(
                     leading: const Icon(Icons.cloud_upload_outlined, color: AppColors.accent),
                     title: const Text('Exporter mes données (JSON)', style: TextStyle(color: AppColors.textPrimary)),
@@ -191,6 +201,68 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
             ),
             const SizedBox(height: 20),
+            _buildSectionTitle('Joueurs'),
+            Card(
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
+              child: ListTile(
+                leading: const Icon(Icons.group_outlined,
+                    color: AppColors.textSecondary),
+                title: const Text('Gestion des Profils',
+                    style: TextStyle(color: AppColors.textPrimary)),
+                subtitle: const Text('Joueurs enregistres et leurs couleurs',
+                    style: TextStyle(color: AppColors.textMuted)),
+                trailing: const Icon(Icons.chevron_right,
+                    color: AppColors.textMuted),
+                onTap: () => context.push(AppRoutes.profiles),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            _buildSectionTitle('Apparence'),
+            Card(
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
+              child: ListTile(
+                leading: const Icon(Icons.palette_outlined,
+                    color: AppColors.textSecondary),
+                title: const Text('Theme : Grimoire (sombre)',
+                    style: TextStyle(color: AppColors.textPrimary)),
+                // Emplacement reserve, pas un faux bouton : le theme clair
+                // "Table" est un chantier a part. La ligne est rendue et
+                // lisible, et dit explicitement qu'il n'y a rien a choisir
+                // pour l'instant.
+                subtitle: const Text('Le theme clair arrivera dans une '
+                    'prochaine version',
+                    style: TextStyle(color: AppColors.textMuted)),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            if (kDebugMode) ...[
+              _buildSectionTitle('Developpeur'),
+              Card(
+                color: AppColors.textPrimary.withValues(alpha: 0.05),
+                child: ListTile(
+                  leading: const Icon(Icons.menu_book,
+                      color: AppColors.accentOrange),
+                  title: const Text('Grimoire Code',
+                      style: TextStyle(color: AppColors.textPrimary)),
+                  subtitle: const Text('Interrogez votre codebase',
+                      style: TextStyle(color: AppColors.textMuted)),
+                  trailing: const Icon(Icons.chevron_right,
+                      color: AppColors.textMuted),
+                  onTap: () => context.push(AppRoutes.grimoire),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            _buildSectionTitle('A propos'),
+            Card(
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
+              child: const AboutSection(),
+            ),
+            const SizedBox(height: 20),
+
             _buildSectionTitle('Application'),
             Card(
               color: AppColors.textPrimary.withValues(alpha: 0.05),
