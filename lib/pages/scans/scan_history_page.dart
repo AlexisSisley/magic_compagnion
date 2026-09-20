@@ -6,13 +6,12 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:io'; // Pour afficher l'image depuis le chemin (File)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../models/scan_history_model.dart';
 import '../../services/scan_history_service.dart';
 import '../../services/collection_service.dart';
 import '../../providers/service_providers.dart';
-import '../../router/app_router.dart';
 import 'package:intl/intl.dart';
+import '../../router/card_detail_route.dart';
 
 class ScanHistoryPage extends ConsumerStatefulWidget {
   const ScanHistoryPage({super.key});
@@ -93,7 +92,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
   }
 
   void _viewCardDetail(ScanHistoryItem item) {
-    context.push(AppRoutes.cardDetail, extra: {'cardName': item.cardName});
+    pushCardDetail(context, cardName: item.cardName);
   }
 
   @override

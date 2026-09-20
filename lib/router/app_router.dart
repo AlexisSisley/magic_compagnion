@@ -75,7 +75,6 @@ GoRouter createAppRouter() {
       ...playRoutes(),
       ...toolsRoutes(),
       ...settingsRoutes(),
-      ...cardDetailRoutes(),
       ...scannerDetailRoutes(),
       ...collectionDetailRoutes(),
       ...deckDetailRoutes(),

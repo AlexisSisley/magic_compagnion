@@ -8,13 +8,12 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:go_router/go_router.dart';
 import '../../controllers/deck_suggestions_controller.dart';
 import '../../models/deck_model.dart';
-import '../../router/app_router.dart';
 import '../../services/edhrec_service.dart';
 import '../../utils/price_helper.dart';
 import 'deck_combos_section.dart';
+import '../../router/card_detail_route.dart';
 
 class DeckSuggestionsTab extends ConsumerStatefulWidget {
   final Deck deck;
@@ -380,7 +379,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
         dense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
         onTap: () {
-          context.push(AppRoutes.cardDetail, extra: {'cardName': suggestion.name});
+          pushCardDetail(context, cardName: suggestion.name);
         },
         title: Text(
           suggestion.name,
@@ -465,10 +464,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         onTap: () {
-          context.push(
-            AppRoutes.cardDetail,
-            extra: {'cardName': card.name},
-          );
+          pushCardDetail(context, cardName: card.name);
         },
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(4),
@@ -581,10 +577,7 @@ class _DeckSuggestionsTabState extends ConsumerState<DeckSuggestionsTab> {
             const SizedBox(height: 4),
             GestureDetector(
               onTap: () {
-                context.push(
-                  AppRoutes.cardDetail,
-                  extra: {'cardName': card.name},
-                );
+                pushCardDetail(context, cardName: card.name);
               },
               child: const Icon(
                 Icons.add_circle_outline,

@@ -47,7 +47,10 @@ class AppRoutes {
   static const String settings = '/settings';
 
   // Detail routes (push par-dessus le shell)
-  static const String cardDetail = '/cards/detail';
+  //
+  // `cardDetail` a disparu : la fiche carte n'a plus d'adresse absolue. Elle
+  // est greffee en sous-route relative dans chacune des cinq branches, et se
+  // pousse par `pushCardDetail()` (lib/router/card_detail_route.dart).
   static const String glossaryDetail = '/glossary/detail';
   static const String globalStats = '/collection/stats';
   static const String setDetail = '/collection/set';

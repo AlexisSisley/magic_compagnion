@@ -11,6 +11,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/cards/scryfall_image.dart';
 import 'dashboard_empty_state.dart';
 import 'dashboard_section_header.dart';
+import '../../router/card_detail_route.dart';
 
 class DashboardRecentScans extends StatelessWidget {
   final List<ScanHistoryItem> recentScans;
@@ -44,10 +45,8 @@ class DashboardRecentScans extends StatelessWidget {
                 cardName: scan.cardName,
                 scryfallId: scan.scryfallId,
                 timestamp: scan.timestamp,
-                onTap: () => context.push(
-                  AppRoutes.cardDetail,
-                  extra: <String, dynamic>{'cardName': scan.cardName},
-                ),
+                onTap: () =>
+                    pushCardDetail(context, cardName: scan.cardName),
               )),
       ],
     );

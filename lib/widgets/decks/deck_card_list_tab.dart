@@ -5,7 +5,6 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Pour Clipboard
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:magic_companion/widgets/cards/versions_selector_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
@@ -14,8 +13,8 @@ import '../../models/scryfall_card_model.dart';
 import '../../providers/card_display_provider.dart';
 import '../../providers/preferred_language_provider.dart';
 import '../../providers/service_providers.dart';
-import '../../router/app_router.dart';
 import '../../services/deck_service.dart'; // Pour DeckBoard enum
+import '../../router/card_detail_route.dart';
 
 class DeckCardListTab extends ConsumerStatefulWidget {
   final List<DeckCard> cardList;
@@ -277,14 +276,14 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
         display: display,
         onPlus: () => widget.onUpdateQuantity(card, 1),
         onMinus: () => widget.onUpdateQuantity(card, -1),
-        onTap: () { if (scryfallCard != null) context.push(AppRoutes.cardDetail, extra: {'cardName': scryfallCard.name}); },
+        onTap: () { if (scryfallCard != null) pushCardDetail(context, cardName: scryfallCard.name); },
         onLongPress: () => _showCardOptions(card, scryfallCard, isCommander),
       );
     } else {
       return DeckCardTile(
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
         display: display,
-        onTap: () { if (scryfallCard != null) context.push(AppRoutes.cardDetail, extra: {'cardName': scryfallCard.name}); },
+        onTap: () { if (scryfallCard != null) pushCardDetail(context, cardName: scryfallCard.name); },
         onMore: () => _showCardOptions(card, scryfallCard, isCommander), // <--- Ouvre la modale
       );
     }

@@ -17,6 +17,7 @@ import '../../services/local_card_service.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../providers/service_providers.dart';
 import '../../utils/price_helper.dart';
+import '../../router/card_detail_route.dart';
 
 class ScannerPage extends ConsumerStatefulWidget {
   const ScannerPage({super.key});
@@ -318,12 +319,10 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
       if (!mounted) return;
 
       // Navigation vers la page de résultat avec le flag "Continuous Scan"
-      final result = await context.push(
-        AppRoutes.cardDetail,
-        extra: {
-          'imagePath': picture.path,
-          'isContinuousScan': true, // <--- ACTIVE LE MODE SÉRIE
-        },
+      final result = await pushCardDetail<bool>(
+        context,
+        imagePath: picture.path,
+        isContinuousScan: true, // <--- ACTIVE LE MODE SÉRIE
       );
 
       // Si le résultat est 'true', on relance immédiatement le scan
@@ -462,7 +461,7 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
                           ),
                           onTap: () {
                             Navigator.pop(context);
-                            context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+                            pushCardDetail(context, cardName: card.name);
                           },
                         );
                       },

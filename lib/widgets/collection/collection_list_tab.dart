@@ -5,14 +5,13 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../models/search_filters.dart';
-import '../../router/app_router.dart';
 import '../../utils/price_helper.dart';
 import '../common/tag_editor_dialog.dart';
+import '../../router/card_detail_route.dart';
 
 class CollectionListTab extends StatefulWidget {
   final List<DeckCard> cards;
@@ -367,7 +366,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
           if (widget.isSelectionMode) {
             widget.onToggleSelection?.call(card.scryfallId);
           } else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
-            context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+            pushCardDetail(context, cardName: card.name);
           }
         },
         onLongPress: () {
@@ -463,7 +462,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
         if (widget.isSelectionMode) {
           widget.onToggleSelection?.call(card.scryfallId);
         } else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
-          context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+          pushCardDetail(context, cardName: card.name);
         }
       },
       onLongPress: () {

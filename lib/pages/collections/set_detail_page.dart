@@ -13,6 +13,7 @@ import '../../models/scryfall_card_model.dart';
 import '../../models/scryfall_set_model.dart';
 import '../../models/search_filters.dart';
 import '../../router/app_router.dart';
+import '../../router/card_detail_route.dart';
 
 class SetDetailPage extends ConsumerStatefulWidget {
   final ScryfallSet set;
@@ -660,7 +661,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
 
     return GestureDetector(
       onTap: () => _ctrl.toggleSelection(card.id, isFoilSlot),
-      onLongPress: () => context.push(AppRoutes.cardDetail, extra: {'cardName': card.name}),
+      onLongPress: () => pushCardDetail(context, cardName: card.name),
       child: Stack(
         fit: StackFit.expand,
         children: [

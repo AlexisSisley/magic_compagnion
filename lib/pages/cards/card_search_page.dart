@@ -5,13 +5,11 @@ import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/search_filters.dart';
 import 'package:magic_companion/widgets/search/search_filter_modal.dart';
 import '../../controllers/card_search_controller.dart';
 import '../../providers/service_providers.dart';
-import '../../router/app_router.dart';
 import '../../utils/price_helper.dart';
 import 'set_list_page.dart';
 import '../../models/scryfall_set_model.dart';
@@ -21,6 +19,7 @@ import '../../models/scryfall_card_model.dart';
 import '../../widgets/search/skyrim_sneak_loader.dart';
 import '../../widgets/search/scryfall_syntax_help.dart';
 import '../../widgets/common/collection_badge.dart';
+import '../../router/card_detail_route.dart';
 
 class CardSearchPage extends ConsumerStatefulWidget {
   const CardSearchPage({super.key});
@@ -427,7 +426,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
   }
 
   void _navigateToDetail(String cardName) {
-    context.push(AppRoutes.cardDetail, extra: {'cardName': cardName}).then((_) {
+    pushCardDetail(context, cardName: cardName).then((_) {
       ref.read(cardSearchControllerProvider.notifier).loadLocalData();
     });
   }
