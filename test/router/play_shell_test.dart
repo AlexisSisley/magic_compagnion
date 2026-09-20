@@ -81,12 +81,10 @@ void main() {
           reason: 'sans separateur, "Fin" se lit comme un sixieme outil');
     });
 
-    testWidgets('elle mene a la mise en place, pas a la racine',
-        (tester) async {
-      // Ruling 12 : tant que '/' sert encore LifeCounterPage, sortir du
-      // compteur VERS le compteur fait desactiver le wakelock par le dispose
-      // de l'instance qu'on quitte, APRES que la nouvelle l'a active. Ce test
-      // tient la destination corrigee jusqu'a la Task 12.
+    testWidgets("elle mene a l'Accueil", (tester) async {
+      // Depuis que '/' est l'Accueil et non plus le compteur, sortir vers la
+      // racine ne remonte plus une seconde LifeCounterPage : la fuite de
+      // wakelock que cette destination contournait n'existe plus.
       final router = GoRouter(
         initialLocation: AppRoutes.playCounter,
         routes: [
@@ -103,8 +101,8 @@ void main() {
             ],
           ),
           GoRoute(
-            path: AppRoutes.playSetup,
-            builder: (_, __) => const Text('mise en place'),
+            path: AppRoutes.home,
+            builder: (_, __) => const Text('accueil'),
           ),
         ],
       );
@@ -117,7 +115,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(router.routerDelegate.currentConfiguration.uri.toString(),
-          AppRoutes.playSetup);
+          AppRoutes.home);
     });
   });
 

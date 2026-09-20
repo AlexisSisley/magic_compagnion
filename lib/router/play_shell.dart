@@ -95,22 +95,9 @@ class PlayShell extends StatelessWidget {
                   // En `danger`, jamais en `accent` : "Fin" n'a pas d'etat
                   // actif, elle n'est pas une destination ou l'on reste.
                   color: p.danger,
-                  // Vers la mise en place, PAS vers `home` -- et c'est une
-                  // correction de fuite, pas une preference.
-                  //
-                  // Tant que `home` vaut '/', cette racine sert encore
-                  // LifeCounterPage. Or le `initState` de la page d'arrivee
-                  // s'execute AVANT le `dispose` de celle qu'on quitte
-                  // (mesure par sonde) : la nouvelle instance activerait le
-                  // wakelock, puis l'ancienne le desactiverait en mourant.
-                  // On sortirait donc du compteur vers le compteur, wakelock
-                  // coupe et barres systeme revenues -- ecran libre de
-                  // s'eteindre en pleine partie.
-                  //
-                  // A repointer sur `AppRoutes.home` a la Task 12, quand '/'
-                  // deviendra l'Accueil et que les deux instances cesseront
-                  // de se chevaucher.
-                  onTap: () => context.go(AppRoutes.playSetup),
+                  // La sortie ne detruit rien : le snapshot de partie
+                  // reste, et l'Accueil propose "Reprendre la partie".
+                  onTap: () => context.go(AppRoutes.home),
                 ),
               ),
             ],

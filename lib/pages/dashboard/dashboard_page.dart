@@ -23,7 +23,15 @@ import '../../widgets/dashboard/dashboard_value_chart_preview.dart';
 import '../../widgets/dashboard/dashboard_widget_wrapper.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
-  const DashboardPage({super.key});
+  const DashboardPage({super.key, this.isEmbedded = false});
+
+  /// Quand true, rend le corps SANS Scaffold ni AppBar : la page est posee
+  /// dans l'Accueil, qui porte deja son en-tete et son fond.
+  ///
+  /// Meme patron que `LifeCounterPage(isInShell:)`. Sans ce drapeau, inclure
+  /// le tableau de bord empilerait deux Scaffold et montrerait une fleche
+  /// retour qui n'a rien a depiler, l'Accueil etant une racine de branche.
+  final bool isEmbedded;
 
   @override
   ConsumerState<DashboardPage> createState() => _DashboardPageState();
@@ -37,6 +45,40 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final dashboardAsync = ref.watch(dashboardProvider);
     final configAsync = ref.watch(dashboardConfigProvider);
 
+    final corps = dashboardAsync.when(
+      loading: () => const _DashboardShimmer(),
+      error: (e, _) => Center(
+        child: Text('Erreur: $e',
+            style: AppTextStyles.body(color: AppColors.error)),
+      ),
+      data: (state) => configAsync.when(
+        loading: () => const _DashboardShimmer(),
+        error: (_, _) => _DashboardBody(
+          state: state,
+          config: DashboardConfig.defaultConfig(),
+          editMode: _editMode,
+        ),
+        data: (config) => _DashboardBody(
+          state: state,
+          config: config,
+          editMode: _editMode,
+        ),
+      ),
+    );
+
+    if (widget.isEmbedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: _actionsEdition(),
+          ),
+          Expanded(child: corps),
+        ],
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.transparent,
       appBar: AppBar(
@@ -47,51 +89,41 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        actions: [
-          if (_editMode)
-            TextButton(
-              onPressed: () {
-                ref.read(dashboardConfigProvider.notifier).resetToDefault();
-                setState(() => _editMode = false);
-              },
-              child: Text(
-                'Reset',
-                style: AppTextStyles.label(
-                  color: AppColors.textMuted,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          IconButton(
-            icon: Icon(
-              _editMode ? Icons.check : Icons.edit_outlined,
-              color: _editMode ? AppColors.primaryGold : AppColors.textPrimary,
-            ),
-            onPressed: () => setState(() => _editMode = !_editMode),
-          ),
-        ],
+        actions: _actionsEdition(),
       ),
-      body: dashboardAsync.when(
-        loading: () => const _DashboardShimmer(),
-        error: (e, _) => Center(
-          child: Text('Erreur: $e',
-              style: AppTextStyles.body(color: AppColors.error)),
-        ),
-        data: (state) => configAsync.when(
-          loading: () => const _DashboardShimmer(),
-          error: (_, _) => _DashboardBody(
-            state: state,
-            config: DashboardConfig.defaultConfig(),
-            editMode: _editMode,
-          ),
-          data: (config) => _DashboardBody(
-            state: state,
-            config: config,
-            editMode: _editMode,
-          ),
-        ),
-      ),
+      body: corps,
     );
+  }
+
+  /// Reset (en mode edition) et bascule du mode edition.
+  ///
+  /// Partages entre l'AppBar de la page autonome et la rangee compacte de la
+  /// version embarquee : les dupliquer les ferait deriver.
+  List<Widget> _actionsEdition() {
+    return [
+      if (_editMode)
+        TextButton(
+          onPressed: () {
+            ref.read(dashboardConfigProvider.notifier).resetToDefault();
+            setState(() => _editMode = false);
+          },
+          child: Text(
+            'Reset',
+            style: AppTextStyles.label(
+              color: AppColors.textMuted,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      IconButton(
+        icon: Icon(
+          _editMode ? Icons.check : Icons.edit_outlined,
+          color: _editMode ? AppColors.primaryGold : AppColors.textPrimary,
+        ),
+        tooltip: _editMode ? 'Terminer' : 'Reorganiser le tableau de bord',
+        onPressed: () => setState(() => _editMode = !_editMode),
+      ),
+    ];
   }
 }
 

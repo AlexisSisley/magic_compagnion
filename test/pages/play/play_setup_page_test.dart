@@ -61,8 +61,6 @@ void main() {
     await tester.pumpWidget(harness(partie: () async => buildTestSession()));
     await tester.pumpAndSettle();
 
-    await _fermerLaFeuille(tester);
-
     expect(find.text('Reprendre la partie en cours'), findsOneWidget);
     // Le bouton de configuration reste : on peut vouloir repartir de zero.
     expect(find.text('Configurer la partie'), findsOneWidget);
@@ -89,14 +87,25 @@ void main() {
     expect(racines, contains(AppRoutes.playSetup));
   });
 
-  testWidgets("la feuille de configuration s'ouvre au montage",
+  testWidgets("sans partie, la feuille de configuration s'ouvre au montage",
       (tester) async {
-    // Ruling 14 : sans ca, l'ecran annonce une configuration qu'il n'offre
-    // aucun moyen de faire.
+    // Sans ca, l'ecran annonce une configuration qu'il n'offre aucun moyen
+    // de faire.
     await tester.pumpWidget(harness(partie: () async => null));
     await tester.pumpAndSettle();
 
     expect(find.byType(GameSetupModal), findsOneWidget);
+  });
+
+  testWidgets('avec une partie en cours, la feuille ne surgit PAS',
+      (tester) async {
+    // On arrive ici en sortant d'une partie par le bouton "Fin". Ouvrir
+    // alors "configurer une nouvelle partie" serait l'inverse du geste :
+    // l'ecran porte deja la reprise, il n'est pas creux.
+    await tester.pumpWidget(harness(partie: () async => buildTestSession()));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GameSetupModal), findsNothing);
   });
 }
 

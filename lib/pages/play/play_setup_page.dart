@@ -40,15 +40,23 @@ class _PlaySetupPageState extends ConsumerState<PlaySetupPage> {
   @override
   void initState() {
     super.initState();
-    // La feuille de configuration s'ouvre d'elle-meme : sans ca, l'ecran
-    // annonce "choisissez un format, les points de vie et les joueurs" sans
-    // offrir aucun moyen de le faire, et la refonte allongerait le parcours
-    // qu'elle existe pour raccourcir.
+    // La feuille s'ouvre d'elle-meme SEULEMENT s'il n'y a pas de partie en
+    // cours.
+    //
+    // Sans partie, l'ecran serait creux : il annoncerait "choisissez un
+    // format, les points de vie et les joueurs" sans offrir aucun moyen de le
+    // faire. Avec une partie, il porte deja "Reprendre la partie en cours" et
+    // n'est donc pas creux -- et surtout, on y arrive en SORTANT d'une partie
+    // par le bouton Fin : ouvrir alors "configurer une nouvelle partie" est
+    // l'inverse exact du geste demande.
     //
     // Apres la premiere frame, parce que showModalBottomSheet a besoin d'un
     // Navigator installe.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ouvrirConfiguration(context, ref);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final partie = await ref.read(activeGameProvider.future);
+      if (!mounted || partie != null) return;
+      _ouvrirConfiguration(context, ref);
     });
   }
 
