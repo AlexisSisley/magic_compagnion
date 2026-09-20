@@ -54,7 +54,10 @@ class DashboardWidgetConfig {
     return DashboardWidgetConfig(
       id: DashboardWidgetId.values.firstWhere(
         (e) => e.name == json['id'],
-        orElse: () => DashboardWidgetId.quickActions,
+        // Pas `quickActions` en repli : il est retire de l'affichage, et un
+        // identifiant inconnu ne doit pas ressusciter un widget qu'on ne
+        // montre plus.
+        orElse: () => DashboardWidgetId.collectionSummary,
       ),
       order: json['order'] as int? ?? 0,
       size: DashboardWidgetSize.values.firstWhere(
@@ -74,11 +77,6 @@ class DashboardConfig {
   factory DashboardConfig.defaultConfig() {
     return const DashboardConfig(
       widgets: [
-        DashboardWidgetConfig(
-          id: DashboardWidgetId.quickActions,
-          order: 0,
-          size: DashboardWidgetSize.medium,
-        ),
         DashboardWidgetConfig(
           id: DashboardWidgetId.collectionSummary,
           order: 1,
@@ -136,8 +134,28 @@ class DashboardConfig {
 
   List<dynamic> toJson() => widgets.map((w) => w.toJson()).toList();
 
-  /// Visible widgets sorted by order.
-  List<DashboardWidgetConfig> get visibleWidgets =>
-      widgets.where((w) => w.visible).toList()
+  /// Identifiants encore lisibles dans une configuration persistee, mais
+  /// qui ne s'affichent plus.
+  ///
+  /// `quickActions` proposait Scanner, Deck, Recherche et Collection --
+  /// quatre entrees dont toutes dupliquaient un onglet de la barre. La
+  /// refonte de navigation existe pour supprimer ce doublon.
+  ///
+  /// Filtre ici plutot que supprime de l'enum : `DashboardWidgetId` est
+  /// serialise dans la configuration de l'utilisateur, et retirer la valeur
+  /// casserait la relecture des configurations existantes.
+  static const _retires = <DashboardWidgetId>{DashboardWidgetId.quickActions};
+
+  /// Les widgets qu'un utilisateur peut encore montrer ou cacher.
+  ///
+  /// Le mode edition doit lire CETTE liste, pas `widgets` : sinon un widget
+  /// retire y resterait basculable, et l'activer ne ferait rien puisque
+  /// `visibleWidgets` le filtre.
+  List<DashboardWidgetConfig> get configurableWidgets =>
+      widgets.where((w) => !_retires.contains(w.id)).toList()
         ..sort((a, b) => a.order.compareTo(b.order));
+
+  /// Les widgets effectivement affiches, tries par ordre.
+  List<DashboardWidgetConfig> get visibleWidgets =>
+      configurableWidgets.where((w) => w.visible).toList();
 }

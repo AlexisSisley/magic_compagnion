@@ -238,8 +238,10 @@ class _EditModeList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sorted = List<DashboardWidgetConfig>.from(config.widgets)
-      ..sort((a, b) => a.order.compareTo(b.order));
+    // `configurableWidgets` et non `widgets` : un widget retire de
+    // l'affichage ne doit pas rester basculable ici, sinon l'activer ne fait
+    // rien.
+    final sorted = config.configurableWidgets;
 
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
