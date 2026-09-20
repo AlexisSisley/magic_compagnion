@@ -78,7 +78,7 @@ class _QuickAddViewState extends ConsumerState<QuickAddView> {
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: ListTile(
             leading: Image.network(card.smallImageUrl ?? '', width: 30, errorBuilder: (_, _, _)=>const Icon(Icons.image)),
-            title: Text(card.name, style: AppTextStyles.cinzel()),
+            title: Text(card.name, style: AppTextStyles.text()),
             subtitle: Text(card.setCode.toUpperCase(), style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,

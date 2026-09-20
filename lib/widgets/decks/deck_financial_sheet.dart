@@ -144,7 +144,7 @@ class DeckFinancialSheet extends StatelessWidget {
                         : const Icon(Icons.image, color: AppColors.borderMedium),
                       title: Row(
                         children: [
-                          Expanded(child: Text(card['name'], style: AppTextStyles.cinzel(), overflow: TextOverflow.ellipsis)),
+                          Expanded(child: Text(card['name'], style: AppTextStyles.text(), overflow: TextOverflow.ellipsis)),
                           if (card['isFoil']) 
                              const Padding(padding: EdgeInsets.only(left:6), child: Icon(Icons.star, size: 14, color: AppColors.amber)), // Icône Foil
                           if (card['isProxy']) 

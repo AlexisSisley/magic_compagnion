@@ -1,5 +1,11 @@
 // Fichier : lib/router/collections_routes.dart
-// Routes liees aux collections, sets et wishlists.
+// Branche Collection du shell : la collection, ses statistiques, le detail
+// d'une edition, une wishlist, et la fiche carte.
+//
+// `wishlist-detail` est la seule constante dont la VALEUR change :
+// '/wishlists/detail' devient '/collection/wishlist-detail'. Une wishlist se
+// consulte depuis la collection ; la laisser a la racine la ferait sortir du
+// shell, donc disparaitre la barre d'onglets.
 
 import 'package:go_router/go_router.dart';
 
@@ -13,57 +19,52 @@ import '../pages/collections/set_detail_page.dart';
 import '../pages/collections/set_stats_page.dart';
 import '../pages/wishlists/wishlist_detail_page.dart';
 import 'app_routes.dart';
+import 'card_detail_route.dart';
 import 'page_transitions.dart';
 
-/// Routes de detail pour les collections (push par-dessus le shell).
-List<RouteBase> collectionDetailRoutes() {
-  return [
-    GoRoute(
-      path: AppRoutes.globalStats,
-      builder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>;
-        return GlobalStatsPage(
-          collection: extra['collection'] as List<DeckCard>,
-          fullCardData: extra['fullCardData'] as List<ScryfallCard>,
-          totalValue: extra['totalValue'] as double,
-        );
-      },
-    ),
-    GoRoute(
-      path: AppRoutes.setDetail,
-      builder: (context, state) {
-        final set = state.extra as ScryfallSet;
-        return SetDetailPage(set: set);
-      },
-    ),
-    GoRoute(
-      path: AppRoutes.setStats,
-      builder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>;
-        return SetStatsPage(
-          targetSet: extra['targetSet'] as ScryfallSet,
-          myCollection: extra['myCollection'] as List<DeckCard>,
-          fullSetData: extra['fullSetData'] as List<ScryfallCard>,
-        );
-      },
-    ),
-    GoRoute(
-      path: AppRoutes.wishlistDetail,
-      builder: (context, state) {
-        final wishlist = state.extra as Wishlist;
-        return WishlistDetailPage(wishlist: wishlist);
-      },
-    ),
-  ];
-}
-
-/// Route shell pour l'onglet collection.
-GoRoute collectionShellRoute() {
+GoRoute collectionBranchRoute() {
   return GoRoute(
-    path: '/collection',
+    path: AppRoutes.collection,
     pageBuilder: (context, state) => FadeThroughPage(
       key: state.pageKey,
       child: const CollectionPage(),
     ),
+    routes: [
+      GoRoute(
+        path: 'stats',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return GlobalStatsPage(
+            collection: extra['collection'] as List<DeckCard>,
+            fullCardData: extra['fullCardData'] as List<ScryfallCard>,
+            totalValue: extra['totalValue'] as double,
+          );
+        },
+      ),
+      GoRoute(
+        path: 'set',
+        builder: (context, state) =>
+            SetDetailPage(set: state.extra as ScryfallSet),
+        routes: [
+          GoRoute(
+            path: 'stats',
+            builder: (context, state) {
+              final extra = state.extra as Map<String, dynamic>;
+              return SetStatsPage(
+                targetSet: extra['targetSet'] as ScryfallSet,
+                myCollection: extra['myCollection'] as List<DeckCard>,
+                fullSetData: extra['fullSetData'] as List<ScryfallCard>,
+              );
+            },
+          ),
+        ],
+      ),
+      GoRoute(
+        path: 'wishlist-detail',
+        builder: (context, state) =>
+            WishlistDetailPage(wishlist: state.extra as Wishlist),
+      ),
+      cardDetailRoute(),
+    ],
   );
 }

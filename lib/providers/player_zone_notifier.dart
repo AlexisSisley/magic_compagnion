@@ -232,3 +232,23 @@ final playerZoneNotifierProvider =
     NotifierProvider.family<PlayerZoneNotifier, PlayerZoneState, int>(
   PlayerZoneNotifier.new,
 );
+
+/// Remet a neuf les zones des [playerCount] premiers joueurs.
+///
+/// A appeler a CHAQUE debut de partie. Ce provider n'est pas `autoDispose` :
+/// son etat -- mode ajustement, accumulateurs, nombres flottants -- traverse
+/// le cycle de vie des parties. Sans ce reset, une zone peut rouvrir une
+/// partie neuve deja en mode ajustement, sans que l'utilisateur ait rien
+/// fait.
+///
+/// Les identifiants de joueur d'une partie sont toujours 0..playerCount-1
+/// (voir `GameSession.newGame`).
+///
+/// Extrait de `LifeCounterPage._startNewGame`, qui le faisait en ligne : la
+/// mise en place du mode Jeu ecrit un snapshot et ne passe donc pas par ce
+/// chemin. Deux appelants, une seule implementation.
+void resetPlayerZones(ProviderContainer container, int playerCount) {
+  for (var i = 0; i < playerCount; i++) {
+    container.read(playerZoneNotifierProvider(i).notifier).reset();
+  }
+}

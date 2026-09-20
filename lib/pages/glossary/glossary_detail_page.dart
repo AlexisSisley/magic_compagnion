@@ -52,7 +52,7 @@ class GlossaryDetailPage extends StatelessWidget {
                     ),
                     child: Text(
                       keyword.example!,
-                      style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 15, fontStyle: FontStyle.italic).copyWith(height: 1.4),
+                      style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 15, fontStyle: FontStyle.italic).copyWith(height: 1.4),
                     ),
                   ),
                 ),

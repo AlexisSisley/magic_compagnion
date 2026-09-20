@@ -118,7 +118,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     final result = await _ctrl.setCommanderSlot(deckCard, slot);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message, style: AppTextStyles.cinzel())),
+        SnackBar(content: Text(result.message, style: AppTextStyles.text())),
       );
     }
   }
@@ -197,7 +197,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
           insetPadding: const EdgeInsets.all(16),
           title: Column(
             children: [
-              Text('Apercu avant partage', style: AppTextStyles.cinzel()),
+              Text('Apercu avant partage', style: AppTextStyles.sectionTitle()),
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
@@ -358,7 +358,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     if (mounted && result.message.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result.message, style: AppTextStyles.cinzel(color: AppColors.accentRed)),
+          content: Text(result.message, style: AppTextStyles.text(color: AppColors.accentRed)),
           backgroundColor: AppColors.textOnPrimary,
         ),
       );
@@ -397,7 +397,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
               labelColor: AppColors.textPrimary,
               labelStyle: AppTextStyles.bold(),
               unselectedLabelColor: AppColors.textMuted,
-              unselectedLabelStyle: AppTextStyles.cinzel(),
+              unselectedLabelStyle: AppTextStyles.text(),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               tabs: [
                 _buildDragTargetTab(DeckBoard.main, 'Main (${deckState.mainCount})'),

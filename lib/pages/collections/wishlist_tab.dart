@@ -10,6 +10,7 @@ import '../../models/wishlist_model.dart';
 import '../../router/app_router.dart';
 import '../../services/wishlist_service.dart';
 import '../../utils/price_helper.dart';
+import '../../router/card_detail_route.dart';
 
 class WishlistTab extends StatefulWidget {
   final List<Wishlist> wishlists;
@@ -128,7 +129,7 @@ class _WishlistTabState extends State<WishlistTab> {
                 title: const Text('Détails complets', style: TextStyle(color: AppColors.textPrimary)),
                 onTap: () {
                   Navigator.pop(context);
-                  context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+                  pushCardDetail(context, cardName: card.name);
                 },
               ),
             ],
@@ -216,7 +217,7 @@ class _WishlistTabState extends State<WishlistTab> {
                  final price = PriceHelper.formatCompact(card.prices);
                  return GestureDetector(
                    onTap: () {
-                      context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+                      pushCardDetail(context, cardName: card.name);
                    },
                    // NOUVEAU : Appui long pour le menu Cardmarket
                    onLongPress: () => _showTopCardOptions(card),
@@ -265,7 +266,7 @@ class _WishlistTabState extends State<WishlistTab> {
             child: widget.wishlists.isEmpty 
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  children: [SizedBox(height: MediaQuery.of(context).size.height * 0.5, child: Center(child: Text('Aucune wishlist créée.', style: AppTextStyles.cinzel(color: AppColors.borderFaint))))]
+                  children: [SizedBox(height: MediaQuery.of(context).size.height * 0.5, child: Center(child: Text('Aucune wishlist créée.', style: AppTextStyles.text(color: AppColors.borderFaint))))]
                 )
               : ListView.builder(
                   physics: const AlwaysScrollableScrollPhysics(),

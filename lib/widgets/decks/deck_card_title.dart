@@ -70,12 +70,12 @@ class DeckCardTile extends StatelessWidget {
         // Nom et Quantité
         title: Row(
           children: [
-            Text('${card.quantity}x', style: AppTextStyles.cinzel(color: card.isFoil ? AppColors.amber : AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+            Text('${card.quantity}x', style: AppTextStyles.text(color: card.isFoil ? AppColors.amber : AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 displayName,
-                style: AppTextStyles.cinzel(fontSize: 15),
+                style: AppTextStyles.text(fontSize: 15),
                 maxLines: 1,
                 softWrap: false,
                 overflow: TextOverflow.ellipsis,
@@ -280,7 +280,7 @@ class DeckCardGridTile extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     InkWell(onTap: onMinus, child: const Icon(Icons.remove, color: AppColors.textSecondary, size: 20)),
-                    Text('${card.quantity}', style: AppTextStyles.cinzel(color: card.isFoil ? AppColors.amber : AppColors.primaryShade700, fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text('${card.quantity}', style: AppTextStyles.text(color: card.isFoil ? AppColors.amber : AppColors.primaryShade700, fontSize: 18, fontWeight: FontWeight.bold)),
                     InkWell(onTap: onPlus, child: const Icon(Icons.add, color: AppColors.textSecondary, size: 20)),
                   ],
                 ),

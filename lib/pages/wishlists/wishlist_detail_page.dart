@@ -94,7 +94,7 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
       context: context,
       builder: (c) => AlertDialog(
         backgroundColor: AppColors.scaffoldBackground,
-        title: Text('Vider la liste ?', style: AppTextStyles.cinzel()),
+        title: Text('Vider la liste ?', style: AppTextStyles.text()),
         content: const Text('Toutes les cartes seront supprimées de cette wishlist.', style: TextStyle(color: AppColors.textSecondary)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Annuler')),
@@ -193,7 +193,7 @@ class _WishlistDetailPageState extends ConsumerState<WishlistDetailPage> {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text(_currentWishlist.name, style: AppTextStyles.cinzel()),
+        title: Text(_currentWishlist.name, style: AppTextStyles.appBarTitle()),
         backgroundColor: AppColors.textOnPrimary,
         actions: [
           PopupMenuButton<String>(

@@ -61,7 +61,7 @@ class DeckDetailShareActions {
           insetPadding: const EdgeInsets.all(16),
           title: Column(
             children: [
-              Text('Apercu avant partage', style: AppTextStyles.cinzel()),
+              Text('Apercu avant partage', style: AppTextStyles.text()),
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(

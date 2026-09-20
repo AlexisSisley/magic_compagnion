@@ -22,7 +22,6 @@
 
 import 'dart:async';
 
-import 'package:magic_companion/theme/app_colors.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,9 +36,11 @@ import 'data/database/app_database.dart';
 import 'data/migration/migration_service.dart';
 import 'router/app_router.dart';
 import 'services/card_resolver.dart';
+import 'services/drive_lifecycle_observer.dart';
 import 'services/print_backfill_service.dart';
 import 'services/scryfall_api_service.dart';
 import 'services/translation_worker.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -130,27 +131,27 @@ class MagicCompanionApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      debugShowCheckedModeBanner: false,
-      title: 'Magic Companion',
-      routerConfig: _router,
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [Locale('fr', 'FR'), Locale('en', 'US')],
-      locale: const Locale('fr', 'FR'),
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: AppColors.scaffoldBackground,
-        appBarTheme:
-            const AppBarTheme(backgroundColor: AppColors.textOnPrimary, elevation: 0),
-        bottomNavigationBarTheme: BottomNavigationBarThemeData(
-          backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.9),
-          selectedItemColor: AppColors.primaryShade800,
-          unselectedItemColor: AppColors.textMuted,
-          type: BottomNavigationBarType.fixed,
-        ),
+    // L'observer enveloppe MaterialApp : la sauvegarde automatique est un
+    // effet de cycle de vie APPLICATIF, sa duree de vie est celle de l'app,
+    // pas celle d'un shell d'onglets (ou elle vivait avant).
+    //
+    // Il recoit la cle du Navigator du routeur parce que son propre contexte,
+    // situe AU-DESSUS de MaterialApp, n'a ni Navigator ni Theme : le
+    // dialogue de restauration y leverait.
+    return DriveLifecycleObserver(
+      navigatorKey: _router.routerDelegate.navigatorKey,
+      child: MaterialApp.router(
+        debugShowCheckedModeBanner: false,
+        title: 'Magic Companion',
+        routerConfig: _router,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('fr', 'FR'), Locale('en', 'US')],
+        locale: const Locale('fr', 'FR'),
+        theme: buildAppTheme(),
       ),
     );
   }

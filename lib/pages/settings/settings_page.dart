@@ -1,11 +1,18 @@
 // Fichier : lib/pages/settings_page.dart
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
+import 'package:magic_companion/theme/magic_palette.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../router/app_routes.dart';
 import '../../services/backup_service.dart';
 import '../../services/bulk_data_service.dart';
 import '../../providers/service_providers.dart';
+import 'sections/about_section.dart';
+import 'sections/backup_section.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -61,7 +68,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           SnackBar(
             content: Text(
               path != null ? 'Base de cartes mise à jour avec succès !' : 'Échec du téléchargement.',
-              style: AppTextStyles.cinzel(),
+              style: AppTextStyles.text(),
             ),
             backgroundColor: path != null ? AppColors.success : AppColors.error,
             duration: const Duration(seconds: 3),
@@ -96,7 +103,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Données restaurées avec succès ! Redémarrez l'app pour voir les changements.", style: AppTextStyles.cinzel()),
+            content: Text("Données restaurées avec succès ! Redémarrez l'app pour voir les changements.", style: AppTextStyles.text()),
             backgroundColor: AppColors.success,
             duration: const Duration(seconds: 4),
           )
@@ -111,6 +118,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Les sections ajoutees par la refonte consomment la palette (contrainte
+    // globale : tout ecran neuf passe par MagicPalette). Les sections
+    // preexistantes restent sur AppColors, qui porte desormais les memes
+    // valeurs Grimoire -- leur conversion appartient au chantier du theme
+    // clair.
+    final p = MagicPalette.of(context);
+
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
@@ -122,11 +136,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         : ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _buildSectionTitle('Sauvegarde & Données'),
+            _buildSectionTitle('Sauvegarde'),
             Card(
               color: AppColors.textPrimary.withValues(alpha: 0.05),
               child: Column(
                 children: [
+                  // Etat de connexion Drive : vient du Drawer, ou un
+                  // FutureBuilder de connexion n'avait rien a faire.
+                  const BackupSection(),
+                  const Divider(color: AppColors.borderLight),
                   ListTile(
                     leading: const Icon(Icons.cloud_upload_outlined, color: AppColors.accent),
                     title: const Text('Exporter mes données (JSON)', style: TextStyle(color: AppColors.textPrimary)),
@@ -191,6 +209,66 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
             ),
             const SizedBox(height: 20),
+            _buildSectionTitle('Joueurs'),
+            Card(
+              color: p.raised,
+              child: ListTile(
+                leading: Icon(Icons.group_outlined, color: p.inkSecondary),
+                title: Text('Gestion des Profils',
+                    style: AppTextStyles.text(color: p.inkPrimary)),
+                subtitle: Text('Joueurs enregistrés et leurs couleurs',
+                    style: AppTextStyles.text(
+                        color: p.inkSecondary, fontSize: 12)),
+                trailing: Icon(Icons.chevron_right, color: p.inkSecondary),
+                onTap: () => context.push(AppRoutes.profiles),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            _buildSectionTitle('Apparence'),
+            Card(
+              color: p.raised,
+              child: ListTile(
+                leading: Icon(Icons.palette_outlined, color: p.inkSecondary),
+                title: Text('Thème : Grimoire (sombre)',
+                    style: AppTextStyles.text(color: p.inkPrimary)),
+                // Emplacement reserve, pas un faux bouton : le theme clair
+                // "Table" est un chantier a part. La ligne est rendue et
+                // lisible, et dit explicitement qu'il n'y a rien a choisir
+                // pour l'instant.
+                subtitle: Text(
+                    'Le thème clair arrivera dans une prochaine version',
+                    style: AppTextStyles.text(
+                        color: p.inkSecondary, fontSize: 12)),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            if (kDebugMode) ...[
+              _buildSectionTitle('Développeur'),
+              Card(
+                color: p.raised,
+                child: ListTile(
+                  leading: Icon(Icons.menu_book, color: p.warning),
+                  title: Text('Grimoire Code',
+                      style: AppTextStyles.text(color: p.inkPrimary)),
+                  subtitle: Text('Interrogez votre codebase',
+                      style: AppTextStyles.text(
+                          color: p.inkSecondary, fontSize: 12)),
+                  trailing: Icon(Icons.chevron_right, color: p.inkSecondary),
+                  onTap: () => context.push(AppRoutes.grimoire),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            _buildSectionTitle('À propos'),
+            Card(
+              color: p.raised,
+              child: const AboutSection(),
+            ),
+            const SizedBox(height: 20),
+
             _buildSectionTitle('Application'),
             Card(
               color: AppColors.textPrimary.withValues(alpha: 0.05),

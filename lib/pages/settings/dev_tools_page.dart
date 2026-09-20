@@ -94,7 +94,7 @@ class _DevToolsPageState extends State<DevToolsPage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(key, style: AppTextStyles.label(color: AppColors.textSecondary)),
-          SelectableText(value, style: AppTextStyles.cinzel(color: AppColors.accentGreen, fontSize: 12)),
+          SelectableText(value, style: AppTextStyles.text(color: AppColors.accentGreen, fontSize: 12)),
         ],
       ),
     );
@@ -103,7 +103,7 @@ class _DevToolsPageState extends State<DevToolsPage> {
   Widget _buildActionTile({required IconData icon, required Color color, required String title, required VoidCallback onTap}) {
     return ListTile(
       leading: Icon(icon, color: color),
-      title: Text(title, style: AppTextStyles.cinzel()),
+      title: Text(title, style: AppTextStyles.text()),
       tileColor: AppColors.textPrimary.withValues(alpha: 0.05),
       onTap: onTap,
     );

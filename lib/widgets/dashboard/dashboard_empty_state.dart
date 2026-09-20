@@ -75,17 +75,25 @@ class _DashboardEmptyStateState extends State<DashboardEmptyState>
               onPressed: widget.onAction,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryShade800,
-                foregroundColor: AppColors.textPrimary,
+                foregroundColor: AppColors.textOnPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
+              // Sans couleur explicite : le libelle herite du
+              // `foregroundColor` du bouton. La poser ici la ferait gagner
+              // sur lui, et le texte resterait blanc sur l'or.
               child: Text(
                 widget.actionLabel!,
                 style: AppTextStyles.label(
-                  color: AppColors.textPrimary,
+                  // Explicitement l'encre d'accent : les helpers
+                  // d'AppTextStyles posent TOUJOURS une couleur (textPrimary
+                  // par defaut), et une couleur sur le TextStyle gagne sur le
+                  // `foregroundColor` du bouton. Omettre l'argument laisserait
+                  // donc du blanc sur l'or, a 3,77:1.
+                  color: AppColors.textOnPrimary,
                   fontSize: 12,
                 ),
               ),

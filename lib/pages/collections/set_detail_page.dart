@@ -13,6 +13,7 @@ import '../../models/scryfall_card_model.dart';
 import '../../models/scryfall_set_model.dart';
 import '../../models/search_filters.dart';
 import '../../router/app_router.dart';
+import '../../router/card_detail_route.dart';
 
 class SetDetailPage extends ConsumerStatefulWidget {
   final ScryfallSet set;
@@ -46,7 +47,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
       final result = await _ctrl.addSelectedToCollection();
       if (mounted && result.count > 0) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${result.count} cartes ajoutees !', style: AppTextStyles.cinzel()),
+          content: Text('${result.count} cartes ajoutees !', style: AppTextStyles.text()),
           backgroundColor: AppColors.success,
         ));
       }
@@ -56,7 +57,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
       final result = await _ctrl.addSelectedToWishlist(wishlistId);
       if (mounted && result.count > 0) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${result.count} cartes ajoutees !', style: AppTextStyles.cinzel()),
+          content: Text('${result.count} cartes ajoutees !', style: AppTextStyles.text()),
           backgroundColor: AppColors.success,
         ));
       }
@@ -93,7 +94,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
 
     if (mounted && result.count > 0) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${result.count} cartes retirees !', style: AppTextStyles.cinzel()),
+        content: Text('${result.count} cartes retirees !', style: AppTextStyles.text()),
         backgroundColor: AppColors.accentRed,
       ));
     }
@@ -161,7 +162,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                       leading: const Icon(Icons.bookmark_border,
                           color: AppColors.accent),
                       title: Text(w.name,
-                          style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+                          style: AppTextStyles.text(color: AppColors.textSecondary)),
                       subtitle: Text('${w.totalCards} cartes',
                           style: const TextStyle(
                               color: AppColors.textDisabled, fontSize: 12)),
@@ -228,7 +229,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
 
                     // --- 1. COULEURS ---
                     Text('Couleurs',
-                        style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+                        style: AppTextStyles.text(color: AppColors.textSecondary)),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 12,
@@ -263,7 +264,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
 
                     // --- 2. TYPES ---
                     Text('Type de carte',
-                        style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+                        style: AppTextStyles.text(color: AppColors.textSecondary)),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
@@ -301,7 +302,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
 
                     // --- 3. OPTIONS ---
                     Text("Options d'affichage",
-                        style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+                        style: AppTextStyles.text(color: AppColors.textSecondary)),
                     const SizedBox(height: 10),
                     Row(
                       children: [
@@ -384,7 +385,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.set.name, style: AppTextStyles.cinzel(fontSize: 16)),
+            Text(widget.set.name, style: AppTextStyles.appBarTitle()),
             Text(
                 '${widget.set.code.toUpperCase()} \u2022 ${state.gridItems.length} items',
                 style: GoogleFonts.roboto(
@@ -635,7 +636,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
         TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: Text('Annuler',
-                style: AppTextStyles.cinzel(color: AppColors.textMuted))),
+                style: AppTextStyles.text(color: AppColors.textMuted))),
         ElevatedButton(
           onPressed: () => Navigator.pop(context, true),
           style: ElevatedButton.styleFrom(
@@ -660,7 +661,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
 
     return GestureDetector(
       onTap: () => _ctrl.toggleSelection(card.id, isFoilSlot),
-      onLongPress: () => context.push(AppRoutes.cardDetail, extra: {'cardName': card.name}),
+      onLongPress: () => pushCardDetail(context, cardName: card.name),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -912,7 +913,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('PROGRESSION',
-                      style: AppTextStyles.cinzel(color: AppColors.borderFaint, fontSize: 10).copyWith(letterSpacing: 1.5, fontWeight: FontWeight.bold)),
+                      style: AppTextStyles.text(color: AppColors.borderFaint, fontSize: 10).copyWith(letterSpacing: 1.5, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -921,7 +922,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
                       Text('$ownedCount',
                           style: AppTextStyles.bold(color: AppColors.accentGreen, fontSize: 20)),
                       Text(' / $totalCount',
-                          style: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 14)),
+                          style: AppTextStyles.text(color: AppColors.textMuted, fontSize: 14)),
                       const SizedBox(width: 8),
                       Text('$percentage%',
                           style: GoogleFonts.roboto(
@@ -1001,7 +1002,7 @@ class _SetDetailPageState extends ConsumerState<SetDetailPage> {
       child: Row(
         children: [
           Text(letter,
-              style: AppTextStyles.cinzel(color: color, fontSize: 10, fontWeight: FontWeight.w900)),
+              style: AppTextStyles.text(color: color, fontSize: 10, fontWeight: FontWeight.w900)),
           const SizedBox(width: 4),
           Text('$count',
               style: TextStyle(

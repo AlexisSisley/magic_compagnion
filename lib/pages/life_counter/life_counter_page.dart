@@ -19,6 +19,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:magic_companion/providers/active_game_provider.dart';
 import 'package:magic_companion/providers/counter_catalog_provider.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/player_zone_notifier.dart';
@@ -266,7 +267,20 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // Résolution précoce et unique : garantit que `dispose()` n'a jamais à
     // évaluer ce champ lui-même (voir sa déclaration plus haut).
     _sessionService = ref.read(gameSessionServiceProvider);
-    _snapshotWriter = SnapshotWriter(_sessionService);
+    // `activeGameProvider` ne surveille pas SharedPreferences : il faut le
+    // prevenir a chaque ecriture, sinon l'Accueil garde son cache. Branche
+    // sur l'ecriture EFFECTIVE, pas sur l'ordonnancement -- elle est
+    // debouncee, donc invalider a `schedule()` ferait relire l'ancien
+    // snapshot.
+    //
+    // Le container plutot que `ref` : le rappel peut arriver apres le
+    // demontage de la page (ecriture partie, utilisateur qui quitte), et
+    // `ref` est alors invalide.
+    final container = ProviderScope.containerOf(context, listen: false);
+    _snapshotWriter = SnapshotWriter(
+      _sessionService,
+      onWritten: () => container.invalidate(activeGameProvider),
+    );
     _loadGame();
     // Lot 5, tâche 2 : `counterCatalogProvider` ne rend que les compteurs
     // intégrés tant que `load()` n'a pas résolu les personnalisés (voir sa
@@ -442,11 +456,12 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // son état (mode ajustement, accumulateurs, nombres flottants en cours)
     // traverse donc le cycle de vie des parties. Sans ce reset, une zone
     // pouvait rouvrir une nouvelle partie déjà en mode ajustement, sans que
-    // l'utilisateur ait rien fait. Les identifiants de joueur d'une partie
-    // sont toujours 0..playerCount-1 (voir GameSession.newGame).
-    for (var i = 0; i < playerCount; i++) {
-      ref.read(playerZoneNotifierProvider(i).notifier).reset();
-    }
+    // l'utilisateur ait rien fait.
+    //
+    // Extrait dans `resetPlayerZones` : la mise en place du mode Jeu demarre
+    // une partie par snapshot et ne passe pas ici. Deux appelants, une seule
+    // implementation, sinon l'un des deux derive.
+    resetPlayerZones(ProviderScope.containerOf(context), playerCount);
 
     setState(() {});
     _saveSnapshot();
@@ -589,7 +604,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         builder: (dialogCtx) => AlertDialog(
           backgroundColor: AppColors.scaffoldBackground,
           title: Center(
-            child: Text('Victoire !', style: AppTextStyles.cinzel(color: AppColors.primary)),
+            child: Text('Victoire !', style: AppTextStyles.text(color: AppColors.primary)),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -604,7 +619,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
               const SizedBox(height: 8),
               Text(
                 'Dernier survivant !',
-                style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 14),
+                style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 14),
               ),
             ],
           ),
@@ -799,7 +814,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
         context: context, barrierDismissible: false,
         builder: (context) => AlertDialog(
           backgroundColor: AppColors.scaffoldBackground,
-          title: Center(child: Text('Le Destin a choisi !', style: AppTextStyles.cinzel(color: AppColors.textSecondary))),
+          title: Center(child: Text('Le Destin a choisi !', style: AppTextStyles.text(color: AppColors.textSecondary))),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -852,7 +867,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.scaffoldBackground,
-          title: Text('Qui a gagné ?', style: AppTextStyles.cinzel()),
+          title: Text('Qui a gagné ?', style: AppTextStyles.text()),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: players.map((p) {
@@ -877,7 +892,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       builder: (dialogCtx) {
         return AlertDialog(
           backgroundColor: AppColors.scaffoldBackground,
-          title: Text('Type de victoire ?', style: AppTextStyles.cinzel()),
+          title: Text('Type de victoire ?', style: AppTextStyles.text()),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -956,11 +971,19 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // vient de terminer.
     final snapshotCancelled = _snapshotWriter.cancelPending();
 
+    // Capture AVANT le microtask : celui-ci survit au demontage de la page,
+    // et `context` n'y serait plus lisible.
+    final container = ProviderScope.containerOf(context, listen: false);
+
     // Bug 6 fix: Fire DB writes asynchronously without blocking UI
     Future.microtask(() async {
       await _gameHistoryService.addGame(newItem);
       await snapshotCancelled;
       await _sessionService.clearSnapshot();
+      // Apres l'effacement, jamais avant : sinon le provider relirait le
+      // snapshot encore present et l'Accueil continuerait de proposer de
+      // reprendre une partie terminee (critere n6 du plan).
+      container.invalidate(activeGameProvider);
     });
 
     if (mounted) {
@@ -1677,7 +1700,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Orientation des zones', style: AppTextStyles.cinzel(fontSize: 18)),
+              Text('Orientation des zones', style: AppTextStyles.sectionTitle(fontSize: 18)),
               const SizedBox(height: 4),
               Text('$count joueurs', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
               const SizedBox(height: 16),
@@ -1898,7 +1921,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(child: Text('Infos Partie', style: AppTextStyles.cinzel(fontSize: 22))),
+                  Center(child: Text('Infos Partie', style: AppTextStyles.sectionTitle(fontSize: 22))),
                   const SizedBox(height: 16),
                   _infoRow(Icons.category, 'Format', _currentFormat.name),
                   _infoRow(Icons.favorite, 'Vie de départ', '${_currentFormat.startingLife}'),
@@ -1954,7 +1977,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     showModalBottomSheet(context: context, backgroundColor: AppColors.scaffoldBackground, builder: (context) {
         final dice = [2, 4, 6, 8, 10, 12, 20, 100];
         return Container(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('Lancer un dé', style: AppTextStyles.cinzel(fontSize: 22)),
+            Text('Lancer un dé', style: AppTextStyles.sectionTitle(fontSize: 22)),
             const SizedBox(height: 24),
             GridView.builder(shrinkWrap: true, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 12, mainAxisSpacing: 12), itemCount: dice.length, itemBuilder: (context, i) => ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.borderLight, padding: EdgeInsets.zero),

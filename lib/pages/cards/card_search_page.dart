@@ -5,13 +5,11 @@ import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:magic_companion/models/search_filters.dart';
 import 'package:magic_companion/widgets/search/search_filter_modal.dart';
 import '../../controllers/card_search_controller.dart';
 import '../../providers/service_providers.dart';
-import '../../router/app_router.dart';
 import '../../utils/price_helper.dart';
 import 'set_list_page.dart';
 import '../../models/scryfall_set_model.dart';
@@ -21,6 +19,7 @@ import '../../models/scryfall_card_model.dart';
 import '../../widgets/search/skyrim_sneak_loader.dart';
 import '../../widgets/search/scryfall_syntax_help.dart';
 import '../../widgets/common/collection_badge.dart';
+import '../../router/card_detail_route.dart';
 
 class CardSearchPage extends ConsumerStatefulWidget {
   const CardSearchPage({super.key});
@@ -94,8 +93,19 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
   Widget build(BuildContext context) {
     final state = ref.watch(cardSearchControllerProvider);
 
-    return Column(
-      children: [
+    // SafeArea : cette page est la seule des cinq racines de branche a
+    // renvoyer un Column nu -- les quatre autres ont un Scaffold, une
+    // SliverAppBar ou leur propre SafeArea. Le shell ne pose plus de
+    // SafeArea globale (`body: navigationShell`), donc sans celle-ci la
+    // TabBar "Cartes / Editions" passe sous l'encoche. Aucune capture ne
+    // couvre cet onglet et les tests tournent sur un viewport sans encoche :
+    // rien d'autre ne l'attraperait.
+    //
+    // `bottom: false` : la barre d'onglets du shell occupe deja le bas.
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
         Container(
           color: AppColors.textOnPrimary.withValues(alpha: 0.5),
           child: TabBar(
@@ -169,7 +179,8 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
             ],
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -196,7 +207,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
       padding: const EdgeInsets.all(12.0),
       child: TextField(
         controller: _searchController,
-        style: AppTextStyles.cinzel(fontSize: 16),
+        style: AppTextStyles.text(fontSize: 16),
         onChanged: _onSearchChanged,
         decoration: InputDecoration(
           hintText: state.activeFilters.setCode != null ? 'Dans: ${state.activeFilters.setCode!.toUpperCase()}...' : 'Nom de la carte...',
@@ -355,7 +366,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
     }
 
     if (state.searchResults.isEmpty) {
-      return Center(child: Text(state.statusMessage, style: AppTextStyles.cinzel(color: AppColors.textSecondary)));
+      return Center(child: Text(state.statusMessage, style: AppTextStyles.text(color: AppColors.textSecondary)));
     }
 
     return GridView.builder(
@@ -386,7 +397,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
               children: [
                 imageUrl.isNotEmpty
                     ? Image.network(imageUrl, fit: BoxFit.cover)
-                    : Container(color: AppColors.greyShade900, child: Center(child: Text(card.name, textAlign: TextAlign.center, style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 10)))),
+                    : Container(color: AppColors.greyShade900, child: Center(child: Text(card.name, textAlign: TextAlign.center, style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 10)))),
                 Positioned(bottom: 0, left: 0, right: 0, height: 40, child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withValues(alpha: 0.9), AppColors.transparent])))),
                 Positioned(
                   bottom: 4, left: 4, right: 4,
@@ -427,7 +438,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
   }
 
   void _navigateToDetail(String cardName) {
-    context.push(AppRoutes.cardDetail, extra: {'cardName': cardName}).then((_) {
+    pushCardDetail(context, cardName: cardName).then((_) {
       ref.read(cardSearchControllerProvider.notifier).loadLocalData();
     });
   }
@@ -457,7 +468,7 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
                   ),
                   ListTile(
                     leading: const Icon(Icons.add_circle, color: AppColors.accentGreen),
-                    title: Text('Creer une nouvelle liste', style: AppTextStyles.cinzel()),
+                    title: Text('Creer une nouvelle liste', style: AppTextStyles.text()),
                     onTap: () async {
                       final name = await _showCreateWishlistDialog();
                       if (name != null && context.mounted) {

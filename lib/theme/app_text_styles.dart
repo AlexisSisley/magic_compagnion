@@ -28,9 +28,16 @@ import 'app_colors.dart';
 /// Styles texte centralises de Magic Companion.
 /// Toutes les occurrences de GoogleFonts.cinzel() doivent etre remplacees
 /// par des references AppTextStyles.
+///
+/// Repartition des polices : Cinzel aux titres, Source Sans 3 au texte
+/// courant. Verrouillee par test/theme/app_text_styles_test.dart.
 abstract final class AppTextStyles {
   // ============================================================
   // TITRES (Cinzel, la police thematique de l'app)
+  //
+  // Cinzel est une romaine a capitales : elle porte un titre, pas un
+  // paragraphe. Sous 14px elle n'est plus lisible, d'ou la frontiere posee
+  // ici -- seuls les quatre helpers de titre ci-dessous la gardent.
   // ============================================================
 
   /// Titre de page principal (24px, bold, blanc)
@@ -67,21 +74,21 @@ abstract final class AppTextStyles {
 
   /// Sous-titre (14px, normal)
   static TextStyle subtitle({Color? color, double? fontSize}) =>
-    GoogleFonts.cinzel(
+    GoogleFonts.sourceSans3(
       color: color ?? AppColors.textSecondary,
       fontSize: fontSize ?? 14,
     );
 
   /// Label (12px)
   static TextStyle label({Color? color, double? fontSize}) =>
-    GoogleFonts.cinzel(
+    GoogleFonts.sourceSans3(
       color: color ?? AppColors.textPrimary,
       fontSize: fontSize ?? 12,
     );
 
   /// Texte de bouton (14px, bold)
   static TextStyle buttonText({Color? color, double? fontSize}) =>
-    GoogleFonts.cinzel(
+    GoogleFonts.sourceSans3(
       color: color ?? AppColors.textOnPrimary,
       fontSize: fontSize ?? 14,
       fontWeight: FontWeight.bold,
@@ -93,18 +100,18 @@ abstract final class AppTextStyles {
 
   /// Texte body generique (14px, normal, blanc)
   static TextStyle body({Color? color, double? fontSize}) =>
-    GoogleFonts.cinzel(
+    GoogleFonts.sourceSans3(
       color: color ?? AppColors.textPrimary,
       fontSize: fontSize ?? 14,
     );
 
   // ============================================================
-  // TEXTE BOLD (Cinzel bold)
+  // TEXTE BOLD
   // ============================================================
 
-  /// Texte bold generique avec Cinzel
+  /// Texte bold generique
   static TextStyle bold({Color? color, double? fontSize}) =>
-    GoogleFonts.cinzel(
+    GoogleFonts.sourceSans3(
       color: color ?? AppColors.textPrimary,
       fontSize: fontSize ?? 14,
       fontWeight: FontWeight.bold,
@@ -116,7 +123,7 @@ abstract final class AppTextStyles {
 
   /// Style des onglets actifs
   static TextStyle tabActive({Color? color, double? fontSize}) =>
-    GoogleFonts.cinzel(
+    GoogleFonts.sourceSans3(
       color: color ?? AppColors.textPrimary,
       fontWeight: FontWeight.bold,
       fontSize: fontSize,
@@ -124,24 +131,31 @@ abstract final class AppTextStyles {
 
   /// Style des onglets inactifs
   static TextStyle tabInactive({Color? color, double? fontSize}) =>
-    GoogleFonts.cinzel(
+    GoogleFonts.sourceSans3(
       color: color ?? AppColors.textMuted,
       fontSize: fontSize,
     );
 
   // ============================================================
-  // SHORTCUT : Cinzel avec parametres custom
+  // ECHAPPATOIRE GENERIQUE
   // ============================================================
 
-  /// Cinzel generique pour les cas non couverts par les methodes ci-dessus.
-  /// A utiliser en dernier recours.
-  static TextStyle cinzel({
+  /// Texte courant, pour les cas non couverts par les methodes ci-dessus.
+  ///
+  /// Source Sans 3 : humaniste dessinee pour l'interface, lisible en petite
+  /// taille, et de proportions classiques qui s'accordent avec Cinzel.
+  /// Le choix de la police est isole ici et dans les helpers ci-dessus : il
+  /// reste substituable en un point.
+  ///
+  /// Remplace l'ancien `cinzel()`, qui etait documente "a utiliser en dernier
+  /// recours" et servait de style par defaut sur 182 sites.
+  static TextStyle text({
     Color? color,
     double? fontSize,
     FontWeight? fontWeight,
     FontStyle? fontStyle,
   }) =>
-    GoogleFonts.cinzel(
+    GoogleFonts.sourceSans3(
       color: color ?? AppColors.textPrimary,
       fontSize: fontSize,
       fontWeight: fontWeight,

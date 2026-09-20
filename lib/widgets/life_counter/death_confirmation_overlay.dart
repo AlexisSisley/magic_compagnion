@@ -61,7 +61,7 @@ class DeathConfirmationOverlay extends StatelessWidget {
                 ),
                 Text(
                   '$_reasonLabel \u{2014} \u{00C9}limin\u{00E9} ?',
-                  style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 12),
+                  style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),

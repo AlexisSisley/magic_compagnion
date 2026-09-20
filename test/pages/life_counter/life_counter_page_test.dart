@@ -1544,10 +1544,10 @@ void main() {
     // `life_counter_routes.dart` : le shell (ici juste un `Scaffold`, voir
     // la note de `pumpLifeCounter`) et la route détail visée.
     final router = GoRouter(
-      initialLocation: AppRoutes.lifeCounter,
+      initialLocation: AppRoutes.home,
       routes: [
         GoRoute(
-          path: AppRoutes.lifeCounter,
+          path: AppRoutes.home,
           builder: (context, state) =>
               const Scaffold(body: LifeCounterPage()),
         ),

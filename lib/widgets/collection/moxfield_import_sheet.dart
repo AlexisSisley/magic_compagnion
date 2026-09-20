@@ -222,7 +222,7 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
             width: 20,
             child: Text(
               '$n',
-              style: AppTextStyles.cinzel(color: AppColors.primaryShade800, fontWeight: FontWeight.bold),
+              style: AppTextStyles.text(color: AppColors.primaryShade800, fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(width: 8),
@@ -381,7 +381,7 @@ class _MoxfieldImportSheetState extends ConsumerState<MoxfieldImportSheet> {
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: color.withValues(alpha: 0.45)),
       ),
-      child: Text(text, style: AppTextStyles.cinzel(color: color, fontSize: 11)),
+      child: Text(text, style: AppTextStyles.text(color: color, fontSize: 11)),
     );
   }
 

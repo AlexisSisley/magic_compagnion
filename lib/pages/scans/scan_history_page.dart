@@ -6,13 +6,12 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:io'; // Pour afficher l'image depuis le chemin (File)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../models/scan_history_model.dart';
 import '../../services/scan_history_service.dart';
 import '../../services/collection_service.dart';
 import '../../providers/service_providers.dart';
-import '../../router/app_router.dart';
 import 'package:intl/intl.dart';
+import '../../router/card_detail_route.dart';
 
 class ScanHistoryPage extends ConsumerStatefulWidget {
   const ScanHistoryPage({super.key});
@@ -53,19 +52,19 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.scaffoldBackground,
-        title: Text('Vider l\'historique ?', style: AppTextStyles.cinzel()),
+        title: Text('Vider l\'historique ?', style: AppTextStyles.text()),
         content: Text(
           'Tous les scans de votre historique seront supprimés.',
-          style: AppTextStyles.cinzel(color: AppColors.textSecondary),
+          style: AppTextStyles.text(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Annuler', style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+            child: Text('Annuler', style: AppTextStyles.text(color: AppColors.textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Vider', style: AppTextStyles.cinzel(color: Colors.red.shade300)),
+            child: Text('Vider', style: AppTextStyles.text(color: Colors.red.shade300)),
           ),
         ],
       ),
@@ -93,7 +92,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
   }
 
   void _viewCardDetail(ScanHistoryItem item) {
-    context.push(AppRoutes.cardDetail, extra: {'cardName': item.cardName});
+    pushCardDetail(context, cardName: item.cardName);
   }
 
   @override
@@ -103,7 +102,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
       appBar: AppBar(
         title: Text(
           'Historique des Scans',
-          style: AppTextStyles.cinzel(fontWeight: FontWeight.w600),
+          style: AppTextStyles.appBarTitle(),
         ),
         backgroundColor: AppColors.textOnPrimary,
         actions: [
@@ -182,7 +181,7 @@ class _ScanHistoryPageState extends ConsumerState<ScanHistoryPage> {
             ),
             title: Text(
               item.cardName,
-              style: AppTextStyles.cinzel(fontSize: 18, fontWeight: FontWeight.w600),
+              style: AppTextStyles.cardTitle(fontSize: 18),
             ),
             subtitle: Text(
               _dateFormatter.format(item.timestamp), // Affiche la date

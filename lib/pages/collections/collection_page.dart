@@ -101,7 +101,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
 
               ListTile(
                 leading: const Icon(Icons.add_circle, color: AppColors.success),
-                title: Text('Nouveau Deck', style: AppTextStyles.cinzel()),
+                title: Text('Nouveau Deck', style: AppTextStyles.text()),
                 onTap: () async {
                   Navigator.pop(context);
                   _createNewDeckAndAddCards();
@@ -110,14 +110,14 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
               const Divider(color: AppColors.borderMedium),
               Expanded(
                 child: decks.isEmpty
-                  ? Center(child: Text('Aucun deck existant.', style: AppTextStyles.cinzel(color: AppColors.textMuted)))
+                  ? Center(child: Text('Aucun deck existant.', style: AppTextStyles.text(color: AppColors.textMuted)))
                   : ListView.builder(
                       itemCount: decks.length,
                       itemBuilder: (context, index) {
                         final deck = decks[index];
                         return ListTile(
                           leading: const Icon(Icons.style, color: AppColors.accent),
-                          title: Text(deck.name, style: AppTextStyles.cinzel()),
+                          title: Text(deck.name, style: AppTextStyles.text()),
                           subtitle: Text('${deck.format} • ${deck.mainboard.length} cartes', style: const TextStyle(color: AppColors.textMuted)),
                           onTap: () {
                             Navigator.pop(context);
@@ -159,7 +159,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
     final result = await _controller.addSelectedCardsToDeck(deckId, deckName);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.message, style: AppTextStyles.cinzel()),
+        content: Text(result.message, style: AppTextStyles.text()),
         backgroundColor: AppColors.success,
       ));
     }
@@ -247,7 +247,7 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
               const Spacer(),
               Text(
                 '${valueState.pricedCards}/${valueState.totalCards} cartes',
-                style: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 11),
+                style: AppTextStyles.text(color: AppColors.textMuted, fontSize: 11),
               ),
             ],
           ),
@@ -310,10 +310,11 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
                 floating: true,
                 expandedHeight: 120.0,
                 backgroundColor: AppColors.textOnPrimary,
-                leading: IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                ),
+                // Pas de `leading` : le Drawer a disparu du shell, et la
+                // poignee qui l'ouvrait ne faisait plus rien. Un bouton
+                // menu inerte est la premiere chose qu'un utilisateur tape
+                // apres la mise a jour.
+                automaticallyImplyLeading: false,
                 actions: [
                   IconButton(icon: const Icon(Icons.bar_chart), onPressed: _openStatsPage),
                   PopupMenuButton<String>(

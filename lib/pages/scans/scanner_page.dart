@@ -17,6 +17,7 @@ import '../../services/local_card_service.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../providers/service_providers.dart';
 import '../../utils/price_helper.dart';
+import '../../router/card_detail_route.dart';
 
 class ScannerPage extends ConsumerStatefulWidget {
   const ScannerPage({super.key});
@@ -207,7 +208,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
     return Scaffold(
       backgroundColor: AppColors.textOnPrimary,
       appBar: AppBar(
-        title: Text('Scanner', style: AppTextStyles.cinzel(fontWeight: FontWeight.w600)),
+        title: Text('Scanner', style: AppTextStyles.appBarTitle()),
         backgroundColor: AppColors.textOnPrimary.withValues(alpha: 0.5),
         elevation: 0, 
         actions: [
@@ -318,12 +319,10 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
       if (!mounted) return;
 
       // Navigation vers la page de résultat avec le flag "Continuous Scan"
-      final result = await context.push(
-        AppRoutes.cardDetail,
-        extra: {
-          'imagePath': picture.path,
-          'isContinuousScan': true, // <--- ACTIVE LE MODE SÉRIE
-        },
+      final result = await pushCardDetail<bool>(
+        context,
+        imagePath: picture.path,
+        isContinuousScan: true, // <--- ACTIVE LE MODE SÉRIE
       );
 
       // Si le résultat est 'true', on relance immédiatement le scan
@@ -418,7 +417,7 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
                     child: TextField(
                       controller: _controller,
                       autofocus: true,
-                      style: AppTextStyles.cinzel(),
+                      style: AppTextStyles.text(),
                       decoration: const InputDecoration(
                         hintText: 'Nom de la carte (FR/EN)...',
                         hintStyle: TextStyle(color: AppColors.textDisabled),
@@ -442,7 +441,7 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
                         _controller.text.isEmpty 
                             ? "Tapez le nom d'une carte" 
                             : 'Aucun résultat local.',
-                        style: AppTextStyles.cinzel(color: AppColors.textDisabled),
+                        style: AppTextStyles.text(color: AppColors.textDisabled),
                       ),
                     )
                   : ListView.builder(
@@ -450,7 +449,7 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
                       itemBuilder: (context, index) {
                         final card = _results[index];
                         return ListTile(
-                          title: Text(card.name, style: AppTextStyles.cinzel()),
+                          title: Text(card.name, style: AppTextStyles.text()),
                           subtitle: Text(card.typeLine, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -462,7 +461,7 @@ class _ManualSearchModalState extends State<_ManualSearchModal> {
                           ),
                           onTap: () {
                             Navigator.pop(context);
-                            context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+                            pushCardDetail(context, cardName: card.name);
                           },
                         );
                       },

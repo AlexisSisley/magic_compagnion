@@ -311,7 +311,7 @@ class _SetStatsPageState extends State<SetStatsPage> {
           children: [
             Icon(icon, color: iconColor, size: 20),
             const SizedBox(width: 12),
-            Text(title, style: AppTextStyles.cinzel()),
+            Text(title, style: AppTextStyles.text()),
           ],
         ),
         iconColor: iconColor,

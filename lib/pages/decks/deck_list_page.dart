@@ -60,7 +60,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.scaffoldBackground,
-        title: Text('Nouveau Deck', style: AppTextStyles.cinzel()),
+        title: Text('Nouveau Deck', style: AppTextStyles.sectionTitle()),
         content: TextField(
           controller: controller,
           style: const TextStyle(color: AppColors.textPrimary),
@@ -111,10 +111,11 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                 snap: true,
                 expandedHeight: 120.0,
                 backgroundColor: AppColors.textOnPrimary,
-                leading: IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                ),
+                // Pas de `leading` : le Drawer a disparu du shell, et la
+                // poignee qui l'ouvrait ne faisait plus rien. Un bouton
+                // menu inerte est la premiere chose qu'un utilisateur tape
+                // apres la mise a jour.
+                automaticallyImplyLeading: false,
                 actions: [
                   IconButton(
                     icon: const Icon(Icons.file_upload_outlined, color: AppColors.textPrimary),
@@ -210,9 +211,14 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
           child: FloatingActionButton.extended(
             onPressed: _showCreateDeckDialog,
             backgroundColor: AppColors.primaryShade800,
-            foregroundColor: AppColors.textPrimary,
+            foregroundColor: AppColors.textOnPrimary,
             icon: const Icon(Icons.add),
-            label: Text('Nouveau Deck', style: AppTextStyles.bold()),
+            // Pas de couleur explicite : le libelle herite du
+            // `foregroundColor` du bouton. Une couleur posee sur le
+            // TextStyle GAGNE sur le foregroundColor -- c'est ainsi que ce
+            // libelle restait blanc sur l'or, a 3,77:1, alors que l'icone
+            // etait deja passee en encre sombre.
+            label: const Text('Nouveau Deck'),
           ),
         ),
       ],
@@ -474,7 +480,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                       ),
                     ),
                     const Spacer(),
-                    Text('$cardCount cartes', style: AppTextStyles.cinzel(color: Colors.amberAccent, fontSize: 12)),
+                    Text('$cardCount cartes', style: AppTextStyles.text(color: Colors.amberAccent, fontSize: 12)),
                     const SizedBox(width: 12),
                     Text(
                         ' ≈ ${totalPrice.toStringAsFixed(0)} €',

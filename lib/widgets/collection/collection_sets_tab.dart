@@ -302,7 +302,7 @@ class _CollectionSetsTabState extends ConsumerState<CollectionSetsTab> {
                             width: 40, 
                             child: SvgPicture.network(set.iconSvgUri ?? '', colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn))
                           ),
-                          title: Text(set.name, style: AppTextStyles.cinzel()),
+                          title: Text(set.name, style: AppTextStyles.text()),
                           subtitle: RichText(
                             text: TextSpan(
                               style: const TextStyle(color: AppColors.textMuted, fontSize: 12),

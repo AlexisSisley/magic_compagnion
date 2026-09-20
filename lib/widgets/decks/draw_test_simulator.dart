@@ -171,7 +171,7 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
             // --- Liste des cartes ---
             Expanded(
               child: _hand.isEmpty
-                  ? Center(child: Text('Main vide.', style: AppTextStyles.cinzel(color: AppColors.textMuted)))
+                  ? Center(child: Text('Main vide.', style: AppTextStyles.text(color: AppColors.textMuted)))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 8.0),
                       itemCount: _hand.length,
@@ -212,7 +212,7 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
                             ),
                             title: Text(
                               card.name,
-                              style: AppTextStyles.cinzel(color: isLand ? Colors.amber.shade100 : AppColors.textPrimary, fontSize: 15),
+                              style: AppTextStyles.text(color: isLand ? Colors.amber.shade100 : AppColors.textPrimary, fontSize: 15),
                               overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: isLand 
@@ -237,19 +237,19 @@ class _DrawTestSimulatorState extends State<DrawTestSimulator> {
                     icon: const Icon(Icons.add, size: 16),
                     onPressed: _drawOneCard,
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade800),
-                    label: Text('Piocher 1', style: AppTextStyles.cinzel()),
+                    label: Text('Piocher 1', style: AppTextStyles.text()),
                   ),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.refresh, size: 16),
                     onPressed: _mulligan,
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
-                    label: Text('Mulligan (${7 - _mulliganCount - 1})', style: AppTextStyles.cinzel()),
+                    label: Text('Mulligan (${7 - _mulliganCount - 1})', style: AppTextStyles.text()),
                   ),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.restart_alt, size: 16),
                     onPressed: _startNewGame,
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
-                    label: Text('Reset', style: AppTextStyles.cinzel()),
+                    label: Text('Reset', style: AppTextStyles.text()),
                   ),
                 ],
               ),

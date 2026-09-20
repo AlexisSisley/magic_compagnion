@@ -133,7 +133,9 @@ class _HypergeometricPageState extends State<HypergeometricPage> {
                   foregroundColor: AppColors.textOnPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: Text('CALCULER', style: AppTextStyles.sectionTitle()),
+                child: Text('CALCULER',
+                    style: AppTextStyles.sectionTitle(
+                        color: AppColors.textOnPrimary)),
               ),
 
               // --- RÉSULTATS ---

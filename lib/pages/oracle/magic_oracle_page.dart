@@ -110,7 +110,7 @@ class _MagicOraclePageState extends ConsumerState<MagicOraclePage> {
               _controller.text = 'Si je lance une roue avec Sheoldred sur le terrain, que se passe-t-il ?';
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade800),
-            child: Text('Tester cet exemple', style: AppTextStyles.cinzel()),
+            child: Text('Tester cet exemple', style: AppTextStyles.text()),
           )
         ],
       ),
@@ -268,7 +268,7 @@ class _AnimatedMessageBubble extends StatelessWidget {
                   children: [
                     const Icon(Icons.auto_awesome, size: 14, color: AppColors.accentPurple),
                     const SizedBox(width: 6),
-                    Text('ORACLE', style: AppTextStyles.cinzel(color: AppColors.accentPurple, fontSize: 10, fontWeight: FontWeight.w900).copyWith(letterSpacing: 1.0)),
+                    Text('ORACLE', style: AppTextStyles.text(color: AppColors.accentPurple, fontSize: 10, fontWeight: FontWeight.w900).copyWith(letterSpacing: 1.0)),
                   ],
                 ),
                 const SizedBox(height: 6),

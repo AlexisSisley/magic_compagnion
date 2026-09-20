@@ -4,11 +4,10 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../models/scryfall_card_model.dart';
-import '../../router/app_router.dart';
 import '../../services/local_card_service.dart';
+import '../../router/card_detail_route.dart';
 
 /// Modal bottom sheet for manual card name search within the scanner page.
 class ScannerManualSearchModal extends StatefulWidget {
@@ -69,7 +68,7 @@ class _ScannerManualSearchModalState extends State<ScannerManualSearchModal> {
                     child: TextField(
                       controller: _controller,
                       autofocus: true,
-                      style: AppTextStyles.cinzel(),
+                      style: AppTextStyles.text(),
                       decoration: const InputDecoration(
                         hintText: 'Nom de la carte (FR/EN)...',
                         hintStyle: TextStyle(color: AppColors.textDisabled),
@@ -93,7 +92,7 @@ class _ScannerManualSearchModalState extends State<ScannerManualSearchModal> {
                         _controller.text.isEmpty
                             ? "Tapez le nom d'une carte"
                             : 'Aucun resultat local.',
-                        style: AppTextStyles.cinzel(color: AppColors.textDisabled),
+                        style: AppTextStyles.text(color: AppColors.textDisabled),
                       ),
                     )
                   : ListView.builder(
@@ -102,7 +101,7 @@ class _ScannerManualSearchModalState extends State<ScannerManualSearchModal> {
                         final card = _results[index];
                         return ListTile(
                           title: Text(card.name,
-                              style: AppTextStyles.cinzel()),
+                              style: AppTextStyles.text()),
                           subtitle: Text(card.typeLine,
                               style: const TextStyle(
                                   color: AppColors.textMuted, fontSize: 12)),
@@ -110,8 +109,8 @@ class _ScannerManualSearchModalState extends State<ScannerManualSearchModal> {
                               color: AppColors.borderMedium),
                           onTap: () {
                             Navigator.pop(context);
-                            context.push(AppRoutes.cardDetail,
-                                extra: {'cardName': card.name});
+                            pushCardDetail(context,
+                                cardName: card.name);
                           },
                         );
                       },

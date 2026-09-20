@@ -24,14 +24,19 @@ abstract final class AppColors {
   // BACKGROUNDS
   // ============================================================
 
-  /// Fond principal des scaffolds et pages (0xFF1A1A1A - utilise 87 fois)
-  static const Color scaffoldBackground = Color(0xFF1A1A1A);
+  /// Fond principal des scaffolds et pages. Vaut MagicPalette.canvas.
+  ///
+  /// Les 84 ecrans qui posent ce fond a la main doivent afficher le meme noir
+  /// que ceux qui laissent faire `ThemeData.scaffoldBackgroundColor` -- sinon
+  /// deux noirs coexistent, y compris entre un ecran et la modale posee
+  /// dessus.
+  static const Color scaffoldBackground = Color(0xFF0E0E11);
 
-  /// Fond secondaire pour les dialogs, modals (0xFF1A1A2E)
-  static const Color dialogBackground = Color(0xFF1A1A2E);
+  /// Fond des dialogues et modales. Vaut MagicPalette.overlay.
+  static const Color dialogBackground = Color(0xFF2A2733);
 
-  /// Fond des cartes/containers sureleves (0xFF2A2A2A)
-  static const Color cardBackground = Color(0xFF2A2A2A);
+  /// Fond des cartes et containers sureleves. Vaut MagicPalette.raised.
+  static const Color cardBackground = Color(0xFF191820);
 
   /// Fond des surfaces sombres (0xFF1E1E1E)
   static const Color surfaceDark = Color(0xFF1E1E1E);
@@ -52,8 +57,10 @@ abstract final class AppColors {
   // PRIMARY / ACCENT
   // ============================================================
 
-  /// Couleur primaire d'accent (jaune dore MTG)
-  static const Color primary = Colors.yellow;
+  /// Couleur primaire d'accent. Vaut MagicPalette.accent : l'or patine
+  /// Grimoire, et non plus `Colors.yellow` -- le jaune pur vibre sur fond
+  /// noir et fatigue en lecture longue.
+  static const Color primary = Color(0xFFC9A227);
   static const Color primaryDark = Color(0xFFC7A94E);
   static const Color primaryGold = Color(0xFFD4AF37);
   static const Color primaryBright = Color(0xFFFFD700);
@@ -83,8 +90,21 @@ abstract final class AppColors {
   // TEXT
   // ============================================================
 
-  static const Color textPrimary = Colors.white;
-  static const Color textSecondary = Colors.white70;
+  /// Encres, alignees sur MagicPalette (inkPrimary / inkSecondary).
+  ///
+  /// Sans cet alignement, un ecran migre et un ecran non migre affichent deux
+  /// blancs differents la ou ils se touchent : blanc pur contre blanc chaud,
+  /// visible a deux lignes d'ecart dans une meme Card.
+  ///
+  /// Contraste sur le canvas Grimoire : 16,76:1 et 7,68:1 -- au-dessus de
+  /// AAA et de AA.
+  static const Color textPrimary = Color(0xFFF2EFE6);
+  static const Color textSecondary = Color(0xFFA9A396);
+
+  /// PAS aligne sur `inkMuted`, et c'est delibere : #75705F tombe a 3,55:1
+  /// sur une carte, sous le seuil AA. 224 sites lisent `textMuted`, souvent
+  /// pour du texte -- les migrer reproduirait 224 fois la regression de
+  /// contraste corrigee sur la barre d'onglets.
   static const Color textMuted = Colors.white54;
   static const Color textDisabled = Colors.white30;
   static const Color textOnPrimary = Colors.black;
@@ -124,10 +144,14 @@ abstract final class AppColors {
   // STATUS / FEEDBACK
   // ============================================================
 
-  static const Color success = Colors.green;
-  static const Color warning = Colors.orange;
-  static const Color error = Colors.red;
-  static const Color info = Colors.blue;
+  // Valeurs Grimoire, volontairement decalees des couleurs de mana ci-dessus.
+  // Avant ce lot, `success` valait EXACTEMENT `manaGreen` (0xFF4CAF50) : un
+  // badge "possedee" et une carte verte etaient indiscernables a l'ecran.
+  // L'ecart minimal est verrouille par test/theme/magic_palette_test.dart.
+  static const Color success = Color(0xFF6FD98F);
+  static const Color warning = Color(0xFFFFA94D);
+  static const Color error = Color(0xFFFF7A6E);
+  static const Color info = Color(0xFF7FB2FF);
 
   // ============================================================
   // SYNERGY / SALT / POWER LEVEL (Sprint 11-12)
@@ -167,14 +191,25 @@ abstract final class AppColors {
   // LEGACY COMPATIBILITY HELPERS
   // ============================================================
 
-  /// Pour les usages de Colors.yellow.shade700
-  static Color get primaryShade700 => Colors.yellow.shade700;
+  /// Rampe d'accent, derivee de [primary] (#C9A227).
+  ///
+  /// Trois `const`, et non plus des getters `Colors.yellow.shade*` : 142
+  /// sites lisent cette rampe, et tant qu'elle restait Material, l'app
+  /// portait deux accents concurrents -- l'or patine du jeton d'un cote,
+  /// le jaune vif de la rampe de l'autre, souvent dans le meme ecran.
+  ///
+  /// Echelle decroissante en luminance (700 > 800 > 900), verrouillee par
+  /// test/theme/contrast_test.dart.
+  ///
+  /// Ces trois valeurs sont des FONDS et des BORDURES. `shade900` n'atteint
+  /// que 3,82:1 sur le canvas : ne pas s'en servir pour du texte. L'encre a
+  /// poser dessus est [textOnPrimary], jamais [textPrimary] -- du blanc n'y
+  /// depasse pas 3,8:1.
+  static const Color primaryShade700 = Color(0xFFB8922A);
 
-  /// Pour les usages de Colors.yellow.shade800
-  static Color get primaryShade800 => Colors.yellow.shade800;
+  static const Color primaryShade800 = Color(0xFFA37E22);
 
-  /// Pour les usages de Colors.yellow.shade900
-  static Color get primaryShade900 => Colors.yellow.shade900;
+  static const Color primaryShade900 = Color(0xFF8A6A1B);
 
   /// Pour les usages de Colors.grey.shade800
   static Color get greyShade800 => Colors.grey.shade800;

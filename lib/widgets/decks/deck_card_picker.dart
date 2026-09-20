@@ -374,7 +374,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: Text('Ajouter des cartes', style: AppTextStyles.cinzel()),
+        title: Text('Ajouter des cartes', style: AppTextStyles.appBarTitle()),
         backgroundColor: AppColors.textOnPrimary,
         bottom: TabBar(
           controller: _tabController,
@@ -416,7 +416,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
               Expanded(
                 child: TextField(
                   controller: _searchController,
-                  style: AppTextStyles.cinzel(),
+                  style: AppTextStyles.text(),
                   decoration: _buildInputDecoration('Nom de la carte...', 
                     isActive: _apiFilters.setCode != null || _apiFilters.colors.isNotEmpty || _apiFilters.cardType != null || _apiFilters.keyword != null // <--- NOUVEAU
                   ),
@@ -489,7 +489,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
               Expanded(
                 child: TextField(
                   controller: _collectionSearchController,
-                  style: AppTextStyles.cinzel(),
+                  style: AppTextStyles.text(),
                   decoration: _buildInputDecoration('Filtrer collection...', 
                     isActive: _collectionFilters.setCode != null || _collectionFilters.colors.isNotEmpty || _collectionFilters.keyword != null // <--- NOUVEAU
                   ),
@@ -608,7 +608,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
             Expanded(
               child: Text(
                 card.name,
-                style: AppTextStyles.cinzel(color: quantity > 0 ? AppColors.primary : AppColors.textPrimary, fontWeight: quantity > 0 ? FontWeight.bold : FontWeight.normal),
+                style: AppTextStyles.text(color: quantity > 0 ? AppColors.primary : AppColors.textPrimary, fontWeight: quantity > 0 ? FontWeight.bold : FontWeight.normal),
                  overflow: TextOverflow.ellipsis,
                  maxLines: 1,
               ),
@@ -637,7 +637,7 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
                 Expanded(
                   child: Text(
                     '${card.typeLine} • ${card.setName}', 
-                    style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontSize: 10), 
+                    style: AppTextStyles.text(color: AppColors.textSecondary, fontSize: 10), 
                     maxLines: 1, 
                     overflow: TextOverflow.ellipsis
                   ),
@@ -708,7 +708,8 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
             ),
             icon: const Icon(Icons.check),
-            label: Text('AJOUTER', style: AppTextStyles.bold()),
+            label: Text('AJOUTER',
+                style: AppTextStyles.bold(color: AppColors.textOnPrimary)),
           )
         ],
       ),

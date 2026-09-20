@@ -277,7 +277,7 @@ class _DeckImportModalState extends ConsumerState<DeckImportModal>
                 onPressed: isImporting ? null : _doImport,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryShade800,
-                  foregroundColor: AppColors.textPrimary,
+                  foregroundColor: AppColors.textOnPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 child: isImporting

@@ -34,7 +34,7 @@ class CardDetailInfoCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: AppTextStyles.cinzel(fontSize: 20, fontWeight: FontWeight.w600)),
+                    style: AppTextStyles.sectionTitle(fontSize: 20)),
                 const Divider(color: AppColors.borderMedium),
                 const SizedBox(height: 8),
                 child
@@ -57,14 +57,14 @@ class CardDetailPriceInfo extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         Column(children: [
-          Text('Normal', style: AppTextStyles.cinzel(color: AppColors.textSecondary)),
+          Text('Normal', style: AppTextStyles.text(color: AppColors.textSecondary)),
           Text(priceEur,
               style: AppTextStyles.bold(fontSize: 20))
         ]),
         Container(width: 1, height: 30, color: AppColors.borderMedium),
         Column(children: [
           Text('Foil (Brillant)',
-              style: AppTextStyles.cinzel(color: Colors.amber.shade200)),
+              style: AppTextStyles.text(color: Colors.amber.shade200)),
           Text(priceEurFoil,
               style: AppTextStyles.bold(fontSize: 20))
         ]),
@@ -115,7 +115,7 @@ class CardDetailRulingsList extends StatelessWidget {
     }
     if (state.rulings.isEmpty) {
       return Text('(Aucune decision)',
-          style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
+          style: AppTextStyles.text(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
     }
     return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,7 +202,7 @@ class _CardDetailClickableRulesTextState extends State<CardDetailClickableRulesT
   Widget build(BuildContext context) {
     if (widget.text.isEmpty) {
       return Text('(Pas de texte)',
-          style: AppTextStyles.cinzel(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
+          style: AppTextStyles.text(color: AppColors.textSecondary, fontStyle: FontStyle.italic));
     }
     // Dispose les anciens recognizers avant de reconstruire.
     for (final recognizer in _tapRecognizers) {

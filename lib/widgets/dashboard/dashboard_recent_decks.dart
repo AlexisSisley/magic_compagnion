@@ -25,7 +25,7 @@ class DashboardRecentDecks extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DashboardSectionHeader(
-          title: 'Decks Recents',
+          title: 'Decks Récents',
           icon: Icons.style_outlined,
           onSeeAll: recentDecks.isNotEmpty
               ? () => context.go(AppRoutes.decks)
@@ -34,7 +34,7 @@ class DashboardRecentDecks extends StatelessWidget {
         if (recentDecks.isEmpty)
           DashboardEmptyState(
             icon: Icons.style_outlined,
-            message: 'Creez votre premier deck !',
+            message: 'Créez votre premier deck !',
             actionLabel: 'Nouveau Deck',
             onAction: () => context.go(AppRoutes.decks),
           )
@@ -44,7 +44,8 @@ class DashboardRecentDecks extends StatelessWidget {
                 cardCount: deck.mainboard.fold<int>(
                     0, (sum, c) => sum + c.quantity),
                 format: deck.format,
-                onTap: () => context.push(
+                // `go` : changement de branche, voir dashboard_favorite_deck.
+                onTap: () => context.go(
                   AppRoutes.deckDetail,
                   extra: deck,
                 ),

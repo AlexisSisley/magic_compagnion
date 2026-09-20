@@ -1,30 +1,28 @@
 // Fichier : lib/router/scanner_routes.dart
-// Routes liees au scanner et a l'historique de scans.
+// Branche Scanner du shell : le scanner, son historique, et la fiche carte
+// qu'on ouvre depuis un scan.
 
 import 'package:go_router/go_router.dart';
 
 import '../pages/scans/scan_history_page.dart';
 import '../pages/scans/scanner_page.dart';
 import 'app_routes.dart';
+import 'card_detail_route.dart';
 import 'page_transitions.dart';
 
-/// Routes de detail pour le scanner (push par-dessus le shell).
-List<RouteBase> scannerDetailRoutes() {
-  return [
-    GoRoute(
-      path: AppRoutes.scanHistory,
-      builder: (context, state) => const ScanHistoryPage(),
-    ),
-  ];
-}
-
-/// Route shell pour l'onglet scanner.
-GoRoute scannerShellRoute() {
+GoRoute scannerBranchRoute() {
   return GoRoute(
-    path: '/scanner',
+    path: AppRoutes.scanner,
     pageBuilder: (context, state) => FadeThroughPage(
       key: state.pageKey,
       child: const ScannerPage(),
     ),
+    routes: [
+      GoRoute(
+        path: 'history',
+        builder: (context, state) => const ScanHistoryPage(),
+      ),
+      cardDetailRoute(),
+    ],
   );
 }

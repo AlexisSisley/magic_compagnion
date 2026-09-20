@@ -16,12 +16,17 @@ import '../../widgets/common/staggered_fade_in.dart';
 import '../../widgets/dashboard/dashboard_collection_stats.dart';
 import '../../widgets/dashboard/dashboard_collection_summary.dart';
 import '../../widgets/dashboard/dashboard_favorite_deck.dart';
-import '../../widgets/dashboard/dashboard_quick_actions.dart';
 import '../../widgets/dashboard/dashboard_recent_decks.dart';
 import '../../widgets/dashboard/dashboard_recent_scans.dart';
 import '../../widgets/dashboard/dashboard_value_chart_preview.dart';
 import '../../widgets/dashboard/dashboard_widget_wrapper.dart';
 
+/// Le tableau de bord, rendu SANS Scaffold ni AppBar.
+///
+/// Il n'a qu'un appelant, l'Accueil, qui porte deja son en-tete et son fond.
+/// Le chemin autonome (Scaffold + AppBar + fleche retour) a existe tant que
+/// le tableau de bord etait une route du tiroir ; il est mort avec lui, et
+/// sa fleche retour n'aurait rien eu a depiler depuis une racine de branche.
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
 
@@ -37,61 +42,68 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final dashboardAsync = ref.watch(dashboardProvider);
     final configAsync = ref.watch(dashboardConfigProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.transparent,
-      appBar: AppBar(
-        backgroundColor: AppColors.transparent,
-        title: Text('Dashboard', style: AppTextStyles.bold(fontSize: 16)),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          if (_editMode)
-            TextButton(
-              onPressed: () {
-                ref.read(dashboardConfigProvider.notifier).resetToDefault();
-                setState(() => _editMode = false);
-              },
-              child: Text(
-                'Reset',
-                style: AppTextStyles.label(
-                  color: AppColors.textMuted,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          IconButton(
-            icon: Icon(
-              _editMode ? Icons.check : Icons.edit_outlined,
-              color: _editMode ? AppColors.primaryGold : AppColors.textPrimary,
-            ),
-            onPressed: () => setState(() => _editMode = !_editMode),
-          ),
-        ],
+    final corps = dashboardAsync.when(
+      loading: () => const _DashboardShimmer(),
+      error: (e, _) => Center(
+        child: Text('Erreur: $e',
+            style: AppTextStyles.body(color: AppColors.error)),
       ),
-      body: dashboardAsync.when(
+      data: (state) => configAsync.when(
         loading: () => const _DashboardShimmer(),
-        error: (e, _) => Center(
-          child: Text('Erreur: $e',
-              style: AppTextStyles.body(color: AppColors.error)),
+        error: (_, _) => _DashboardBody(
+          state: state,
+          config: DashboardConfig.defaultConfig(),
+          editMode: _editMode,
         ),
-        data: (state) => configAsync.when(
-          loading: () => const _DashboardShimmer(),
-          error: (_, _) => _DashboardBody(
-            state: state,
-            config: DashboardConfig.defaultConfig(),
-            editMode: _editMode,
-          ),
-          data: (config) => _DashboardBody(
-            state: state,
-            config: config,
-            editMode: _editMode,
-          ),
+        data: (config) => _DashboardBody(
+          state: state,
+          config: config,
+          editMode: _editMode,
         ),
       ),
     );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: _actionsEdition(),
+        ),
+        Expanded(child: corps),
+      ],
+    );
+  }
+
+  /// Reset (en mode edition) et bascule du mode edition.
+  ///
+  /// Partages entre l'AppBar de la page autonome et la rangee compacte de la
+  /// version embarquee : les dupliquer les ferait deriver.
+  List<Widget> _actionsEdition() {
+    return [
+      if (_editMode)
+        TextButton(
+          onPressed: () {
+            ref.read(dashboardConfigProvider.notifier).resetToDefault();
+            setState(() => _editMode = false);
+          },
+          child: Text(
+            'Reset',
+            style: AppTextStyles.label(
+              color: AppColors.textMuted,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      IconButton(
+        icon: Icon(
+          _editMode ? Icons.check : Icons.edit_outlined,
+          color: _editMode ? AppColors.primaryGold : AppColors.textPrimary,
+        ),
+        tooltip: _editMode ? 'Terminer' : 'Réorganiser le tableau de bord',
+        onPressed: () => setState(() => _editMode = !_editMode),
+      ),
+    ];
   }
 }
 
@@ -166,8 +178,13 @@ class _NormalModeGrid extends ConsumerWidget {
 
   Widget _buildWidget(DashboardWidgetId id) {
     switch (id) {
+      // `quickActions` n'a plus de widget : la rangee dupliquait la barre
+      // d'onglets et a ete retiree. La valeur d'enum survit parce qu'elle
+      // est serialisee dans les configurations deja persistees, mais
+      // `configurableWidgets` la filtre avant d'arriver ici -- ce cas n'est
+      // donc jamais atteint en pratique.
       case DashboardWidgetId.quickActions:
-        return const DashboardQuickActions();
+        return const SizedBox.shrink();
       case DashboardWidgetId.collectionSummary:
         return DashboardCollectionSummary(
           totalCards: state.totalCards,
@@ -206,15 +223,21 @@ class _EditModeList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sorted = List<DashboardWidgetConfig>.from(config.widgets)
-      ..sort((a, b) => a.order.compareTo(b.order));
+    // `configurableWidgets` et non `widgets` : un widget retire de
+    // l'affichage ne doit pas rester basculable ici, sinon l'activer ne fait
+    // rien.
+    final sorted = config.configurableWidgets;
 
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       itemCount: sorted.length,
       onReorder: (oldIndex, newIndex) {
         if (newIndex > oldIndex) newIndex--;
-        ref.read(dashboardConfigProvider.notifier).reorder(oldIndex, newIndex);
+        // L'identifiant, pas l'index : `sorted` est la liste affichee, que
+        // le provider ne peut pas deviner depuis un entier.
+        ref
+            .read(dashboardConfigProvider.notifier)
+            .reorder(sorted[oldIndex].id, newIndex);
       },
       proxyDecorator: (child, index, animation) {
         return AnimatedBuilder(
@@ -266,13 +289,13 @@ class _EditWidgetPreview extends StatelessWidget {
       case DashboardWidgetId.quickActions:
         return 'Actions rapides';
       case DashboardWidgetId.collectionSummary:
-        return 'Resume Collection';
+        return 'Résumé Collection';
       case DashboardWidgetId.valueChart:
-        return 'Evolution Valeur';
+        return 'Évolution Valeur';
       case DashboardWidgetId.recentScans:
         return 'Derniers Scans';
       case DashboardWidgetId.recentDecks:
-        return 'Decks Recents';
+        return 'Decks Récents';
       case DashboardWidgetId.favoriteDeck:
         return 'Deck Favori';
       case DashboardWidgetId.collectionStats:

@@ -26,7 +26,7 @@ class DashboardValueChartPreview extends StatelessWidget {
             const Icon(Icons.show_chart, color: AppColors.accentGreen, size: 18),
             const SizedBox(width: 8),
             Text(
-              'Evolution Valeur (30j)',
+              'Évolution Valeur (30j)',
               style: AppTextStyles.sectionTitle(fontSize: 16),
             ),
           ],
@@ -35,7 +35,7 @@ class DashboardValueChartPreview extends StatelessWidget {
         if (valueHistory.isEmpty)
           const DashboardEmptyState(
             icon: Icons.show_chart,
-            message: 'Ajoutez des cartes pour suivre l\'evolution !',
+            message: 'Ajoutez des cartes pour suivre l\'évolution !',
           )
         else
           CollectionValueChart(

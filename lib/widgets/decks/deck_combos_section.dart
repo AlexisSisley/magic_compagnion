@@ -5,12 +5,11 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../models/deck_model.dart';
 import '../../models/edhrec_models.dart';
 import '../../providers/service_providers.dart';
-import '../../router/app_router.dart';
 import '../../services/deck_synergy_service.dart';
+import '../../router/card_detail_route.dart';
 
 class DeckCombosSection extends ConsumerStatefulWidget {
   final Deck deck;
@@ -126,7 +125,7 @@ class _DeckCombosSectionState extends ConsumerState<DeckCombosSection> {
             padding: const EdgeInsets.all(16),
             child: Text(
               'Aucun combo connu pour ce commandant.',
-              style: AppTextStyles.cinzel(color: AppColors.textMuted, fontSize: 13),
+              style: AppTextStyles.text(color: AppColors.textMuted, fontSize: 13),
             ),
           ),
         if (_hasLoaded && _comboStatuses.isNotEmpty)
@@ -229,7 +228,7 @@ class _DeckCombosSectionState extends ConsumerState<DeckCombosSection> {
                     .any((c) => c.toLowerCase() == cardName.toLowerCase());
                 return GestureDetector(
                   onTap: () {
-                    context.push(AppRoutes.cardDetail, extra: {'cardName': cardName});
+                    pushCardDetail(context, cardName: cardName);
                   },
                   child: Row(
                     mainAxisSize: MainAxisSize.min,

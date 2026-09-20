@@ -5,14 +5,13 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../models/search_filters.dart';
-import '../../router/app_router.dart';
 import '../../utils/price_helper.dart';
 import '../common/tag_editor_dialog.dart';
+import '../../router/card_detail_route.dart';
 
 class CollectionListTab extends StatefulWidget {
   final List<DeckCard> cards;
@@ -167,7 +166,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
                                 ? Image.network(item['image'], width: 40, height: 56, fit: BoxFit.cover)
                                 : Container(width: 40, height: 56, color: AppColors.greyShade800),
                           ),
-                          title: Text(item['name'], style: AppTextStyles.cinzel(), overflow: TextOverflow.ellipsis),
+                          title: Text(item['name'], style: AppTextStyles.text(), overflow: TextOverflow.ellipsis),
                           subtitle: Text('${item['quantity']}x  @ ${item['unitPrice']} €', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
                           trailing: Text(
                             '${(item['totalPrice'] as double).toStringAsFixed(2)} €',
@@ -293,7 +292,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
                 if (widget.isSelectionMode)
                    Text('${widget.selectedIds.length} sélectionnés', style: const TextStyle(color: AppColors.accentGreen, fontWeight: FontWeight.bold))
                 else
-                   Text('${filteredList.length} cartes', style: AppTextStyles.cinzel(color: AppColors.textMuted)),
+                   Text('${filteredList.length} cartes', style: AppTextStyles.text(color: AppColors.textMuted)),
                 const Spacer(),
                 const Icon(Icons.view_agenda, size: 16, color: AppColors.textMuted),
                 SizedBox(
@@ -367,7 +366,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
           if (widget.isSelectionMode) {
             widget.onToggleSelection?.call(card.scryfallId);
           } else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
-            context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+            pushCardDetail(context, cardName: card.name);
           }
         },
         onLongPress: () {
@@ -390,7 +389,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
         ),
         title: Row(
           children: [
-            Expanded(child: Text(card.name, style: AppTextStyles.cinzel(color: card.isFoil ? Colors.amber.shade100 : AppColors.textPrimary, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+            Expanded(child: Text(card.name, style: AppTextStyles.text(color: card.isFoil ? Colors.amber.shade100 : AppColors.textPrimary, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
             if (card.quantity > 1) 
               Text(' (${card.quantity})', style: const TextStyle(color: AppColors.synergyNeutral, fontWeight: FontWeight.bold)),
           ],
@@ -463,7 +462,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
         if (widget.isSelectionMode) {
           widget.onToggleSelection?.call(card.scryfallId);
         } else if(scryfallCard != null && !scryfallCard.id.startsWith('LOCAL:')) {
-          context.push(AppRoutes.cardDetail, extra: {'cardName': card.name});
+          pushCardDetail(context, cardName: card.name);
         }
       },
       onLongPress: () {
@@ -609,11 +608,11 @@ class _CollectionListTabState extends State<CollectionListTab> {
                     Text('$sign${evoVal.toStringAsFixed(2)} €', style: AppTextStyles.bold(color: color, fontSize: 16)),
                   ],
                 ),
-                Text('($sign${evoPct!.toStringAsFixed(1)}%)', style: AppTextStyles.cinzel(color: color.withValues(alpha: 0.8), fontSize: 12)),
+                Text('($sign${evoPct!.toStringAsFixed(1)}%)', style: AppTextStyles.text(color: color.withValues(alpha: 0.8), fontSize: 12)),
               ],
             )
           else if (title.contains('Collection'))
-             Text('Pas assez de données', style: AppTextStyles.cinzel(color: AppColors.borderFaint, fontSize: 10), textAlign: TextAlign.right),
+             Text('Pas assez de données', style: AppTextStyles.text(color: AppColors.borderFaint, fontSize: 10), textAlign: TextAlign.right),
 
           // Partie DROITE : Boutons d'action
           Row(
@@ -666,7 +665,7 @@ class _CollectionListTabState extends State<CollectionListTab> {
     return SvgPicture.network(
       'https://svgs.scryfall.io/card-symbols/$cleanSymbol.svg', 
       height: size, width: size, 
-      placeholderBuilder: (context) => Text(symbol, style: AppTextStyles.cinzel(fontSize: size))
+      placeholderBuilder: (context) => Text(symbol, style: AppTextStyles.text(fontSize: size))
     );
   }
 }

@@ -137,7 +137,7 @@ class DeckListCard extends StatelessWidget {
                     ),
                     const Spacer(),
                     Text('$cardCount cartes',
-                        style: AppTextStyles.cinzel(color: Colors.amberAccent, fontSize: 12)),
+                        style: AppTextStyles.text(color: Colors.amberAccent, fontSize: 12)),
                     const SizedBox(width: 12),
                     Text(
                       ' \u2248 ${totalPrice.toStringAsFixed(0)} \u20AC',

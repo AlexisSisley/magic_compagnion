@@ -224,12 +224,12 @@ class CollectionValueChart extends StatelessWidget {
             const Icon(Icons.show_chart, color: AppColors.textDisabled, size: 48),
             const SizedBox(height: 12),
             Text(
-              'Pas encore de donnees',
+              'Pas encore de données',
               style: AppTextStyles.subtitle(color: AppColors.textMuted),
             ),
             const SizedBox(height: 4),
             Text(
-              'Le graphique apparaitra apres quelques jours\nd\'utilisation de votre collection.',
+              'Le graphique apparaîtra après quelques jours\nd\'utilisation de votre collection.',
               textAlign: TextAlign.center,
               style: AppTextStyles.label(
                 color: AppColors.textDisabled,
