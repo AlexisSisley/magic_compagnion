@@ -1,6 +1,7 @@
 // Fichier : lib/pages/settings_page.dart
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
+import 'package:magic_companion/theme/magic_palette.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -117,6 +118,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Les sections ajoutees par la refonte consomment la palette (contrainte
+    // globale : tout ecran neuf passe par MagicPalette). Les sections
+    // preexistantes restent sur AppColors, qui porte desormais les memes
+    // valeurs Grimoire -- leur conversion appartient au chantier du theme
+    // clair.
+    final p = MagicPalette.of(context);
+
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
@@ -203,16 +211,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             const SizedBox(height: 20),
             _buildSectionTitle('Joueurs'),
             Card(
-              color: AppColors.textPrimary.withValues(alpha: 0.05),
+              color: p.raised,
               child: ListTile(
-                leading: const Icon(Icons.group_outlined,
-                    color: AppColors.textSecondary),
-                title: const Text('Gestion des Profils',
-                    style: TextStyle(color: AppColors.textPrimary)),
-                subtitle: const Text('Joueurs enregistres et leurs couleurs',
-                    style: TextStyle(color: AppColors.textMuted)),
-                trailing: const Icon(Icons.chevron_right,
-                    color: AppColors.textMuted),
+                leading: Icon(Icons.group_outlined, color: p.inkSecondary),
+                title: Text('Gestion des Profils',
+                    style: AppTextStyles.text(color: p.inkPrimary)),
+                subtitle: Text('Joueurs enregistrés et leurs couleurs',
+                    style: AppTextStyles.text(
+                        color: p.inkSecondary, fontSize: 12)),
+                trailing: Icon(Icons.chevron_right, color: p.inkSecondary),
                 onTap: () => context.push(AppRoutes.profiles),
               ),
             ),
@@ -220,45 +227,44 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
             _buildSectionTitle('Apparence'),
             Card(
-              color: AppColors.textPrimary.withValues(alpha: 0.05),
+              color: p.raised,
               child: ListTile(
-                leading: const Icon(Icons.palette_outlined,
-                    color: AppColors.textSecondary),
-                title: const Text('Theme : Grimoire (sombre)',
-                    style: TextStyle(color: AppColors.textPrimary)),
+                leading: Icon(Icons.palette_outlined, color: p.inkSecondary),
+                title: Text('Thème : Grimoire (sombre)',
+                    style: AppTextStyles.text(color: p.inkPrimary)),
                 // Emplacement reserve, pas un faux bouton : le theme clair
                 // "Table" est un chantier a part. La ligne est rendue et
                 // lisible, et dit explicitement qu'il n'y a rien a choisir
                 // pour l'instant.
-                subtitle: const Text('Le theme clair arrivera dans une '
-                    'prochaine version',
-                    style: TextStyle(color: AppColors.textMuted)),
+                subtitle: Text(
+                    'Le thème clair arrivera dans une prochaine version',
+                    style: AppTextStyles.text(
+                        color: p.inkSecondary, fontSize: 12)),
               ),
             ),
             const SizedBox(height: 20),
 
             if (kDebugMode) ...[
-              _buildSectionTitle('Developpeur'),
+              _buildSectionTitle('Développeur'),
               Card(
-                color: AppColors.textPrimary.withValues(alpha: 0.05),
+                color: p.raised,
                 child: ListTile(
-                  leading: const Icon(Icons.menu_book,
-                      color: AppColors.accentOrange),
-                  title: const Text('Grimoire Code',
-                      style: TextStyle(color: AppColors.textPrimary)),
-                  subtitle: const Text('Interrogez votre codebase',
-                      style: TextStyle(color: AppColors.textMuted)),
-                  trailing: const Icon(Icons.chevron_right,
-                      color: AppColors.textMuted),
+                  leading: Icon(Icons.menu_book, color: p.warning),
+                  title: Text('Grimoire Code',
+                      style: AppTextStyles.text(color: p.inkPrimary)),
+                  subtitle: Text('Interrogez votre codebase',
+                      style: AppTextStyles.text(
+                          color: p.inkSecondary, fontSize: 12)),
+                  trailing: Icon(Icons.chevron_right, color: p.inkSecondary),
                   onTap: () => context.push(AppRoutes.grimoire),
                 ),
               ),
               const SizedBox(height: 20),
             ],
 
-            _buildSectionTitle('A propos'),
+            _buildSectionTitle('À propos'),
             Card(
-              color: AppColors.textPrimary.withValues(alpha: 0.05),
+              color: p.raised,
               child: const AboutSection(),
             ),
             const SizedBox(height: 20),

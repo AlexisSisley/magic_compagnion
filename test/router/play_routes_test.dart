@@ -1,12 +1,16 @@
 // Fichier : test/router/play_routes_test.dart
-// Verifie l'arbre de routes du mode Jeu : toutes les sous-routes vivent sous
-// /play, et les anciennes adresses du tiroir ont disparu.
+// Verifie les CONSTANTES d'adresse du mode Jeu : leur forme, leur unicite,
+// et qu'elles vivent toutes sous /play.
+//
+// Ce fichier ne monte aucun routeur et ne prouve donc rien sur l'arbre
+// reellement construit -- c'est play_shell_test.dart qui s'en charge, en
+// lisant createAppRouter().
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/router/app_routes.dart';
 
 void main() {
-  group('arbre de routes du mode Jeu', () {
+  group("constantes d'adresse du mode Jeu", () {
     test('toutes les sous-routes vivent sous /play', () {
       for (final route in [
         AppRoutes.playSetup,

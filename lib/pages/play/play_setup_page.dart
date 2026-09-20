@@ -108,6 +108,10 @@ class _PlaySetupPageState extends ConsumerState<PlaySetupPage> {
       isScrollControlled: true,
       backgroundColor: p.overlay,
       builder: (_) => GameSetupModal(
+        // 40 points de vie : la valeur de Commander, format par defaut de
+        // l'app et de loin le plus joue par son public. La modale s'en sert
+        // pour preselectionner un format, donc ce n'est pas qu'un nombre
+        // affiche -- le changer change l'onglet ouvert.
         initialLife: 40,
         onGameStart: (format, profils) =>
             _demarrer(context, ref, format, profils),

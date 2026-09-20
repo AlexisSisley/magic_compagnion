@@ -2,7 +2,7 @@
 // "A propos & Licences" : la mention Wizards of the Coast.
 //
 // Bloc DEPLACE depuis `app_shell_scaffold.dart` (`_showAppAboutDialog`). Le
-// texte legal n'est pas retouche : c'est une obligation d'attribution envers
+// texte legal n'est pas reformule : c'est une obligation d'attribution envers
 // Wizards of the Coast, pas une formulation a ameliorer.
 //
 // Couleurs par MagicPalette : ecran neuf (contrainte globale du plan).
@@ -37,15 +37,15 @@ class AboutSection extends StatelessWidget {
       children: [
         const SizedBox(height: 24),
         Text(
-          'Developpe avec Flutter et Passion.',
+          'Développé avec Flutter et Passion.',
           style: AppTextStyles.text(color: p.inkSecondary),
         ),
         const SizedBox(height: 12),
         Text(
-          "Ce projet utilise l'API Scryfall pour les donnees de cartes. "
-          'Les informations textuelles et graphiques litterales et artistiques '
-          'presentees sur ce site au sujet de Magic: The Gathering, y compris '
-          'les images de cartes, le mana, et le symbole Tap sont la propriete '
+          "Ce projet utilise l'API Scryfall pour les données de cartes. "
+          'Les informations textuelles et graphiques littérales et artistiques '
+          'présentées sur ce site au sujet de Magic: The Gathering, y compris '
+          'les images de cartes, le mana, et le symbole Tap sont la propriété '
           'de Wizards of the Coast, LLC.',
           style: AppTextStyles.text(color: p.inkSecondary, fontSize: 10),
         ),
@@ -59,9 +59,9 @@ class AboutSection extends StatelessWidget {
 
     return ListTile(
       leading: Icon(Icons.info_outline, color: p.inkSecondary),
-      title: Text('A propos & Licences',
+      title: Text('À propos & Licences',
           style: AppTextStyles.text(color: p.inkPrimary)),
-      subtitle: Text('Mentions legales Wizards of the Coast',
+      subtitle: Text('Mentions légales Wizards of the Coast',
           style: AppTextStyles.text(color: p.inkSecondary, fontSize: 11)),
       onTap: () => _ouvrirDialogue(context),
     );

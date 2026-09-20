@@ -24,6 +24,9 @@ class AppRoutes {
   // Mode Jeu (plein ecran, hors shell). Regroupe tout ce qui s'utilise
   // carte en main : le compteur, et les quatre outils qui etaient dans le
   // Drawer.
+  /// PREFIXE seulement : aucune GoRoute ne repond a '/play' tout court.
+  /// Y naviguer donnerait la page d'erreur de go_router. Le point
+  /// d'entree du mode Jeu est [playSetup].
   static const String play = '/play';
   static const String playSetup = '/play/setup';
   static const String playCounter = '/play/counter';

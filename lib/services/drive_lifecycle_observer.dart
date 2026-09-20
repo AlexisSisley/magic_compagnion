@@ -29,7 +29,7 @@ class DriveLifecycleObserver extends ConsumerStatefulWidget {
   const DriveLifecycleObserver({
     super.key,
     required this.child,
-    this.navigatorKey,
+    required this.navigatorKey,
   });
 
   final Widget child;
@@ -42,9 +42,11 @@ class DriveLifecycleObserver extends ConsumerStatefulWidget {
   /// `showDialog` y leverait. La cle du Navigator du routeur, elle, designe
   /// un contexte situe a l'INTERIEUR de MaterialApp, ou les trois existent.
   ///
-  /// Nulle en test : l'observer se contente alors de ne rien afficher, ce qui
-  /// permet de tester le declencheur de sauvegarde sans monter un routeur.
-  final GlobalKey<NavigatorState>? navigatorKey;
+  /// Requise : une cle absente ferait echouer l'affichage en silence, et
+  /// c'est precisement ce que ce fichier doit cesser de faire. Un test qui ne
+  /// monte pas de routeur passe une cle bidon -- elle n'aura simplement pas
+  /// de `currentContext`, ce qui est trace.
+  final GlobalKey<NavigatorState> navigatorKey;
 
   @override
   ConsumerState<DriveLifecycleObserver> createState() =>
@@ -55,7 +57,17 @@ class _DriveLifecycleObserverState extends ConsumerState<DriveLifecycleObserver>
     with WidgetsBindingObserver {
   /// Contexte d'affichage, ou `null` s'il n'y en a pas encore (ou pas du tout,
   /// en test).
-  BuildContext? get _uiContext => widget.navigatorKey?.currentContext;
+  BuildContext? get _uiContext => widget.navigatorKey.currentContext;
+
+  /// Trace une sortie due a un contexte d'affichage indisponible.
+  ///
+  /// Sans ca, la proposition de restauration disparait sans log, sans retry
+  /// et sans trace -- l'utilisateur ne sait pas qu'une sauvegarde existait.
+  void _sansContexte(String etape) {
+    log('Contexte d\'affichage indisponible, $etape ignoree. '
+        'Le Navigator n\'est probablement pas encore monte.',
+        name: 'DriveLifecycle');
+  }
 
   @override
   void initState() {
@@ -97,7 +109,10 @@ class _DriveLifecycleObserverState extends ConsumerState<DriveLifecycleObserver>
     if (backupFile == null || !mounted) return;
 
     final context = _uiContext;
-    if (context == null) return;
+    if (context == null) {
+      _sansContexte('proposition de restauration');
+      return;
+    }
 
     final p = MagicPalette.of(context);
     var dateStr = 'Inconnue';
@@ -116,13 +131,13 @@ class _DriveLifecycleObserverState extends ConsumerState<DriveLifecycleObserver>
             Icon(Icons.cloud_download, color: p.info),
             const SizedBox(width: 10),
             Expanded(
-              child: Text('Sauvegarde trouvee',
+              child: Text('Sauvegarde trouvée',
                   style: AppTextStyles.sectionTitle(color: p.inkPrimary)),
             ),
           ],
         ),
         content: Text(
-          'Une sauvegarde a ete trouvee sur votre Google Drive datant du '
+          'Une sauvegarde a été trouvée sur votre Google Drive datant du '
           '$dateStr.\nVoulez-vous la restaurer maintenant ?',
           style: AppTextStyles.text(color: p.inkSecondary),
         ),
@@ -154,7 +169,10 @@ class _DriveLifecycleObserverState extends ConsumerState<DriveLifecycleObserver>
     final backupService = ref.read(backupServiceProvider);
 
     final context = _uiContext;
-    if (context == null) return;
+    if (context == null) {
+      _sansContexte('restauration');
+      return;
+    }
     final p = MagicPalette.of(context);
 
     showDialog<void>(
@@ -163,34 +181,58 @@ class _DriveLifecycleObserverState extends ConsumerState<DriveLifecycleObserver>
       builder: (c) => const Center(child: CircularProgressIndicator()),
     );
 
+    String? jsonString;
+    Object? erreur;
     try {
-      final jsonString = await driveService.downloadBackup(fileId);
+      jsonString = await driveService.downloadBackup(fileId);
       if (jsonString != null) {
         await backupService.restoreFromJson(jsonString);
-        final apres = _uiContext;
-        if (apres == null) return;
-        Navigator.pop(apres);
-        ScaffoldMessenger.of(apres).showSnackBar(
-          SnackBar(
-            content: const Text('Restauration reussie !'),
-            backgroundColor: p.success,
-          ),
-        );
-        // Vers l'Accueil, pas vers le compteur : apres une restauration on
-        // veut voir sa collection revenue, pas un compteur de vie.
-        apres.go(AppRoutes.home);
       }
     } catch (e) {
-      final apres = _uiContext;
-      if (apres == null) return;
-      Navigator.pop(apres);
+      erreur = e;
+    }
+
+    // Le spinner se referme dans TOUS les cas, y compris quand le
+    // telechargement rend `null` sans lever. Referme a l'interieur du
+    // `if (jsonString != null)`, il laissait l'app bloquee derriere une
+    // barriere non annulable -- et depuis que l'observer est au-dessus du
+    // routeur, on ne peut meme plus contourner par navigation.
+    final apres = _uiContext;
+    if (apres == null) {
+      _sansContexte('fermeture du dialogue de restauration');
+      return;
+    }
+    Navigator.pop(apres);
+
+    if (erreur != null) {
       ScaffoldMessenger.of(apres).showSnackBar(
         SnackBar(
-          content: Text('Erreur restauration : $e'),
+          content: Text('Erreur restauration : $erreur'),
           backgroundColor: p.danger,
         ),
       );
+      return;
     }
+
+    if (jsonString == null) {
+      ScaffoldMessenger.of(apres).showSnackBar(
+        SnackBar(
+          content: const Text('Sauvegarde introuvable ou illisible.'),
+          backgroundColor: p.warning,
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(apres).showSnackBar(
+      SnackBar(
+        content: const Text('Restauration réussie !'),
+        backgroundColor: p.success,
+      ),
+    );
+    // Vers l'Accueil, pas vers le compteur : apres une restauration on veut
+    // voir sa collection revenue, pas un compteur de vie.
+    apres.go(AppRoutes.home);
   }
 
   @override

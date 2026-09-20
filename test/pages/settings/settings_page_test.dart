@@ -50,7 +50,7 @@ void main() {
     // `_buildSectionTitle`. On cherche donc cette forme-la, et pas le mot
     // en casse normale : sinon un test peut passer en tombant sur un texte
     // de corps qui contient le meme mot, sans que la section existe.
-    for (final section in ['Sauvegarde', 'Joueurs', 'Apparence', 'A propos']) {
+    for (final section in ['Sauvegarde', 'Joueurs', 'Apparence', 'À propos']) {
       expect(find.text(section.toUpperCase()), findsOneWidget,
           reason: 'la section $section manque');
     }
@@ -62,7 +62,10 @@ void main() {
     await tester.pumpWidget(harness());
     await tester.pump();
 
-    expect(find.textContaining('Drive', findRichText: true), findsWidgets);
+    // Resserre : `textContaining` + `findsWidgets` passerait sur n'importe
+    // quel texte contenant "Drive". On vise le libelle exact que
+    // BackupSection rend quand personne n'est connecte.
+    expect(find.text('Connexion Google Drive'), findsOneWidget);
   });
 
   testWidgets('la section A propos porte les licences Wizards',
@@ -71,7 +74,7 @@ void main() {
     await tester.pumpWidget(harness());
     await tester.pump();
 
-    expect(find.textContaining('Licences', findRichText: true), findsWidgets);
+    expect(find.text('À propos & Licences'), findsOneWidget);
   });
 
   testWidgets('la section Joueurs mene a la gestion des profils',
@@ -82,6 +85,6 @@ void main() {
     await tester.pumpWidget(harness());
     await tester.pump();
 
-    expect(find.textContaining('Profils', findRichText: true), findsWidgets);
+    expect(find.text('Gestion des Profils'), findsOneWidget);
   });
 }

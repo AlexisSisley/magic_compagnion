@@ -30,6 +30,28 @@ class BackupSection extends ConsumerStatefulWidget {
 }
 
 class _BackupSectionState extends ConsumerState<BackupSection> {
+  /// Etat de connexion, resolu UNE fois.
+  ///
+  /// Creer cette future dans `build` relancerait une authentification
+  /// silencieuse a chaque reconstruction -- et ce widget appelle `setState`
+  /// a chaque action. Le motif venait du Drawer, qui se reconstruisait
+  /// rarement ; une page de Reglages, beaucoup plus.
+  late Future<bool> _connexion;
+
+  @override
+  void initState() {
+    super.initState();
+    _connexion = ref.read(googleDriveServiceProvider).signIn(silent: true);
+  }
+
+  /// A appeler apres une connexion ou une deconnexion : l'etat affiche doit
+  /// suivre, mais seulement a ces deux moments.
+  void _rafraichirConnexion() {
+    setState(() {
+      _connexion = ref.read(googleDriveServiceProvider).signIn(silent: true);
+    });
+  }
+
   /// Genere la sauvegarde et la televerse.
   ///
   /// Corps de l'ancien `_performAutoBackup()` du scaffold de navigation.
@@ -49,9 +71,9 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
       context: context,
       builder: (c) => AlertDialog(
         backgroundColor: p.overlay,
-        title: Text('Deconnexion',
+        title: Text('Déconnexion',
             style: AppTextStyles.sectionTitle(color: p.inkPrimary)),
-        content: Text('Arreter la sauvegarde automatique ?',
+        content: Text('Arrêter la sauvegarde automatique ?',
             style: AppTextStyles.text(color: p.inkSecondary)),
         actions: [
           TextButton(
@@ -61,7 +83,7 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(c, true),
-            child: Text('Deconnecter',
+            child: Text('Déconnecter',
                 style: AppTextStyles.buttonText(color: p.danger)),
           ),
         ],
@@ -70,7 +92,7 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
 
     if (confirme == true) {
       await driveService.signOut();
-      if (mounted) setState(() {});
+      if (mounted) _rafraichirConnexion();
     }
   }
 
@@ -78,13 +100,14 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
     final driveService = ref.read(googleDriveServiceProvider);
     final succes = await driveService.signIn(silent: false);
     if (!succes) {
-      if (mounted) setState(() {});
+      if (mounted) _rafraichirConnexion();
       return;
     }
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connexion reussie. Sauvegarde en cours...')),
+        const SnackBar(
+            content: Text('Connexion réussie. Sauvegarde en cours...')),
       );
     }
 
@@ -94,11 +117,11 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
       final p = MagicPalette.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Premiere sauvegarde effectuee !'),
+          content: const Text('Première sauvegarde effectuée !'),
           backgroundColor: p.success,
         ),
       );
-      setState(() {});
+      _rafraichirConnexion();
     }
   }
 
@@ -108,7 +131,7 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
     final driveService = ref.read(googleDriveServiceProvider);
 
     return FutureBuilder<bool>(
-      future: driveService.signIn(silent: true),
+      future: _connexion,
       builder: (context, snapshot) {
         final connecte = snapshot.data ?? false;
         final email = driveService.currentUser?.email;
@@ -122,7 +145,7 @@ class _BackupSectionState extends ConsumerState<BackupSection> {
                 style: AppTextStyles.text(color: p.success, fontSize: 11)),
             trailing: IconButton(
               icon: Icon(Icons.logout, color: p.inkSecondary, size: 20),
-              tooltip: 'Deconnecter',
+              tooltip: 'Déconnecter',
               onPressed: _deconnecter,
             ),
           );

@@ -160,31 +160,61 @@ void main() {
   // de source, le seul moyen d'attraper un appelant : un test de couleurs ne
   // sait pas quelle encre chaque bouton pose sur son fond.
   group("aucun bouton ne pose d'encre claire sur la rampe d'accent", () {
-    test('backgroundColor primaryShade* + foregroundColor textPrimary', () {
+    test('ni foregroundColor clair, ni libelle qui impose sa couleur', () {
       final offenders = <String>[];
 
       for (final entity in Directory('lib').listSync(recursive: true)) {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;
         final lignes = entity.readAsLinesSync();
+        final chemin = entity.path.replaceAll(r'\', '/');
+
         for (var i = 0; i < lignes.length; i++) {
           if (!lignes[i].contains('backgroundColor: AppColors.primaryShade')) {
             continue;
           }
-          // Le foregroundColor d'un styleFrom suit de pres son
-          // backgroundColor ; trois lignes couvrent les mises en forme du
-          // depot sans ramasser le bouton suivant.
-          final fin = (i + 4).clamp(0, lignes.length);
+
+          // Fenetre de recherche du bouton : son libelle peut etre loin sous
+          // son `backgroundColor` -- douze lignes dans l'etat vide du
+          // dashboard. Une fenetre de trois, comme dans la premiere version
+          // de ce garde, ne voyait que les cas les plus serres.
+          final fin = (i + 16).clamp(0, lignes.length);
+
           for (var j = i + 1; j < fin; j++) {
             if (lignes[j].contains('foregroundColor: AppColors.textPrimary')) {
-              offenders.add('${entity.path.replaceAll(r'\', '/')}:${j + 1}');
+              offenders.add('$chemin:${j + 1} (foregroundColor clair)');
+              continue;
             }
+
+            // On ne regarde QUE les libelles de bouton, pas tout ce qui
+            // passe dans la fenetre : sans ce filtre, un texte de chargement
+            // voisin serait signale a tort.
+            final estUnLibelle = lignes[j].contains('child: Text(') ||
+                lignes[j].contains('label: Text(') ||
+                lignes[j].contains('child: const Text(') ||
+                lignes[j].contains('label: const Text(');
+            if (!estUnLibelle) continue;
+
+            // La cecite qui a laisse passer le defaut : les helpers
+            // d'AppTextStyles posent TOUJOURS une couleur -- textPrimary par
+            // defaut -- et une couleur sur le TextStyle gagne sur le
+            // foregroundColor du bouton. Un libelle stylise sans encre
+            // d'accent explicite reste donc blanc sur l'or.
+            final corpsDuLibelle =
+                lignes.sublist(j, (j + 10).clamp(0, lignes.length)).join(' ');
+            if (!corpsDuLibelle.contains('AppTextStyles.')) continue;
+            if (corpsDuLibelle.contains('textOnPrimary') ||
+                corpsDuLibelle.contains('onAccent')) {
+              continue;
+            }
+            offenders.add("$chemin:${j + 1} (libelle sans encre d'accent)");
           }
         }
       }
 
       expect(offenders, isEmpty,
-          reason: "Blanc sur l'or de la rampe ne depasse pas 3,8:1. Utiliser "
-              'AppColors.textOnPrimary :\n${offenders.join('\n')}');
+          reason: "Blanc sur l'or de la rampe ne depasse pas 3,8:1. Poser "
+              'AppColors.textOnPrimary, ou ne mettre aucune couleur et '
+              'laisser le bouton la fournir :\n${offenders.join('\n')}');
     });
   });
 

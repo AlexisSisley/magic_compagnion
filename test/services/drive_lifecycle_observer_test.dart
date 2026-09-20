@@ -65,7 +65,15 @@ void main() {
           googleDriveServiceProvider.overrideWithValue(drive),
           backupServiceProvider.overrideWithValue(backup),
         ],
-        child: MaterialApp(home: DriveLifecycleObserver(child: enfant)),
+        child: MaterialApp(
+          home: DriveLifecycleObserver(
+            // Cle bidon : ces tests ne montent pas de routeur, donc elle
+            // n'aura pas de `currentContext`. C'est exactement ce que
+            // l'observer doit savoir traverser sans rien afficher.
+            navigatorKey: GlobalKey<NavigatorState>(),
+            child: enfant,
+          ),
+        ),
       );
 
   testWidgets('rend son enfant sans le modifier', (tester) async {

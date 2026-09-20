@@ -148,7 +148,8 @@ class _ChatScreenContentState extends ConsumerState<_ChatScreenContent> {
               _controller.text = 'Comment fonctionne la sauvegarde des decks ?';
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade900),
-            child: Text('Tester un exemple', style: AppTextStyles.text()),
+            child: Text('Tester un exemple',
+                style: AppTextStyles.text(color: AppColors.textOnPrimary)),
           )
         ],
       ),

@@ -708,7 +708,8 @@ class _DeckCardPickerState extends ConsumerState<DeckCardPicker> with SingleTick
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
             ),
             icon: const Icon(Icons.check),
-            label: Text('AJOUTER', style: AppTextStyles.bold()),
+            label: Text('AJOUTER',
+                style: AppTextStyles.bold(color: AppColors.textOnPrimary)),
           )
         ],
       ),

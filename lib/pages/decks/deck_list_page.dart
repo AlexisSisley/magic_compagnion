@@ -212,7 +212,12 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
             backgroundColor: AppColors.primaryShade800,
             foregroundColor: AppColors.textOnPrimary,
             icon: const Icon(Icons.add),
-            label: Text('Nouveau Deck', style: AppTextStyles.bold()),
+            // Pas de couleur explicite : le libelle herite du
+            // `foregroundColor` du bouton. Une couleur posee sur le
+            // TextStyle GAGNE sur le foregroundColor -- c'est ainsi que ce
+            // libelle restait blanc sur l'or, a 3,77:1, alors que l'icone
+            // etait deja passee en encre sombre.
+            label: const Text('Nouveau Deck'),
           ),
         ),
       ],
