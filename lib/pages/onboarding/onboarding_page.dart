@@ -59,7 +59,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(kHasSeenOnboarding, true);
     if (!mounted) return;
-    context.go(AppRoutes.lifeCounter);
+    context.go(AppRoutes.home);
   }
 
   void _nextPage() {

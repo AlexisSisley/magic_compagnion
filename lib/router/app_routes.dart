@@ -7,15 +7,11 @@ class AppRoutes {
   // Onboarding (Sprint 14, US-14.4)
   static const String onboarding = '/onboarding';
 
-  // Onglets principaux (shell) - US-LC01 : LifeCounter devient tab0
+  // Onglets principaux du shell a cinq branches.
   //
-  // `home` et `lifeCounter` valent la meme chose et coexistent volontairement
-  // jusqu'a la Task 17 : le compteur quitte la racine pour /play/counter, et
-  // l'Accueil la prend. Ecrire `home` des maintenant evite de semer des
-  // `lifeCounter` dans les ecrans neufs du mode Jeu, qu'il faudrait ensuite
-  // retrouver un par un.
+  // `lifeCounter` a disparu : le compteur a quitte la racine pour
+  // /play/counter, et l'Accueil l'a prise.
   static const String home = '/';
-  static const String lifeCounter = home;
   static const String scanner = '/scanner';
   static const String search = '/search';
   static const String decks = '/decks';
@@ -35,8 +31,8 @@ class AppRoutes {
   static const String playGlossary = '/play/glossary';
   static const String playOdds = '/play/odds';
 
-  // Drawer routes - US-LC03 : Dashboard descend dans le Drawer
-  static const String dashboard = '/dashboard';
+  // Routes hors shell. Le Drawer qui y menait a disparu : elles sont
+  // desormais atteintes depuis les Reglages ou l'Accueil.
   static const String gameHistory = '/game-history';
   static const String grimoire = '/grimoire';
 
