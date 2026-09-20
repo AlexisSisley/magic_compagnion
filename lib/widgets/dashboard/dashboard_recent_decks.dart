@@ -44,7 +44,8 @@ class DashboardRecentDecks extends StatelessWidget {
                 cardCount: deck.mainboard.fold<int>(
                     0, (sum, c) => sum + c.quantity),
                 format: deck.format,
-                onTap: () => context.push(
+                // `go` : changement de branche, voir dashboard_favorite_deck.
+                onTap: () => context.go(
                   AppRoutes.deckDetail,
                   extra: deck,
                 ),

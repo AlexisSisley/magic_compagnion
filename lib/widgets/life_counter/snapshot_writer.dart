@@ -16,10 +16,24 @@ import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/services/game_session_service.dart';
 
 class SnapshotWriter {
-  SnapshotWriter(this._service, {this.debounce = const Duration(milliseconds: 500)});
+  SnapshotWriter(
+    this._service, {
+    this.debounce = const Duration(milliseconds: 500),
+    this.onWritten,
+  });
 
   final GameSessionService _service;
   final Duration debounce;
+
+  /// Appele APRES chaque ecriture reellement partie.
+  ///
+  /// Sert a invalider `activeGameProvider`, qui ne surveille pas
+  /// SharedPreferences. Le brancher ici plutot que sur `schedule()` est le
+  /// point : l'ecriture est debouncee, donc invalider a l'ordonnancement
+  /// ferait relire l'ANCIEN snapshot. Et le brancher ici plutot que sur
+  /// chacun des 23 sites d'appel de `_saveSnapshot` evite qu'un 24e site
+  /// oublie de le faire.
+  final void Function()? onWritten;
 
   Timer? _timer;
   GameSession? _pending;
@@ -72,6 +86,7 @@ class SnapshotWriter {
     _inFlight = write;
     write.whenComplete(() {
       if (identical(_inFlight, write)) _inFlight = null;
+      onWritten?.call();
     });
   }
 }

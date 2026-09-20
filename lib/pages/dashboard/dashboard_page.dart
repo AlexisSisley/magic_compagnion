@@ -16,22 +16,19 @@ import '../../widgets/common/staggered_fade_in.dart';
 import '../../widgets/dashboard/dashboard_collection_stats.dart';
 import '../../widgets/dashboard/dashboard_collection_summary.dart';
 import '../../widgets/dashboard/dashboard_favorite_deck.dart';
-import '../../widgets/dashboard/dashboard_quick_actions.dart';
 import '../../widgets/dashboard/dashboard_recent_decks.dart';
 import '../../widgets/dashboard/dashboard_recent_scans.dart';
 import '../../widgets/dashboard/dashboard_value_chart_preview.dart';
 import '../../widgets/dashboard/dashboard_widget_wrapper.dart';
 
+/// Le tableau de bord, rendu SANS Scaffold ni AppBar.
+///
+/// Il n'a qu'un appelant, l'Accueil, qui porte deja son en-tete et son fond.
+/// Le chemin autonome (Scaffold + AppBar + fleche retour) a existe tant que
+/// le tableau de bord etait une route du tiroir ; il est mort avec lui, et
+/// sa fleche retour n'aurait rien eu a depiler depuis une racine de branche.
 class DashboardPage extends ConsumerStatefulWidget {
-  const DashboardPage({super.key, this.isEmbedded = false});
-
-  /// Quand true, rend le corps SANS Scaffold ni AppBar : la page est posee
-  /// dans l'Accueil, qui porte deja son en-tete et son fond.
-  ///
-  /// Meme patron que `LifeCounterPage(isInShell:)`. Sans ce drapeau, inclure
-  /// le tableau de bord empilerait deux Scaffold et montrerait une fleche
-  /// retour qui n'a rien a depiler, l'Accueil etant une racine de branche.
-  final bool isEmbedded;
+  const DashboardPage({super.key});
 
   @override
   ConsumerState<DashboardPage> createState() => _DashboardPageState();
@@ -66,32 +63,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ),
     );
 
-    if (widget.isEmbedded) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: _actionsEdition(),
-          ),
-          Expanded(child: corps),
-        ],
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: AppColors.transparent,
-      appBar: AppBar(
-        backgroundColor: AppColors.transparent,
-        title: Text('Dashboard', style: AppTextStyles.bold(fontSize: 16)),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => Navigator.of(context).pop(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: _actionsEdition(),
         ),
-        actions: _actionsEdition(),
-      ),
-      body: corps,
+        Expanded(child: corps),
+      ],
     );
   }
 
@@ -198,8 +178,13 @@ class _NormalModeGrid extends ConsumerWidget {
 
   Widget _buildWidget(DashboardWidgetId id) {
     switch (id) {
+      // `quickActions` n'a plus de widget : la rangee dupliquait la barre
+      // d'onglets et a ete retiree. La valeur d'enum survit parce qu'elle
+      // est serialisee dans les configurations deja persistees, mais
+      // `configurableWidgets` la filtre avant d'arriver ici -- ce cas n'est
+      // donc jamais atteint en pratique.
       case DashboardWidgetId.quickActions:
-        return const DashboardQuickActions();
+        return const SizedBox.shrink();
       case DashboardWidgetId.collectionSummary:
         return DashboardCollectionSummary(
           totalCards: state.totalCards,
@@ -248,7 +233,11 @@ class _EditModeList extends ConsumerWidget {
       itemCount: sorted.length,
       onReorder: (oldIndex, newIndex) {
         if (newIndex > oldIndex) newIndex--;
-        ref.read(dashboardConfigProvider.notifier).reorder(oldIndex, newIndex);
+        // L'identifiant, pas l'index : `sorted` est la liste affichee, que
+        // le provider ne peut pas deviner depuis un entier.
+        ref
+            .read(dashboardConfigProvider.notifier)
+            .reorder(sorted[oldIndex].id, newIndex);
       },
       proxyDecorator: (child, index, animation) {
         return AnimatedBuilder(

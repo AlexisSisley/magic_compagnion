@@ -40,6 +40,15 @@ class AppRoutes {
   // l'onglet Rechercher, pas seulement en partie (spec 6.1). `tournament`,
   // `oracle` et `calculator` ont disparu -- ces trois ecrans ne s'utilisent
   // que sur place, donc uniquement sous /play.
+  /// ATTEINTES PAR URL, mais aucun ecran n'y mene aujourd'hui.
+  ///
+  /// La spec promet le glossaire « consultable a froid depuis l'onglet
+  /// Rechercher » (6.1) ; ce point d'entree n'a jamais ete construit, et
+  /// l'entree de tiroir qui y menait a disparu avec le tiroir. Les routes
+  /// survivent volontairement : ce sont les cibles du travail differe, et
+  /// les supprimer rendrait `TurnGuidePage` totalement orpheline.
+  ///
+  /// `glossaryDetail`, lui, a bien trois appelants (fiche carte, glossaire).
   static const String glossary = '/glossary';
   static const String turnGuide = '/glossary/turn-guide';
   static const String profiles = '/profiles';

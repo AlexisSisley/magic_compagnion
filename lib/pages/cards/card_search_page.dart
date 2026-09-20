@@ -93,8 +93,19 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
   Widget build(BuildContext context) {
     final state = ref.watch(cardSearchControllerProvider);
 
-    return Column(
-      children: [
+    // SafeArea : cette page est la seule des cinq racines de branche a
+    // renvoyer un Column nu -- les quatre autres ont un Scaffold, une
+    // SliverAppBar ou leur propre SafeArea. Le shell ne pose plus de
+    // SafeArea globale (`body: navigationShell`), donc sans celle-ci la
+    // TabBar "Cartes / Editions" passe sous l'encoche. Aucune capture ne
+    // couvre cet onglet et les tests tournent sur un viewport sans encoche :
+    // rien d'autre ne l'attraperait.
+    //
+    // `bottom: false` : la barre d'onglets du shell occupe deja le bas.
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
         Container(
           color: AppColors.textOnPrimary.withValues(alpha: 0.5),
           child: TabBar(
@@ -168,7 +179,8 @@ class _CardSearchPageState extends ConsumerState<CardSearchPage> with SingleTick
             ],
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 

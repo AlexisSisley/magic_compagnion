@@ -310,10 +310,11 @@ class _CollectionPageState extends ConsumerState<CollectionPage> with TickerProv
                 floating: true,
                 expandedHeight: 120.0,
                 backgroundColor: AppColors.textOnPrimary,
-                leading: IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                ),
+                // Pas de `leading` : le Drawer a disparu du shell, et la
+                // poignee qui l'ouvrait ne faisait plus rien. Un bouton
+                // menu inerte est la premiere chose qu'un utilisateur tape
+                // apres la mise a jour.
+                automaticallyImplyLeading: false,
                 actions: [
                   IconButton(icon: const Icon(Icons.bar_chart), onPressed: _openStatsPage),
                   PopupMenuButton<String>(

@@ -37,7 +37,11 @@ class DashboardFavoriteDeck extends StatelessWidget {
     return Material(
       color: AppColors.transparent,
       child: InkWell(
-        onTap: () => context.push(AppRoutes.deckDetail, extra: deck),
+        // `go` et non `push` : on quitte la branche Accueil pour la
+        // branche Decks. Un `push` vers une adresse d'une AUTRE branche
+        // empile le detail sur la pile courante, laissant la barre
+        // d'onglets sur Accueil alors qu'un deck est affiche.
+        onTap: () => context.go(AppRoutes.deckDetail, extra: deck),
         borderRadius: BorderRadius.circular(8),
         child: Row(
           children: [

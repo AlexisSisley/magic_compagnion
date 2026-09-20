@@ -73,7 +73,10 @@ void main() {
 
     final bar =
         tester.widget<BottomNavigationBar>(find.byType(BottomNavigationBar));
+    // `currentIndex` est la vraie assertion. Chercher le texte "Accueil"
+    // ne prouverait rien : c'est un libelle d'onglet, present quel que soit
+    // l'onglet actif.
     expect(bar.currentIndex, 0);
-    expect(find.text('Accueil'), findsWidgets);
+    expect(bar.items[bar.currentIndex].label, 'Accueil');
   });
 }

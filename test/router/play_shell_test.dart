@@ -37,7 +37,14 @@ void main() {
     ));
 
     expect(find.text('contenu'), findsOneWidget);
-    for (final label in ['Vies', 'Tournoi', 'Oracle', 'Règles', 'Fin']) {
+    for (final label in [
+      'Vies',
+      'Tournoi',
+      'Oracle',
+      'Règles',
+      'Probas',
+      'Fin',
+    ]) {
       expect(find.text(label), findsOneWidget,
           reason: "$label manque dans la barre d'outils de partie");
     }

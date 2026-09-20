@@ -30,7 +30,8 @@ class DashboardRecentScans extends StatelessWidget {
           title: 'Derniers Scans',
           icon: Icons.camera_alt,
           onSeeAll: recentScans.isNotEmpty
-              ? () => context.push(AppRoutes.scanHistory)
+              // `go` : l'historique de scan vit dans la branche Scanner.
+              ? () => context.go(AppRoutes.scanHistory)
               : null,
         ),
         if (recentScans.isEmpty)

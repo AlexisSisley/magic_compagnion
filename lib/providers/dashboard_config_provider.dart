@@ -25,19 +25,38 @@ class DashboardConfigNotifier extends AsyncNotifier<DashboardConfig> {
     await db.setSetting(_settingKey, jsonEncode(config.toJson()));
   }
 
-  Future<void> reorder(int oldIndex, int newIndex) async {
+  /// Deplace [deplace] a la position [nouvelIndex] de la liste AFFICHEE.
+  ///
+  /// Le widget est designe par son identifiant, pas par un index, et c'est
+  /// le coeur de la correction : la liste affichee est
+  /// `configurableWidgets` (filtree des widgets retires), tandis que la
+  /// version precedente indexait dans `widgets` (complete). Les deux
+  /// coincident pour un utilisateur neuf, mais different d'un element pour
+  /// un utilisateur dont la configuration cite encore un widget retire --
+  /// deplacer la tuile N deplacait alors la N-1.
+  Future<void> reorder(DashboardWidgetId deplace, int nouvelIndex) async {
     final config = state.value ?? DashboardConfig.defaultConfig();
-    final widgets = List<DashboardWidgetConfig>.from(config.widgets)
-      ..sort((a, b) => a.order.compareTo(b.order));
 
-    final item = widgets.removeAt(oldIndex);
-    widgets.insert(newIndex, item);
+    final affiches = config.configurableWidgets;
+    final ancienIndex = affiches.indexWhere((w) => w.id == deplace);
+    if (ancienIndex < 0) return;
 
-    // Reassign order values
-    final updated = <DashboardWidgetConfig>[];
-    for (int i = 0; i < widgets.length; i++) {
-      updated.add(widgets[i].copyWith(order: i));
-    }
+    final item = affiches.removeAt(ancienIndex);
+    affiches.insert(nouvelIndex.clamp(0, affiches.length), item);
+
+    // Les widgets retires gardent leur place dans la configuration, apres
+    // les affiches : ils ne sont pas rendus, donc leur ordre relatif n'a
+    // aucun effet, mais les supprimer perdrait le reglage d'un utilisateur
+    // si le widget revenait un jour.
+    final idsAffiches = affiches.map((w) => w.id).toSet();
+    final retires =
+        config.widgets.where((w) => !idsAffiches.contains(w.id)).toList();
+
+    final updated = <DashboardWidgetConfig>[
+      for (var i = 0; i < affiches.length; i++) affiches[i].copyWith(order: i),
+      for (var j = 0; j < retires.length; j++)
+        retires[j].copyWith(order: affiches.length + j),
+    ];
 
     final newConfig = DashboardConfig(widgets: updated);
     state = AsyncValue.data(newConfig);

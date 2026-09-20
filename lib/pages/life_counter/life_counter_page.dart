@@ -19,6 +19,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:magic_companion/providers/active_game_provider.dart';
 import 'package:magic_companion/providers/counter_catalog_provider.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/player_zone_notifier.dart';
@@ -266,7 +267,20 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // Résolution précoce et unique : garantit que `dispose()` n'a jamais à
     // évaluer ce champ lui-même (voir sa déclaration plus haut).
     _sessionService = ref.read(gameSessionServiceProvider);
-    _snapshotWriter = SnapshotWriter(_sessionService);
+    // `activeGameProvider` ne surveille pas SharedPreferences : il faut le
+    // prevenir a chaque ecriture, sinon l'Accueil garde son cache. Branche
+    // sur l'ecriture EFFECTIVE, pas sur l'ordonnancement -- elle est
+    // debouncee, donc invalider a `schedule()` ferait relire l'ancien
+    // snapshot.
+    //
+    // Le container plutot que `ref` : le rappel peut arriver apres le
+    // demontage de la page (ecriture partie, utilisateur qui quitte), et
+    // `ref` est alors invalide.
+    final container = ProviderScope.containerOf(context, listen: false);
+    _snapshotWriter = SnapshotWriter(
+      _sessionService,
+      onWritten: () => container.invalidate(activeGameProvider),
+    );
     _loadGame();
     // Lot 5, tâche 2 : `counterCatalogProvider` ne rend que les compteurs
     // intégrés tant que `load()` n'a pas résolu les personnalisés (voir sa
@@ -957,11 +971,19 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // vient de terminer.
     final snapshotCancelled = _snapshotWriter.cancelPending();
 
+    // Capture AVANT le microtask : celui-ci survit au demontage de la page,
+    // et `context` n'y serait plus lisible.
+    final container = ProviderScope.containerOf(context, listen: false);
+
     // Bug 6 fix: Fire DB writes asynchronously without blocking UI
     Future.microtask(() async {
       await _gameHistoryService.addGame(newItem);
       await snapshotCancelled;
       await _sessionService.clearSnapshot();
+      // Apres l'effacement, jamais avant : sinon le provider relirait le
+      // snapshot encore present et l'Accueil continuerait de proposer de
+      // reprendre une partie terminee (critere n6 du plan).
+      container.invalidate(activeGameProvider);
     });
 
     if (mounted) {

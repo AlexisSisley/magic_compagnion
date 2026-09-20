@@ -50,7 +50,7 @@ class HomePage extends ConsumerWidget {
                   ),
                 ],
               ),
-              const Expanded(child: DashboardPage(isEmbedded: true)),
+              const Expanded(child: DashboardPage()),
 
               // Separateur : sans lui, la derniere carte du tableau de bord
               // se coupe net contre la rangee d'outils, en plein milieu d'une
