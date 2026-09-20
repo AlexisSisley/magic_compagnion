@@ -138,8 +138,16 @@ Route racine `/play`, plein écran, sans barre d'onglets.
 /play/odds         ex-tiroir « Calculateur Proba »
 ```
 
-**Barre d'outils interne** au mode Jeu, en bas : `Vies · Dés · Oracle ·
-Règles · Fin`. Elle remplace la barre d'onglets de l'app pendant la partie.
+**Barre d'outils interne** au mode Jeu, en bas : `Vies · Tournoi · Oracle ·
+Règles · Probas · Fin`. Elle remplace la barre d'onglets de l'app pendant la
+partie.
+
+*Amendement du 20/09/2026, après implémentation.* La spec annonçait d'abord
+`Vies · Dés · Oracle · Règles · Fin`. Deux erreurs : **aucun lanceur de dés
+n'existe dans l'app ni n'est planifié** — il avait été inventé en écrivant la
+spec ; et Tournoi et Probas manquaient alors que `/play/tournament` et
+`/play/odds` sont deux des six routes du mode Jeu. Sans leur bouton, ce sont
+des routes sans entrée.
 
 ### 5.1 Cycle de vie d'une partie
 
@@ -205,8 +213,8 @@ Material, et `AppColors.error` / `manaRed` du rouge Material. Un badge
 « possédée » et une carte verte se confondent donc à l'œil. Les familles
 sémantiques et les familles de domaine sont séparées :
 
-- **Sémantique** — `feedback/success` `#4FA96B`, `feedback/warning` `#D99B36`,
-  `feedback/danger` `#D9554F`, `feedback/info` `#4C8DF5`.
+- **Sémantique** — `feedback/success` `#6FD98F`, `feedback/warning` `#FFA94D`,
+  `feedback/danger` `#FF7A6E`, `feedback/info` `#7FB2FF`.
 - **Domaine** — `mana/W…G` et l'incolore, `rarity/*` (4 niveaux), `power/*`
   (casual → cEDH), `badge/*` (foil, possédée, wishlist).
 
@@ -222,10 +230,17 @@ Aucune valeur des deux familles ne doit être partagée.
   `google_fonts`, déjà au projet. Le choix est isolé dans
   `AppTextStyles.body()` et reste donc substituable en un point.
 - Les **182** sites `AppTextStyles.cinzel()` employés comme corps de texte
-  sont convertis en `AppTextStyles.body()`, qui existe déjà et n'est utilisé
-  que 6 fois aujourd'hui.
-- `AppTextStyles.cinzel()` reste en place comme API pour les titres, mais
-  n'est plus la fonction par défaut pour du texte courant.
+  sont convertis vers une nouvelle échappatoire `AppTextStyles.text()`, et
+  `AppTextStyles.cinzel()` est **supprimée**.
+
+  *Amendement du 20/09/2026, après implémentation.* La spec disait d'abord
+  « convertir vers `body()` » et « garder `cinzel()` ». Les deux étaient
+  faux : `body()` n'accepte ni `fontWeight` ni `fontStyle`, or une
+  quarantaine des 182 sites en passent un — la conversion les aurait perdus
+  en silence. Et garder `cinzel()` laissait l'échappatoire ouverte, alors
+  que c'est précisément son existence qui a fait dériver toute l'app vers
+  Cinzel. `text()` reprend la signature complète de `cinzel()` sur Source
+  Sans 3, et sa suppression est verrouillée par un test qui balaie `lib/`.
 
 ### 7.3 Texture
 

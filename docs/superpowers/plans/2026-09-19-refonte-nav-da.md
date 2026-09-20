@@ -431,10 +431,10 @@ Dans `lib/theme/app_theme.dart`, remplacer les quatre lignes sémantiques de `da
   // Semantique : valeurs propres, volontairement decalees des couleurs de
   // mana. Avant ce lot, success valait exactement manaGreen (0xFF4CAF50) et
   // un badge "possedee" etait indiscernable d'une carte verte.
-  success: Color(0xFF4FA96B),
-  warning: Color(0xFFD99B36),
-  danger: Color(0xFFD9554F),
-  info: Color(0xFF4C8DF5),
+  success: Color(0xFF6FD98F),
+  warning: Color(0xFFFFA94D),
+  danger: Color(0xFFFF7A6E),
+  info: Color(0xFF7FB2FF),
 ```
 
 - [ ] **Step 4: Lancer les tests**
@@ -589,10 +589,10 @@ const MagicPalette darkPalette = MagicPalette(
   accent: Color(0xFFC9A227),
   onAccent: Color(0xFF14120B),
 
-  success: Color(0xFF4FA96B),
-  warning: Color(0xFFD99B36),
-  danger: Color(0xFFD9554F),
-  info: Color(0xFF4C8DF5),
+  success: Color(0xFF6FD98F),
+  warning: Color(0xFFFFA94D),
+  danger: Color(0xFFFF7A6E),
+  info: Color(0xFF7FB2FF),
 );
 ```
 
