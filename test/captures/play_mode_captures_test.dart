@@ -136,7 +136,11 @@ void main() {
         await tester.pumpWidget(ProviderScope(
           overrides: [
             appDatabaseProvider.overrideWithValue(db),
-            activeGameProvider.overrideWith((ref) async => buildTestSession()),
+            // SANS partie en cours : c'est la seule situation ou la feuille
+            // s'ouvre d'elle-meme. Avec une partie, on arrive ici en SORTANT
+            // du mode Jeu, et surgir "configurer une nouvelle partie" serait
+            // l'inverse du geste.
+            activeGameProvider.overrideWith((ref) async => null),
           ],
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
@@ -155,11 +159,12 @@ void main() {
           matchesGoldenFile('goldens/30_play_setup.png'));
     });
 
-    testWidgets('33 - mise en place : etat vide, feuille refermee',
+    testWidgets('33 - mise en place : etat vide avec reprise possible',
         (tester) async {
-      // L'autre moitie de l'ecran : ce qu'on voit si on referme la feuille
-      // sans configurer. C'est la que se juge si le bouton de reprise se
-      // distingue de celui de configuration.
+      // L'autre moitie de l'ecran, et le cas le plus courant : on y arrive
+      // en sortant d'une partie par "Fin". La feuille ne surgit pas, et
+      // c'est ici que se juge si le bouton de reprise se distingue de celui
+      // de configuration.
       _setSurfaceSize(tester, const Size(390, 844));
 
       await _runGuarded(() async {
@@ -174,9 +179,6 @@ void main() {
             home: const PlaySetupPage(),
           ),
         ));
-        await tester.pumpAndSettle();
-
-        tester.state<NavigatorState>(find.byType(Navigator).last).pop();
         await tester.pumpAndSettle();
       });
 

@@ -23,6 +23,7 @@ import '../../models/game_session.dart';
 import '../../models/player_config.dart';
 import '../../models/profile_model.dart';
 import '../../providers/active_game_provider.dart';
+import '../../providers/player_zone_notifier.dart';
 import '../../providers/service_providers.dart';
 import '../../router/app_routes.dart';
 import '../../theme/app_text_styles.dart';
@@ -96,6 +97,14 @@ class _PlaySetupPageState extends ConsumerState<PlaySetupPage> {
     final session = GameSession.newGame(format: format, playerConfigs: configs);
     await ref.read(gameSessionServiceProvider).saveSnapshot(session);
     ref.invalidate(activeGameProvider);
+
+    // Indispensable, et facile a oublier : `playerZoneNotifierProvider` n'est
+    // pas autoDispose. Son etat -- mode ajustement, accumulateurs -- survit a
+    // la partie precedente. Demarrer par snapshot ne passe pas par
+    // `LifeCounterPage._startNewGame`, qui faisait ce reset : sans lui ici,
+    // une partie neuve peut s'ouvrir avec une zone deja en ajustement.
+    if (!context.mounted) return;
+    resetPlayerZones(ProviderScope.containerOf(context), configs.length);
 
     if (!context.mounted) return;
     context.go(AppRoutes.playCounter);

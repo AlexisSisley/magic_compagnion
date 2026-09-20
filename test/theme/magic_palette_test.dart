@@ -234,14 +234,22 @@ void main() {
       expect(AppColors.rarityMythic, const Color(0xFFFF4500));
     });
 
-    test('les encres restent les blancs translucides', () {
-      // Decision assumee : inkMuted (#75705F) tombe a 3,55:1 sur raised, sous
-      // AA, alors que white54 y tient 5,89:1. 224 sites lisent textMuted, dont
-      // beaucoup pour du texte. Migrer les encres les casserait tous -- c'est
-      // la meme faute que C-1, a 224 exemplaires.
-      expect(AppColors.textPrimary, Colors.white);
-      expect(AppColors.textSecondary, Colors.white70);
+    test('les deux encres principales valent celles de la palette', () {
+      // Sans cet alignement, un ecran migre et un ecran non migre affichent
+      // deux blancs differents la ou ils se touchent -- blanc pur contre
+      // blanc chaud, a deux lignes d'ecart dans une meme Card.
+      expect(AppColors.textPrimary, darkPalette.inkPrimary);
+      expect(AppColors.textSecondary, darkPalette.inkSecondary);
+    });
+
+    test('textMuted reste white54 et NE suit PAS inkMuted', () {
+      // Le seul jeton d'encre volontairement desaligne, et la raison tient
+      // au contraste : inkMuted (#75705F) tombe a 3,55:1 sur une carte, sous
+      // AA, quand white54 y tient 5,89:1. 224 sites lisent textMuted, souvent
+      // pour du texte -- les aligner reproduirait 224 fois la regression de
+      // contraste corrigee sur la barre d'onglets.
       expect(AppColors.textMuted, Colors.white54);
+      expect(AppColors.textMuted, isNot(darkPalette.inkMuted));
     });
   });
 }

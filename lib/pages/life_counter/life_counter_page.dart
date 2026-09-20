@@ -442,11 +442,12 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // son état (mode ajustement, accumulateurs, nombres flottants en cours)
     // traverse donc le cycle de vie des parties. Sans ce reset, une zone
     // pouvait rouvrir une nouvelle partie déjà en mode ajustement, sans que
-    // l'utilisateur ait rien fait. Les identifiants de joueur d'une partie
-    // sont toujours 0..playerCount-1 (voir GameSession.newGame).
-    for (var i = 0; i < playerCount; i++) {
-      ref.read(playerZoneNotifierProvider(i).notifier).reset();
-    }
+    // l'utilisateur ait rien fait.
+    //
+    // Extrait dans `resetPlayerZones` : la mise en place du mode Jeu demarre
+    // une partie par snapshot et ne passe pas ici. Deux appelants, une seule
+    // implementation, sinon l'un des deux derive.
+    resetPlayerZones(ProviderScope.containerOf(context), playerCount);
 
     setState(() {});
     _saveSnapshot();

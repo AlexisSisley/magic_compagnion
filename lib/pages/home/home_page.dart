@@ -51,9 +51,20 @@ class HomePage extends ConsumerWidget {
                 ],
               ),
               const Expanded(child: DashboardPage(isEmbedded: true)),
-              const SizedBox(height: 8),
+
+              // Separateur : sans lui, la derniere carte du tableau de bord
+              // se coupe net contre la rangee d'outils, en plein milieu d'une
+              // phrase. Le contenu n'est pas perdu -- le tableau de bord est
+              // un SingleChildScrollView -- mais un bord franc au milieu d'un
+              // texte se lit comme du texte tronque, pas comme une limite de
+              // zone. Le trait dit que c'en est une.
+              Container(
+                height: 1,
+                margin: const EdgeInsets.only(top: 4),
+                color: p.line,
+              ),
               const _RangeeOutils(),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               _BoutonPartie(partieEnCours: partieEnCours),
               const SizedBox(height: 12),
             ],

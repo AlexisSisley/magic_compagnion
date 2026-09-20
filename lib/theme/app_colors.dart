@@ -90,8 +90,21 @@ abstract final class AppColors {
   // TEXT
   // ============================================================
 
-  static const Color textPrimary = Colors.white;
-  static const Color textSecondary = Colors.white70;
+  /// Encres, alignees sur MagicPalette (inkPrimary / inkSecondary).
+  ///
+  /// Sans cet alignement, un ecran migre et un ecran non migre affichent deux
+  /// blancs differents la ou ils se touchent : blanc pur contre blanc chaud,
+  /// visible a deux lignes d'ecart dans une meme Card.
+  ///
+  /// Contraste sur le canvas Grimoire : 16,76:1 et 7,68:1 -- au-dessus de
+  /// AAA et de AA.
+  static const Color textPrimary = Color(0xFFF2EFE6);
+  static const Color textSecondary = Color(0xFFA9A396);
+
+  /// PAS aligne sur `inkMuted`, et c'est delibere : #75705F tombe a 3,55:1
+  /// sur une carte, sous le seuil AA. 224 sites lisent `textMuted`, souvent
+  /// pour du texte -- les migrer reproduirait 224 fois la regression de
+  /// contraste corrigee sur la barre d'onglets.
   static const Color textMuted = Colors.white54;
   static const Color textDisabled = Colors.white30;
   static const Color textOnPrimary = Colors.black;

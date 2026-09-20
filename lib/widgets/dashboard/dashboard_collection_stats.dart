@@ -40,7 +40,7 @@ class DashboardCollectionStats extends StatelessWidget {
         if (isEmpty)
           DashboardEmptyState(
             icon: Icons.bar_chart,
-            message: 'Scannez votre premiere carte !',
+            message: 'Scannez votre première carte !',
             actionLabel: 'Scanner',
             onAction: () => context.go(AppRoutes.scanner),
           )

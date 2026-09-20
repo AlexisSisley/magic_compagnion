@@ -1,5 +1,14 @@
 // Fichier : lib/widgets/dashboard/dashboard_quick_actions.dart
-// Actions rapides : Scanner, Nouveau Deck, Recherche, Collection.
+// Actions rapides du tableau de bord.
+//
+// Deux entrees seulement, et c'est le point. Cette rangee proposait aussi
+// Recherche et Collection -- deux des cinq onglets, a deux centimetres en
+// dessous. La refonte existe pour supprimer la navigation en double ; en
+// laisser une nouvelle en haut de l'Accueil aurait ete contradictoire.
+//
+// Scanner reste parce que c'est l'action la plus frequente, et qu'une action
+// n'est pas une destination. Nouveau Deck reste parce que creer un deck
+// n'est pas un onglet.
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -23,20 +32,8 @@ class DashboardQuickActions extends StatelessWidget {
         const SizedBox(width: 10),
         _QuickActionButton(
           icon: Icons.add_circle_outline,
-          label: 'Deck',
+          label: 'Nouveau deck',
           onTap: () => context.go(AppRoutes.decks),
-        ),
-        const SizedBox(width: 10),
-        _QuickActionButton(
-          icon: Icons.search,
-          label: 'Recherche',
-          onTap: () => context.go(AppRoutes.search),
-        ),
-        const SizedBox(width: 10),
-        _QuickActionButton(
-          icon: Icons.inventory_2_outlined,
-          label: 'Collection',
-          onTap: () => context.go(AppRoutes.collection),
         ),
       ],
     );

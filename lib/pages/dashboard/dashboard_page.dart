@@ -120,7 +120,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           _editMode ? Icons.check : Icons.edit_outlined,
           color: _editMode ? AppColors.primaryGold : AppColors.textPrimary,
         ),
-        tooltip: _editMode ? 'Terminer' : 'Reorganiser le tableau de bord',
+        tooltip: _editMode ? 'Terminer' : 'Réorganiser le tableau de bord',
         onPressed: () => setState(() => _editMode = !_editMode),
       ),
     ];
@@ -298,13 +298,13 @@ class _EditWidgetPreview extends StatelessWidget {
       case DashboardWidgetId.quickActions:
         return 'Actions rapides';
       case DashboardWidgetId.collectionSummary:
-        return 'Resume Collection';
+        return 'Résumé Collection';
       case DashboardWidgetId.valueChart:
-        return 'Evolution Valeur';
+        return 'Évolution Valeur';
       case DashboardWidgetId.recentScans:
         return 'Derniers Scans';
       case DashboardWidgetId.recentDecks:
-        return 'Decks Recents';
+        return 'Decks Récents';
       case DashboardWidgetId.favoriteDeck:
         return 'Deck Favori';
       case DashboardWidgetId.collectionStats:
