@@ -13,9 +13,8 @@ import 'app_routes.dart';
 import 'app_shell_scaffold.dart';
 import 'cards_routes.dart';
 import 'collections_routes.dart';
-import 'dashboard_routes.dart';
+import 'home_routes.dart';
 import 'decks_routes.dart';
-import 'life_counter_routes.dart';
 import 'play_routes.dart';
 import 'scanner_routes.dart';
 import 'settings_routes.dart';
@@ -40,7 +39,7 @@ GoRouter createAppRouter() {
   }());
 
   return GoRouter(
-    initialLocation: AppRoutes.lifeCounter,
+    initialLocation: AppRoutes.home,
     debugLogDiagnostics: kDebugMode,
     redirect: _onboardingRedirect,
     routes: [
@@ -50,34 +49,23 @@ GoRouter createAppRouter() {
         builder: (context, state) => const OnboardingPage(),
       ),
 
-      // Shell route pour le BottomNavigationBar + Drawer
-      ShellRoute(
-        builder: (context, state, child) {
-          return AppShellScaffold(
-            currentLocation: state.uri.toString(),
-            child: child,
-          );
-        },
-        routes: [
-          // US-LC01 : Life Counter en tab0 (remplace dashboardShellRoute)
-          lifeCounterShellRoute(),
-          scannerShellRoute(),
-          cardSearchShellRoute(),
-          deckShellRoute(),
-          collectionShellRoute(),
+      // Shell a cinq branches : chaque onglet garde sa propre pile.
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            AppShellScaffold(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(routes: [homeBranchRoute()]),
+          StatefulShellBranch(routes: [scannerBranchRoute()]),
+          StatefulShellBranch(routes: [searchBranchRoute()]),
+          StatefulShellBranch(routes: [decksBranchRoute()]),
+          StatefulShellBranch(routes: [collectionBranchRoute()]),
         ],
       ),
 
-      // --- Routes par domaine (push par-dessus le shell) ---
-      // US-LC03 : Dashboard est maintenant une route Drawer
-      ...dashboardRoutes(),
-      ...lifeCounterRoutes(),
+      // Hors shell, plein ecran assume.
       ...playRoutes(),
       ...toolsRoutes(),
       ...settingsRoutes(),
-      ...scannerDetailRoutes(),
-      ...collectionDetailRoutes(),
-      ...deckDetailRoutes(),
     ],
   );
 }

@@ -55,7 +55,9 @@ class AppRoutes {
   static const String globalStats = '/collection/stats';
   static const String setDetail = '/collection/set';
   static const String setStats = '/collection/set/stats';
-  static const String wishlistDetail = '/wishlists/detail';
+  // Passe sous la branche Collection : une wishlist s'ouvre depuis la
+  // collection, et la laisser a la racine la ferait sortir du shell.
+  static const String wishlistDetail = '/collection/wishlist-detail';
   static const String deckDetail = '/decks/detail';
   static const String gameHistoryDetail = '/game-history/detail';
   static const String scanHistory = '/scanner/history';

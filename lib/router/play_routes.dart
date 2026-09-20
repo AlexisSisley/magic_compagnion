@@ -12,6 +12,7 @@ import '../pages/glossary/glossary_page.dart';
 import '../pages/life_counter/life_counter_page.dart';
 import '../pages/oracle/magic_oracle_page.dart';
 import '../pages/play/play_setup_page.dart';
+import '../pages/life_counter/table_view_page.dart';
 import '../pages/tools/hypergeometric_page.dart';
 import '../pages/tournaments/tournament_page.dart';
 import 'app_routes.dart';
@@ -31,6 +32,14 @@ List<RouteBase> playRoutes() {
       path: AppRoutes.playSetup,
       builder: (context, state) => const PlaySetupPage(),
     ),
+    // Vue table : plein ecran assume, HORS du ShellRoute du mode Jeu -- elle
+    // a besoin de toute la hauteur, sans barre d'outils de partie. Vient de
+    // life_counter_routes.dart, supprime avec le passage aux branches.
+    GoRoute(
+      path: AppRoutes.tableView,
+      builder: (context, state) => const TableViewPage(),
+    ),
+
     ShellRoute(
       builder: (context, state, child) => PlayShell(
         currentLocation: state.uri.toString(),

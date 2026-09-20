@@ -1,5 +1,6 @@
 // Fichier : lib/router/decks_routes.dart
-// Routes liees aux decks (liste, detail).
+// Branche Decks du shell : la liste, le detail d'un deck, et la fiche carte
+// qu'on ouvre depuis une decklist.
 
 import 'package:go_router/go_router.dart';
 
@@ -7,28 +8,23 @@ import '../models/deck_model.dart';
 import '../pages/decks/deck_detail_page.dart';
 import '../pages/decks/deck_list_page.dart';
 import 'app_routes.dart';
+import 'card_detail_route.dart';
 import 'page_transitions.dart';
 
-/// Routes de detail pour les decks (push par-dessus le shell).
-List<RouteBase> deckDetailRoutes() {
-  return [
-    GoRoute(
-      path: AppRoutes.deckDetail,
-      builder: (context, state) {
-        final deck = state.extra as Deck;
-        return DeckDetailPage(deck: deck);
-      },
-    ),
-  ];
-}
-
-/// Route shell pour l'onglet decks.
-GoRoute deckShellRoute() {
+GoRoute decksBranchRoute() {
   return GoRoute(
-    path: '/decks',
+    path: AppRoutes.decks,
     pageBuilder: (context, state) => FadeThroughPage(
       key: state.pageKey,
       child: const DeckListPage(),
     ),
+    routes: [
+      GoRoute(
+        path: 'detail',
+        builder: (context, state) =>
+            DeckDetailPage(deck: state.extra as Deck),
+      ),
+      cardDetailRoute(),
+    ],
   );
 }
