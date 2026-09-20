@@ -5,14 +5,12 @@
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/magic_palette.dart';
-import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../providers/service_providers.dart';
 import 'app_routes.dart';
 
 /// Shell scaffold avec BottomNavigationBar et Drawer.
@@ -31,126 +29,7 @@ class AppShellScaffold extends ConsumerStatefulWidget {
   ConsumerState<AppShellScaffold> createState() => _AppShellScaffoldState();
 }
 
-class _AppShellScaffoldState extends ConsumerState<AppShellScaffold>
-    with WidgetsBindingObserver {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkDriveBackupOnStart());
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      _performAutoBackup();
-    }
-  }
-
-  Future<void> _performAutoBackup() async {
-    final driveService = ref.read(googleDriveServiceProvider);
-    final backupService = ref.read(backupServiceProvider);
-    if (driveService.isSignedIn) {
-      log('D\u00e9but sauvegarde automatique Drive...', name: 'AppShell');
-      final jsonString = await backupService.generateBackupJson();
-      await driveService.uploadBackup(jsonString);
-    }
-  }
-
-  Future<void> _checkDriveBackupOnStart() async {
-    final driveService = ref.read(googleDriveServiceProvider);
-    final backupService = ref.read(backupServiceProvider);
-    final signedIn = await driveService.signIn(silent: true);
-
-    if (signedIn) {
-      final backupFile = await driveService.findBackupFile();
-
-      if (backupFile != null && mounted) {
-        String dateStr = 'Inconnue';
-        if (backupFile.modifiedTime != null) {
-          dateStr =
-              '${backupFile.modifiedTime!.day}/${backupFile.modifiedTime!.month} \u00e0 ${backupFile.modifiedTime!.hour}:${backupFile.modifiedTime!.minute}';
-        }
-
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: AppColors.scaffoldBackground,
-            title: const Row(
-              children: [
-                Icon(Icons.cloud_download, color: AppColors.accent),
-                SizedBox(width: 10),
-                Expanded(
-                    child: Text('Sauvegarde trouv\u00e9e',
-                        style: TextStyle(color: AppColors.textPrimary))),
-              ],
-            ),
-            content: Text(
-              'Une sauvegarde a \u00e9t\u00e9 trouv\u00e9e sur votre Google Drive datant du $dateStr.\nVoulez-vous la restaurer maintenant ?',
-              style: AppTextStyles.text(color: AppColors.textSecondary),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Ignorer',
-                    style: TextStyle(color: AppColors.textMuted)),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  _restoreFromDrive(backupFile.id!, driveService, backupService);
-                },
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade900),
-                child: const Text('Restaurer',
-                    style: TextStyle(color: AppColors.textPrimary)),
-              ),
-            ],
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _restoreFromDrive(String fileId, dynamic driveService, dynamic backupService) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) => const Center(child: CircularProgressIndicator()),
-    );
-
-    try {
-      final jsonString = await driveService.downloadBackup(fileId);
-      if (jsonString != null) {
-        await backupService.restoreFromJson(jsonString);
-        if (mounted) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Restauration r\u00e9ussie !'),
-                backgroundColor: AppColors.success),
-          );
-          context.go(AppRoutes.lifeCounter);
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Erreur restauration : $e'),
-              backgroundColor: AppColors.error),
-        );
-      }
-    }
-  }
-
+class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
   @override
   Widget build(BuildContext context) {
     final tabIndex = locationToTabIndex(widget.currentLocation);
