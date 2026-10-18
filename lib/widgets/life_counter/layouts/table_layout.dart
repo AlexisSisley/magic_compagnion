@@ -3,7 +3,11 @@ import 'dart:ui';
 
 import 'package:magic_companion/models/table_seat.dart';
 import 'package:magic_companion/widgets/life_counter/zone/action_hub.dart';
-import 'package:magic_companion/widgets/life_counter/layouts/density_tier.dart';
+// `density_tier.dart` n'est plus importé ICI : `kCompactShortEdge`
+// (ci-dessous) recopie le seuil `compact` de `tierFor` en littéral documenté,
+// à l'image de `kActionWidth` qui recopie `kMinInteractiveDimension` --
+// convention locale plutôt qu'une dépendance au fichier de densité, qui lui
+// s'applique au repère d'UNE zone après rotation, pas à l'écran entier.
 
 /// Forme que prend l'accès aux actions de partie.
 enum ActionBarKind {
@@ -14,10 +18,18 @@ enum ActionBarKind {
   band,
 }
 
-/// Largeur minimale d'une colonne latérale : le plancher de la zone, plus une
-/// marge de respiration sans laquelle la colonne est techniquement conforme et
-/// visuellement inutilisable.
-const double kSideColumnNeed = kZoneShortEdgeFloor + 26.0;
+/// Petit côté minimal pour qu'une zone tienne le cran `compact` (nom + PV +
+/// poignée). Valeur lue sur le seuil de `tierFor`.
+const double kCompactShortEdge = 110.0;
+
+/// Largeur minimale d'une colonne latérale.
+///
+/// DÉRIVÉE de `kCompactShortEdge`, et non plus de `kZoneShortEdgeFloor`
+/// (spec §1.1) : une colonne au plancher absolu tombait au cran `minimal`,
+/// donc sans nom ni compteurs, pendant que son voisin de face avait cinq
+/// fois la surface. Une colonne se paie désormais au cran `compact`, ou ne
+/// se prend pas.
+const double kSideColumnNeed = kCompactShortEdge + 26.0;
 
 // Tâche 6 (ronde de correction 1) : les infos de partie n'avaient qu'un
 // appui long caché sur le bouton d'orientation comme seul chemin d'accès --
@@ -87,6 +99,30 @@ class TableLayout {
   final List<TableSeat> seats;
 }
 
+/// Arrangement retenu pour un écran et un nombre de joueurs (spec §1.4).
+///
+/// **La règle du grand côté.** Une zone est orientée de façon à ce que son
+/// sens de lecture suive son GRAND côté. Une zone plus haute que large
+/// reçoit donc un quart de tour ; une zone plus large que haute n'en reçoit
+/// pas. C'est pourquoi l'écran déplié (zone 420×350) reste en face-à-face
+/// alors que l'écran replié (zone 195×422) passe en colonnes.
+///
+/// Au-delà de 4 joueurs, une grille égale n'est pas réalisable et
+/// l'arrangement `around` reprend la main — sous réserve que les colonnes
+/// soient payables, ce que `tableLayoutFor` vérifie ensuite.
+TableArrangement arrangementFor(Size size, int playerCount) {
+  if (playerCount > 4) return TableArrangement.around;
+
+  // Grille égale : 2 colonnes dès 3 joueurs, 1 seule à 2 joueurs.
+  final columns = playerCount <= 2 ? 1 : 2;
+  final rows = (playerCount / columns).ceil();
+  final zone = Size(size.width / columns, size.height / rows);
+
+  return zone.height > zone.width
+      ? TableArrangement.columnPairs
+      : TableArrangement.faceToFace;
+}
+
 /// Décide de la disposition (spec §3 et §4).
 ///
 /// Le défaut que cette fonction existe pour empêcher : le lot 6 donnait 30 % de
@@ -98,6 +134,21 @@ class TableLayout {
 /// indépendants, et à défaut il n'y en a aucune.
 TableLayout tableLayoutFor(Size size, int playerCount) {
   final shortEdge = math.min(size.width, size.height);
+
+  // Ruling 21 (18/10/2026) : une étape 3bis avait un temps restreint la bande
+  // aux dispositions à « frontière pleine largeur » (2 joueurs, et au-delà de
+  // 4), en partant d'une capture où la table était INÉQUITABLE -- deux
+  // joueurs à 67 % de la largeur, deux à 13 %. Dans cet état, une bande entre
+  // les deux rangées aggravait un déséquilibre déjà là. Mais c'est
+  // l'inéquité elle-même, pas la bande, qui causait le défaut constaté : une
+  // fois les quatre zones rendues égales (ce que cette tâche fait par
+  // ailleurs), une bande horizontale entre les deux rangées retire la MÊME
+  // hauteur à tout le monde -- elle ne lèse plus personne, à 3 et 4 joueurs
+  // comme ailleurs. Restreindre `barKind` au nombre de joueurs aurait
+  // supprimé l'affichage permanent du chrono de partie (porté par la bande)
+  // pour les effectifs Commander les plus courants, sans que ce soit demandé
+  // ni validé sur aucune maquette. `barKind` ne dépend donc que de la forme
+  // de l'écran, comme avant cette tâche.
   final barKind = shortEdge < kLargeScreenShortEdge
       ? ActionBarKind.hub
       : ActionBarKind.band;
@@ -109,7 +160,21 @@ TableLayout tableLayoutFor(Size size, int playerCount) {
         seats: seatsFor(playerCount, allowSideColumns: false),
       );
 
-  final wanted = seatsFor(playerCount);
+  final arrangement = arrangementFor(size, playerCount);
+
+  // Équité : jusqu'à 4 joueurs, la grille est égale et personne n'est
+  // relégué dans une bande. Les colonnes latérales n'existent plus que là
+  // où une grille égale est impossible.
+  if (arrangement != TableArrangement.around) {
+    return TableLayout(
+      useSideColumns: false,
+      sideWidth: 0.0,
+      barKind: barKind,
+      seats: seatsForArrangement(playerCount, arrangement),
+    );
+  }
+
+  final wanted = seatsForArrangement(playerCount, arrangement);
   final wantsSides = wanted.any(
       (s) => s.side == TableSide.left || s.side == TableSide.right);
   if (!wantsSides) return fallback();

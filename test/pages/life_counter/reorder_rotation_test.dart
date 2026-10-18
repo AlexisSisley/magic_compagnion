@@ -15,13 +15,21 @@
 // Ronde de correction 1 (tâche 5) : `_onReorderPlayers` posait ses sièges via
 // `seatsFor(order.length)` en direct, sans jamais `allowSideColumns: false` —
 // alors que la disposition RÉELLEMENT rendue est décidée par
-// `tableLayoutFor(size, playerCount)`, qui replie en face-à-face quand
-// l'écran ne peut pas payer de colonne latérale (téléphone en portrait,
-// §3.3). Deux sources de vérité sur la géométrie qui divergeaient — la même
-// classe de défaut que le double-pivotement du lot 6. Le troisième test
-// verrouille la correction : sur un écran portrait étroit, où la grille
-// replie en face-à-face, les rotations posées par un reorder ne doivent
-// jamais être 1 ni 3 (colonnes latérales), seulement 0 ou 2.
+// `tableLayoutFor(size, playerCount)`. Deux sources de vérité sur la
+// géométrie qui divergeaient — la même classe de défaut que le
+// double-pivotement du lot 6. Le troisième test verrouille la correction :
+// sur un écran portrait étroit, il lit les rotations RÉELLEMENT affichées,
+// quelles qu'elles soient.
+//
+// Tâche 3 (spec §1.4, règle du grand côté) : à 4 joueurs sur un écran
+// replié, `tableLayoutFor` pose désormais `columnPairs` (colonnes gauche/
+// droite, quarts de tour 1/3) au lieu du repli face-à-face historique — ce
+// fichier a été mis à jour en conséquence (quatrième effectif de zones
+// égales qui bascule selon la forme de l'écran, pas seulement selon
+// l'espace pour des colonnes latérales). Les deux premiers tests, eux,
+// tournent sur un écran large (900×700) où la grille à 4 joueurs est
+// désormais `faceToFace` (deux quadrants égaux, spec §1.1) plutôt que
+// l'ancien modèle à colonnes latérales permanentes.
 
 import 'dart:convert';
 
@@ -162,14 +170,18 @@ void main() {
         reason: 'idem pour le joueur 2, non déplacé');
 
     // Les joueurs 0 et 3 ont échangé de siège : ils prennent la rotation du
-    // siège qu'ils occupent désormais (seatsFor(4) : sides
-    // [top, right, bottom, left] -> quarterTurns [2, 3, 0, 1]). Le joueur 3
-    // atterrit en position 0 (top -> 2), le joueur 0 en position 3
-    // (left -> 1).
+    // siège qu'ils occupent désormais. Tâche 3 (spec §1.1) : à 4 joueurs sur
+    // cet écran large (900×700, zone 450×350 plus large que haute),
+    // `tableLayoutFor` pose `faceToFace` -- `[top, top, bottom, bottom]` ->
+    // quarterTurns `[2, 2, 0, 0]` -- et non plus l'ancien modèle à colonnes
+    // latérales permanentes. Le joueur 3 atterrit en position 0 (top -> 2,
+    // inchangé par rapport à l'ancien modèle, qui mettait aussi `top` en
+    // position 0) ; le joueur 0 en position 3 (bottom -> 0, PAS `left` -> 1 :
+    // les colonnes latérales à 4 joueurs n'existent plus du tout).
     expect(byId(3).quarterTurns, 2,
         reason: 'joueur 3 déplacé en position 0 (siège "top")');
-    expect(byId(0).quarterTurns, 1,
-        reason: 'joueur 0 déplacé en position 3 (siège "left")');
+    expect(byId(0).quarterTurns, 0,
+        reason: 'joueur 0 déplacé en position 3 (siège "bottom")');
   });
 
   testWidgets(
@@ -192,10 +204,15 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('action-orientation-presets')));
     await tester.pumpAndSettle();
-    // "Face à face" à 4 joueurs pose [2, 2, 0, 0] dans l'ordre d'AFFICHAGE
-    // courant [3, 1, 2, 0] : position0(joueur3)->2, position1(joueur1)->2,
-    // position2(joueur2)->0, position3(joueur0)->0.
-    await tester.tap(find.text('Face à face'));
+    // Tâche 3 (spec §1.1) : à 4 joueurs sur cet écran (900×700), la grille
+    // réelle est désormais `faceToFace` -- le bouton "Face à face" n'est
+    // plus proposé du tout (il n'existe que là où il DIFFÈRE de "Table",
+    // voir `_getOrientationPresets`) : les deux presets posent la même
+    // géométrie. On tape donc "Table", qui pose [2, 2, 0, 0] dans l'ordre
+    // d'AFFICHAGE courant [3, 1, 2, 0] : position0(joueur3)->2,
+    // position1(joueur1)->2, position2(joueur2)->0, position3(joueur0)->0 --
+    // le même tableau qu'avant cette tâche, seul le nom du bouton change.
+    await tester.tap(find.text('Table'));
     await tester.pumpAndSettle();
 
     final session = container.read(gameSessionNotifierProvider)!;
@@ -214,9 +231,19 @@ void main() {
     );
   });
 
+  // Tâche 3 (spec §1.4, règle du grand côté) : avant cette tâche, 390×844
+  // repliait en face-à-face (aucune colonne latérale ne tenait sur un
+  // téléphone en portrait, §3.3 d'origine) -- ce test interdisait alors 1 et
+  // 3. La règle du grand côté change ce résultat : la zone d'une grille 2×2
+  // y fait 195×422, plus haute que large, donc `tableLayoutFor` pose
+  // désormais `columnPairs` (colonnes gauche à 90°, droite à 270°) -- c'est
+  // le comportement VOULU par cette tâche, pas un défaut. Le test est
+  // retourné pour verrouiller cette nouvelle réalité : un reorder doit lire
+  // les rotations RÉELLEMENT affichées (1/3 ici), jamais une valeur figée
+  // d'avant cette tâche.
   testWidgets(
-      'sur un écran portrait étroit (repli face-à-face), un reorder ne '
-      'pose jamais de siège latéral (1 ou 3)', (tester) async {
+      'sur un écran portrait étroit, un reorder pose les rotations '
+      'columnPairs réellement affichées (1 ou 3)', (tester) async {
     // Mode édition activé pendant que la bande est visible (écran large) :
     // c'est le seul endroit où vit le bouton "build" tant que le hub
     // d'actions (tâche 6) n'existe pas -- l'état `_isEditMode` survit
@@ -225,18 +252,17 @@ void main() {
     await _toggleEditMode(tester);
 
     // Redimensionne vers un téléphone en portrait étroit : 390×844, plus
-    // petit côté sous `kLargeScreenShortEdge` (600) ET portrait (largeur <
-    // hauteur), donc `tableLayoutFor` replie en face-à-face — la grille
-    // affiche réellement [haut, haut, bas, bas], jamais des colonnes
-    // latérales gauche/droite.
+    // petit côté sous `kLargeScreenShortEdge` (600) ET zone 2×2 (195×422)
+    // plus haute que large, donc `tableLayoutFor` pose `columnPairs` --
+    // `[left, right, left, right]` -> quarterTurns `[1, 3, 1, 3]`.
     _setScreenSize(tester, const Size(390, 844));
     await tester.pumpAndSettle();
 
-    // Échange les positions 1 et 3 : avec l'ancien `seatsFor(4)` en colonnes
-    // (top, right, bottom, left), la position 1 aurait pris `right` (3) et
-    // la position 3 aurait pris `left` (1) -- les deux valeurs que ce test
-    // interdit. Avec le repli face-à-face réellement affiché, la position 1
-    // est `top` (2) et la position 3 est `bottom` (0).
+    // Échange les positions 1 et 3 : toutes deux sont `right` dans
+    // `columnPairs` (indices impairs, voir `_columnPairs`), donc les DEUX
+    // joueurs déplacés prennent la même rotation (3), qu'ils aient
+    // effectivement échangé de côté ou non -- un reorder entre deux sièges
+    // du même côté ne change pas leur orientation, seulement leur ordre.
     await _dragReorder(tester, fromPlayerId: 1, toPlayerId: 3);
 
     final session = container.read(gameSessionNotifierProvider)!;
@@ -249,18 +275,14 @@ void main() {
 
     expect(
       rotations,
-      everyElement(anyOf(0, 2)),
-      reason: 'la grille affichée replie en face-à-face (repli portrait '
-          'étroit) : aucune zone n\'est réellement dans une colonne '
-          'latérale, donc aucune rotation posée par le reorder ne doit '
-          'valoir 1 ou 3 -- lire les sièges via `seatsFor` en direct, sans '
-          'passer par `tableLayoutFor`, poserait 1 et 3 ici (deux sources '
-          'de vérité sur la géométrie qui divergent, comme le '
+      [0, 3, 0, 3],
+      reason: 'joueur 3 (déplacé en position 1, "right" de columnPairs) '
+          'prend 3 ; joueur 1 (déplacé en position 3, "right" aussi) prend '
+          '3 également ; joueurs 0 et 2, non déplacés, restent à 0 -- lire '
+          'les sièges via `seatsFor` en direct, sans passer par '
+          '`tableLayoutFor`, donnerait une disposition différente ici (deux '
+          'sources de vérité sur la géométrie qui divergent, comme le '
           'double-pivotement du lot 6)',
     );
-    expect(rotations, [0, 0, 0, 2],
-        reason: 'joueur 3 (déplacé en position 1, "top" du repli) prend 2 ; '
-            'joueur 1 (déplacé en position 3, "bottom" du repli) prend 0 ; '
-            'joueurs 0 et 2, non déplacés, restent à 0');
   });
 }

@@ -2528,10 +2528,18 @@ void main() {
   //
   //   n=2 : [top, bottom]                              -> [2, 0]
   //   n=3 : [top, bottom, bottom]                      -> [2, 0, 0]
-  //   n=4 : [top, right, bottom, left]                 -> [2, 3, 0, 1]
+  //   n=4 : [top, top, bottom, bottom]                 -> [2, 2, 0, 0]
   //   n=5 : [top, top, right, bottom, left]            -> [2, 2, 3, 0, 1]
   //   n=6 : [top, top, right, bottom, bottom, left]    -> [2, 2, 3, 0, 0, 1]
   //   n=7 : repli face-à-face (playerCount > 6)        -> [2,2,2,0,0,0,0]
+  //
+  // Tâche 3 (spec §1.1, équité des surfaces) : à 4 joueurs, il n'y a plus de
+  // colonnes latérales du tout (zone 450×350 à cet écran, plus large que
+  // haute, donc `faceToFace` -- règle du grand côté, §1.4). AVANT cette
+  // tâche, n=4 utilisait encore le modèle à colonnes latérales permanentes
+  // ([top, right, bottom, left] -> [2, 3, 0, 1]) : seuls 5 et 6 joueurs le
+  // conservent désormais, une grille égale n'étant pas réalisable à ces
+  // effectifs.
   //
   // Les listes en dur de 2 à 6 joueurs disaient [2,2,0,0] à quatre : AUCUN des
   // cinq presets ne produisait l'orientation juste, et l'aperçu — qui lit déjà
@@ -2539,20 +2547,26 @@ void main() {
   //
   // « Côtés », « Triangle » et « Cercle » ont disparu : ils ne décrivaient
   // aucune disposition de sièges. « Face à face » n'est proposé que là où il
-  // DIFFÈRE de « Table », donc à 4, 5 et 6 joueurs sur cet écran — les deux
-  // tests d'absence ci-dessous verrouillent cette règle.
+  // DIFFÈRE de « Table », donc à 5 et 6 joueurs sur cet écran -- plus à 4
+  // depuis la tâche 3, puisque « Table » lui-même pose maintenant le repli
+  // [2,2,0,0] -- les tests d'absence ci-dessous verrouillent cette règle.
   group('presets d\'orientation (revue finale — dérivés de la géométrie)', () {
-    testWidgets('4 joueurs — "Table" pose la géométrie réelle [2,3,0,1]',
+    // Tâche 3 (spec §1.1) : plus de colonnes latérales à 4 joueurs -- "Table"
+    // pose désormais le même repli face-à-face qu'avant cette tâche "Face à
+    // face" posait séparément.
+    testWidgets('4 joueurs — "Table" pose la géométrie réelle [2,2,0,0]',
         (tester) async {
       final container = await pumpForOrientation(tester, 4);
-      await expectPresetRotations(tester, container, 'Table', [2, 3, 0, 1]);
+      await expectPresetRotations(tester, container, 'Table', [2, 2, 0, 0]);
     });
 
-    testWidgets('4 joueurs — "Face à face" pose le repli [2,2,0,0]',
-        (tester) async {
-      final container = await pumpForOrientation(tester, 4);
-      await expectPresetRotations(
-          tester, container, 'Face à face', [2, 2, 0, 0]);
+    testWidgets(
+        '4 joueurs — "Face à face" n\'est pas proposé : il ne diffère plus '
+        'de "Table" (spec §1.1, tâche 3)', (tester) async {
+      await pumpForOrientation(tester, 4);
+      await openOrientationSheet(tester);
+      expect(find.text('Face à face'), findsNothing);
+      expect(find.text('Table'), findsOneWidget);
     });
 
     testWidgets('4 joueurs — "Même sens" pose [0,0,0,0]', (tester) async {

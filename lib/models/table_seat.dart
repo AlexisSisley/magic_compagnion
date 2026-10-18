@@ -1,6 +1,25 @@
 /// Côté de la table où un joueur est assis, l'appareil étant posé à plat.
 enum TableSide { top, right, bottom, left }
 
+/// Façon dont les sièges sont répartis sur l'écran.
+///
+/// Introduit pour que la DISPOSITION et la ROTATION aient une seule origine
+/// commune : `TableSeat.quarterTurns` dérive de `side`, et `side` dérive de
+/// l'arrangement. Auparavant la rotation d'un joueur était stockée sur le
+/// modèle et la disposition calculée à part, d'où des orientations qui ne
+/// correspondaient pas à la grille affichée.
+enum TableArrangement {
+  /// Moitié haute à 180°, moitié basse à 0°. Zones plus larges que hautes.
+  faceToFace,
+
+  /// Deux colonnes : celle de gauche à 90°, celle de droite à 270°.
+  /// Zones plus hautes que larges — la rotation leur rend leur grand côté.
+  columnPairs,
+
+  /// Un joueur par bord, avec colonnes latérales. 5 et 6 joueurs.
+  around,
+}
+
 /// Siège d'un joueur : son côté, et sa place parmi ceux qui partagent ce côté.
 class TableSeat {
   const TableSeat({
@@ -49,6 +68,27 @@ List<TableSeat> seatsFor(int playerCount, {bool allowSideColumns = true}) {
   };
   return _withSlots(sides);
 }
+
+/// Sièges pour un [arrangement] donné.
+///
+/// Seul `tableLayoutFor` appelle cette fonction : c'est lui qui décide de
+/// l'arrangement, via `arrangementFor`.
+List<TableSeat> seatsForArrangement(
+  int playerCount,
+  TableArrangement arrangement,
+) =>
+    switch (arrangement) {
+      TableArrangement.faceToFace => _faceToFace(playerCount),
+      TableArrangement.columnPairs => _columnPairs(playerCount),
+      TableArrangement.around => seatsFor(playerCount),
+    };
+
+/// Deux colonnes de hauteur égale, remplies en alternance gauche/droite pour
+/// qu'un nombre impair de joueurs ne laisse pas une colonne vide.
+List<TableSeat> _columnPairs(int playerCount) => _withSlots([
+      for (int i = 0; i < playerCount; i++)
+        i.isEven ? TableSide.left : TableSide.right,
+    ]);
 
 /// Moitié haute pivotée à 180°, moitié basse à l'endroit. Le joueur
 /// surnuméraire va en bas, du côté de celui qui tient l'appareil.

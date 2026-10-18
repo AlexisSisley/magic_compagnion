@@ -58,17 +58,84 @@ class AdaptiveGrid extends StatelessWidget {
         final right = zonesOn(TableSide.right);
         final subGrid = playerZones.length == 8;
 
-        final centre = Column(
-          children: [
-            Expanded(child: _half(top, subGrid: subGrid)),
-            if (layout.barKind == ActionBarKind.band)
-              KeyedSubtree(
-                  key: const ValueKey('action_band'), child: centralBar),
-            Expanded(child: _half(bottom, subGrid: subGrid)),
-          ],
-        );
+        // Tâche 3 (spec §1.4) : `TableArrangement.columnPairs` met TOUS les
+        // sièges sur `left`/`right`, sans aucun `top`/`bottom` -- un cas que
+        // cette grille ne connaissait pas avant cette tâche, où `left`/
+        // `right` n'existaient qu'en complément d'un centre `top`/`bottom`
+        // (la disposition `around`, 5-6 joueurs, `useSideColumns == true`).
+        // Sans cette branche, `top`/`bottom` vides produisaient un centre
+        // entièrement blanc et le `if (!layout.useSideColumns) return
+        // withHub;` ci-dessous jetait `left`/`right` sans les avoir jamais
+        // posés dans l'arbre : les joueurs disparaissaient purement et
+        // simplement sur un écran replié à 4 joueurs -- pire que le défaut
+        // que la tâche 3 corrige.
+        final hasCentreRows = top.isNotEmpty || bottom.isNotEmpty;
 
-        final withHub = layout.barKind == ActionBarKind.hub
+        // Révision (ruling 21) : la bande suppose une frontière HORIZONTALE
+        // qui traverse toute la table sans voler de hauteur à personne (spec
+        // §1.2). `columnPairs` en fournit une quand ses deux colonnes ont le
+        // MÊME nombre de sièges ET en ont au moins deux chacune : à 4
+        // joueurs (2 + 2), la première paire (un siège à gauche, un à
+        // droite) et la seconde partagent alors la même frontière -- poser
+        // la bande entre les deux coûte la même hauteur aux QUATRE joueurs,
+        // exactement comme entre `top` et `bottom` ailleurs. Une première
+        // version de cette correction forçait le hub dès que `top`/`bottom`
+        // étaient vides, par excès de prudence -- un test réel l'a prise en
+        // défaut : à 4 joueurs sur un écran large mais plus haut que large
+        // (ex. 600×900), cela coupait silencieusement la bande (et donc le
+        // chrono de partie qu'elle porte) sans aucune raison de surface,
+        // exactement la dégradation silencieuse que le §4.3 de la spec table
+        // multijoueur v2 interdit. À 2 et 3 joueurs, `_columnPairs` ne
+        // produit jamais deux colonnes égales d'au moins deux sièges (1
+        // contre 1 sans rangée à séparer, ou 2 contre 1) : le hub reste alors
+        // la seule forme.
+        final alignedColumnRows = left.length == right.length && left.length >= 2;
+
+        final Widget centre;
+        if (hasCentreRows) {
+          centre = Column(
+            children: [
+              Expanded(child: _half(top, subGrid: subGrid)),
+              if (layout.barKind == ActionBarKind.band)
+                KeyedSubtree(
+                    key: const ValueKey('action_band'), child: centralBar),
+              Expanded(child: _half(bottom, subGrid: subGrid)),
+            ],
+          );
+        } else if (alignedColumnRows) {
+          // Même géométrie que `Row([column(left), column(right)])` quand
+          // aucune bande n'est insérée -- quatre cellules de taille et de
+          // position identiques, seulement réparties en deux rangées de deux
+          // plutôt qu'en deux colonnes de deux, pour que la bande ait une
+          // rangée où se loger.
+          centre = Column(
+            children: [
+              Expanded(
+                  child: Row(children: [
+                Expanded(child: left[0]),
+                Expanded(child: right[0]),
+              ])),
+              if (layout.barKind == ActionBarKind.band)
+                KeyedSubtree(
+                    key: const ValueKey('action_band'), child: centralBar),
+              Expanded(
+                  child: Row(children: [
+                Expanded(child: left[1]),
+                Expanded(child: right[1]),
+              ])),
+            ],
+          );
+        } else {
+          centre = Row(
+            children: [
+              Expanded(child: _column(left)),
+              Expanded(child: _column(right)),
+            ],
+          );
+        }
+
+        final hasNaturalSeam = hasCentreRows || alignedColumnRows;
+        final withHub = !hasNaturalSeam || layout.barKind == ActionBarKind.hub
             ? Stack(
                 alignment: Alignment.center,
                 children: [
