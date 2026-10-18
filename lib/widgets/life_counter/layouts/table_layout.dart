@@ -36,7 +36,12 @@ const double kSideColumnNeed = kCompactShortEdge + 26.0;
 // invisible et absent du hub. Devenues une neuvième action à part entière
 // (tap ordinaire, joignable depuis la bande ET le hub), `kActionCount` en
 // tient compte pour que `kBandNeed` ne sous-estime plus la largeur réelle.
-const int kActionCount = 9;
+//
+// Tâche 8a : 9 → 8. L'action « Orientation » est retirée -- ses presets
+// vivent dans la barre du mode réorganisation, joignable par l'action
+// `edit-mode` qui existait déjà. Laisser 9 ici surestimerait la bande d'un
+// bouton : pas de débordement, mais un hub monté là où la bande tenait.
+const int kActionCount = 8;
 
 // Tâche 6 (ronde de correction 1, option C) : 36.0 était FAUX -- un
 // `IconButton` Material mesure 48×48 au minimum
@@ -54,7 +59,7 @@ const int kActionCount = 9;
 const double kActionWidth = 48.0;
 const double kActionGap = 4.0;
 
-/// Largeur naturelle de la bande d'actions : les neuf actions, sans défilement.
+/// Largeur naturelle de la bande d'actions : toutes les actions, sans défilement.
 const double kBandNeed = kActionCount * (kActionWidth + kActionGap) + kActionGap;
 
 /// Marge laissée autour du hub, de chaque côté.

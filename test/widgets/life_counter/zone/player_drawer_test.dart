@@ -53,7 +53,6 @@ class _Captured {
   var reset = false;
   final createdCounters = <CounterType>[];
   final removedCounterIds = <String>[];
-  var rotated = false;
   var colorPickerOpened = false;
   var historyOpened = false;
 }
@@ -108,7 +107,6 @@ Future<_Captured> _openDrawer(
               onRemoveCounter: (id) => captured.removedCounterIds.add(id),
               inactiveCounters: inactiveCounters,
               onActivateCounter: onActivateCounter,
-              onRotate: () => captured.rotated = true,
               onShowColorPicker: () => captured.colorPickerOpened = true,
               onShowHistory: () => captured.historyOpened = true,
             ),
@@ -319,14 +317,16 @@ void main() {
     expect(captured.monarchToggled, isFalse);
   });
 
-  testWidgets(
-      'l\'action tourner appelle onRotate (ronde de correction 1, tâche 2)',
+  // Tâche 8a (Ruling 41, spec §1.7) : « Tourner » -- un quart de tour par
+  // appui -- est remplacé par le sélecteur à quatre flèches du mode
+  // réorganisation. Le tiroir ne la propose plus.
+  testWidgets('le tiroir ne propose plus l\'action « Tourner » (tâche 8a)',
       (tester) async {
-    final captured = await _openDrawer(tester);
-    await tester.tap(find.byKey(const ValueKey('action-rotate')));
-    await tester.pumpAndSettle();
-    expect(captured.rotated, isTrue);
-    expect(captured.colorPickerOpened, isFalse);
+    await _openDrawer(tester);
+    expect(find.byKey(const ValueKey('action-rotate')), findsNothing);
+    expect(find.text('Tourner'), findsNothing);
+    expect(find.byKey(const ValueKey('action-color')), findsOneWidget,
+        reason: 'précondition : le tiroir est bien ouvert');
   });
 
   testWidgets(
@@ -336,7 +336,6 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('action-color')));
     await tester.pumpAndSettle();
     expect(captured.colorPickerOpened, isTrue);
-    expect(captured.rotated, isFalse);
   });
 
   // Revue finale (IMPORTANT #1) : `PlayerHistorySheet` n'avait qu'un point
@@ -350,7 +349,6 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('action-player-history')));
     await tester.pumpAndSettle();
     expect(captured.historyOpened, isTrue);
-    expect(captured.rotated, isFalse);
     expect(captured.colorPickerOpened, isFalse);
   });
 

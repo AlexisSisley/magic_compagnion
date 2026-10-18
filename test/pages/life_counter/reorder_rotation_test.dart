@@ -64,8 +64,8 @@ Finder _playerZone(int playerId) =>
     find.byKey(ValueKey('player_zone_$playerId'));
 
 /// Écran assez large pour que `AdaptiveGrid` choisisse la bande (le bouton
-/// de mode édition et celui des presets d'orientation vivent dans
-/// `_buildCentralBar`, absents sur petit écran).
+/// du mode réorganisation vit dans `_buildCentralBar`, absente sur petit
+/// écran ; les presets d'orientation, dans la barre de ce mode).
 void _setScreenSize(WidgetTester tester, Size size) {
   final originalSize = tester.view.physicalSize;
   final originalDpr = tester.view.devicePixelRatio;
@@ -107,9 +107,9 @@ Future<ProviderContainer> _pumpFourPlayerTable(WidgetTester tester) async {
   return container;
 }
 
-/// Bascule le mode édition par un vrai tap sur le bouton dédié de la barre
-/// centrale (icône `Icons.build`) — seul état où `DraggablePlayerZone`
-/// enveloppe les zones (voir life_counter_page.dart, `_isEditMode`).
+/// Bascule le mode réorganisation par un vrai tap sur le bouton dédié de la
+/// barre centrale (icône `Icons.build`) — seul état où `DraggablePlayerZone`
+/// arme le glisser-déposer (voir life_counter_page.dart, `_isReorganising`).
 Future<void> _toggleEditMode(WidgetTester tester) async {
   await tester.tap(find.byIcon(Icons.build));
   await tester.pumpAndSettle();
@@ -198,12 +198,8 @@ void main() {
     expect(container.read(gameSessionNotifierProvider)!.playerOrder,
         [3, 1, 2, 0]);
 
-    // Quitte le mode édition : la feuille de presets d'orientation est
-    // accessible dans les deux modes, mais rien ne l'exige active ici.
-    await _toggleEditMode(tester);
-
-    await tester.tap(find.byKey(const ValueKey('action-orientation-presets')));
-    await tester.pumpAndSettle();
+    // Tâche 8a : les presets vivent dans `ReorganiseBar`, en pied du mode
+    // réorganisation -- on y est déjà, on y reste.
     // Tâche 3 (spec §1.1) : à 4 joueurs sur cet écran (900×700), la grille
     // réelle est désormais `faceToFace` -- le bouton "Face à face" n'est
     // plus proposé du tout (il n'existe que là où il DIFFÈRE de "Table",
@@ -212,7 +208,7 @@ void main() {
     // d'AFFICHAGE courant [3, 1, 2, 0] : position0(joueur3)->2,
     // position1(joueur1)->2, position2(joueur2)->0, position3(joueur0)->0 --
     // le même tableau qu'avant cette tâche, seul le nom du bouton change.
-    await tester.tap(find.text('Table'));
+    await tester.tap(find.byKey(const ValueKey('reorganise-preset-Table')));
     await tester.pumpAndSettle();
 
     final session = container.read(gameSessionNotifierProvider)!;
@@ -246,7 +242,7 @@ void main() {
       'columnPairs réellement affichées (1 ou 3)', (tester) async {
     // Mode édition activé pendant que la bande est visible (écran large) :
     // c'est le seul endroit où vit le bouton "build" tant que le hub
-    // d'actions (tâche 6) n'existe pas -- l'état `_isEditMode` survit
+    // d'actions (tâche 6) n'existe pas -- l'état `_isReorganising` survit
     // ensuite au redimensionnement, indépendant de `barKind`.
     final container = await _pumpFourPlayerTable(tester);
     await _toggleEditMode(tester);

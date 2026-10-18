@@ -21,6 +21,7 @@ import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/widgets/life_counter/death_confirmation_overlay.dart';
 import 'package:magic_companion/widgets/life_counter/layouts/table_layout.dart';
+import 'package:magic_companion/widgets/life_counter/reorganise_bar.dart';
 import 'package:magic_companion/widgets/life_counter/tuning.dart';
 import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
@@ -879,22 +880,28 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// Ouvre la feuille des presets d'orientation par un vrai tap sur son
-  /// bouton (`action-orientation-presets`) — nécessite un écran assez large
-  /// pour que `AdaptiveGrid` choisisse la bande (voir `TableLayout`) : sur
-  /// un écran étroit, ce bouton n'existe pas, remplacé par le hub.
+  /// Affiche les presets d'orientation. Tâche 8a : la feuille modale
+  /// (`action-orientation-presets`) n'existe plus -- les presets vivent dans
+  /// `ReorganiseBar`, montée en pied quand on entre en mode réorganisation
+  /// par un vrai tap sur l'action `edit-mode` de la bande. Nécessite donc
+  /// toujours un écran assez large pour que `AdaptiveGrid` choisisse la
+  /// bande (voir `TableLayout`) : sur un écran étroit, le hub la remplace.
   Future<void> openOrientationSheet(WidgetTester tester) async {
-    await tester.tap(
-      find.byKey(const ValueKey('action-orientation-presets')),
-    );
+    await tester.tap(find.byKey(const ValueKey('action-edit-mode')));
     await tester.pumpAndSettle();
+    expect(find.byType(ReorganiseBar), findsOneWidget,
+        reason: 'précondition : la barre du mode réorganisation porte les '
+            'presets');
   }
 
-  /// Sélectionne le preset [label] dans la feuille ouverte par
-  /// `openOrientationSheet`, par un vrai tap sur son étiquette (unique dans
-  /// la feuille, jamais un repérage ordinal).
+  /// Sélectionne le preset [label] dans la barre ouverte par
+  /// `openOrientationSheet`, par un vrai tap sur son étiquette, cherchée
+  /// DANS la barre (jamais un repérage ordinal).
   Future<void> selectOrientationPreset(WidgetTester tester, String label) async {
-    await tester.tap(find.text(label));
+    await tester.tap(find.descendant(
+      of: find.byType(ReorganiseBar),
+      matching: find.text(label),
+    ));
     await tester.pumpAndSettle();
   }
 

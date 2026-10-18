@@ -51,6 +51,7 @@ import '../../widgets/life_counter/critical_overlay.dart';
 import '../../widgets/life_counter/elimination_overlay.dart';
 import '../../widgets/life_counter/death_confirmation_overlay.dart';
 import '../../widgets/life_counter/draggable_player_zone.dart';
+import '../../widgets/life_counter/reorganise_bar.dart';
 import '../../widgets/life_counter/animations/animation_service.dart';
 import '../../widgets/life_counter/snapshot_writer.dart';
 import '../../widgets/life_counter/player_skins.dart';
@@ -131,8 +132,12 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   final Set<int> _showDeathOverlay = {};
   final Set<int> _dismissedDeathOverlay = {};
 
-  // Edit mode state
-  bool _isEditMode = false;
+  // Mode réorganisation (spec §1.9, tâche 8a -- ex-`_isEditMode`, renommé
+  // pour dire ce qu'il fait). Vrai : chaque zone porte voile, poignée et
+  // sélecteur d'orientation (`DraggablePlayerZone.enabled`), le geste de vie
+  // est suspendu, et `ReorganiseBar` est montée en pied. Une seule entrée,
+  // l'action `edit-mode` ; deux sorties, cette même action et « Terminé ».
+  bool _isReorganising = false;
 
   // Ronde de correction 2 (tâche 5) : `MediaQuery.sizeOf(context)` donne la
   // taille de l'ÉCRAN, pas celle que `AdaptiveGrid` reçoit réellement de son
@@ -1201,13 +1206,23 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
 
       Widget zone = _buildPlayerZoneWithOverlays(player, playerState, index);
 
-      if (_isEditMode) {
-        zone = DraggablePlayerZone(
-          index: index,
-          onReorder: _onReorderPlayers,
-          child: zone,
-        );
-      }
+      // Tâche 8a : TOUJOURS enveloppée, `enabled` décide. Hors mode,
+      // `DraggablePlayerZone` rend l'enfant nu (aucun glisser armé) ; la
+      // profondeur de l'arbre sous `KeyedSubtree` ne dépend donc plus de
+      // l'opérateur `if` qui vivait ici. La clé d'identité reste UNIQUE et
+      // posée plus bas, au-dessus de cette enveloppe (voir l'avertissement).
+      zone = DraggablePlayerZone(
+        index: index,
+        enabled: _isReorganising,
+        onReorder: _onReorderPlayers,
+        quarterTurns: playerState.quarterTurns,
+        // Adressé par `playerId`, jamais par `index` : après un reorder,
+        // l'index d'affichage ne désigne plus le même joueur.
+        onOrientationChanged: (turns) =>
+            _setPlayerOrientation(playerState.playerId, turns),
+        playerName: player.name,
+        child: zone,
+      );
 
       // Clé d'identité stable par joueur CANONIQUE (playerState.playerId ==
       // player.id), pas par position d'affichage : depuis la tâche 4,
@@ -1233,12 +1248,56 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
       );
     }).toList();
 
-    return AdaptiveGrid(
-      key: _gridKey,
-      playerZones: playerZones,
-      centralBar: _buildCentralBar(),
-      actionHub: ActionHub(actions: _gameActions),
+    // La barre de mode est posée SOUS la grille, pas par-dessus : en
+    // surimpression, elle masquait le centre des zones du bas -- leur
+    // sélecteur d'orientation, et l'endroit même où l'on commence un
+    // glisser. La contrepartie : `AdaptiveGrid` perd la hauteur de la barre
+    // tant que le mode dure, et `_measuredGridSize` (donc les presets) lit
+    // cette taille réduite -- c'est la disposition réellement affichée
+    // pendant qu'on réorganise. Effet visible, constaté en capture à
+    // 900×700 : la bande d'actions cède la place au hub tant que le mode
+    // dure (le petit côté de la grille, 546, passe sous
+    // `kLargeScreenShortEdge`) ; « Terminé » et
+    // l'action `edit-mode` du hub restent les deux sorties. La `Column` est
+    // inconditionnelle, pour que
+    // la grille garde sa place dans l'arbre à l'entrée et à la sortie du
+    // mode.
+    return Column(
+      children: [
+        Expanded(
+          child: AdaptiveGrid(
+            key: _gridKey,
+            playerZones: playerZones,
+            centralBar: _buildCentralBar(),
+            actionHub: ActionHub(actions: _gameActions),
+          ),
+        ),
+        if (_isReorganising)
+          ReorganiseBar(
+            presets: [
+              for (final preset in _getOrientationPresets(_playerCount))
+                (
+                  label: preset.label,
+                  onTap: () => _applyOrientationPreset(preset.rotations),
+                ),
+            ],
+            onDone: () => setState(() => _isReorganising = false),
+          ),
+      ],
     );
+  }
+
+  /// Une flèche du sélecteur d'orientation (tâche 8a, spec §1.7) : pose
+  /// [quarterTurns] sur CE joueur seul. Même chemin que
+  /// `_applyOrientationPreset` -- `updateRotation` sans `manual: false`, donc
+  /// marqué manuel : c'est un vrai choix d'angle, qu'aucun semis ultérieur
+  /// (pliage, rotation de l'appareil) ne doit écraser.
+  void _setPlayerOrientation(int playerId, int quarterTurns) {
+    if (_session == null) return;
+    _controller.updateRotation(playerId, quarterTurns);
+    setState(() {});
+    _saveSnapshot();
+    HapticFeedback.selectionClick();
   }
 
   Widget _buildPlayerZoneWithOverlays(Player player, PlayerState playerState, int index) {
@@ -1404,8 +1463,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
       // `_buildPlayerZone` a déjà `p` sous la main, inutile d'élargir la
       // surface publique de `PlayerZone` pour une valeur qu'elle connaît
       // déjà de son côté.
-      onOpenDrawer: (onRotate, onShowColorPicker) =>
-          _openPlayerDrawer(ps, p.quarterTurns, onRotate, onShowColorPicker),
+      onOpenDrawer: (onShowColorPicker) =>
+          _openPlayerDrawer(ps, p.quarterTurns, onShowColorPicker),
       attributionOpponents:
           showAttribution ? _attributionOpponents(ps.playerId) : null,
       onAttributeDamage: (sourcePlayerId) =>
@@ -1428,7 +1487,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   void _openPlayerDrawer(
     PlayerState ps,
     int quarterTurns,
-    VoidCallback onRotate,
     VoidCallback onShowColorPicker,
   ) {
     final session = _session;
@@ -1502,7 +1560,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
       inactiveCounters: inactiveCounters,
       onActivateCounter: (type) =>
           _onDrawerActivateCounter(ps.playerId, type),
-      onRotate: onRotate,
       onShowColorPicker: onShowColorPicker,
       // Revue finale (IMPORTANT #1) : second point d'entrée de l'historique
       // PAR JOUEUR, garanti à tous les crans de densité. `onNameTap` sur
@@ -1677,8 +1734,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     _saveSnapshot();
   }
 
-  /// Les neuf actions de partie, dans l'ordre où la bande affichait déjà les
-  /// huit premières.
+  /// Les huit actions de partie.
+  ///
+  /// Tâche 8a : l'action « Orientation » (feuille de presets) a disparu. Ses
+  /// presets vivent désormais dans `ReorganiseBar`, en pied du mode
+  /// réorganisation, à côté des flèches par zone qu'ils complètent. Le
+  /// raccourci par appui long vers les infos de partie qu'elle portait
+  /// disparaît avec elle ; l'action `game-info` reste leur chemin ordinaire.
   ///
   /// Source UNIQUE, consommée à la fois par `_buildCentralBar` (la bande,
   /// grand écran) et par `ActionHub` (le hub, petit écran) : deux listes qui
@@ -1690,16 +1752,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   /// chemin d'accès -- invisible, et absent du hub puisque `GameAction` ne
   /// porte pas de champ `onLongPress`. Elles sont désormais une neuvième
   /// action à part entière, joignable par un tap ordinaire depuis la bande
-  /// ET depuis le hub. L'appui long reste en plus sur le bouton
-  /// d'orientation (un raccourci supplémentaire ne gêne personne), mais il
-  /// n'est plus le seul chemin.
+  /// ET depuis le hub -- ce qui a permis à la tâche 8a de retirer le bouton
+  /// d'orientation sans rien rendre injoignable.
   List<GameAction> get _gameActions => [
-        GameAction(
-          id: 'orientation-presets',
-          icon: Icons.screen_rotation_alt,
-          label: 'Orientation',
-          onPressed: _showOrientationPresets,
-        ),
         GameAction(
           // `restart-game`, pas `reset` : le tiroir du joueur porte déjà une
           // `ValueKey('action-reset')` (réinitialiser SES compteurs), et deux
@@ -1737,10 +1792,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
           onPressed: _showTableView,
         ),
         GameAction(
+          // Seule entrée du mode réorganisation (spec §1.9 : on ne peut pas y
+          // être par accident). Pas de dixième action : celle-ci existait
+          // déjà, elle a seulement changé de nom et d'effet.
           id: 'edit-mode',
           icon: Icons.build,
-          label: _isEditMode ? 'Terminer l\'édition' : 'Réorganiser les joueurs',
-          onPressed: () => setState(() => _isEditMode = !_isEditMode),
+          label: _isReorganising ? 'Terminer la réorganisation' : 'Réorganiser',
+          onPressed: () => setState(() => _isReorganising = !_isReorganising),
         ),
         GameAction(
           id: 'game-setup',
@@ -1766,7 +1824,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   /// d'origine (une action joignable dans une forme et pas dans l'autre, une
   /// largeur calculée sur un compte faux), réarmées.
   ///
-  /// Les trois rendus bespoke qui subsistent sont sélectionnés par l'`id` de
+  /// Les deux rendus bespoke qui subsistent (chrono, mode réorganisation) sont sélectionnés par l'`id` de
   /// l'action, pas par sa position : ajouter, retirer ou réordonner une
   /// action ne peut plus en déplacer un sur la mauvaise.
   Widget _buildCentralBar() {
@@ -1793,18 +1851,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   Widget _bandButton(GameAction action) {
     final key = ValueKey('action-${action.id}');
     switch (action.id) {
-      // Raccourci en plus : appui long pour les infos de partie -- mais ce
-      // n'est plus leur seul chemin, voir l'action `game-info`.
-      case 'orientation-presets':
-        return GestureDetector(
-          onLongPress: _showGameInfoSheet,
-          child: IconButton(
-            key: key,
-            icon: Icon(action.icon, color: AppColors.textSecondary),
-            onPressed: action.onPressed,
-          ),
-        );
-
       // Chrono : style bespoke (cercle de 50x50, minuterie en Roboto Mono),
       // reporté par la revue finale. Il reste ici une branche de ce switch,
       // donc toujours UN élément de la bande par action, ni plus ni moins.
@@ -1840,15 +1886,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
           ),
         );
 
-      // Surlignage du mode édition : également bespoke, également reporté.
+      // Surlignage du mode réorganisation : également bespoke, également
+      // reporté.
       case 'edit-mode':
         return IconButton(
           key: key,
           icon: Icon(
             action.icon,
-            color: _isEditMode ? AppColors.primary : AppColors.textSecondary,
+            color: _isReorganising ? AppColors.primary : AppColors.textSecondary,
           ),
-          style: _isEditMode
+          style: _isReorganising
               ? IconButton.styleFrom(backgroundColor: AppColors.primary.withAlpha(40))
               : null,
           onPressed: action.onPressed,
@@ -1861,60 +1908,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
           onPressed: action.onPressed,
         );
     }
-  }
-
-  void _showOrientationPresets() {
-    final count = _playerCount;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.scaffoldBackground,
-      builder: (sheetCtx) {
-        final presets = _getOrientationPresets(count);
-        return Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Orientation des zones', style: AppTextStyles.sectionTitle(fontSize: 18)),
-              const SizedBox(height: 4),
-              Text('$count joueurs', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                alignment: WrapAlignment.center,
-                children: presets.map((preset) {
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.of(sheetCtx).pop();
-                      _applyOrientationPreset(preset.rotations);
-                    },
-                    child: Container(
-                      width: 100, height: 110,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceDark,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.borderMedium),
-                      ),
-                      child: Column(
-                        children: [
-                          Expanded(child: _buildOrientationPreview(preset.rotations, count)),
-                          const SizedBox(height: 4),
-                          Text(preset.label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   /// Presets d'orientation, TOUS dérivés de la géométrie (revue finale,
@@ -1990,81 +1983,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     setState(() {});
     _saveSnapshot();
     HapticFeedback.mediumImpact();
-  }
-
-  Widget _buildOrientationPreview(List<int> rotations, int count) {
-    // Aligné sur la vraie géométrie (tâche 4, ronde de correction 1) :
-    // `tableLayoutFor` décide seule des côtés, `AdaptiveGrid` ne fait qu'y
-    // obéir. Un topCount supposé (moitié haute / moitié basse) est faux dès
-    // que des colonnes latérales entrent en jeu : à 4 joueurs, les index 1
-    // et 3 finissent à droite et à gauche, pas en bas.
-    //
-    // Ronde de correction 2 (tâche 5) : taille RÉELLE de la grille, pas celle
-    // de l'écran (voir `_measuredGridSize`).
-    final seats = tableLayoutFor(_measuredGridSize(context), count).seats;
-
-    List<int> indicesOn(TableSide side) {
-      final indices = <int>[];
-      for (int i = 0; i < seats.length && i < count; i++) {
-        if (seats[i].side == side) indices.add(i);
-      }
-      indices.sort((a, b) => seats[a].slot.compareTo(seats[b].slot));
-      return indices;
-    }
-
-    Widget cellFor(int i) {
-      final arrow = _arrowForRotation(rotations[i]);
-      return Container(
-        margin: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color: AppColors.primaryShade800.withAlpha(60),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.borderMedium, width: 0.5),
-        ),
-        child: Center(
-          child: Text(arrow, style: const TextStyle(fontSize: 16, color: AppColors.textPrimary)),
-        ),
-      );
-    }
-
-    Widget rowOf(List<int> indices) => indices.isEmpty
-        ? const SizedBox.shrink()
-        : Row(children: [for (final i in indices) Expanded(child: cellFor(i))]);
-    Widget columnOf(List<int> indices) => indices.isEmpty
-        ? const SizedBox.shrink()
-        : Column(children: [for (final i in indices) Expanded(child: cellFor(i))]);
-
-    final top = indicesOn(TableSide.top);
-    final bottom = indicesOn(TableSide.bottom);
-    final left = indicesOn(TableSide.left);
-    final right = indicesOn(TableSide.right);
-
-    final centre = Column(
-      children: [
-        Expanded(child: rowOf(top)),
-        Expanded(child: rowOf(bottom)),
-      ],
-    );
-
-    if (left.isEmpty && right.isEmpty) return centre;
-
-    return Row(
-      children: [
-        if (left.isNotEmpty) Expanded(child: columnOf(left)),
-        Expanded(flex: 2, child: centre),
-        if (right.isNotEmpty) Expanded(child: columnOf(right)),
-      ],
-    );
-  }
-
-  String _arrowForRotation(int quarterTurns) {
-    switch (quarterTurns % 4) {
-      case 0: return '↑';
-      case 1: return '→';
-      case 2: return '↓';
-      case 3: return '←';
-      default: return '↑';
-    }
   }
 
   void _showGameInfoSheet() {

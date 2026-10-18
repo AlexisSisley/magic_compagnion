@@ -147,10 +147,9 @@ void main() {
 
   testWidgets(
       'au cran minimal, le tiroir reste le point d\'accès garanti à la '
-      'rotation -- PlayerHeader (son autre accès) est masqué (ronde de '
-      'correction 1, tâche 2)', (tester) async {
-    int? rotatedTo;
-
+      'couleur -- PlayerHeader (son autre accès) est masqué (ronde de '
+      'correction 1, tâche 2) ; « Tourner » n\'y figure plus (tâche 8a)',
+      (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -165,13 +164,12 @@ void main() {
                   player: _buildPlayer(),
                   onLifeChanged: (_) {},
                   onColorChanged: (_) {},
-                  onRotationChanged: (v) => rotatedTo = v,
                   // Le test tient ici le rôle de `life_counter_page.dart` :
                   // seul l'appelant connaît la session nécessaire à
                   // `showPlayerDrawer`, mais il relaie tel quel ce que
-                  // `PlayerZone` lui fournit (`_rotate90Degrees`,
-                  // `showPlayerSkinPicker`), sans dupliquer leur logique.
-                  onOpenDrawer: (onRotate, onShowColorPicker) =>
+                  // `PlayerZone` lui fournit (`showPlayerSkinPicker`), sans
+                  // dupliquer sa logique.
+                  onOpenDrawer: (onShowColorPicker) =>
                       showPlayerDrawer(
                     context: context,
                     quarterTurns: 0,
@@ -194,7 +192,6 @@ void main() {
                     commanderDamage: const [],
                     onCommanderDamageDelta: (_, _) {},
                     lethalCommanderDamage: 0,
-                    onRotate: onRotate,
                     onShowColorPicker: onShowColorPicker,
                     onShowHistory: () {},
                   ),
@@ -213,26 +210,30 @@ void main() {
     await tester.tap(find.byType(ConditionalHandle));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('action-rotate')), findsOneWidget,
-        reason: '"Tourner" doit rester trouvable dans le tiroir même quand '
+    // Tâche 8a (Ruling 41) : la rotation par quart de tour a quitté le
+    // tiroir, remplacée par le sélecteur à quatre flèches du mode
+    // réorganisation.
+    expect(find.byKey(const ValueKey('action-rotate')), findsNothing);
+
+    expect(find.byKey(const ValueKey('action-color')), findsOneWidget,
+        reason: '"Couleur" doit rester trouvable dans le tiroir même quand '
             'PlayerHeader, son autre point d\'accès, est masqué');
 
-    await tester.ensureVisible(find.byKey(const ValueKey('action-rotate')));
-    await tester.tap(find.byKey(const ValueKey('action-rotate')));
+    await tester.ensureVisible(find.byKey(const ValueKey('action-color')));
+    await tester.tap(find.byKey(const ValueKey('action-color')));
     await tester.pumpAndSettle();
 
-    expect(rotatedTo, 1,
-        reason: 'taper "Tourner" dans le tiroir doit vraiment déclencher la '
-            'rotation (_rotate90Degrees), pas seulement fermer le tiroir');
+    expect(find.text('Couleur unie :'), findsOneWidget,
+        reason: 'taper "Couleur" dans le tiroir doit vraiment ouvrir le '
+            'sélecteur (showPlayerSkinPicker), pas seulement fermer le '
+            'tiroir');
   });
 
   testWidgets(
-      'au cran minimal, "Tourner" reste atteignable même dans la '
+      'au cran minimal, "Couleur" reste atteignable même dans la '
       'configuration la plus longue du tiroir : 7 adversaires, grille de '
       'dégâts, 3 compteurs (ronde de correction 2, tâche 2)',
       (tester) async {
-    int? rotatedTo;
-
     // Le pire cas visé par la correction : 7-8 joueurs, ce qui pousse à la
     // fois les zones sous le seuil `minimal` (en-tête masqué) ET allonge le
     // tiroir au maximum (3 compteurs, grille de dégâts à 7 lignes, puis
@@ -259,8 +260,7 @@ void main() {
                   player: _buildPlayer(),
                   onLifeChanged: (_) {},
                   onColorChanged: (_) {},
-                  onRotationChanged: (v) => rotatedTo = v,
-                  onOpenDrawer: (onRotate, onShowColorPicker) =>
+                  onOpenDrawer: (onShowColorPicker) =>
                       showPlayerDrawer(
                     context: context,
                     quarterTurns: 0,
@@ -291,7 +291,6 @@ void main() {
                     // Non nul : active la grille (spec §2.7 point 2 et
                     // ronde de correction 1 de player_drawer.dart).
                     lethalCommanderDamage: 21,
-                    onRotate: onRotate,
                     onShowColorPicker: onShowColorPicker,
                     onShowHistory: () {},
                   ),
@@ -312,6 +311,10 @@ void main() {
     expect(find.byType(CommanderDamageGrid), findsOneWidget);
     expect(find.text('Joueur 7'), findsOneWidget);
 
+    // Tâche 8a : ce test visait "Tourner", retirée du tiroir (Ruling 41) ;
+    // il vise désormais "Couleur", sa voisine, qui partage la même garantie
+    // (unique point d'accès au cran minimal) et la même place.
+    //
     // Ronde de correction 3 : ne prouve plus seulement qu'on PEUT atteindre
     // "Tourner" (un défilement jusqu'au bout du tiroir suffirait à le
     // prouver, et c'est exactement ce que la ronde 2 a révélé -- 371px sur
@@ -326,7 +329,7 @@ void main() {
     final position = tester.state<ScrollableState>(scrollable).position;
     final beforePixels = position.pixels;
 
-    await tester.ensureVisible(find.byKey(const ValueKey('action-rotate')));
+    await tester.ensureVisible(find.byKey(const ValueKey('action-color')));
     await tester.pumpAndSettle();
 
     final afterPixels = position.pixels;
@@ -335,12 +338,12 @@ void main() {
     print(
       'RONDE 3 -- pire cas du tiroir : défilement de $beforePixels à '
       '$afterPixels px (delta ${afterPixels - beforePixels} px) pour '
-      'atteindre "Tourner" ; maxScrollExtent=$maxScrollExtent px '
+      'atteindre "Couleur" ; maxScrollExtent=$maxScrollExtent px '
       '(${(afterPixels / maxScrollExtent * 100).toStringAsFixed(1)}%).',
     );
 
-    expect(find.byKey(const ValueKey('action-rotate')), findsOneWidget,
-        reason: '"Tourner" doit rester atteignable même dans la '
+    expect(find.byKey(const ValueKey('action-color')), findsOneWidget,
+        reason: '"Couleur" doit rester atteignable même dans la '
             'configuration la plus longue du tiroir');
 
     // Seuil délibérément serré : si "Tourner"/"Couleur" repassaient après
@@ -350,15 +353,15 @@ void main() {
     // au-dessus de ce seuil. Une action juste après les compteurs, elle,
     // reste largement en dessous.
     expect(afterPixels, lessThan(maxScrollExtent * 0.75),
-        reason: '"Tourner" doit être atteignable SANS défiler jusqu\'au '
+        reason: '"Couleur" doit être atteignable SANS défiler jusqu\'au '
             'bout du tiroir -- seule preuve qu\'elle vit avant la grille de '
             'dégâts de commandant, pas derrière elle');
 
-    await tester.tap(find.byKey(const ValueKey('action-rotate')));
+    await tester.tap(find.byKey(const ValueKey('action-color')));
     await tester.pumpAndSettle();
 
-    expect(rotatedTo, 1,
-        reason: 'taper "Tourner" doit vraiment déclencher la rotation, même '
+    expect(find.text('Couleur unie :'), findsOneWidget,
+        reason: 'taper "Couleur" doit vraiment ouvrir le sélecteur, même '
             'depuis le pire cas du tiroir');
   });
 }

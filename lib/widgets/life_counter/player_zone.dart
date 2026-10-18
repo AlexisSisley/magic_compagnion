@@ -83,15 +83,17 @@ class PlayerZone extends ConsumerStatefulWidget {
   /// player_drawer.dart) — PlayerZone n'a plus besoin de callbacks dédiés à
   /// chacun d'eux.
   ///
-  /// Ronde de correction 1 (tâche 2, v2 multijoueur) : reçoit maintenant
-  /// `_rotate90Degrees` et l'ouverture du sélecteur de couleur en argument.
-  /// L'appelant (`life_counter_page.dart`, seul à connaître la session pour
-  /// construire `showPlayerDrawer(...)`) les relaie tels quels au tiroir, qui
-  /// devient le point d'accès GARANTI à la rotation et à la couleur à tous
-  /// les crans de densité -- y compris `minimal`, où `PlayerHeader` (leur
-  /// seul autre point d'accès) est masqué.
-  final void Function(VoidCallback onRotate, VoidCallback onShowColorPicker)?
-      onOpenDrawer;
+  /// Ronde de correction 1 (tâche 2, v2 multijoueur) : reçoit l'ouverture
+  /// du sélecteur de couleur en argument. L'appelant
+  /// (`life_counter_page.dart`, seul à connaître la session pour construire
+  /// `showPlayerDrawer(...)`) la relaie telle quelle au tiroir, point d'accès
+  /// GARANTI à la couleur à tous les crans de densité -- y compris `minimal`,
+  /// où `PlayerHeader` est masqué.
+  ///
+  /// Tâche 8a (Ruling 41) : `_rotate90Degrees` n'y transite plus. L'action
+  /// « Tourner » du tiroir -- un quart de tour par appui -- est remplacée par
+  /// le sélecteur à quatre flèches du mode réorganisation (spec §1.7).
+  final void Function(VoidCallback onShowColorPicker)? onOpenDrawer;
 
   final Function(Color) onColorChanged;
   final Function(int)? onRotationChanged;
@@ -475,10 +477,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                     summary: counterSummary,
                     onTap: widget.onOpenDrawer == null
                         ? null
-                        : () => widget.onOpenDrawer!(
-                              _rotate90Degrees,
-                              openColorPicker,
-                            ),
+                        : () => widget.onOpenDrawer!(openColorPicker),
                     height: handleHeight,
                     // Sous le cran `comfort`, plus de place pour le résumé
                     // des compteurs secondaires : la poignée reste un simple
