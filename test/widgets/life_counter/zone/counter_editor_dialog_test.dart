@@ -10,25 +10,35 @@ void main() {
       expect(deriveCounterId('Storm Count'), 'storm_count');
     });
 
-    test('ponctuation et accents non alphanumériques réduits à un underscore', () {
-      expect(deriveCounterId('Énergie !'), 'nergie');
-    });
+    test(
+      'ponctuation et accents non alphanumériques réduits à un underscore',
+      () {
+        expect(deriveCounterId('Énergie !'), 'nergie');
+      },
+    );
 
     test('espaces de tête/fin recadrés avant dérivation', () {
       expect(deriveCounterId('  Bouclier  '), 'bouclier');
     });
 
-    test('un nom qui usurpe un intégré dérive le même id (par construction)', () {
-      expect(deriveCounterId('Poison'), 'poison');
-    });
+    test(
+      'un nom qui usurpe un intégré dérive le même id (par construction)',
+      () {
+        expect(deriveCounterId('Poison'), 'poison');
+      },
+    );
 
-    test('un nom qui ne réduit à rien (ponctuation seule) dérive un id vide', () {
-      expect(deriveCounterId('!!!'), isEmpty);
-    });
+    test(
+      'un nom qui ne réduit à rien (ponctuation seule) dérive un id vide',
+      () {
+        expect(deriveCounterId('!!!'), isEmpty);
+      },
+    );
   });
 
-  testWidgets('remplir nom et emoji puis valider rend le CounterType saisi',
-      (tester) async {
+  testWidgets('remplir nom et emoji puis valider rend le CounterType saisi', (
+    tester,
+  ) async {
     late CounterType? result;
     await tester.pumpWidget(
       MaterialApp(
@@ -36,7 +46,10 @@ void main() {
           body: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
-                result = await CounterEditorDialog.show(context, quarterTurns: 0);
+                result = await CounterEditorDialog.show(
+                  context,
+                  quarterTurns: 0,
+                );
               },
               child: const Text('ouvrir'),
             ),
@@ -48,11 +61,17 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-        find.byKey(const ValueKey('counter_editor_name')), 'Bouclier');
+      find.byKey(const ValueKey('counter_editor_name')),
+      'Bouclier',
+    );
     await tester.enterText(
-        find.byKey(const ValueKey('counter_editor_emoji')), '🛡️');
+      find.byKey(const ValueKey('counter_editor_emoji')),
+      '🛡️',
+    );
     await tester.enterText(
-        find.byKey(const ValueKey('counter_editor_max_value')), '20');
+      find.byKey(const ValueKey('counter_editor_max_value')),
+      '20',
+    );
     await tester.pump();
 
     await tester.tap(find.byKey(const ValueKey('counter_editor_submit')));
@@ -66,8 +85,9 @@ void main() {
     expect(result!.isBuiltIn, isFalse);
   });
 
-  testWidgets('taper Annuler après une saisie ne rend aucun CounterType',
-      (tester) async {
+  testWidgets('taper Annuler après une saisie ne rend aucun CounterType', (
+    tester,
+  ) async {
     late CounterType? result;
     await tester.pumpWidget(
       MaterialApp(
@@ -75,7 +95,10 @@ void main() {
           body: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
-                result = await CounterEditorDialog.show(context, quarterTurns: 0);
+                result = await CounterEditorDialog.show(
+                  context,
+                  quarterTurns: 0,
+                );
               },
               child: const Text('ouvrir'),
             ),
@@ -87,9 +110,13 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-        find.byKey(const ValueKey('counter_editor_name')), 'Bouclier');
+      find.byKey(const ValueKey('counter_editor_name')),
+      'Bouclier',
+    );
     await tester.enterText(
-        find.byKey(const ValueKey('counter_editor_emoji')), '🛡️');
+      find.byKey(const ValueKey('counter_editor_emoji')),
+      '🛡️',
+    );
     await tester.pump();
 
     await tester.tap(find.byKey(const ValueKey('counter_editor_cancel')));
@@ -99,47 +126,60 @@ void main() {
   });
 
   testWidgets(
-      'nom vide : le bouton Créer reste désactivé, même avec un emoji saisi',
-      (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: CounterEditorDialog())),
-    );
-    await tester.pumpAndSettle();
+    'nom vide : le bouton Créer reste désactivé, même avec un emoji saisi',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: CounterEditorDialog())),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.enterText(
-        find.byKey(const ValueKey('counter_editor_emoji')), '🛡️');
-    await tester.pump();
+      await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_emoji')),
+        '🛡️',
+      );
+      await tester.pump();
 
-    final submit = tester.widget<ElevatedButton>(
-      find.byKey(const ValueKey('counter_editor_submit')),
-    );
-    expect(submit.onPressed, isNull,
-        reason: 'un nom vide doit désactiver la création, jamais la '
-            'laisser silencieusement produire un compteur sans nom');
-  });
-
-  testWidgets(
-      'emoji vide : le bouton Créer reste désactivé, même avec un nom saisi',
-      (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: CounterEditorDialog())),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-        find.byKey(const ValueKey('counter_editor_name')), 'Bouclier');
-    await tester.pump();
-
-    final submit = tester.widget<ElevatedButton>(
-      find.byKey(const ValueKey('counter_editor_submit')),
-    );
-    expect(submit.onPressed, isNull,
-        reason: 'un emoji vide doit désactiver la création, jamais la '
-            'laisser silencieusement produire un compteur sans glyphe');
-  });
+      final submit = tester.widget<ElevatedButton>(
+        find.byKey(const ValueKey('counter_editor_submit')),
+      );
+      expect(
+        submit.onPressed,
+        isNull,
+        reason:
+            'un nom vide doit désactiver la création, jamais la '
+            'laisser silencieusement produire un compteur sans nom',
+      );
+    },
+  );
 
   testWidgets(
-      'un nom qui ne dérive aucun id (ponctuation seule) désactive la '
+    'emoji vide : le bouton Créer reste désactivé, même avec un nom saisi',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: CounterEditorDialog())),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_name')),
+        'Bouclier',
+      );
+      await tester.pump();
+
+      final submit = tester.widget<ElevatedButton>(
+        find.byKey(const ValueKey('counter_editor_submit')),
+      );
+      expect(
+        submit.onPressed,
+        isNull,
+        reason:
+            'un emoji vide doit désactiver la création, jamais la '
+            'laisser silencieusement produire un compteur sans glyphe',
+      );
+    },
+  );
+
+  testWidgets('un nom qui ne dérive aucun id (ponctuation seule) désactive la '
       'création malgré un nom et un emoji non vides', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: Scaffold(body: CounterEditorDialog())),
@@ -147,9 +187,13 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-        find.byKey(const ValueKey('counter_editor_name')), '!!!');
+      find.byKey(const ValueKey('counter_editor_name')),
+      '!!!',
+    );
     await tester.enterText(
-        find.byKey(const ValueKey('counter_editor_emoji')), '🛡️');
+      find.byKey(const ValueKey('counter_editor_emoji')),
+      '🛡️',
+    );
     await tester.pump();
 
     final submit = tester.widget<ElevatedButton>(
@@ -158,8 +202,9 @@ void main() {
     expect(submit.onPressed, isNull);
   });
 
-  testWidgets('sans borne saisie, maxValue reste null (illimité)',
-      (tester) async {
+  testWidgets('sans borne saisie, maxValue reste null (illimité)', (
+    tester,
+  ) async {
     late CounterType? result;
     await tester.pumpWidget(
       MaterialApp(
@@ -167,7 +212,10 @@ void main() {
           body: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
-                result = await CounterEditorDialog.show(context, quarterTurns: 0);
+                result = await CounterEditorDialog.show(
+                  context,
+                  quarterTurns: 0,
+                );
               },
               child: const Text('ouvrir'),
             ),
@@ -179,9 +227,13 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-        find.byKey(const ValueKey('counter_editor_name')), 'Storm');
+      find.byKey(const ValueKey('counter_editor_name')),
+      'Storm',
+    );
     await tester.enterText(
-        find.byKey(const ValueKey('counter_editor_emoji')), '🌀');
+      find.byKey(const ValueKey('counter_editor_emoji')),
+      '🌀',
+    );
     await tester.pump();
 
     await tester.tap(find.byKey(const ValueKey('counter_editor_submit')));
@@ -189,4 +241,59 @@ void main() {
 
     expect(result!.maxValue, isNull);
   });
+
+  // Tâche 7, ronde de correction 1 : pour un siège latéral, la hauteur
+  // LOCALE de la feuille n'est que la largeur physique du téléphone. Un
+  // `AlertDialog` (qui ne défile pas) y débordait ; le formulaire doit
+  // défiler jusqu'à « Créer » et rester utilisable.
+  testWidgets(
+    'siège latéral sur téléphone : le formulaire défile sans déborder et '
+    '« Créer » reste atteignable',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      late CounterType? result;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () async {
+                  result = await CounterEditorDialog.show(
+                    context,
+                    quarterTurns: 1,
+                  );
+                },
+                child: const Text('ouvrir'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('ouvrir'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_name')),
+        'Storm',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('counter_editor_emoji')),
+        'S',
+      );
+      await tester.pump();
+
+      final submit = find.byKey(const ValueKey('counter_editor_submit'));
+      await tester.ensureVisible(submit);
+      await tester.pumpAndSettle();
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(result?.name, 'Storm');
+    },
+  );
 }

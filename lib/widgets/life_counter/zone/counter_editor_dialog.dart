@@ -93,103 +93,125 @@ class _CounterEditorDialogState extends State<CounterEditorDialog> {
   void _submit() {
     if (!_canSubmit) return;
     final maxValue = int.tryParse(_maxValueController.text.trim());
-    Navigator.of(context).pop(CounterType(
-      id: deriveCounterId(_nameController.text),
-      name: _nameController.text.trim(),
-      emoji: _emojiController.text.trim(),
-      color: _selectedColor.toARGB32(),
-      maxValue: maxValue,
-    ));
+    Navigator.of(context).pop(
+      CounterType(
+        id: deriveCounterId(_nameController.text),
+        name: _nameController.text.trim(),
+        emoji: _emojiController.text.trim(),
+        color: _selectedColor.toARGB32(),
+        maxValue: maxValue,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: AppColors.scaffoldBackground,
-      title: Text('Nouveau compteur', style: AppTextStyles.cardTitle()),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              key: const ValueKey('counter_editor_name'),
-              controller: _nameController,
-              autofocus: true,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
-                labelText: 'Nom',
-                labelStyle: TextStyle(color: AppColors.textSecondary),
-              ),
-              onChanged: (_) => setState(() {}),
+    // Tâche 7, ronde de correction 1 : plus d'`AlertDialog` ici. Posé dans
+    // la feuille de `showSeatedSheet`, il ajoutait une seconde surface
+    // (son propre `Material`, ses marges d'inset de 40/24 px) dans la
+    // première, et ne défilait pas : pour un siège latéral, la hauteur
+    // locale disponible n'est que la largeur physique du téléphone
+    // (~360-400 px), trop peu pour trois champs, la palette et les boutons
+    // -- débordement. Le contenu est identique (titre, champs, palette,
+    // Annuler/Créer) ; seule la surface change, et elle défile.
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Nouveau compteur', style: AppTextStyles.cardTitle()),
+          const SizedBox(height: 16),
+          TextField(
+            key: const ValueKey('counter_editor_name'),
+            controller: _nameController,
+            autofocus: true,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Nom',
+              labelStyle: TextStyle(color: AppColors.textSecondary),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const ValueKey('counter_editor_emoji'),
-              controller: _emojiController,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
-                labelText: 'Emoji',
-                labelStyle: TextStyle(color: AppColors.textSecondary),
-              ),
-              onChanged: (_) => setState(() {}),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            key: const ValueKey('counter_editor_emoji'),
+            controller: _emojiController,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Emoji',
+              labelStyle: TextStyle(color: AppColors.textSecondary),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const ValueKey('counter_editor_max_value'),
-              controller: _maxValueController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
-                labelText: 'Borne maximale (optionnel)',
-                labelStyle: TextStyle(color: AppColors.textSecondary),
-              ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            key: const ValueKey('counter_editor_max_value'),
+            controller: _maxValueController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              labelText: 'Borne maximale (optionnel)',
+              labelStyle: TextStyle(color: AppColors.textSecondary),
             ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final skin in kPlayerSkins)
-                  GestureDetector(
-                    key: ValueKey('counter_editor_color_${skin.color.toARGB32()}'),
-                    onTap: () => setState(() => _selectedColor = skin.color),
-                    child: Container(
-                      // Cible tactile >= 48x48 (contrainte du lot).
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: skin.color,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: _selectedColor.toARGB32() == skin.color.toARGB32()
-                              ? AppColors.textPrimary
-                              : Colors.transparent,
-                          width: 3,
-                        ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final skin in kPlayerSkins)
+                GestureDetector(
+                  key: ValueKey(
+                    'counter_editor_color_${skin.color.toARGB32()}',
+                  ),
+                  onTap: () => setState(() => _selectedColor = skin.color),
+                  child: Container(
+                    // Cible tactile >= 48x48 (contrainte du lot).
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: skin.color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color:
+                            _selectedColor.toARGB32() == skin.color.toARGB32()
+                            ? AppColors.textPrimary
+                            : Colors.transparent,
+                        width: 3,
                       ),
                     ),
                   ),
-              ],
-            ),
-          ],
-        ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Les actions qu'`AlertDialog` alignait à droite.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                key: const ValueKey('counter_editor_cancel'),
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text(
+                  'Annuler',
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                key: const ValueKey('counter_editor_submit'),
+                onPressed: _canSubmit ? _submit : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryShade800,
+                ),
+                child: const Text('Créer'),
+              ),
+            ],
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          key: const ValueKey('counter_editor_cancel'),
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Annuler', style: TextStyle(color: AppColors.textMuted)),
-        ),
-        ElevatedButton(
-          key: const ValueKey('counter_editor_submit'),
-          onPressed: _canSubmit ? _submit : null,
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryShade800),
-          child: const Text('Créer'),
-        ),
-      ],
     );
   }
 }

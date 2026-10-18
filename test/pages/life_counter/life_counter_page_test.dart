@@ -2705,4 +2705,43 @@ void main() {
               'symétrique (dy supérieur)');
     });
   });
+
+  // Tâche 7, ruling 36 : `showSeatedSheet` et `showPlayerDrawer` savent
+  // tourner la feuille, mais rien ne vérifiait que la page leur transmet
+  // la rotation du joueur (`p.quarterTurns` dans `_buildPlayerZone`) -- un
+  // `0` en dur à cet endroit laissait tous les tests verts et le tiroir du
+  // joueur d'en face à l'envers.
+  testWidgets(
+      "le tiroir d'un joueur tourné s'ouvre avec la rotation de SON siège",
+      (tester) async {
+    final baseSession = GameSession.newGame(
+      format: commanderFormat,
+      playerConfigs: testConfigs,
+    );
+    final rotated = baseSession.copyWith(
+      players: [
+        baseSession.players[0].copyWith(quarterTurns: 2),
+        ...baseSession.players.sublist(1),
+      ],
+    );
+    await pumpWithContainer(tester, snapshot: rotated);
+
+    final zoneTurns = _quarterTurnsAbove(find.descendant(
+      of: _playerZone(0),
+      matching: find.byType(LifeDial),
+    ));
+    expect(zoneTurns, isNot(0),
+        reason: 'le joueur 0 doit être réellement tourné pour que ce test '
+            "distingue une rotation transmise d'un 0 en dur");
+
+    await openDrawerForPlayerZero(tester);
+
+    final drawerRotation = tester.widget<RotatedBox>(find
+        .ancestor(
+          of: find.byKey(const ValueKey('action-monarch')),
+          matching: find.byType(RotatedBox),
+        )
+        .first);
+    expect(drawerRotation.quarterTurns, zoneTurns);
+  });
 }
