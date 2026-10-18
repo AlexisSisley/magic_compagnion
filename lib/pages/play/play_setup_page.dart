@@ -29,6 +29,7 @@ import '../../router/app_routes.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/magic_palette.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
+import '../../widgets/life_counter/player_skins.dart';
 
 class PlaySetupPage extends ConsumerStatefulWidget {
   const PlaySetupPage({super.key});
@@ -61,15 +62,6 @@ class _PlaySetupPageState extends ConsumerState<PlaySetupPage> {
     });
   }
 
-  /// Couleurs de repli quand un joueur n'a pas de profil, alignees sur celles
-  /// de `LifeCounterPage`.
-  static const _couleursParDefaut = <int>[
-    0xFF2196F3,
-    0xFFF44336,
-    0xFF4CAF50,
-    0xFF9C27B0,
-  ];
-
   /// Ecrit la partie configuree puis ouvre le compteur.
   ///
   /// La partie n'est pas demarree ici : elle est SNAPSHOTTEE. `LifeCounterPage`
@@ -88,8 +80,13 @@ class _PlaySetupPageState extends ConsumerState<PlaySetupPage> {
           id: 'player_$i',
           name: profils[i]?.name ?? 'Joueur ${i + 1}',
           type: i == 0 ? PlayerType.owner : PlayerType.guest,
-          colorValue: profils[i]?.colorValue ??
-              _couleursParDefaut[i % _couleursParDefaut.length],
+          // Couleur de repli quand un joueur n'a pas de profil : derivee de
+          // `kPlayerSkins` (source unique des couleurs de joueur, voir
+          // `player_skins.dart`), exactement comme `LifeCounterPage._startNewGame`
+          // -- ce qui etait seulement affirme en commentaire ici auparavant
+          // (et etait d'ailleurs deja faux : teintes Material 500, quand
+          // `LifeCounterPage` etait en 800/900) devient enfin vrai.
+          colorValue: profils[i]?.colorValue ?? defaultSkinForSeat(i).color.toARGB32(),
           avatarPath: profils[i]?.commanderImageUrl,
         ),
     ];

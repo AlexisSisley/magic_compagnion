@@ -8,6 +8,7 @@ import '../../services/profile_service.dart';
 import '../../widgets/decks/deck_card_picker.dart';
 import '../../widgets/cards/scryfall_image.dart';
 import '../../providers/service_providers.dart';
+import '../../widgets/life_counter/player_skins.dart';
 
 class ProfileManagementPage extends ConsumerStatefulWidget {
   const ProfileManagementPage({super.key});
@@ -27,12 +28,6 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
   // TODO: wire to real IAP premium check
   bool get _isPremium => false;
   int get _galleryLimit => _isPremium ? _galleryLimitPremium : _galleryLimitFree;
-
-  final List<Color> _defaultColors = [
-    Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
-    Colors.purple.shade900, Colors.orange.shade900, Colors.teal.shade900,
-    Colors.pink.shade900, Colors.brown.shade800, Colors.indigo.shade900,
-  ];
 
   @override
   void initState() {
@@ -132,7 +127,7 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
     final nameCtrl = TextEditingController(text: existing?.name);
     ScryfallCard? cmd1;
     ScryfallCard? cmd2;
-    Color selectedColor = existing != null ? Color(existing.colorValue) : _defaultColors[1];
+    Color selectedColor = existing != null ? Color(existing.colorValue) : defaultSkinForSeat(1).color;
     // Commander gallery — mutable copy from existing profile
     final List<CommanderEntry> gallery = List.from(existing?.commanderGallery ?? []);
 
@@ -292,16 +287,28 @@ class _ProfileManagementPageState extends ConsumerState<ProfileManagementPage> {
                 const SizedBox(height: 16),
                 Wrap(
                   spacing: 10, runSpacing: 10,
-                  children: _defaultColors.map((c) => GestureDetector(
-                    onTap: () => setModalState(() => selectedColor = c),
-                    child: Container(
-                      width: 30, height: 30,
-                      decoration: BoxDecoration(
-                        color: c, shape: BoxShape.circle,
-                        border: Border.all(color: selectedColor == c ? Colors.white : AppColors.transparent, width: 2)
+                  children: kPlayerSkins.map((skin) {
+                    final c = skin.color;
+                    return GestureDetector(
+                      onTap: () => setModalState(() => selectedColor = c),
+                      // Zone de 48x48 (kMinInteractiveDimension) autour du
+                      // disque de 30 : meme convention que les autres
+                      // galeries de kPlayerSkins de ce chantier.
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Center(
+                          child: Container(
+                            width: 30, height: 30,
+                            decoration: BoxDecoration(
+                              color: c, shape: BoxShape.circle,
+                              border: Border.all(color: selectedColor == c ? Colors.white : AppColors.transparent, width: 2)
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  )).toList(),
+                    );
+                  }).toList(),
                 )
               ],
             ),
