@@ -1855,13 +1855,13 @@ void main() {
           matching: find.byType(LifeDial),
         );
 
-    // Le palier "-5", cherché comme DESCENDANT du cadran de Sarah : dès la
-    // première sélection, un badge de buffer affichant aussi "-5" apparaît
-    // ailleurs dans la zone (hors du LifeDial) -- `find.text('-5')` seul
-    // deviendrait ambigu pour la seconde sélection sans cette portée.
+    // Le palier "-5", cherché par sa clé dans le cadran de Sarah : dès la
+    // première sélection, le delta en attente affiche aussi "-5", et il vit
+    // désormais dans le cadran, contre le total -- `find.text('-5')` y
+    // deviendrait ambigu pour la seconde sélection.
     Finder stepMinus5() => find.descendant(
           of: sarahDial(),
-          matching: find.text('-5'),
+          matching: find.byKey(const ValueKey('life_step_-5')),
         );
 
     // Première sélection de "-5" : alimente le buffer à -5, négatif, en

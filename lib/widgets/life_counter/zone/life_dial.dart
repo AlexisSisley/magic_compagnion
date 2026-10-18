@@ -22,6 +22,7 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
 
 import '../tuning.dart';
+import 'pending_delta.dart';
 
 class LifeDial extends ConsumerStatefulWidget {
   const LifeDial({
@@ -30,10 +31,16 @@ class LifeDial extends ConsumerStatefulWidget {
     required this.life,
     required this.onDelta,
     this.textColor,
+    this.pendingDelta = 0,
   });
 
   final int playerId;
   final int life;
+
+  /// Bilan de la salve en cours, rendu par `PendingDelta` DANS le même
+  /// `FittedBox` que le total (voir `_readout`). Le cadran ne fait que
+  /// l'afficher ; sa source reste `_pendingDamage` de la page.
+  final int pendingDelta;
 
   /// [silent] marque un delta qui n'est PAS un geste utilisateur mais une
   /// correction interne (round de correction 3, spec) : l'annulation de la
@@ -505,12 +512,25 @@ class _LifeDialState extends ConsumerState<LifeDial> {
                   ),
                 ),
               ),
-              IgnorePointer(child: _readout(color)),
-              if (isAdjusting)
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: _stepRow(constraints.maxWidth),
+              // Le total occupe la place que les paliers lui laissent. Posés
+              // PAR-DESSUS le chiffre (ancien `Align` en bas du `Stack`), ils
+              // en masquaient le bas sur un cadran court (Fold replié à
+              // 4 joueurs : une centaine de pixels), et le delta en attente,
+              // posé contre le total, tombait exactement dessous. En mode
+              // ajustement, total et delta se réduisent donc pour tenir
+              // au-dessus de la rangée ; hors mode, rien ne change.
+              Positioned.fill(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: IgnorePointer(
+                        child: Center(child: _readout(color)),
+                      ),
+                    ),
+                    if (isAdjusting) _stepRow(constraints.maxWidth),
+                  ],
                 ),
+              ),
             ],
           ),
         );
@@ -518,12 +538,40 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     );
   }
 
+  /// Le total et, contre lui, le delta en attente (spec §1.8), dans le MÊME
+  /// `FittedBox` : quand la place manque, les deux se réduisent du même
+  /// facteur, et le delta garde exactement la moitié de la taille rendue du
+  /// total. Posé à part, avec sa taille nominale, il ne savait pas de combien
+  /// le total avait été réduit et le recouvrait sur un petit cadran.
+  ///
+  /// À côté du total plutôt que dessous : un cadran est presque toujours
+  /// plus large que haut (l'en-tête et la poignée prennent de la hauteur), et
+  /// c'est la hauteur qui force la réduction. Une copie invisible du delta,
+  /// à gauche, garde le total centré : il ne glisse pas sur le côté à chaque
+  /// début de salve.
   Widget _readout(Color color) {
+    final numeralSize = AppTextStyles.lifeNumeral().fontSize!;
+    final delta = widget.pendingDelta;
+    final gap = SizedBox(width: numeralSize * 0.15);
     return FittedBox(
       fit: BoxFit.scaleDown,
-      child: Text(
-        '${widget.life}',
-        style: AppTextStyles.lifeNumeral(color: color),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (delta != 0) ...[
+            PendingDelta.counterweight(
+                delta: delta, totalFontSize: numeralSize),
+            gap,
+          ],
+          Text(
+            '${widget.life}',
+            style: AppTextStyles.lifeNumeral(color: color),
+          ),
+          if (delta != 0) ...[
+            gap,
+            PendingDelta(delta: delta, totalFontSize: numeralSize),
+          ],
+        ],
       ),
     );
   }

@@ -42,9 +42,23 @@ class PendingDelta extends StatelessWidget {
     super.key,
     required this.delta,
     required this.totalFontSize,
-  });
+  }) : counterweight = false;
+
+  /// Un espace vide de la largeur exacte du delta, sans aucun texte. Posé de
+  /// l'autre côté du total (voir `LifeDial._readout`), il le garde centré
+  /// quand le delta apparaît. Mesuré plutôt que rendu invisible : une copie
+  /// cachée du texte resterait dans l'arbre, et `find.text('-N')` y
+  /// trouverait deux deltas.
+  const PendingDelta.counterweight({
+    super.key,
+    required this.delta,
+    required this.totalFontSize,
+  }) : counterweight = true;
 
   final int delta;
+
+  /// Vrai pour le contrepoids : la largeur du delta, sans le rendre.
+  final bool counterweight;
 
   /// Taille du total auquel ce badge se compare. Le badge se rend à la
   /// MOITIÉ de cette valeur -- voir le commentaire de fichier ci-dessus.
@@ -59,12 +73,27 @@ class PendingDelta extends StatelessWidget {
     if (delta == 0) return const SizedBox.shrink();
 
     final bool isPositive = delta > 0;
-    return Text(
-      isPositive ? '+$delta' : '$delta',
-      style: AppTextStyles.lifeBadge(
-        fontSize: totalFontSize / 2,
-        color: isPositive ? AppColors.feedbackSuccess : AppColors.feedbackDanger,
-      ),
+    final label = isPositive ? '+$delta' : '$delta';
+    final style = AppTextStyles.lifeBadge(
+      fontSize: totalFontSize / 2,
+      color: isPositive ? AppColors.feedbackSuccess : AppColors.feedbackDanger,
     );
+    if (counterweight) {
+      // Même résolution de style que `Text` : style par défaut hérité, puis
+      // facteur de taille du texte de l'utilisateur.
+      final painter = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: DefaultTextStyle.of(context).style.merge(style),
+        ),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 1,
+      )..layout();
+      final width = painter.width;
+      painter.dispose();
+      return SizedBox(width: width);
+    }
+    return Text(label, style: style);
   }
 }

@@ -181,7 +181,7 @@ abstract final class AppTextStyles {
     letterSpacing: -2,
   );
 
-  /// Badge de delta en attente sous le chiffre de vie (20px, semibold).
+  /// Badge de delta en attente, contre le chiffre de vie (20px, semibold).
   static TextStyle lifeBadge({Color? color, double? fontSize}) => TextStyle(
     color: color ?? AppColors.textPrimary,
     fontSize: fontSize ?? 20,
