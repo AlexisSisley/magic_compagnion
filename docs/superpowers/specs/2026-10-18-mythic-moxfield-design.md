@@ -92,11 +92,11 @@ maquette qu'il a validée.
 rapport à l'existant — bande au-delà de `kLargeScreenShortEdge`, hub en
 deçà, quel que soit le nombre de joueurs. La règle §4.3 de la spec table
 multijoueur v2, qui interdit la dégradation silencieuse de la barre
-d'actions, reste elle aussi en vigueur.
-
-La règle §4.3 de la spec table multijoueur v2 — interdiction de
-dégradation silencieuse de la barre d'actions — reste en vigueur sans
-changement.
+d'actions, reste elle aussi en vigueur — et elle a servi pendant
+l'implémentation : deux tentatives successives de rendu de la grille
+écartaient la bande en silence, l'une sur un écran de 600×900, l'autre
+sur des colonnes déséquilibrées. Les deux ont été rattrapées parce que
+cette règle est écrite.
 
 ### 1.3 Couleur et habillage des zones
 
