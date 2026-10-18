@@ -5,8 +5,6 @@
 // compteur (life/poison/energy/commanderTax) que la zone V4 n'a plus : le
 // chiffre n'affiche que les PV, les compteurs vivent dans le tiroir.
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/theme/app_colors.dart';
@@ -37,13 +35,6 @@ class PlayerZoneState {
   final double wheelAccumulator;
   final double wheelGestureDistance;
 
-  /// Bilan cumulé de la salve en cours (tâche 6) : la somme des changements
-  /// de vie reçus depuis le début de la fenêtre [kDamageBufferWindow], pas
-  /// le dernier changement isolé. Distinct de [FloatingNumber], qui montre
-  /// chaque événement individuellement -- voir le doc-comment de
-  /// [PlayerZoneNotifier.accumulate].
-  final int pendingDelta;
-
   const PlayerZoneState({
     this.floatingNumbers = const [],
     this.nextNumberId = 0,
@@ -51,7 +42,6 @@ class PlayerZoneState {
     this.isAdjusting = false,
     this.wheelAccumulator = 0.0,
     this.wheelGestureDistance = 0.0,
-    this.pendingDelta = 0,
   });
 
   PlayerZoneState copyWith({
@@ -61,7 +51,6 @@ class PlayerZoneState {
     bool? isAdjusting,
     double? wheelAccumulator,
     double? wheelGestureDistance,
-    int? pendingDelta,
   }) {
     return PlayerZoneState(
       floatingNumbers: floatingNumbers ?? this.floatingNumbers,
@@ -70,7 +59,6 @@ class PlayerZoneState {
       isAdjusting: isAdjusting ?? this.isAdjusting,
       wheelAccumulator: wheelAccumulator ?? this.wheelAccumulator,
       wheelGestureDistance: wheelGestureDistance ?? this.wheelGestureDistance,
-      pendingDelta: pendingDelta ?? this.pendingDelta,
     );
   }
 }
@@ -92,28 +80,8 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
   // ce ne sont plus des membres de cette classe, mais des constantes de
   // fichier importées.
 
-  /// Minuteur de la fenêtre de cumul (tâche 6, voir [accumulate]). Pas de
-  /// `dispose()` à surcharger ici : `Notifier` (riverpod 3, API publique
-  /// `$Notifier`) n'en expose pas -- le cycle de vie se branche sur
-  /// `ref.onDispose` DANS `build()`, câblé ci-dessous. Un `@override void
-  /// dispose()` ne compilerait pas (aucune méthode de ce nom dans la
-  /// hiérarchie à surcharger).
-  Timer? _pendingDeltaTimer;
-
   @override
-  PlayerZoneState build() {
-    // Le minuteur tourne sur l'horloge réelle indépendamment du widget qui
-    // affiche cette zone (tiroir ouvert, zone hors écran...) : sans cet
-    // `onDispose`, un timer resterait armé après la destruction du provider
-    // (fin de partie, par ex.) et écrirait dans un état que plus personne ne
-    // lit -- inoffensif en pratique (le provider n'est pas autoDispose, donc
-    // ce cas ne survient qu'à la destruction du `ProviderContainer` lui-même,
-    // par ex. en fin de test), mais un `Timer` non annulé qui référence encore
-    // ce notifier est exactement le genre de fuite qu'un test de non-régression
-    // doit pouvoir démontrer.
-    ref.onDispose(() => _pendingDeltaTimer?.cancel());
-    return const PlayerZoneState();
-  }
+  PlayerZoneState build() => const PlayerZoneState();
 
   // --- Mode ajustement ---
 
@@ -231,41 +199,6 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
     );
   }
 
-  // --- Bilan de salve (tâche 6) ---
-
-  /// Cumule un changement de vie dans la fenêtre courante.
-  ///
-  /// Distinct de [showFloatingNumber], qui montre l'ÉVÉNEMENT -- un nombre
-  /// qui monte et s'efface, un par changement. Ici on montre le BILAN : ce
-  /// que le joueur a perdu ou gagné depuis le DÉBUT de la salve, qui reste
-  /// affiché tant que la salve dure. C'est l'information qu'on cherche
-  /// quand trois adversaires attaquent coup sur coup, et qu'un défilement de
-  /// nombres individuels ne donne pas -- elle n'existait pas avant cette
-  /// tâche. Les deux coexistent à l'écran (voir `PendingDelta`/`LifeLog`
-  /// dans `player_zone.dart`).
-  ///
-  /// Chaque appel relance la fenêtre à zéro (`_pendingDeltaTimer?.cancel()`
-  /// puis un nouveau `Timer`) : une salve, c'est une série de coups
-  /// rapprochés, pas une horloge fixe depuis le premier coup -- sans ce
-  /// relancement, un deuxième coup arrivant juste avant l'expiration du
-  /// premier verrait son bilan effacé une fraction de seconde plus tard,
-  /// alors que l'attaque continue.
-  void accumulate(int change) {
-    _pendingDeltaTimer?.cancel();
-    state = state.copyWith(pendingDelta: state.pendingDelta + change);
-    _pendingDeltaTimer = Timer(kDamageBufferWindow, clearPendingDelta);
-  }
-
-  /// Referme la fenêtre de cumul : remet le bilan à zéro. Appelé par le
-  /// minuteur de [accumulate] à l'expiration de [kDamageBufferWindow], mais
-  /// aussi exposé pour un appelant qui voudrait fermer la salve plus tôt
-  /// (aucun appelant de ce genre aujourd'hui).
-  void clearPendingDelta() {
-    _pendingDeltaTimer?.cancel();
-    _pendingDeltaTimer = null;
-    state = state.copyWith(pendingDelta: 0);
-  }
-
   // --- Rotation ---
 
   int rotate90Degrees(int currentQuarterTurns) => (currentQuarterTurns + 1) % 4;
@@ -295,13 +228,6 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
   }
 
   void reset() {
-    // Une salve en cours ne doit pas survivre à une nouvelle partie : sans
-    // cette annulation, le minuteur de l'ancienne partie expirerait plus
-    // tard et appellerait `clearPendingDelta` sur l'état flambant neuf --
-    // sans effet visible ici (il remettrait 0 à 0), mais un minuteur fantôme
-    // qu'on peut éviter de laisser courir doit l'être.
-    _pendingDeltaTimer?.cancel();
-    _pendingDeltaTimer = null;
     state = const PlayerZoneState();
   }
 }

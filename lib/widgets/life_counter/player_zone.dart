@@ -45,6 +45,7 @@ class PlayerZone extends ConsumerStatefulWidget {
     this.isHighlighted = false,
     this.attributionOpponents,
     this.onAttributeDamage,
+    this.pendingDelta = 0,
   });
 
   final Player player;
@@ -61,12 +62,20 @@ class PlayerZone extends ConsumerStatefulWidget {
   /// Ronde de correction finale (Critical/Important #2) : vit ICI, DANS le
   /// `RotatedBox` de `quarterTurns` ci-dessous -- et non empilée par-dessus
   /// depuis `life_counter_page.dart` comme au premier jet -- pour pivoter
-  /// avec le reste de la zone. Contrairement au badge de buffer (décoratif,
-  /// même défaut resté tel quel, voir la note du lot 6), cette rangée est
-  /// une cible tactile : mal orientée, elle tombe au bas de l'écran plutôt
-  /// qu'au bas de la zone telle que le joueur la lit à 90°/270°.
+  /// avec le reste de la zone. Le badge de buffer (`pendingDelta` ci-dessous)
+  /// souffrait du MÊME défaut jusqu'à Ruling 32 (tâche 6) -- posé par-dessus
+  /// depuis la page, il ne pivotait jamais, et le joueur assis en face lisait
+  /// son propre bilan à l'envers. Même correctif, même raison.
   final List<DamageAttributionOpponent>? attributionOpponents;
   final void Function(int sourcePlayerId)? onAttributeDamage;
+
+  /// Bilan cumulé de la salve en cours (tâche 6, Ruling 32), à afficher sous
+  /// le chiffre de vie via `PendingDelta`. Source unique : `_pendingDamage`
+  /// dans `life_counter_page.dart` (`_buildPlayerZone`) -- PAS d'état
+  /// équivalent dans `PlayerZoneNotifier` ni ailleurs. Ce widget se contente
+  /// d'afficher la valeur reçue, exactement comme `player.life` ou
+  /// `attributionOpponents` ci-dessus.
+  final int pendingDelta;
 
   /// Ouverture du tiroir (tap sur la poignée — voir `ConditionalHandle`, qui
   /// n'expose qu'un `onTap`, aucun glissement) : compteurs, monarque,
@@ -215,13 +224,12 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     widget.onLifeChanged(change);
     if (silent) return;
     _showFloatingNumber(change);
-    // Tâche 6 : cumule ce changement dans le bilan de la salve en cours
-    // (`PendingDelta`, montée plus bas dans `buildContent`). Volontairement
-    // APRÈS le `if (silent) return;` ci-dessus : un pas de molette annulé en
-    // route vers un palier (voir le doc-comment de `silent` sur ce paramètre)
-    // ne doit pas non plus polluer le bilan affiché -- même raisonnement que
-    // pour `_showFloatingNumber`, auquel ce bilan s'ajoute sans le remplacer.
-    _notifier.accumulate(change);
+    // Tâche 6, Ruling 32 : le bilan cumulé (`PendingDelta`) n'est PLUS
+    // alimenté d'ici -- sa source unique est `_pendingDamage` dans
+    // `life_counter_page.dart`, qui appelle déjà `widget.onLifeChanged`
+    // ci-dessus à chaque changement. Un second appel ici aurait recréé
+    // exactement la duplication de source que ce ruling défait (voir
+    // task-6-report.md).
     if (change > 0) {
       _pulseController.forward(from: 0);
     } else if (change < 0) {
@@ -414,6 +422,11 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                     // `Stack` pour ses propres gestes (moitiés −/+, molette) —
                     // un badge qui interceptait le tap casserait la zone sous
                     // lui.
+                    //
+                    // Ruling 32 : `PendingDelta` est alimenté par
+                    // `widget.pendingDelta`, un PARAMÈTRE reçu de
+                    // `life_counter_page.dart` (source unique :
+                    // `_pendingDamage`) -- plus aucune lecture de provider ici.
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
@@ -442,9 +455,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                           alignment: const Alignment(0, 0.55),
                           child: IgnorePointer(
                             child: PendingDelta(
-                              delta: ref
-                                  .watch(playerZoneNotifierProvider(widget.player.id))
-                                  .pendingDelta,
+                              delta: widget.pendingDelta,
                               // Taille NOMINALE du total (`AppTextStyles.lifeNumeral`
                               // vaut 88px avant que `LifeDial` ne le réduise via
                               // `FittedBox` si la place manque) : le facteur

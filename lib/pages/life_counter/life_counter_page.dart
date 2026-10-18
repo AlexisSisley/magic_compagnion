@@ -1254,19 +1254,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
       child: zone,
     );
 
-    final pending = _pendingDamage[playerState.playerId] ?? 0;
-    final pendingText = pending > 0 ? '+$pending' : '$pending';
-    final pendingColor =
-        pending > 0 ? AppColors.accentGreen : AppColors.accentRed;
-
     // Ronde de correction 4 de la tache 7 -- CAUSE RACINE d'un defaut de
-    // geste, pas un nettoyage cosmetique. Ces trois surcouches
-    // (flash de degats de commandant, badge de buffer, overlay de mort)
-    // ETAIENT trois `if` qui ENVELOPPAIENT `zone` dans un `Stack`
-    // supplementaire. Envelopper, c'est INSERER UN NIVEAU dans l'arbre :
-    // a la frame ou `pending` passe de 0 a -1 (le tout premier pas de
-    // molette d'un geste d'ajustement), l'enfant de `KeyedSubtree` change
-    // de type (`EliminationOverlay` -> `Stack`). Flutter ne peut plus
+    // geste, pas un nettoyage cosmetique. Ces surcouches (flash de degats de
+    // commandant, overlay de mort -- le badge de buffer qui vivait ici
+    // aussi a ete retire par Ruling 32, tache 6, voir plus bas) ETAIENT des
+    // `if` qui ENVELOPPAIENT `zone` dans un `Stack` supplementaire.
+    // Envelopper, c'est INSERER UN NIVEAU dans l'arbre : au moment ou l'une
+    // de ces conditions bascule en plein geste, l'enfant de `KeyedSubtree`
+    // change de type (`EliminationOverlay` -> `Stack`). Flutter ne peut plus
     // apparier l'Element, detruit tout le sous-arbre et le reconstruit :
     // le `State` de `LifeDial` est recree EN PLEIN GESTE (`_trackedPointer`
     // remis a `null`, veille d'appui long perdue, `_wheelSumSinceAdjust`
@@ -1302,24 +1297,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
             ),
           ),
 
-        // Pending damage buffer indicator (Bug 4)
-        if (pending != 0)
-          Positioned(
-            key: const ValueKey('zone_pending_badge'),
-            top: 8,
-            right: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: pendingColor.withAlpha(180),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                pendingText,
-                style: AppTextStyles.bold(color: AppColors.textPrimary, fontSize: 14),
-              ),
-            ),
-          ),
+        // L'indicateur de buffer en attente (Bug 4) vivait ICI, posé en
+        // `Positioned` par-dessus la zone -- SUPPRIMÉ par Ruling 32 (tâche 6)
+        // au profit de `PendingDelta`, monté DANS `PlayerZone` (donc dans son
+        // `RotatedBox`) et alimenté par `pendingDelta: pending` dans
+        // `_buildPlayerZone`. La logique source (`_pendingDamage`,
+        // `_pendingTimers`, l'attribution de dégâts de commandant) reste
+        // intacte ici : seul ce rendu-ci a disparu, pas la donnée.
 
         // Rangee d'attribution a la volee (spec S2.6) : voir `_buildPlayerZone`,
         // qui calcule sa visibilite et la passe a `PlayerZone` en donnees.
@@ -1420,6 +1404,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
           showAttribution ? _attributionOpponents(ps.playerId) : null,
       onAttributeDamage: (sourcePlayerId) =>
           _attributeCommanderDamage(ps.playerId, sourcePlayerId),
+      // Ruling 32 (tâche 6) : `pending`, calculé juste au-dessus pour la
+      // rangée d'attribution, est la MÊME valeur que le badge de buffer doit
+      // afficher -- une seule lecture de `_pendingDamage`, pas une seconde.
+      // Remplace l'ancien badge `zone_pending_badge`, posé par la page et
+      // supprimé de `_buildPlayerZoneWithOverlays` (il ne pivotait pas avec
+      // le siège, voir le doc-comment de `PlayerZone.pendingDelta`).
+      pendingDelta: pending,
     );
   }
 
