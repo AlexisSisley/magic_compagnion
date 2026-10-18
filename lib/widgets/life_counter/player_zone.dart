@@ -308,6 +308,8 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     void openColorPicker() => showPlayerSkinPicker(
           context: context,
           player: widget.player,
+          // Même rotation que le `RotatedBox` de cette zone, plus bas.
+          quarterTurns: widget.player.quarterTurns,
           onColorChanged: widget.onColorChanged,
           onSkinChanged: widget.onSkinChanged,
           localCardService: _localCardService,

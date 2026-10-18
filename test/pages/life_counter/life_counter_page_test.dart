@@ -2796,4 +2796,81 @@ void main() {
         reason: 'à la fin exacte de la fenêtre, le dégât est appliqué');
     await tester.pumpAndSettle();
   });
+
+  // Sélecteur de couleur et historique d'un joueur : deux surfaces modales
+  // qui lui appartiennent, ouvertes depuis quatre points d'entrée. Chacune
+  // doit tourner avec SON siège, quel que soit le chemin pris.
+  group('modales du joueur orientées vers son siège', () {
+    Future<void> pumpSeatedOpposite(WidgetTester tester) async {
+      final baseSession = GameSession.newGame(
+        format: commanderFormat,
+        playerConfigs: testConfigs,
+      );
+      // Marqué manuel : l'angle fabriqué doit survivre au semis du montage.
+      final rotated = baseSession.copyWith(
+        players: [
+          baseSession.players[0]
+              .copyWith(quarterTurns: 2, manualRotation: true),
+          ...baseSession.players.sublist(1),
+        ],
+      );
+      await pumpWithContainer(tester, snapshot: rotated);
+    }
+
+    Future<void> expectSeatedAndClose(WidgetTester tester, Finder inModal) async {
+      expect(inModal, findsOneWidget, reason: 'la modale est ouverte');
+      final rotation = tester.widget<RotatedBox>(find
+          .ancestor(of: inModal, matching: find.byType(RotatedBox))
+          .first);
+      expect(rotation.quarterTurns, 2);
+      Navigator.of(tester.element(inModal)).pop();
+      await tester.pumpAndSettle();
+    }
+
+    final skinPicker = find.text('Personnalisation J1');
+    final history = find.text('Aucun événement');
+
+    testWidgets("palette de l'en-tête -> sélecteur de couleur",
+        (tester) async {
+      await pumpSeatedOpposite(tester);
+      await tester.tap(find.descendant(
+        of: _playerZone(0),
+        matching: find.byIcon(Icons.palette),
+      ));
+      await tester.pumpAndSettle();
+      await expectSeatedAndClose(tester, skinPicker);
+    });
+
+    testWidgets('tap sur le nom -> historique', (tester) async {
+      await pumpSeatedOpposite(tester);
+      await tester.tap(find.descendant(
+        of: _playerZone(0),
+        matching: find.text('Alex'),
+      ));
+      await tester.pumpAndSettle();
+      await expectSeatedAndClose(tester, history);
+    });
+
+    testWidgets('action « Couleur » du tiroir -> sélecteur de couleur',
+        (tester) async {
+      await pumpSeatedOpposite(tester);
+      await openDrawerForPlayerZero(tester);
+      await tester.ensureVisible(find.byKey(const ValueKey('action-color')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('action-color')));
+      await tester.pumpAndSettle();
+      await expectSeatedAndClose(tester, skinPicker);
+    });
+
+    testWidgets('action « Historique » du tiroir -> historique',
+        (tester) async {
+      await pumpSeatedOpposite(tester);
+      await openDrawerForPlayerZero(tester);
+      await tester.ensureVisible(find.byKey(const ValueKey('action-player-history')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('action-player-history')));
+      await tester.pumpAndSettle();
+      await expectSeatedAndClose(tester, history);
+    });
+  });
 }

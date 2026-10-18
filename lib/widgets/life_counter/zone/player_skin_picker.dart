@@ -21,6 +21,7 @@ import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/services/local_card_service.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
+import 'seated_sheet.dart';
 import '../../cards/versions_selector_sheet.dart';
 import '../player_skins.dart';
 
@@ -105,24 +106,34 @@ void _openArtworkSearch(
   );
 }
 
-/// Ouvre le dialogue de personnalisation visuelle : artwork (recherche
+/// Ouvre le sélecteur de personnalisation visuelle : artwork (recherche
 /// Scryfall), photo depuis la galerie de l'appareil, ou couleur unie.
 /// Remplace l'ancien `PlayerZone._showColorPicker`.
+///
+/// Feuille ASSISE au siège du joueur ([quarterTurns], celui de sa zone),
+/// comme le tiroir d'où on l'ouvre aussi : un dialogue centré et droit se
+/// lisait à l'envers pour le joueur d'en face, qui devait tourner le
+/// téléphone pour choisir sa propre couleur.
 void showPlayerSkinPicker({
   required BuildContext context,
   required Player player,
+  required int quarterTurns,
   required ValueChanged<Color> onColorChanged,
   required ValueChanged<String?>? onSkinChanged,
   required LocalCardService localCardService,
 }) {
-  showDialog(
+  showSeatedSheet<void>(
     context: context,
-    builder: (dialogCtx) => AlertDialog(
-      backgroundColor: AppColors.scaffoldBackground,
-      title: Text('Personnalisation J${player.id + 1}', style: AppTextStyles.text()),
-      content: Column(
+    quarterTurns: quarterTurns,
+    // La feuille ne défile pas d'elle-même : sur un siège latéral, sa
+    // hauteur locale est la largeur de l'écran, que ce contenu dépasse.
+    builder: (dialogCtx) => SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Text('Personnalisation J${player.id + 1}', style: AppTextStyles.text()),
+          const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: () => _openArtworkSearch(
               context,
@@ -175,7 +186,7 @@ void showPlayerSkinPicker({
           ),
         ],
       ),
-    )
+    ),
   );
 }
 

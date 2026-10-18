@@ -39,6 +39,7 @@ import '../../widgets/life_counter/player_zone.dart';
 import 'package:magic_companion/widgets/life_counter/damage_history_sheet.dart';
 import 'package:magic_companion/widgets/life_counter/player_history_sheet.dart';
 import '../../widgets/life_counter/zone/player_drawer.dart';
+import '../../widgets/life_counter/zone/seated_sheet.dart';
 import '../../widgets/life_counter/zone/commander_damage_grid.dart';
 import '../../widgets/life_counter/zone/damage_attribution_row.dart';
 import '../../widgets/life_counter/zone/action_hub.dart';
@@ -2038,13 +2039,18 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     final playerState = _session!.players.where((p) => p.playerId == playerId).firstOrNull;
     if (playerState == null) return;
 
-    showModalBottomSheet(
+    // Feuille assise au siège du joueur, comme son tiroir : ses deux points
+    // d'entrée (tap sur le nom, action « Historique » du tiroir) concernent
+    // CE joueur, qui doit pouvoir la lire sans tourner le téléphone. Elle
+    // défile elle-même : la feuille borne sa hauteur sans faire défiler.
+    showSeatedSheet<void>(
       context: context,
-      backgroundColor: AppColors.scaffoldBackground,
-      isScrollControlled: true,
-      builder: (ctx) => PlayerHistorySheet(
-        playerState: playerState,
-        startingLife: _currentFormat.startingLife,
+      quarterTurns: playerState.quarterTurns,
+      builder: (ctx) => SingleChildScrollView(
+        child: PlayerHistorySheet(
+          playerState: playerState,
+          startingLife: _currentFormat.startingLife,
+        ),
       ),
     );
   }
