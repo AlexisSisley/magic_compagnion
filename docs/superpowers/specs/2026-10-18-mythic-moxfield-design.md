@@ -146,6 +146,23 @@ sièges retenu par `tableLayoutFor`, et d'aucune autre source. Le défaut
 observé — une orientation qui ne correspond pas à la grille affichée —
 vient de ce que les deux étaient calculées séparément.
 
+**Une orientation choisie à la main survit à tout changement de
+disposition**, pliage et dépliage compris. Décision de l'utilisateur,
+prise le 18/10/2026 pendant l'implémentation, contre la proposition
+inverse de l'implémenteur — laquelle faisait valoir qu'un dépliage
+change la forme de la zone et périme l'angle choisi.
+
+Le motif qui l'emporte : le réglage décrit **où les gens sont assis
+autour de la table physique**, et déplier un téléphone ne déplace
+personne. La forme de la zone change ; la géométrie de la table, non.
+
+Conséquence technique : la provenance de l'orientation doit être
+distinguée par joueur — semée ou choisie. Le semis ne touche que les
+zones non choisies. Le marqueur se réinitialise au démarrage d'une
+nouvelle partie, et à ce moment-là seulement. Les deux chemins de choix
+manuel du §1.7 — sélecteur à quatre flèches et presets — le posent l'un
+comme l'autre.
+
 Cette règle ne fait que réaffirmer le §2.1 de la spec table multijoueur
 v2 (« la rotation n'a qu'un seul propriétaire ») : elle avait été écrite,
 elle n'est pas respectée en sortie du changement de grille du §1.1.
