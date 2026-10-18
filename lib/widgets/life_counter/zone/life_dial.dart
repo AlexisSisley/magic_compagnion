@@ -82,6 +82,16 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// quatre joueurs.
   final Set<int> _pendingTaps = {};
 
+  /// Moitié actuellement sous le doigt : -1, +1, ou 0 si aucune.
+  ///
+  /// Sur mobile il n'y a pas de survol. Cet état est l'équivalent tactile :
+  /// il dit « c'est bien cette moitié que tu viens de toucher », ce que rien
+  /// n'indiquait avant -- d'où des taps qui semblaient ne rien faire (retour
+  /// utilisateur à l'origine de cette tâche). Purement visuel : il ne
+  /// participe à aucune arène de gestes et n'influence aucun des chemins
+  /// d'émission ci-dessus.
+  int _pressedHalf = 0;
+
   /// Fraction de la largeur de la zone laissée libre de chaque côté de la
   /// rangée de paliers (spec §5.4). La rangée pleine largeur retombait
   /// exactement là où le pouce arrive au relâchement, ce qui faisait
@@ -138,6 +148,10 @@ class _LifeDialState extends ConsumerState<LifeDial> {
 
   void _startHold(int delta) {
     _pendingTaps.add(delta);
+    // Retour visuel immédiat (voir le doc-comment de `_pressedHalf`) : posé
+    // dès le contact, pas seulement si le tap aboutit — sur mobile il n'y a
+    // pas de survol, ce `setState` EST l'équivalent tactile du hover.
+    setState(() => _pressedHalf = delta);
   }
 
   /// `onTapUp` de la moitié `delta` : le tap est confirmé — on émet ce delta
@@ -147,6 +161,7 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// entre-temps.
   void _confirmTap(int delta) {
     if (_pendingTaps.remove(delta)) _emit(delta);
+    setState(() => _pressedHalf = 0);
   }
 
   /// `onTapCancel` de la moitié `delta` (glissement détecté par le
@@ -154,13 +169,17 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// moitié si elle a elle aussi un tap en cours.
   void _cancelPress(int delta) {
     _pendingTaps.remove(delta);
+    setState(() => _pressedHalf = 0);
   }
 
   /// L'appui long gagne : les deux moitiés doivent être annulées, pas
   /// seulement celle sous le pointeur suivi — voir le doc-comment de
-  /// `_pendingTaps`.
+  /// `_pendingTaps`. Le voile de pression suit : une fois le mode ajustement
+  /// entré, la moitié ne doit plus paraître pressée (l'appui long a sa
+  /// propre mise en évidence, la rangée de paliers).
   void _cancelAllPendingTaps() {
     _pendingTaps.clear();
+    setState(() => _pressedHalf = 0);
   }
 
   /// Palier dont le bouton contient [globalPosition], ou `null`.
@@ -388,6 +407,74 @@ class _LifeDialState extends ConsumerState<LifeDial> {
                     Expanded(child: _half(-1)),
                     Expanded(child: _half(1)),
                   ],
+                ),
+              ),
+              // Repères des deux moitiés (retour utilisateur : « pas assez
+              // clair où finit le − et où commence le + »). `IgnorePointer`
+              // INDISPENSABLE : cette couche est purement visuelle, posée
+              // au-dessus de l'arène de gestes des moitiés dans l'arbre --
+              // sans lui, son `Row`/`Container` opaque à la géométrie
+              // intercepterait les `PointerDownEvent` destinés au
+              // `Listener` racine et aux `GestureDetector` de `_half`, qui
+              // ne verraient alors plus jamais un seul tap. Elle n'apparaît
+              // dans aucun des deux repères ci-dessus ni ci-dessous.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          key: const Key('life-dial-highlight-minus'),
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.only(left: 16),
+                          decoration: BoxDecoration(
+                            color: _pressedHalf == -1
+                                ? AppColors.textPrimary.withValues(alpha: 0.14)
+                                : AppColors.transparent,
+                            // Frontière visuelle entre les deux moitiés : le
+                            // reproche initial de l'utilisateur (« où finit
+                            // le − et où commence le + ») porte sur cette
+                            // ligne précisément. Posée côté gauche seulement
+                            // (une seule ligne, pas deux superposées).
+                            border: Border(
+                              right: BorderSide(
+                                color: AppColors.textPrimary
+                                    .withValues(alpha: 0.14),
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            '−',
+                            style: AppTextStyles.text(
+                              fontSize: 34,
+                              color:
+                                  AppColors.textPrimary.withValues(alpha: 0.34),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Container(
+                          key: const Key('life-dial-highlight-plus'),
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 16),
+                          decoration: BoxDecoration(
+                            color: _pressedHalf == 1
+                                ? AppColors.textPrimary.withValues(alpha: 0.14)
+                                : AppColors.transparent,
+                          ),
+                          child: Text(
+                            '+',
+                            style: AppTextStyles.text(
+                              fontSize: 34,
+                              color:
+                                  AppColors.textPrimary.withValues(alpha: 0.34),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               IgnorePointer(child: _readout(color)),

@@ -48,7 +48,7 @@ class PlayerState {
   ///
   /// DÉLIBÉRÉMENT absent de [toJson]/[fromJson] -- ni persisté, ni migré.
   /// Deux raisons, pas une commodité :
-  /// 1. `_hasOwnFreshSession` (life_counter_page.dart) garantit déjà qu'une
+  /// 1. `_sessionIsFresh` (life_counter_page.dart) garantit déjà qu'une
   ///    partie REPRISE depuis un snapshot n'est jamais auto-resemée -- la
   ///    valeur de ce champ, pour une telle partie, n'a donc AUCUNE
   ///    conséquence observable, à aucun moment de son cycle de vie. Lui
