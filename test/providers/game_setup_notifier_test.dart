@@ -263,12 +263,17 @@ void main() {
       }
     });
 
-    test('first color matches kPlayerSkins first entry', () {
-      expect(defaultProfileColorValues[0], kPlayerSkins[0].color.toARGB32());
+    // Valeurs Grimoire figées en dur (et non "mapping[0] == source[0]",
+    // tautologique vu que defaultProfileColorValues EST
+    // `kPlayerSkins.map(...)` -- un test a le droit, et le devoir, de figer
+    // ce que le code produit réellement). Si ces valeurs changent un jour
+    // dans `player_skins.dart`, ce test doit casser : c'est voulu.
+    test('first color is Plaine (0xFFC9B88A)', () {
+      expect(defaultProfileColorValues[0], 0xFFC9B88A);
     });
 
-    test('second color matches kPlayerSkins second entry', () {
-      expect(defaultProfileColorValues[1], kPlayerSkins[1].color.toARGB32());
+    test('second color is Île (0xFF3E6B8A)', () {
+      expect(defaultProfileColorValues[1], 0xFF3E6B8A);
     });
   });
 

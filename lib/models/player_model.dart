@@ -53,7 +53,12 @@ class Player {
     required this.id,
     this.name = 'Joueur',
     required this.life,
-    this.colorValue = 0xFF000000,
+    // Pas de defaut litteral ici : le seul site de construction reel
+    // (`life_counter_page._toLegacyPlayer`) fournit deja toujours une
+    // couleur (`defaultSkinForSeat`, voir `player_skins.dart`) -- un defaut
+    // en dur serait mort, et un defaut en dur mort est precisement ce que
+    // ce chantier existe a eliminer.
+    required this.colorValue,
     this.backgroundImagePath,
     this.secondaryBackgroundImagePath,
     required this.commanderDamageReceived,

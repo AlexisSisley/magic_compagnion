@@ -105,12 +105,13 @@ class GameSetupState {
 /// `kPlayerSkins` (source unique des couleurs de joueur, voir
 /// `player_skins.dart`).
 ///
-/// Portait avant une liste de 10 entiers hexadecimaux recopies a la main
-/// (`0xFFB71C1C, // Colors.red.shade900`) : le garde-fou de
-/// `player_skins_test.dart` qui cherche `Colors.*.shade*` ne voyait rien ici,
-/// puisque la teinte Material n'etait plus qu'un commentaire -- exactement
-/// la meme couleur de joueur en dur que celles supprimees ailleurs, sous une
-/// forme que le premier garde-fou ne detectait pas. Pas de `const` : derive
+/// Portait avant une liste de 10 entiers hexadecimaux recopies a la main,
+/// le nom de la teinte Material correspondante relegue a un commentaire sur
+/// chaque ligne : le garde-fou de `player_skins_test.dart` qui cherche une
+/// teinte Material NOMMEE dans le code ne voyait rien ici, puisque ce nom
+/// n'etait plus qu'un commentaire -- exactement la meme couleur de joueur en
+/// dur que celles supprimees ailleurs, sous une forme que le premier
+/// garde-fou ne detectait pas. Pas de `const` : derive
 /// `kPlayerSkins`, qui n'est lui-meme pas calculable a la compilation
 /// (`Color.toARGB32()` n'est pas une fonction const).
 List<int> get defaultProfileColorValues =>
