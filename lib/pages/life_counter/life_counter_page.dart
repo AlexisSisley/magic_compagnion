@@ -1207,10 +1207,15 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
       Widget zone = _buildPlayerZoneWithOverlays(player, playerState, index);
 
       // Tâche 8a : TOUJOURS enveloppée, `enabled` décide. Hors mode,
-      // `DraggablePlayerZone` rend l'enfant nu (aucun glisser armé) ; la
-      // profondeur de l'arbre sous `KeyedSubtree` ne dépend donc plus de
-      // l'opérateur `if` qui vivait ici. La clé d'identité reste UNIQUE et
-      // posée plus bas, au-dessus de cette enveloppe (voir l'avertissement).
+      // `DraggablePlayerZone` rend l'enfant nu (aucun glisser armé). Ce
+      // n'est PAS une profondeur d'arbre stable : en mode, son `build`
+      // insère `DragTarget`/`LongPressDraggable`/`Stack` au-dessus de
+      // l'enfant, donc `PlayerZone` est démonté puis remonté à l'entrée et à
+      // la sortie du mode, exactement comme avec l'ancien `if`. Sans
+      // conséquence ici (son état de geste n'a pas à survivre au changement
+      // de mode, le geste de vie étant suspendu dans le mode), mais à ne pas
+      // supposer ailleurs. La clé d'identité reste UNIQUE et posée plus bas,
+      // au-dessus de cette enveloppe (voir l'avertissement).
       zone = DraggablePlayerZone(
         index: index,
         enabled: _isReorganising,

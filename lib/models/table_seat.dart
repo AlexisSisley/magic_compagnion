@@ -33,12 +33,22 @@ class TableSeat {
   final int slotCount;
 
   /// Rotation à appliquer pour que ce joueur lise à l'endroit depuis sa chaise.
-  ///
-  /// `RotatedBox` tourne dans le sens HORAIRE : un quart de tour envoie le bord
-  /// gauche de l'enfant sur le bord haut de l'écran. Un joueur assis à gauche
-  /// regarde vers la droite, sa main gauche pointe donc vers le haut de
-  /// l'écran — d'où `left => 1`.
-  int get quarterTurns => switch (side) {
+  /// Déléguée à `TableSide.quarterTurns`, seule table côté → rotation.
+  int get quarterTurns => side.quarterTurns;
+}
+
+/// LA correspondance côté → rotation, unique dans tout le code.
+///
+/// Tâche 8a (Ruling 49) : le sélecteur à quatre flèches avait recopié cette
+/// table en dur ; deux tables, c'est deux sources de vérité sur la rotation,
+/// la classe de défaut du double-pivotement du lot 6. `TableSeat.quarterTurns`
+/// et `OrientationPicker` lisent désormais tous deux celle-ci.
+extension TableSideRotation on TableSide {
+  /// `RotatedBox` tourne dans le sens HORAIRE : un quart de tour envoie le
+  /// bord gauche de l'enfant sur le bord haut de l'écran. Un joueur assis à
+  /// gauche regarde vers la droite, sa main gauche pointe donc vers le haut
+  /// de l'écran — d'où `left => 1`.
+  int get quarterTurns => switch (this) {
         TableSide.bottom => 0,
         TableSide.left => 1,
         TableSide.top => 2,

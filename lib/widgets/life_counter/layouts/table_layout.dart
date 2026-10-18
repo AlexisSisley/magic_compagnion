@@ -31,11 +31,14 @@ const double kCompactShortEdge = 110.0;
 /// se prend pas.
 const double kSideColumnNeed = kCompactShortEdge + 26.0;
 
-// Tâche 6 (ronde de correction 1) : les infos de partie n'avaient qu'un
-// appui long caché sur le bouton d'orientation comme seul chemin d'accès --
-// invisible et absent du hub. Devenues une neuvième action à part entière
-// (tap ordinaire, joignable depuis la bande ET le hub), `kActionCount` en
-// tient compte pour que `kBandNeed` ne sous-estime plus la largeur réelle.
+// Nombre d'actions de `_gameActions` (life_counter_page.dart), rendues à la
+// fois par la bande et par le hub : 8 depuis la tâche 8a. Ce compte doit
+// suivre la liste, sans quoi `kBandNeed` calcule la largeur de la bande sur
+// un compte faux (test « la bande rend exactement kActionCount boutons »).
+//
+// Historique. Tâche 6 (ronde de correction 1) : les infos de partie, qui
+// n'avaient qu'un appui long caché sur le bouton d'orientation, sont
+// devenues une action à part entière -- le compte était alors passé à 9.
 //
 // Tâche 8a : 9 → 8. L'action « Orientation » est retirée -- ses presets
 // vivent dans la barre du mode réorganisation, joignable par l'action

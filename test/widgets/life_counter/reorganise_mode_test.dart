@@ -176,11 +176,20 @@ void main() {
 
     Finder arrow(int turns) => find.byKey(ValueKey('orientation-arrow-$turns'));
 
+    // Repérage par LIBELLÉ (le côté désigné), jamais par la clé
+    // `orientation-arrow-<turns>` : la clé dérive elle-même du quart de tour,
+    // et un test qui la suivrait resterait vert si la correspondance côté →
+    // rotation (`TableSide.quarterTurns`) changeait (Ruling 49).
     testWidgets('chaque flèche émet son quart de tour (▼0 ◀1 ▲2 ▶3)',
         (tester) async {
       final emitted = await pumpPicker(tester, 0);
-      for (final turns in const [1, 2, 3, 0]) {
-        await tester.tap(arrow(turns));
+      for (final label in const [
+        'Regarde vers la gauche',
+        'Regarde vers le haut',
+        'Regarde vers la droite',
+        'Regarde vers le bas',
+      ]) {
+        await tester.tap(find.bySemanticsLabel(label));
         await tester.pump();
       }
       expect(emitted, [1, 2, 3, 0]);
