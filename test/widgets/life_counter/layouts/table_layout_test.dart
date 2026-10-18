@@ -258,6 +258,43 @@ void main() {
     });
   });
 
+  // Ruling 23 (18/10/2026) : une première version du Step 4 de ce brief
+  // écrivait la règle du grand côté pour `playerCount <= 4`, pas seulement
+  // 4. La spec §1.1 fige pourtant la disposition à 2 et 3 joueurs
+  // INDÉPENDAMMENT de la forme de l'écran (face-à-face à 2, bandes égales à
+  // 3) -- seul le tableau du §1.4 rattache la règle du grand côté à
+  // l'effectif de 4. Conséquence du défaut : sur les trois formats de
+  // téléphone portrait les plus répandus, un duel à 2 joueurs basculait en
+  // `columnPairs` -- un joueur à gauche à 90°, l'autre à droite à 270°, au
+  // lieu du face-à-face haut/bas qui est la configuration la PLUS FRÉQUENTE
+  // de l'application. Aucun test ne l'attrapait : le harnais de cette tâche
+  // ne tournait qu'en paysage 800×600. Ce groupe verrouille les effectifs
+  // que la règle du grand côté ne doit PLUS toucher, sur les écrans réels où
+  // le défaut se manifestait.
+  group('ruling 23 : columnPairs réservé à 4 joueurs', () {
+    for (final size in const [
+      Size(390, 844), // Pixel/téléphone Android courant, portrait
+      Size(412, 915), // Pixel 6/7, portrait
+      Size(360, 800), // téléphone Android d'entrée de gamme, portrait
+    ]) {
+      test('à 2 joueurs sur $size, face-à-face, jamais columnPairs', () {
+        expect(arrangementFor(size, 2), TableArrangement.faceToFace,
+            reason: '$size');
+        final seats = seatsForArrangement(2, TableArrangement.faceToFace);
+        expect(seats.map((s) => s.quarterTurns).toList(), [2, 0],
+            reason: '$size');
+      });
+    }
+
+    test('à 3 joueurs sur tablette portrait (820x1180), face-à-face, '
+        'jamais columnPairs', () {
+      const size = Size(820, 1180);
+      expect(arrangementFor(size, 3), TableArrangement.faceToFace);
+      final seats = seatsForArrangement(3, TableArrangement.faceToFace);
+      expect(seats.map((s) => s.quarterTurns).toList(), [2, 0, 0]);
+    });
+  });
+
   group('équité des surfaces (tâche 3, spec §1.1)', () {
     test('à 4 joueurs, aucune colonne latérale, quel que soit l écran', () {
       for (final size in const [Size(840, 700), Size(390, 844), Size(1280, 800)]) {

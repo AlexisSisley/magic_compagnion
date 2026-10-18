@@ -83,12 +83,30 @@ List<TableSeat> seatsForArrangement(
       TableArrangement.around => seatsFor(playerCount),
     };
 
-/// Deux colonnes de hauteur égale, remplies en alternance gauche/droite pour
-/// qu'un nombre impair de joueurs ne laisse pas une colonne vide.
-List<TableSeat> _columnPairs(int playerCount) => _withSlots([
-      for (int i = 0; i < playerCount; i++)
-        i.isEven ? TableSide.left : TableSide.right,
-    ]);
+/// Deux colonnes de hauteur ÉGALE, remplies en alternance gauche/droite.
+///
+/// Ruling 24 (18/10/2026) : exige un effectif PAIR. Des colonnes inégales
+/// (effectif impair) n'ont pas de frontière horizontale commune entre leurs
+/// rangées : `AdaptiveGrid` écarterait alors silencieusement la bande
+/// d'actions au profit du hub, même quand `barKind` vaut `band` -- la
+/// dégradation silencieuse que le §4.3 de la spec table multijoueur v2
+/// interdit. Depuis le ruling 23, `arrangementFor` ne produit `columnPairs`
+/// qu'à 4 joueurs (toujours pair), ce qui rend le cas impair inatteignable
+/// en pratique -- cette assertion le verrouille plutôt que de laisser un cas
+/// mort silencieux : un futur appelant qui assouplirait `arrangementFor`
+/// sans relire cette garde échouerait bruyamment, pas en production.
+List<TableSeat> _columnPairs(int playerCount) {
+  assert(
+    playerCount.isEven,
+    'columnPairs suppose deux colonnes de même hauteur (spec §4.3) : un '
+    'effectif impair produirait des colonnes inégales et ferait disparaître '
+    'la bande silencieusement (voir adaptive_grid.dart).',
+  );
+  return _withSlots([
+    for (int i = 0; i < playerCount; i++)
+      i.isEven ? TableSide.left : TableSide.right,
+  ]);
+}
 
 /// Moitié haute pivotée à 180°, moitié basse à l'endroit. Le joueur
 /// surnuméraire va en bas, du côté de celui qui tient l'appareil.

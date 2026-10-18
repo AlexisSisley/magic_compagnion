@@ -107,16 +107,29 @@ class TableLayout {
 /// pas. C'est pourquoi l'écran déplié (zone 420×350) reste en face-à-face
 /// alors que l'écran replié (zone 195×422) passe en colonnes.
 ///
+/// Ruling 23 (18/10/2026) : cette règle ne s'applique QU'À 4 JOUEURS --
+/// l'effectif où le tableau du §1.4 la formule et où l'utilisateur l'a
+/// demandée. La spec §1.1 fige la disposition des autres effectifs
+/// INDÉPENDAMMENT de la forme de l'écran : 2 joueurs en face-à-face, 3
+/// joueurs en bandes égales. Une première version de ce brief écrivait la
+/// règle pour `playerCount <= 4` : sur les trois formats de téléphone
+/// portrait les plus répandus (390×844, 412×915, 360×800), ça retournait
+/// `columnPairs` à 2 joueurs -- un joueur à gauche tourné à 90°, l'autre à
+/// droite à 270°, au lieu du duel face-à-face haut/bas qui est la
+/// configuration la PLUS FRÉQUENTE de l'application. Aucun test ne
+/// l'attrapait, le harnais existant ne tournant qu'en paysage 800×600 : voir
+/// le groupe « ruling 23 » de `table_layout_test.dart`, qui verrouille ce
+/// cas sur les trois formats en cause.
+///
 /// Au-delà de 4 joueurs, une grille égale n'est pas réalisable et
 /// l'arrangement `around` reprend la main — sous réserve que les colonnes
 /// soient payables, ce que `tableLayoutFor` vérifie ensuite.
 TableArrangement arrangementFor(Size size, int playerCount) {
   if (playerCount > 4) return TableArrangement.around;
+  if (playerCount != 4) return TableArrangement.faceToFace;
 
-  // Grille égale : 2 colonnes dès 3 joueurs, 1 seule à 2 joueurs.
-  final columns = playerCount <= 2 ? 1 : 2;
-  final rows = (playerCount / columns).ceil();
-  final zone = Size(size.width / columns, size.height / rows);
+  // Grille égale à 4 joueurs : 2 colonnes, 2 rangées.
+  final zone = Size(size.width / 2, size.height / 2);
 
   return zone.height > zone.width
       ? TableArrangement.columnPairs
