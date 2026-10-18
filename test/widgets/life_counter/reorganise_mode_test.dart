@@ -184,10 +184,10 @@ void main() {
         (tester) async {
       final emitted = await pumpPicker(tester, 0);
       for (final label in const [
-        'Regarde vers la gauche',
-        'Regarde vers le haut',
-        'Regarde vers la droite',
-        'Regarde vers le bas',
+        'Assis à gauche',
+        'Assis en haut',
+        'Assis à droite',
+        'Assis en bas',
       ]) {
         await tester.tap(find.bySemanticsLabel(label));
         await tester.pump();

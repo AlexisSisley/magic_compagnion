@@ -1,5 +1,5 @@
 // lib/widgets/life_counter/zone/orientation_picker.dart
-// Quatre flèches : le bord vers lequel le joueur regarde (spec §1.7).
+// Quatre flèches : le bord de la table où le joueur est assis (spec §1.7).
 //
 // Remplace un bouton qui faisait tourner la zone d'un quart de tour par
 // appui. Pour atteindre 270° il fallait taper trois fois, et rien
@@ -27,13 +27,17 @@ class OrientationPicker extends StatelessWidget {
   /// code (Ruling 49 -- la première version recopiait la table ici). La
   /// flèche désigne le bord de l'écran vers lequel pointe le PIED du texte de
   /// la zone, donc le côté où le joueur est assis : colonne gauche à 90° → ◀
-  /// actif, colonne droite à 270° → ▶ actif, comme sur la maquette. Libellés
-  /// repris tels quels du plan.
+  /// actif, colonne droite à 270° → ▶ actif, comme sur la maquette.
+  ///
+  /// Les libellés disent donc où le joueur est ASSIS, comme la flèche. « Regarde
+  /// vers la gauche » désignait un joueur assis à gauche, qui regarde en
+  /// réalité vers la droite : le lecteur d'écran annonçait l'inverse de ce
+  /// que la flèche montre.
   static const Map<TableSide, (IconData, String)> _directions = {
-    TableSide.bottom: (Icons.keyboard_arrow_down, 'Regarde vers le bas'),
-    TableSide.left: (Icons.keyboard_arrow_left, 'Regarde vers la gauche'),
-    TableSide.top: (Icons.keyboard_arrow_up, 'Regarde vers le haut'),
-    TableSide.right: (Icons.keyboard_arrow_right, 'Regarde vers la droite'),
+    TableSide.bottom: (Icons.keyboard_arrow_down, 'Assis en bas'),
+    TableSide.left: (Icons.keyboard_arrow_left, 'Assis à gauche'),
+    TableSide.top: (Icons.keyboard_arrow_up, 'Assis en haut'),
+    TableSide.right: (Icons.keyboard_arrow_right, 'Assis à droite'),
   };
 
   /// Taille d'une case de la croix. 48, pas les 34 de la maquette : aucune
