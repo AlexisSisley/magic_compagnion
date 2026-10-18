@@ -4,7 +4,7 @@
 // directement sur `LifeCounterPage`, pas seulement sur le notifier isolé
 // (voir test/providers/game_session_rotation_test.dart) -- la question posée
 // par le brief ("quand semer ?") se joue entièrement côté page
-// (`_seedRotationsIfLayoutChanged`, `_sessionIsFresh`), le notifier ne
+// (`_seedRotationsIfLayoutChanged`), le notifier ne
 // faisant qu'exécuter ce qu'on lui demande.
 //
 // Question 1 du rapport (déclencheur) : démarrage de partie et changement
@@ -43,10 +43,10 @@ void _setScreenSize(WidgetTester tester, Size size) {
 
 /// Monte `LifeCounterPage` SANS snapshot dans `SharedPreferences` : la page
 /// prend alors la branche "aucune partie sauvegardée" de `_loadGame()` et
-/// appelle `_startNewGame()` elle-même -- la SEULE façon de monter une
-/// session que `_sessionIsFresh` reconnaît comme sienne. C'est
-/// délibérément différent de `_pumpFourPlayerTable` (reorder_rotation_test),
-/// qui pré-charge un snapshot et exerce donc la branche "partie REPRISE".
+/// appelle `_startNewGame()` elle-même : une session neuve, sans aucune zone
+/// manuelle. C'est délibérément différent de `_pumpFourPlayerTable`
+/// (reorder_rotation_test), qui pré-charge un snapshot antérieur à
+/// `manualRotation`, donc tout manuel et jamais resemé.
 Future<ProviderContainer> _pumpFreshGame(WidgetTester tester, Size size) async {
   _setScreenSize(tester, size);
   SharedPreferences.setMockInitialValues({});

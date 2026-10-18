@@ -38,7 +38,7 @@ class PlayerState {
   final bool isMonarch;
   final int quarterTurns;
 
-  /// Ruling 28 : `true` si `quarterTurns` a été posé par un choix MANUEL
+  /// `true` si `quarterTurns` a été posé par un choix MANUEL
   /// (`GameSessionNotifier.updateRotation`) plutôt que semé automatiquement
   /// depuis la disposition (`seedRotationsFromSeats`). Marque la provenance
   /// de `quarterTurns`, pas sa valeur : un joueur marqué garde la SIENNE à
@@ -46,18 +46,21 @@ class PlayerState {
   /// l'appareil) ; un joueur non marqué continue de suivre la dérivation
   /// géométrique.
   ///
-  /// DÉLIBÉRÉMENT absent de [toJson]/[fromJson] -- ni persisté, ni migré.
-  /// Deux raisons, pas une commodité :
-  /// 1. `_sessionIsFresh` (life_counter_page.dart) garantit déjà qu'une
-  ///    partie REPRISE depuis un snapshot n'est jamais auto-resemée -- la
-  ///    valeur de ce champ, pour une telle partie, n'a donc AUCUNE
-  ///    conséquence observable, à aucun moment de son cycle de vie. Lui
-  ///    donner une existence persistée ajouterait un champ sérialisé et une
-  ///    migration de schéma pour une information qui ne serait jamais lue.
-  /// 2. Une NOUVELLE partie (`GameSession.newGame`) construit des
-  ///    `PlayerState` tout neufs, où ce champ retombe sur son défaut
-  ///    (`false`) : c'est exactement le seul moment où il doit se
-  ///    réinitialiser (ruling 28, point 5) -- gratuit, sans code dédié.
+  /// Persisté dans le snapshot : c'est lui, et non la provenance de la page,
+  /// qui dit si une partie remontée (retour d'onglet, reprise après
+  /// fermeture) peut encore être resemée. Sans lui, une page remontée ne
+  /// savait plus quelles zones suivaient la géométrie, et n'en resemait
+  /// aucune : un aller-retour d'onglet figeait la table sur sa disposition
+  /// du moment, même après un pliage.
+  ///
+  /// Un snapshot écrit avant ce champ ne le porte pas : il se lit `true`
+  /// (voir [PlayerState.fromJson]). On ne sait pas si ses angles ont été
+  /// choisis, donc on les protège tous ; ne jamais resemer est le seul choix
+  /// qui ne puisse pas écraser un réglage du joueur.
+  ///
+  /// Une NOUVELLE partie (`GameSession.newGame`) construit des `PlayerState`
+  /// neufs, où ce champ retombe sur son défaut (`false`) : c'est le seul
+  /// moment où il doit se réinitialiser.
   final bool manualRotation;
 
   final List<LifeEvent> lifeHistory;
@@ -114,6 +117,7 @@ class PlayerState {
     'eliminatedAtMs': eliminatedAt?.inMilliseconds,
     'isMonarch': isMonarch,
     'quarterTurns': quarterTurns,
+    'manualRotation': manualRotation,
     'lifeHistory': lifeHistory.map((e) => e.toJson()).toList(),
   };
 
@@ -130,6 +134,8 @@ class PlayerState {
         ? Duration(milliseconds: json['eliminatedAtMs'] as int) : null,
     isMonarch: json['isMonarch'] as bool? ?? false,
     quarterTurns: json['quarterTurns'] as int? ?? 0,
+    // Absent = snapshot antérieur au champ : protégé, voir [manualRotation].
+    manualRotation: json['manualRotation'] as bool? ?? true,
     lifeHistory: (json['lifeHistory'] as List?)
         ?.map((e) => LifeEvent.fromJson(e as Map<String, dynamic>))
         .toList() ?? [],

@@ -1,20 +1,17 @@
 // test/pages/life_counter/play_setup_seeds_rotations_test.dart
 //
-// Ruling 30 : le parcours RÉEL de démarrage d'une partie passe par
+// Le parcours RÉEL de démarrage d'une partie passe par
 // `PlaySetupPage._demarrer` (via la feuille `GameSetupModal` qu'il ouvre),
-// PAS par la modale accessible depuis `LifeCounterPage` elle-même --
-// `rotation_seeding_test.dart` et les autres fichiers de cette tâche
-// construisaient tous `LifeCounterPage` directement et ne l'exerçaient
-// jamais. `_demarrer` ÉCRIT le snapshot de la nouvelle partie PUIS navigue :
-// au montage, `LifeCounterPage._loadGame()` trouve donc une partie "active"
-// dès le premier rendu et prenait la MÊME branche de restauration qu'une
-// vraie reprise après fermeture de l'application -- `_sessionIsFresh`
-// (anciennement `_hasOwnFreshSession`) restait alors fausse pour toujours,
-// et `seedRotationsFromSeats` n'était jamais appelée.
+// PAS par la modale accessible depuis `LifeCounterPage` elle-même.
+// `_demarrer` ÉCRIT le snapshot de la nouvelle partie PUIS navigue : au
+// montage, `LifeCounterPage._loadGame()` prend donc la branche de
+// restauration, comme une reprise. Le semis doit s'y produire quand même :
+// la session neuve porte `manualRotation == false` partout, et c'est ce
+// marqueur, persisté, qui ouvre le semis -- pas la provenance de la page.
 //
-// Défaut reproduit ici tel que trouvé en relecture : une partie à 4 joueurs
-// démarrée par ce chemin restait figée à `quarterTurns == [0, 0, 0, 0]` --
-// les deux joueurs d'en face lisaient leur total à l'envers.
+// Défaut historique reproduit ici : une partie à 4 joueurs démarrée par ce
+// chemin restait figée à `quarterTurns == [0, 0, 0, 0]` -- les deux joueurs
+// d'en face lisaient leur total à l'envers.
 //
 // Ce test monte un GoRouter RÉEL construit avec les VRAIES routes de
 // `playRoutes()` (pas une reconstitution partielle), une `PlaySetupPage`
@@ -38,7 +35,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets(
-      'ruling 30 -- une partie demarree via PlaySetupPage seme ses '
+      'une partie demarree via PlaySetupPage seme ses '
       'rotations (4 joueurs, 900x700 -> [2,2,0,0]), pas [0,0,0,0]',
       (tester) async {
     final originalSize = tester.view.physicalSize;
@@ -104,7 +101,7 @@ void main() {
     expect(
       session.players.map((p) => p.quarterTurns),
       [2, 2, 0, 0],
-      reason: 'ruling 30 : une partie neuve demarree via PlaySetupPage doit '
+      reason: 'une partie neuve demarree via PlaySetupPage doit '
           'semer ses rotations comme n\'importe quelle autre partie neuve -- '
           'pas rester a [0,0,0,0] parce que LifeCounterPage l\'a vue comme '
           'une restauration',

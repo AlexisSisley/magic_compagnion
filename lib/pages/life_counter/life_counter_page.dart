@@ -63,33 +63,9 @@ class LifeCounterPage extends ConsumerStatefulWidget {
   /// US-LC02 : Quand true, la page est dans le shell (tab0) et ne rend pas d'AppBar.
   final bool isInShell;
 
-  /// Ruling 30 : signale que la partie que cette page va charger vient
-  /// d'être ÉCRITE -- pas reprise après fermeture de l'application.
-  ///
-  /// Indispensable parce que `PlaySetupPage._demarrer` (le parcours RÉEL de
-  /// démarrage -- voir rapport de tâche 4, §10) écrit le snapshot de la
-  /// nouvelle partie PUIS navigue ici : au montage, `_loadGame()` trouve
-  /// donc une partie "active" et prend la même branche de restauration
-  /// qu'une vraie reprise. Sans ce paramètre, rien dans l'état de la session
-  /// elle-même ne permet de distinguer les deux cas -- une partie neuve à 4
-  /// joueurs a exactement la même forme JSON qu'une partie reprise où
-  /// l'utilisateur aurait déjà choisi "Même sens" partout
-  /// (`quarterTurns == 0`) : c'est précisément l'ambiguïté que
-  /// `GameSession._migrateLegacyRotation` documente déjà côté migration. La
-  /// provenance doit donc être signalée par qui construit cette page, pas
-  /// déduite après coup des données qu'elle a reçues.
-  ///
-  /// Posé à `true` par `playRoutes()` depuis l'`extra` de navigation que
-  /// `_demarrer` fournit à `context.go`. Son défaut `false` est le bon pour
-  /// tout autre appelant (reprise depuis l'Accueil, bascule d'onglet dans
-  /// `PlayShell`, reprise depuis `PlaySetupPage` lui-même) : ruling 26,
-  /// toujours valide, une partie reprise ne doit jamais être resemée.
-  final bool freshlyStarted;
-
   const LifeCounterPage({
     super.key,
     this.isInShell = false,
-    this.freshlyStarted = false,
   });
 
   @override
@@ -191,50 +167,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   // `null` force un semis au prochain appel (voir `_startNewGame`).
   List<int>? _lastSeededQuarterTurns;
 
-  // Ruling 30 (révise la tâche 4, qui appelait ce champ `_hasOwnFreshSession`
-  // -- un nom qui MENTAIT et a produit un défaut Critique, voir ci-dessous) :
-  // `true` si LA SESSION MONTÉE EST NEUVE -- jamais si elle vient d'une
-  // vraie reprise après fermeture de l'application.
-  //
-  // Posé par deux chemins, pas un seul :
-  // 1. Cette page crée elle-même la session (`_startNewGame`, démarrage de
-  //    partie ou changement d'effectif).
-  // 2. `widget.freshlyStarted` (voir sa doc) : la session a été créée
-  //    AILLEURS (`PlaySetupPage._demarrer`) puis écrite en snapshot avant
-  //    même le premier `_loadGame()` de cette page -- ce qui la fait
-  //    ressembler, dans `_loadGame()`, à une restauration ordinaire.
-  //
-  // POURQUOI CE DRAPEAU NE PEUT PAS SE DÉDUIRE DE L'ÉTAT DE LA SESSION : rien
-  // dans un `GameSession` ne distingue "vient d'être créé, personne n'a
-  // choisi sa rotation" de "une vraie reprise où l'utilisateur avait déjà
-  // réglé Même sens partout" -- les deux produisent exactement
-  // `quarterTurns == 0` pour tout le monde. `GameSession._migrateLegacyRotation`
-  // documente déjà cette même ambiguïté côté migration, et la résout de la
-  // même façon : par un signal externe (son marqueur `rotationsMigrated`),
-  // jamais par une heuristique sur les données elles-mêmes. La provenance
-  // doit donc être AFFIRMÉE par qui construit la page, pas devinée.
-  //
-  // LE DÉFAUT QUE CE RULING CORRIGE : l'ancien nom (`_hasOwnFreshSession`,
-  // « cette page a créé la session ») décrivait un CHEMIN DE CODE, pas la
-  // vraie question (« la session est-elle neuve ? »), et les deux divergent
-  // sur le parcours réel de démarrage -- `PlaySetupPage._demarrer` écrit le
-  // snapshot puis navigue, donc `_loadGame()` voit une partie "active" dès
-  // le premier rendu et prenait la branche RESTAURATION, identique à une
-  // vraie reprise. Une partie à 4 joueurs démarrée par ce chemin -- le SEUL
-  // chemin réel de démarrage de l'application, voir `home_page.dart` et
-  // `play_setup_page.dart` -- restait donc figée à `[0,0,0,0]` : exactement
-  // le défaut que cette tâche existe pour éliminer, réintroduit par un nom
-  // qui ne disait pas ce qu'il fallait savoir.
-  //
-  // Preuve par l'absurde (toujours valide, ruling 26 intact) : sans
-  // distinguer partie neuve / partie reprise, `test/pages/life_counter/
-  // reorder_rotation_test.dart` échoue -- un snapshot restauré à 4 joueurs
-  // (tous `quarterTurns == 0`, un héritage légitime) se verrait resemé dès le
-  // premier rendu, puis de nouveau à chaque redimensionnement d'écran,
-  // écrasant les deux joueurs qu'un glisser-déposer n'avait PAS déplacés et
-  // qui devaient rester à 0 (voir la doc de `_onReorderPlayers`).
-  bool _sessionIsFresh = false;
-
   /// Resème les rotations depuis la disposition RÉELLEMENT mesurée, mais
   /// seulement si elle a changé depuis le dernier semis (spec tâche 4,
   /// §1.4) : c'est ce filtre, et non la fréquence d'appel, qui fait qu'un
@@ -243,10 +175,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   /// (`addPostFrameCallback`), jamais pendant un `build()` : modifier le
   /// notifier pendant la construction de l'arbre lèverait.
   ///
-  /// Ne fait RIEN tant que `_sessionIsFresh` est faux (voir sa doc) --
-  /// la garde la plus importante de cette méthode, pas un détail.
+  /// Aucune garde sur la provenance de la session : le semis ne touche que
+  /// les zones dont `PlayerState.manualRotation` est faux, et ce marqueur
+  /// voyage dans le snapshot. Une page remontée (retour d'onglet, reprise
+  /// après fermeture) resème donc ce qui suivait la géométrie et laisse
+  /// intact ce que le joueur a choisi ; un snapshot antérieur au marqueur se
+  /// lit tout manuel, donc n'est jamais resemé.
   ///
-  /// Sinon, déclenché par deux chemins, qui couvrent ensemble les trois
+  /// Déclenché par deux chemins, qui couvrent ensemble les trois
   /// événements restants de la spec (démarrage de partie, rotation de
   /// l'appareil, pliage/dépliage -- le changement d'effectif recrée une
   /// session, donc relève du même « démarrage de partie ») :
@@ -261,7 +197,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   ///   `setState`, ce callback ne serait jamais reprogrammé et les
   ///   rotations resteraient figées sur l'ancienne disposition.
   void _seedRotationsIfLayoutChanged() {
-    if (!mounted || _session == null || !_sessionIsFresh) return;
+    if (!mounted || _session == null) return;
     final order = _orderedPlayers.map((p) => p.playerId).toList();
     if (order.isEmpty) return;
     final seats =
@@ -533,25 +469,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
       if (!mounted) return;
       if (snapshot != null) {
         _controller.restoreSession(snapshot);
-        // Ruling 30 : ce snapshot existait-il AVANT que cette page ne soit
-        // montée (vraie reprise), ou vient-il d'être écrit à l'instant par
-        // `PlaySetupPage._demarrer` avant de naviguer ici (partie neuve qui
-        // SE PRÉSENTE comme une reprise) ? Rien dans `snapshot` lui-même ne
-        // le dit (voir la doc de `widget.freshlyStarted` et de
-        // `_sessionIsFresh`) -- seul l'appelant de cette page le sait, et le
-        // signale via `widget.freshlyStarted`. Sans ce chemin, UNE PARTIE
-        // DÉMARRÉE PAR LE PARCOURS RÉEL DE L'APPLICATION (PlaySetupPage,
-        // pas la modale accessible depuis cette page) ne semait jamais ses
-        // rotations : c'est le défaut Critique que ce ruling corrige.
-        _sessionIsFresh = widget.freshlyStarted;
-        if (_sessionIsFresh) {
-          // Force le prochain `_seedRotationsIfLayoutChanged` à semer même
-          // si la disposition mesurée est identique à une valeur déjà vue
-          // dans une PRÉCÉDENTE partie de cette même page (cas rare mais
-          // réel : un reset qui repasserait par cette branche) -- même
-          // raison que dans `_startNewGame` ci-dessous.
-          _lastSeededQuarterTurns = null;
-        }
         // `_currentFormat` (getter dérivé de `_session?.format`) reflète déjà
         // `snapshot.format` : `restoreSession` a mis à jour le state du
         // notifier de façon synchrone, avant même ce `setState`.
@@ -618,16 +535,11 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
 
     _controller.startNewGame(format: effectiveFormat, playerConfigs: configs);
 
-    // Cette session est née ICI, sur CETTE page -- l'ouverture au semis
-    // automatique de `_seedRotationsIfLayoutChanged` (démarrage de partie,
-    // changement d'effectif couvert par ce même appel, rotation de
-    // l'appareil et pliage/dépliage tant que cette partie reste en cours).
-    // `_lastSeededQuarterTurns = null` force le prochain appel à semer même
-    // si la disposition mesurée est IDENTIQUE à celle de la partie
-    // précédente (deux parties consécutives sur le même écran) -- une
-    // nouvelle session démarre toujours à `quarterTurns == 0` partout
-    // (`GameSession.newGame`), un semis sauté la laisserait ainsi.
-    _sessionIsFresh = true;
+    // Force le prochain `_seedRotationsIfLayoutChanged` à semer même si la
+    // disposition mesurée est IDENTIQUE à celle de la partie précédente
+    // (deux parties consécutives sur le même écran) -- une nouvelle session
+    // démarre toujours à `quarterTurns == 0` partout (`GameSession.newGame`),
+    // un semis sauté la laisserait ainsi.
     _lastSeededQuarterTurns = null;
 
     // Dette du lot 3 (revue) : `PlayerZoneNotifier` n'est pas `autoDispose`,

@@ -77,6 +77,17 @@ void _setScreenSize(WidgetTester tester, Size size) {
   });
 }
 
+/// Le snapshot tel que l'écrivait le code d'avant `manualRotation` : sans le
+/// champ, qui se relit alors `true` pour tous. C'est la partie reprise que
+/// ces tests décrivent, celle que le montage ne doit jamais resemer.
+String _legacySnapshotJson(GameSession session) {
+  final jsonMap = session.toJson();
+  for (final player in jsonMap['players'] as List) {
+    (player as Map<String, dynamic>).remove('manualRotation');
+  }
+  return json.encode(jsonMap);
+}
+
 /// Monte la page avec un `container` explicite (pour lire l'état ensuite)
 /// et un snapshot à 4 joueurs, tous à `quarterTurns == 0` (playerOrder
 /// identité au départ : c'est le réordonnancement joué par le test qui va
@@ -88,7 +99,7 @@ Future<ProviderContainer> _pumpFourPlayerTable(WidgetTester tester) async {
     playerConfigs: _testConfigs,
   );
   SharedPreferences.setMockInitialValues({
-    'active_game_snapshot': json.encode(session.toJson()),
+    'active_game_snapshot': _legacySnapshotJson(session),
   });
   final container = ProviderContainer(
     overrides: [

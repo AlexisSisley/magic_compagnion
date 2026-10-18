@@ -2677,9 +2677,12 @@ void main() {
         format: commanderFormat,
         playerConfigs: testConfigs,
       );
+      // Marqué manuel : sinon le semis du montage remplacerait cet angle
+      // par celui du siège, et le test n'exercerait plus cette branche.
       final rotated = baseSession.copyWith(
         players: [
-          baseSession.players[0].copyWith(quarterTurns: 1),
+          baseSession.players[0]
+              .copyWith(quarterTurns: 1, manualRotation: true),
           ...baseSession.players.sublist(1),
         ],
       );
@@ -2705,9 +2708,12 @@ void main() {
         format: commanderFormat,
         playerConfigs: testConfigs,
       );
+      // Marqué manuel : sinon le semis du montage remplacerait cet angle
+      // par celui du siège, et le test n'exercerait plus cette branche.
       final rotated = baseSession.copyWith(
         players: [
-          baseSession.players[0].copyWith(quarterTurns: 3),
+          baseSession.players[0]
+              .copyWith(quarterTurns: 3, manualRotation: true),
           ...baseSession.players.sublist(1),
         ],
       );
@@ -2735,9 +2741,11 @@ void main() {
       format: commanderFormat,
       playerConfigs: testConfigs,
     );
+    // Marqué manuel : l'angle fabriqué doit survivre au semis du montage.
     final rotated = baseSession.copyWith(
       players: [
-        baseSession.players[0].copyWith(quarterTurns: 2),
+        baseSession.players[0]
+            .copyWith(quarterTurns: 2, manualRotation: true),
         ...baseSession.players.sublist(1),
       ],
     );

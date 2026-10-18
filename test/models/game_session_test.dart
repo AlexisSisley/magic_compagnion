@@ -1,4 +1,6 @@
 // test/models/game_session_test.dart
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/player_config.dart';
@@ -72,6 +74,37 @@ void main() {
       );
       expect(updated.lifeHistory, hasLength(1));
       expect(updated.lifeHistory.first.delta, -3);
+    });
+
+    // Le marqueur manuel voyage dans le snapshot : une page remontée (retour
+    // d'onglet, reprise) doit savoir quelles zones elle peut resemer.
+    test('manualRotation survit à un aller-retour JSON, vrai comme faux', () {
+      const config =
+          PlayerConfig(id: 'p1', name: 'Alex', type: PlayerType.owner);
+      for (final manual in const [true, false]) {
+        final state = PlayerState(
+          playerId: 0,
+          config: config,
+          life: 40,
+          quarterTurns: 3,
+          manualRotation: manual,
+        );
+        final round = PlayerState.fromJson(
+            jsonDecode(jsonEncode(state.toJson())) as Map<String, dynamic>);
+        expect(round.manualRotation, manual);
+        expect(round.quarterTurns, 3);
+      }
+    });
+
+    // Un snapshot écrit avant ce champ ne dit pas si ses angles ont été
+    // choisis : on les protège, pour ne jamais écraser un réglage du joueur.
+    test('un ancien snapshot sans manualRotation se relit manuel', () {
+      const config =
+          PlayerConfig(id: 'p1', name: 'Alex', type: PlayerType.owner);
+      final json = const PlayerState(playerId: 0, config: config, life: 40)
+          .toJson()
+        ..remove('manualRotation');
+      expect(PlayerState.fromJson(json).manualRotation, isTrue);
     });
   });
 

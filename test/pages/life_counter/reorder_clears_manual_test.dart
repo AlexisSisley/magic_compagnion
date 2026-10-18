@@ -15,10 +15,10 @@
 //    travers ce même réordonnancement (et le pliage qui suit).
 //
 // Partie montée SANS snapshot (`_pumpFreshGame`, comme
-// rotation_seeding_test.dart) : `_sessionIsFresh` doit être vrai pour
-// que le semis automatique s'exécute au pliage -- une partie REPRISE
-// (`reorder_rotation_test.dart`, tâche 5) n'est jamais auto-resemée, donc ne
-// peut pas servir à prouver ce ruling-ci.
+// rotation_seeding_test.dart) : toutes les zones partent non manuelles, donc
+// sensibles au semis du pliage. `reorder_rotation_test.dart`, lui, monte un
+// snapshot antérieur à `manualRotation` -- tout manuel, jamais resemé -- et
+// ne peut pas servir à prouver ce point.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -43,8 +43,8 @@ void _setScreenSize(WidgetTester tester, Size size) {
   });
 }
 
-/// Monte `LifeCounterPage` SANS snapshot : `_startNewGame` s'exécute, donc
-/// `_sessionIsFresh == true` (voir life_counter_page.dart).
+/// Monte `LifeCounterPage` SANS snapshot : `_startNewGame` s'exécute, et
+/// la session neuve n'a aucune zone manuelle.
 Future<ProviderContainer> _pumpFreshGame(WidgetTester tester, Size size) async {
   _setScreenSize(tester, size);
   SharedPreferences.setMockInitialValues({});
