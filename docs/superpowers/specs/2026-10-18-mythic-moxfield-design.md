@@ -67,20 +67,32 @@ liste, et c'est ce que fait Mythic Tool.
 
 ### 1.2 Accès aux actions
 
-`ActionBarKind.band` ne s'applique plus qu'aux dispositions qui
-comportent une frontière horizontale traversant toute la table, où une
-bande ne retire de surface à personne : le face-à-face à 2 joueurs sur
-grand écran, et les dispositions à 5-6 joueurs avec colonnes latérales,
-où la bande s'insère entre les deux rangées centrales.
+**Amendement du 18/10/2026, pendant l'implémentation — cette section est
+abandonnée.**
 
-Dans toute disposition en zones égales sans frontière traversante — 3 et
-4 joueurs — les actions reviennent au hub flottant, posé sur le
-croisement des zones : il ne retire de surface à personne et se trouve à
-distance égale de tous les joueurs.
+Elle prescrivait de retirer la bande d'actions partout où aucune
+frontière ne traverse la table, donc à 3 et 4 joueurs, au motif qu'elle
+« coupe la table en deux et vole de la hauteur au centre ».
 
-Sur petit écran (petit côté < `kLargeScreenShortEdge`), le hub reste la
-seule forme, quel que soit le nombre de joueurs. Cette règle est
-inchangée.
+Ce raisonnement était faux, et pour une raison instructive : il a été
+tiré d'une capture d'écran où la table était **inéquitable** — deux
+joueurs à 67 % de la largeur, deux autres à 13 %. Dans ce contexte, la
+bande aggravait un déséquilibre. Mais le §1.1 supprime cette inéquité :
+une fois les quatre zones égales, une bande horizontale entre les deux
+rangées retire la même hauteur à chacun et ne lèse personne. Le défaut
+tenait à l'inéquité, pas à la bande.
+
+Le coût de l'erreur était réel : la bande porte l'affichage permanent du
+chrono de partie. L'appliquer l'aurait supprimé à 3 et 4 joueurs — les
+deux effectifs Commander les plus courants — sans mandat, et sans que
+l'utilisateur ait pu se prononcer, le chrono ne figurant pas sur la
+maquette qu'il a validée.
+
+**Ce qui reste en vigueur :** le calcul de `barKind` est inchangé par
+rapport à l'existant — bande au-delà de `kLargeScreenShortEdge`, hub en
+deçà, quel que soit le nombre de joueurs. La règle §4.3 de la spec table
+multijoueur v2, qui interdit la dégradation silencieuse de la barre
+d'actions, reste elle aussi en vigueur.
 
 La règle §4.3 de la spec table multijoueur v2 — interdiction de
 dégradation silencieuse de la barre d'actions — reste en vigueur sans
