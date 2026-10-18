@@ -2761,4 +2761,31 @@ void main() {
         .first);
     expect(drawerRotation.quarterTurns, zoneTurns);
   });
+
+  // La fenêtre du buffer de dégâts se règle dans `tuning.dart`. Ce test
+  // encadre l'échéance à la milliseconde près : un minuteur qui garderait sa
+  // propre durée, plus courte ou plus longue, fait échouer l'un des deux
+  // `expect`.
+  testWidgets(
+      "le dégât en attente s'applique exactement au bout de "
+      'kDamageBufferWindow', (tester) async {
+    final container = await pumpWithContainer(tester);
+    int lifeOfPlayerZero() => container
+        .read(gameSessionNotifierProvider)!
+        .players
+        .firstWhere((p) => p.playerId == 0)
+        .life;
+    final before = lifeOfPlayerZero();
+
+    await tapMinusHalf(tester, 0, 1);
+    await tester.pump(kDamageBufferWindow - const Duration(milliseconds: 1));
+    expect(lifeOfPlayerZero(), before,
+        reason: 'une milliseconde avant la fin de la fenêtre, le dégât est '
+            'encore en attente');
+
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(lifeOfPlayerZero(), before - 1,
+        reason: 'à la fin exacte de la fenêtre, le dégât est appliqué');
+    await tester.pumpAndSettle();
+  });
 }

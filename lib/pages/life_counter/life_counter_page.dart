@@ -55,6 +55,7 @@ import '../../widgets/life_counter/layouts/orientation_presets.dart';
 import '../../widgets/life_counter/animations/animation_service.dart';
 import '../../widgets/life_counter/snapshot_writer.dart';
 import '../../widgets/life_counter/player_skins.dart';
+import '../../widgets/life_counter/tuning.dart' show kDamageBufferWindow;
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../router/app_router.dart';
 
@@ -848,10 +849,12 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     if (_isSelectingStarter) return;
     if (_session == null) return;
 
-    // Buffer system: accumulate changes and apply after 2s inactivity
+    // Les changements s'accumulent et ne s'appliquent qu'après une fenêtre
+    // d'inactivité. Sa durée vient de `tuning.dart` et nulle part ailleurs :
+    // un littéral ici laissait la constante se recalibrer sans aucun effet.
     _pendingDamage[playerId] = (_pendingDamage[playerId] ?? 0) + change;
     _pendingTimers[playerId]?.cancel();
-    _pendingTimers[playerId] = Timer(const Duration(seconds: 2), () {
+    _pendingTimers[playerId] = Timer(kDamageBufferWindow, () {
       _applyPendingDamage(playerId);
     });
     setState(() {}); // Refresh to show pending delta overlay
