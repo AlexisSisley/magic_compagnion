@@ -8,13 +8,20 @@
 
 import 'dart:async';
 
-import 'package:flutter/gestures.dart';
+// `kLongPressTimeout` est masqué : ce fichier reçoit désormais la sienne,
+// regroupée avec les autres réglages non calibrés, de `../tuning.dart`. Sans
+// ce `hide`, les deux imports exportent chacun un `kLongPressTimeout` et la
+// résolution devient ambiguë (erreur de compilation), même si leurs valeurs
+// coïncident aujourd'hui.
+import 'package:flutter/gestures.dart' hide kLongPressTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
+
+import '../tuning.dart';
 
 class LifeDial extends ConsumerStatefulWidget {
   const LifeDial({
