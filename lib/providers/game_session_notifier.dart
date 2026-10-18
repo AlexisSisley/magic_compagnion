@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/models/game_format.dart';
 import 'package:magic_companion/models/game_session.dart';
 import 'package:magic_companion/models/player_config.dart';
+import 'package:magic_companion/models/table_seat.dart';
 import 'package:magic_companion/providers/counter_catalog_provider.dart';
 
 /// Source de vérité unique de la partie en cours.
@@ -201,6 +202,56 @@ class GameSessionNotifier extends Notifier<GameSession?> {
     final players = session.players.map((p) {
       if (p.playerId == playerId) return p.copyWith(quarterTurns: quarterTurns);
       return p;
+    }).toList();
+    state = session.copyWith(players: players);
+  }
+
+  /// Applique aux joueurs les rotations que leur donne la disposition
+  /// actuellement rendue.
+  ///
+  /// La rotation n'a qu'un seul propriétaire (spec §1.4, et §2.1 de la spec
+  /// table multijoueur v2) : `TableSeat.quarterTurns`, dérivé du côté de
+  /// table par `tableLayoutFor`/`seatsForArrangement` (Tâche 3). Ce point
+  /// d'entrée existe pour que `PlayerState.quarterTurns`, qui est persisté,
+  /// reste un CACHE de cette dérivation et jamais une seconde vérité :
+  /// `life_counter_page.dart` le rappelle chaque fois que la disposition
+  /// RÉELLEMENT rendue change (démarrage de partie, rotation de l'appareil,
+  /// pliage/dépliage, changement d'effectif) -- jamais à chaque frame, voir
+  /// `_seedRotationsIfLayoutChanged` côté page.
+  ///
+  /// [order] donne les `playerId` dans l'ordre d'AFFICHAGE -- celui utilisé
+  /// pour construire les zones passées à `AdaptiveGrid`
+  /// (`_orderedPlayers.playerId`), PAS celui de `state.players`, qui reste
+  /// trié par `playerId` canonique. [seats] doit être indexé pareil :
+  /// `seats[i]` est le siège du joueur `order[i]`. Semer par position
+  /// canonique au lieu de l'ordre d'affichage assignerait la rotation du
+  /// siège 0 au joueur `playerId == 0` même quand un glisser-déposer l'a
+  /// affiché ailleurs -- exactement la dérive que `_onReorderPlayers` (dans
+  /// la page) évite déjà en passant par `order[displayIndex]`.
+  ///
+  /// Une rotation choisie à la main (`updateRotation` ci-dessus, les presets
+  /// d'orientation) n'appelle jamais cette méthode : elle écrase donc la
+  /// valeur semée, et le reste tel quel tant que la disposition ne change
+  /// pas -- `_seedRotationsIfLayoutChanged` ne resème que lorsque les
+  /// `quarterTurns` dérivés diffèrent du dernier semis, jamais sur un simple
+  /// rebuild. Mais si la disposition change À NOUVEAU (ex. dépliage),
+  /// `seedRotationsFromSeats` réécrit TOUS les sièges reçus sans exception,
+  /// y compris ceux qu'un choix manuel avait réglés : décision délibérée
+  /// (voir le rapport de tâche 4, question 3) -- rien ici ne distingue un
+  /// `quarterTurns` "manuel" d'un `quarterTurns` "semé", la seule trace qui
+  /// survit à un changement de disposition est donc toujours celle de la
+  /// dérivation géométrique.
+  void seedRotationsFromSeats(List<int> order, List<TableSeat> seats) {
+    final session = state;
+    if (session == null) return;
+    if (order.isEmpty || order.length != seats.length) return;
+    final rotationByPlayerId = {
+      for (int i = 0; i < order.length; i++) order[i]: seats[i].quarterTurns,
+    };
+    final players = session.players.map((p) {
+      final quarterTurns = rotationByPlayerId[p.playerId];
+      if (quarterTurns == null || quarterTurns == p.quarterTurns) return p;
+      return p.copyWith(quarterTurns: quarterTurns);
     }).toList();
     state = session.copyWith(players: players);
   }

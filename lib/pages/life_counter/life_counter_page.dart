@@ -67,7 +67,8 @@ class LifeCounterPage extends ConsumerStatefulWidget {
   ConsumerState<LifeCounterPage> createState() => _LifeCounterPageState();
 }
 
-class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
+class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
+    with WidgetsBindingObserver {
   GameHistoryService get _gameHistoryService => ref.read(gameHistoryServiceProvider);
 
   // Résolu une seule fois, dans `initState()` (voir plus bas) : `dispose()`
@@ -133,6 +134,73 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       return renderObject.size;
     }
     return MediaQuery.sizeOf(context);
+  }
+
+  // Tâche 4 (rotation à propriétaire unique) : dernière rotation SEMÉE par
+  // siège, dans l'ordre d'AFFICHAGE (même ordre que `_orderedPlayers`). Sert
+  // de référence à `_seedRotationsIfLayoutChanged` pour ne resemer QUE
+  // lorsque `tableLayoutFor` change réellement de verdict -- pas à chaque
+  // frame, et jamais après un choix manuel (`updateRotation`, les presets
+  // d'orientation, le réordonnancement), qui ne touchent pas ce champ.
+  // `null` force un semis au prochain appel (voir `_startNewGame`).
+  List<int>? _lastSeededQuarterTurns;
+
+  // Tâche 4 : `true` seulement si LA SESSION EN COURS a été créée par CETTE
+  // page (`_startNewGame`, démarrage de partie ou changement d'effectif) --
+  // jamais si elle vient d'un snapshot restauré (`_loadGame`). Sans cette
+  // distinction, reprendre une partie sauvegardée reseèmerait ses rotations
+  // au premier rendu, même si l'utilisateur les avait déjà réglées à la
+  // main avant de quitter l'application -- exactement la seconde vérité que
+  // cette tâche existe pour éliminer. Un snapshot courant porte déjà ses
+  // `quarterTurns` définitifs (voir `GameSession.toJson`, marqueur
+  // `rotationsMigrated`) : les relire tels quels est le comportement
+  // correct, pas un oubli.
+  //
+  // Preuve par l'absurde : sans ce garde-fou, `test/pages/life_counter/
+  // reorder_rotation_test.dart` échoue -- un snapshot restauré à 4 joueurs
+  // (tous `quarterTurns == 0`, un héritage légitime) se voit resemé dès le
+  // premier rendu, puis de nouveau à chaque redimensionnement d'écran,
+  // écrasant les deux joueurs qu'un glisser-déposer n'avait PAS déplacés et
+  // qui devaient rester à 0 (voir la doc de `_onReorderPlayers`). Une
+  // disposition qui change ne doit resemer que la partie que CETTE page a
+  // elle-même fait naître -- jamais une partie qu'elle ne fait que ROUVRIR.
+  bool _hasOwnFreshSession = false;
+
+  /// Resème les rotations depuis la disposition RÉELLEMENT mesurée, mais
+  /// seulement si elle a changé depuis le dernier semis (spec tâche 4,
+  /// §1.4) : c'est ce filtre, et non la fréquence d'appel, qui fait qu'un
+  /// choix manuel de rotation survit à une reconstruction qui ne change pas
+  /// la disposition. Toujours appelé après une frame
+  /// (`addPostFrameCallback`), jamais pendant un `build()` : modifier le
+  /// notifier pendant la construction de l'arbre lèverait.
+  ///
+  /// Ne fait RIEN tant que `_hasOwnFreshSession` est faux (voir sa doc) --
+  /// la garde la plus importante de cette méthode, pas un détail.
+  ///
+  /// Sinon, déclenché par deux chemins, qui couvrent ensemble les trois
+  /// événements restants de la spec (démarrage de partie, rotation de
+  /// l'appareil, pliage/dépliage -- le changement d'effectif recrée une
+  /// session, donc relève du même « démarrage de partie ») :
+  /// - `build()` programme ce callback à CHAQUE reconstruction -- démarrage
+  ///   de partie et changement d'effectif en passent tous les deux par le
+  ///   `ref.watch(gameSessionNotifierProvider)` en tête de `build()`.
+  /// - `didChangeMetrics()` ci-dessous force un `setState` (donc un nouveau
+  ///   `build()`) à la rotation ou au pliage de l'appareil : un simple
+  ///   changement de contraintes fait déjà recalculer `AdaptiveGrid` (son
+  ///   `LayoutBuilder` réagit tout seul), mais ne reconstruit PAS cette page
+  ///   si rien dans son `build()` ne dépend de `MediaQuery` -- sans ce
+  ///   `setState`, ce callback ne serait jamais reprogrammé et les
+  ///   rotations resteraient figées sur l'ancienne disposition.
+  void _seedRotationsIfLayoutChanged() {
+    if (!mounted || _session == null || !_hasOwnFreshSession) return;
+    final order = _orderedPlayers.map((p) => p.playerId).toList();
+    if (order.isEmpty) return;
+    final seats =
+        tableLayoutFor(_measuredGridSize(context), order.length).seats;
+    final quarterTurns = [for (final seat in seats) seat.quarterTurns];
+    if (listEquals(quarterTurns, _lastSeededQuarterTurns)) return;
+    _lastSeededQuarterTurns = quarterTurns;
+    _controller.seedRotationsFromSeats(order, seats);
   }
 
   // History sheet state
@@ -259,6 +327,9 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   @override
   void initState() {
     super.initState();
+    // Tâche 4 : observe les changements de métriques de la fenêtre (rotation
+    // de l'appareil, pliage/dépliage) -- voir `didChangeMetrics` plus bas.
+    WidgetsBinding.instance.addObserver(this);
     // Résolution précoce et unique : garantit que `dispose()` n'a jamais à
     // évaluer ce champ lui-même (voir sa déclaration plus haut).
     _sessionService = ref.read(gameSessionServiceProvider);
@@ -293,7 +364,19 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   }
 
   @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    // Rotation de l'appareil ou pliage/dépliage (spec tâche 4) : ne touche
+    // à aucun provider ici -- seul un `setState` est nécessaire pour que
+    // `build()` reprogramme `_seedRotationsIfLayoutChanged` (voir sa doc),
+    // qui lira la taille réellement mesurée une fois la nouvelle disposition
+    // posée.
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _gameTimer?.cancel();
     _deathTimers.forEach((_, t) => t.cancel());
     _pendingTimers.forEach((_, t) => t.cancel());
@@ -381,6 +464,12 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
       if (!mounted) return;
       if (snapshot != null) {
         _controller.restoreSession(snapshot);
+        // Tâche 4 : une partie REPRISE garde ses `quarterTurns` persistés
+        // tels quels -- `_hasOwnFreshSession` reste `false` (valeur par
+        // défaut du champ, répété ici pour que l'intention soit visible à
+        // l'endroit même où une session étrangère à cette page entre en
+        // scène) pour que `_seedRotationsIfLayoutChanged` ne touche à rien.
+        _hasOwnFreshSession = false;
         // `_currentFormat` (getter dérivé de `_session?.format`) reflète déjà
         // `snapshot.format` : `restoreSession` a mis à jour le state du
         // notifier de façon synchrone, avant même ce `setState`.
@@ -446,6 +535,18 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     });
 
     _controller.startNewGame(format: effectiveFormat, playerConfigs: configs);
+
+    // Tâche 4 : cette session est née ICI, sur CETTE page -- l'ouverture au
+    // semis automatique de `_seedRotationsIfLayoutChanged` (démarrage de
+    // partie, changement d'effectif couvert par ce même appel, rotation de
+    // l'appareil et pliage/dépliage tant que cette partie reste en cours).
+    // `_lastSeededQuarterTurns = null` force le prochain appel à semer même
+    // si la disposition mesurée est IDENTIQUE à celle de la partie
+    // précédente (deux parties consécutives sur le même écran) -- une
+    // nouvelle session démarre toujours à `quarterTurns == 0` partout
+    // (`GameSession.newGame`), un semis sauté la laisserait ainsi.
+    _hasOwnFreshSession = true;
+    _lastSeededQuarterTurns = null;
 
     // Dette du lot 3 (revue) : `PlayerZoneNotifier` n'est pas `autoDispose`,
     // son état (mode ajustement, accumulateurs, nombres flottants en cours)
@@ -1013,6 +1114,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
     // jour.
     ref.watch(gameSessionNotifierProvider);
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
+
+    // Tâche 4 (rotation à propriétaire unique) : programmé à CHAQUE
+    // reconstruction, mais le filtre vit dans `_seedRotationsIfLayoutChanged`
+    // elle-même (comparaison à `_lastSeededQuarterTurns`), pas ici -- voir sa
+    // doc pour les deux chemins qui déclenchent effectivement un nouveau
+    // `build()`. Posté hors de la phase de build (post-frame) pour ne pas
+    // modifier un provider pendant qu'on construit l'arbre, et pour lire la
+    // taille de grille réellement posée par cette frame.
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _seedRotationsIfLayoutChanged());
 
     final players = _legacyPlayers;
     final orderedPlayers = _orderedPlayers;
