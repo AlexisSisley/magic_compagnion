@@ -242,6 +242,25 @@ List<OfferedOrientationPreset> offeredPresetsForCentres(List<Offset> centres) {
   return offered;
 }
 
+/// Angles que [preset] pose, dans l'ordre d'affichage, pour [playerCount]
+/// joueurs sur une table de [gridSize].
+///
+/// Pour l'appelant qui applique un preset : il recalcule ses angles sur la
+/// table mesurée AU MOMENT DE L'APPUI, au lieu de garder ceux qu'il avait au
+/// dernier rendu de la barre -- qui pouvaient décrire une table d'avant un
+/// pliage.
+List<int> orientationPresetTurns(
+  OrientationPreset preset,
+  Size gridSize,
+  int playerCount,
+) => [
+      for (final side in sidesForPreset(
+        preset,
+        zoneCentresFor(gridSize, tableLayoutFor(gridSize, playerCount)),
+      ))
+        side.quarterTurns,
+    ];
+
 /// Presets proposés pour [playerCount] joueurs sur une table de [gridSize],
 /// d'après la disposition que `tableLayoutFor` y retient -- celle
 /// qu'`AdaptiveGrid` rend.

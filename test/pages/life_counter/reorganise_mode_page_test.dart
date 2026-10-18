@@ -29,6 +29,7 @@ import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/widgets/life_counter/layouts/adaptive_grid.dart';
+import 'package:magic_companion/widgets/life_counter/layouts/orientation_presets.dart';
 import 'package:magic_companion/widgets/life_counter/reorganise_bar.dart';
 import 'package:magic_companion/widgets/life_counter/tuning.dart';
 import 'package:magic_companion/widgets/life_counter/zone/life_dial.dart';
@@ -317,5 +318,72 @@ void main() {
     await _tapDone(tester);
     expect(_turnsByCanonicalId(container), [1, 3, 1, 3],
         reason: 'en sortir non plus');
+  });
+
+  // La barre se construit sur la taille mesurée à la frame PRÉCÉDENTE. Juste
+  // après un pliage, elle porte donc encore la table d'avant ; un preset qui
+  // aurait gardé ses angles du build les appliquerait à l'ancienne table.
+  // On tape entre la frame du pliage et la suivante, quand la barre est
+  // encore celle d'avant.
+  testWidgets(
+      'un preset touché juste après un pliage pose les angles de la table '
+      'courante, pas ceux de la table où la barre a été construite',
+      (tester) async {
+    const unfolded = Size(900, 700);
+    const folded = Size(390, 844);
+    _setScreenSize(tester, unfolded);
+    final session = GameSession.newGame(
+      format: _commanderFormat,
+      playerConfigs: [
+        for (int i = 0; i < 5; i++)
+          PlayerConfig(
+            id: 'p$i',
+            name: 'Joueur ${i + 1}',
+            type: i == 0 ? PlayerType.owner : PlayerType.guest,
+          ),
+      ],
+    );
+    SharedPreferences.setMockInitialValues({
+      'active_game_snapshot': json.encode(session.toJson()),
+    });
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _enterReorganise(tester);
+
+    final stale =
+        orientationPresetTurns(OrientationPreset.circle, unfolded, 5);
+    final current =
+        orientationPresetTurns(OrientationPreset.circle, folded, 5);
+    expect(current, isNot(stale),
+        reason: 'précondition : « Cercle » ne pose pas les mêmes angles sur '
+            'les deux tables');
+
+    _setScreenSize(tester, folded);
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('reorganise-preset-Cercle')));
+    await tester.pumpAndSettle();
+
+    final order = container.read(gameSessionNotifierProvider)!.playerOrder;
+    final byDisplay = [
+      for (final id in order)
+        container
+            .read(gameSessionNotifierProvider)!
+            .players
+            .firstWhere((p) => p.playerId == id)
+            .quarterTurns,
+    ];
+    expect(byDisplay, current,
+        reason: "les angles sont recalculés à l'appui, sur la table pliée");
   });
 }

@@ -1208,6 +1208,13 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   /// Le preset dont les angles sont ceux de la table en ce moment est mis en
   /// évidence : c'est la seule façon de voir, sans lire chaque zone, quel
   /// agencement est en place.
+  ///
+  /// Libellés et mise en évidence sont calculés ici, au build ; les angles
+  /// appliqués, eux, le sont à l'appui. `_measuredGridSize` lit la taille
+  /// posée par la frame PRÉCÉDENTE : après un pliage pendant le mode, la
+  /// barre peut rester construite sur l'ancienne table tant que rien ne la
+  /// reconstruit, et un angle capturé ici tournerait les joueurs vers des
+  /// bords où ils ne sont plus.
   Widget _buildReorganiseBar(List<PlayerState> orderedPlayers) {
     final current = [for (final p in orderedPlayers) p.quarterTurns % 4];
     final offered =
@@ -1218,7 +1225,8 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
           (
             label: o.preset.label,
             selected: listEquals(o.quarterTurns, current),
-            onTap: () => _applyOrientationPreset(o.quarterTurns),
+            onTap: () => _applyOrientationPreset(orientationPresetTurns(
+                o.preset, _measuredGridSize(context), _playerCount)),
           ),
       ],
       onDone: () => setState(() => _isReorganising = false),
