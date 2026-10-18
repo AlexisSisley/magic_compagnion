@@ -27,6 +27,14 @@ void main() {
     expect(tierFor(const Size(300, 72)), DensityTier.minimal);
   });
 
+  // La grille paie une colonne latérale sur `kCompactShortEdge` : le seuil
+  // de `tierFor` doit être cette même valeur, pas une copie qui divergerait.
+  test('le seuil du cran compact est exactement kCompactShortEdge', () {
+    expect(tierFor(const Size(300, kCompactShortEdge)), DensityTier.compact);
+    expect(tierFor(const Size(300, kCompactShortEdge - 0.5)),
+        DensityTier.minimal);
+  });
+
   test('la poignée ne descend jamais sous 30 px, quel que soit le cran', () {
     for (final tier in DensityTier.values) {
       expect(handleHeightFor(tier), greaterThanOrEqualTo(kZoneHandleHeight));

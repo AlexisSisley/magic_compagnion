@@ -2,12 +2,9 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:magic_companion/models/table_seat.dart';
+import 'package:magic_companion/widgets/life_counter/layouts/density_tier.dart'
+    show kCompactShortEdge;
 import 'package:magic_companion/widgets/life_counter/zone/action_hub.dart';
-// `density_tier.dart` n'est plus importé ICI : `kCompactShortEdge`
-// (ci-dessous) recopie le seuil `compact` de `tierFor` en littéral documenté,
-// à l'image de `kActionWidth` qui recopie `kMinInteractiveDimension` --
-// convention locale plutôt qu'une dépendance au fichier de densité, qui lui
-// s'applique au repère d'UNE zone après rotation, pas à l'écran entier.
 
 /// Forme que prend l'accès aux actions de partie.
 enum ActionBarKind {
@@ -17,10 +14,6 @@ enum ActionBarKind {
   /// Bande horizontale entre les deux moitiés. Grand écran.
   band,
 }
-
-/// Petit côté minimal pour qu'une zone tienne le cran `compact` (nom + PV +
-/// poignée). Valeur lue sur le seuil de `tierFor`.
-const double kCompactShortEdge = 110.0;
 
 /// Largeur minimale d'une colonne latérale.
 ///

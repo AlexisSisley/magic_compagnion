@@ -36,6 +36,15 @@ const double kZoneHandleHeight = 30.0;
 /// DÉRIVÉ, jamais recopié : si l'en-tête ou la poignée change, le plancher suit.
 const double kZoneShortEdgeFloor = kZoneHeaderHeight + kZoneHandleHeight;
 
+/// Petit côté minimal pour qu'une zone tienne le cran `compact` (nom + PV +
+/// poignée).
+///
+/// Déclaré ICI, à côté de `tierFor` qui l'applique : `table_layout.dart` en
+/// dérive la largeur d'une colonne latérale. Une copie du seuil dans ce
+/// fichier-là laissait la grille payer une colonne au cran `compact` pendant
+/// que `tierFor` en exigeait un autre.
+const double kCompactShortEdge = 110.0;
+
 /// Ce qu'une zone joueur affiche, selon la place dont elle dispose.
 enum DensityTier {
   /// PV, nom, compteurs secondaires.
@@ -53,7 +62,7 @@ enum DensityTier {
 DensityTier tierFor(Size sizeInPlayerFrame) {
   final shortEdge = math.min(sizeInPlayerFrame.width, sizeInPlayerFrame.height);
   if (shortEdge >= 180.0) return DensityTier.comfort;
-  if (shortEdge >= 110.0) return DensityTier.compact;
+  if (shortEdge >= kCompactShortEdge) return DensityTier.compact;
   return DensityTier.minimal;
 }
 
