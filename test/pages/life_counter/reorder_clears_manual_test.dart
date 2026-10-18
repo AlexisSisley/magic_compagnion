@@ -15,7 +15,7 @@
 //    travers ce même réordonnancement (et le pliage qui suit).
 //
 // Partie montée SANS snapshot (`_pumpFreshGame`, comme
-// rotation_seeding_test.dart) : `_hasOwnFreshSession` doit être vrai pour
+// rotation_seeding_test.dart) : `_sessionIsFresh` doit être vrai pour
 // que le semis automatique s'exécute au pliage -- une partie REPRISE
 // (`reorder_rotation_test.dart`, tâche 5) n'est jamais auto-resemée, donc ne
 // peut pas servir à prouver ce ruling-ci.
@@ -44,7 +44,7 @@ void _setScreenSize(WidgetTester tester, Size size) {
 }
 
 /// Monte `LifeCounterPage` SANS snapshot : `_startNewGame` s'exécute, donc
-/// `_hasOwnFreshSession == true` (voir life_counter_page.dart).
+/// `_sessionIsFresh == true` (voir life_counter_page.dart).
 Future<ProviderContainer> _pumpFreshGame(WidgetTester tester, Size size) async {
   _setScreenSize(tester, size);
   SharedPreferences.setMockInitialValues({});

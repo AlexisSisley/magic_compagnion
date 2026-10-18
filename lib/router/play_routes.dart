@@ -48,7 +48,19 @@ List<RouteBase> playRoutes() {
       routes: [
         GoRoute(
           path: AppRoutes.playCounter,
-          builder: (context, state) => const LifeCounterPage(isInShell: true),
+          // Ruling 30 : `extra: true` signale une partie qui vient d'être
+          // écrite par `PlaySetupPage._demarrer` -- sans lui, `LifeCounterPage`
+          // ne peut pas distinguer cette partie neuve d'une vraie reprise
+          // après fermeture de l'application (voir la doc de
+          // `LifeCounterPage.freshlyStarted`). Tout autre appelant de cette
+          // route (reprise depuis l'Accueil ou `PlaySetupPage`, bascule
+          // d'onglet dans `PlayShell`) navigue sans `extra` : `state.extra`
+          // vaut alors `null`, donc `!= true`, et `freshlyStarted` retombe
+          // sur son défaut `false`.
+          builder: (context, state) => LifeCounterPage(
+            isInShell: true,
+            freshlyStarted: state.extra == true,
+          ),
         ),
         GoRoute(
           path: AppRoutes.playTournament,

@@ -104,7 +104,15 @@ class _PlaySetupPageState extends ConsumerState<PlaySetupPage> {
     resetPlayerZones(ProviderScope.containerOf(context), configs.length);
 
     if (!context.mounted) return;
-    context.go(AppRoutes.playCounter);
+    // Ruling 30 : `extra: true` signale a `LifeCounterPage` (via
+    // `playRoutes()`) que le snapshot qu'elle va lire ci-dessus vient
+    // d'etre ecrit par CET appel, pas repris apres une fermeture de
+    // l'application -- sans quoi `_loadGame()` la traite comme une
+    // restauration ordinaire et ses rotations ne sont jamais semees
+    // (defaut Critique trouve en relecture : une partie a 4 joueurs
+    // demarree par ce chemin -- le parcours REEL de demarrage de
+    // l'application -- restait figee a [0,0,0,0]).
+    context.go(AppRoutes.playCounter, extra: true);
   }
 
   void _ouvrirConfiguration(BuildContext context, WidgetRef ref) {
