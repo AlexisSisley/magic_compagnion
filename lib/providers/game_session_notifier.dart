@@ -196,25 +196,41 @@ class GameSessionNotifier extends Notifier<GameSession?> {
     state = session.reorderPlayers(newOrder);
   }
 
-  /// Pose une rotation CHOISIE À LA MAIN (poignée de rotation, glisser-
-  /// déposer qui change de siège, presets d'orientation -- tous les
-  /// appelants actuels de cette méthode).
+  /// Pose une rotation pour [playerId].
   ///
-  /// Ruling 28 : marque [playerId] via `PlayerState.manualRotation`, qui
-  /// protège désormais sa valeur contre tout semis automatique ultérieur
+  /// Ruling 28 : par défaut, [manual] marque `PlayerState.manualRotation`,
+  /// qui protège désormais la valeur contre tout semis automatique ultérieur
   /// (`seedRotationsFromSeats`), quelle que soit la disposition à venir --
-  /// pliage, dépliage, rotation de l'appareil. C'est le SEUL point d'entrée
-  /// qui pose ce marqueur : toute future action manuelle (tâche 8 : les
-  /// quatre flèches par zone, et les presets d'orientation déjà en place
-  /// dans `_applyOrientationPreset`, qui appelle déjà cette méthode)
-  /// l'obtient donc gratuitement en passant par ici, sans rien connaître de
-  /// `manualRotation` elle-même.
-  void updateRotation(int playerId, int quarterTurns) {
+  /// pliage, dépliage, rotation de l'appareil.
+  ///
+  /// Ruling 29 : [manual] a un paramètre, parce que tous les appels ne
+  /// décrivent pas un choix d'ANGLE. `_onReorderPlayers` (glisser-déposer
+  /// qui change un joueur de place) appelle cette méthode avec
+  /// `manual: false` pour les deux zones déplacées : la rotation qu'il pose
+  /// alors n'est que le défaut du nouveau siège -- exactement ce qu'un
+  /// semis aurait calculé -- et PAS un angle que l'utilisateur a choisi.
+  /// `manual: false` EFFACE le marqueur plutôt que de simplement s'abstenir
+  /// d'en poser un : un joueur qui change de place autour de la table perd
+  /// la pertinence de son éventuel ancien réglage (il décrivait son
+  /// ANCIENNE place), donc la zone redevient sensible au prochain semis
+  /// (ex. un pliage qui suit le reorder).
+  ///
+  /// Défaut à `true`, DÉLIBÉRÉMENT : si un futur appelant (tâche 8 : les
+  /// quatre flèches par zone, les presets d'orientation déjà en place dans
+  /// `_applyOrientationPreset`) omet ce paramètre -- ce qu'ils doivent
+  /// faire, ce sont de vrais choix d'angle -- le pire résultat est qu'une
+  /// zone garde un angle qu'elle n'a pas besoin de garder. L'erreur dans
+  /// l'autre sens (un `true` oublié qui devient `false` par défaut) ferait
+  /// PERDRE à l'utilisateur un réglage qu'il a posé consciemment --
+  /// nettement plus désagréable. `_onReorderPlayers` est donc le seul
+  /// appelant à passer `manual: false` explicitement ; tous les autres
+  /// gardent le défaut sans jamais connaître ce paramètre.
+  void updateRotation(int playerId, int quarterTurns, {bool manual = true}) {
     final session = state;
     if (session == null) return;
     final players = session.players.map((p) {
       if (p.playerId == playerId) {
-        return p.copyWith(quarterTurns: quarterTurns, manualRotation: true);
+        return p.copyWith(quarterTurns: quarterTurns, manualRotation: manual);
       }
       return p;
     }).toList();
@@ -246,13 +262,16 @@ class GameSessionNotifier extends Notifier<GameSession?> {
   ///
   /// Ruling 28 (revient sur la décision de la tâche 4, qui faisait l'inverse
   /// -- voir git blame si besoin d'archéologie) : un joueur dont
-  /// `manualRotation == true` (posé par `updateRotation`, le seul chemin qui
-  /// le pose) n'est JAMAIS touché ici, quelle que soit la disposition reçue.
-  /// Il garde la rotation qu'il a choisie jusqu'à la prochaine partie
-  /// (`GameSession.newGame` reconstruit des `PlayerState` neufs, où
-  /// `manualRotation` retombe sur son défaut `false` -- seul moment où ce
-  /// marqueur se réinitialise). Un joueur non marqué continue, lui, de
-  /// suivre la dérivation géométrique à chaque disposition différente.
+  /// `manualRotation == true` (posé par `updateRotation(..., manual: true)`,
+  /// son défaut) n'est JAMAIS touché ici, quelle que soit la disposition
+  /// reçue. Il garde la rotation qu'il a choisie jusqu'à ce que ce marqueur
+  /// se réinitialise -- deux chemins, pas un seul : une nouvelle partie
+  /// (`GameSession.newGame` reconstruit des `PlayerState` neufs) ou un
+  /// changement de PLACE à la table (ruling 29 : `_onReorderPlayers` appelle
+  /// `updateRotation(..., manual: false)` pour les deux zones déplacées,
+  /// précisément pour les rendre de nouveau sensibles à cette méthode). Un
+  /// joueur non marqué continue, lui, de suivre la dérivation géométrique à
+  /// chaque disposition différente.
   void seedRotationsFromSeats(List<int> order, List<TableSeat> seats) {
     final session = state;
     if (session == null) return;

@@ -1316,8 +1316,15 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     final seats =
         tableLayoutFor(_measuredGridSize(context), order.length).seats;
     for (final displayIndex in {oldIndex, newIndex}) {
+      // Ruling 29 : `manual: false` -- cette rotation n'est que le défaut du
+      // nouveau siège, pas un angle choisi par l'utilisateur. Elle EFFACE
+      // aussi un éventuel marquage manuel antérieur : la zone déplacée
+      // change de place, son ancien réglage décrivait son ancienne place et
+      // ne doit plus la protéger contre le prochain semis (ex. un pliage
+      // qui suivrait ce reorder).
       _controller.updateRotation(
-          order[displayIndex], seats[displayIndex].quarterTurns);
+          order[displayIndex], seats[displayIndex].quarterTurns,
+          manual: false);
     }
     setState(() {});
     _saveSnapshot();
