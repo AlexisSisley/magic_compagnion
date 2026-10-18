@@ -1520,8 +1520,8 @@ git commit -m "feat(life-counter): mode reorganisation explicite, fleches et pre
 ## Hors de ce plan, et pourquoi
 
 **Les 6 à 8 illustrations embarquées du §1.3 ne sont pas produites ici.**
-`PlayerSkin.assetPath` existe et est lu, mais toutes les entrées de
-`kPlayerSkins` valent `null` à la fin de ce plan : les zones portent les
+`PlayerSkin.assetPath` existe, mais rien ne le lit, et toutes les entrées
+de `kPlayerSkins` valent `null` à la fin de ce plan : les zones portent les
 nouvelles couleurs de terrain, pas encore de fond illustré. Les visuels
 sont un livrable de direction artistique, pas de code — et ils ne peuvent
 pas être des arts de cartes Magic, qui appartiennent à Wizards of the Coast
@@ -1529,9 +1529,13 @@ et ne sont pas redistribuables dans le binaire.
 
 Quand les fichiers existent, les déposer dans
 `assets/images/player_skins/`, les déclarer dans `pubspec.yaml`, et
-renseigner `assetPath` sur chaque entrée : aucun autre changement de code
-n'est nécessaire. C'est précisément pour cela que le champ est posé dès la
-Tâche 1.
+renseigner `assetPath` sur chaque entrée. Cela ne suffira PAS : aucun
+code ne lit ce champ aujourd'hui. Le fond d'une zone vient de
+`buildPlayerBackground` (`zone/player_skin_picker.dart`), qui ne connaît que
+`Player.backgroundImagePath` et la couleur ; il faudra brancher un
+consommateur qui passe de la teinte choisie à son `assetPath` (par exemple
+au choix d'une couleur dans le sélecteur, ou au rendu du fond). Le champ est
+posé dès la Tâche 1 pour fixer la forme des données, pas le câblage.
 
 ---
 
