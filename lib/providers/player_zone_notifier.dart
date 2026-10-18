@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/theme/app_colors.dart';
+import 'package:magic_companion/widgets/life_counter/tuning.dart';
 
 /// Un nombre flottant (+3 / −5) qui monte et s'efface.
 class FloatingNumber {
@@ -74,11 +75,10 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
   /// Glissement horizontal cumulé, en pixels, avant de tourner d'un quart.
   static const double rotationThreshold = 40.0;
 
-  /// Pixels de glissement vertical pour un point de vie, en vitesse normale.
-  static const double wheelPixelsPerUnit = 8.0;
-
-  /// Au-delà de ce déplacement (px) dans un seul geste, la molette accélère.
-  static const double wheelAccelerationThreshold = 120.0;
+  // `wheelPixelsPerUnit` et `wheelAccelerationThreshold` vivent maintenant
+  // dans `tuning.dart` (tâche 2, regroupement des réglages jamais calibrés) :
+  // ce ne sont plus des membres de cette classe, mais des constantes de
+  // fichier importées.
 
   @override
   PlayerZoneState build() => const PlayerZoneState();

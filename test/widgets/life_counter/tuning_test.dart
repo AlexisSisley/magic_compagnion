@@ -10,7 +10,7 @@ void main() {
   test('les réglages ont des valeurs utilisables', () {
     expect(kLongPressTimeout.inMilliseconds, inInclusiveRange(200, 600));
     expect(kDamageBufferWindow.inMilliseconds, inInclusiveRange(1000, 5000));
-    expect(kWheelPixelsPerStep, greaterThan(0));
-    expect(kWheelAcceleration, greaterThanOrEqualTo(1.0));
+    expect(wheelPixelsPerUnit, inInclusiveRange(1.0, 50.0));
+    expect(wheelAccelerationThreshold, inInclusiveRange(50.0, 500.0));
   });
 }
