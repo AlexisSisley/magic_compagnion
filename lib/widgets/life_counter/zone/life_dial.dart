@@ -90,6 +90,30 @@ class _LifeDialState extends ConsumerState<LifeDial> {
   /// utilisateur à l'origine de cette tâche). Purement visuel : il ne
   /// participe à aucune arène de gestes et n'influence aucun des chemins
   /// d'émission ci-dessus.
+  ///
+  /// Ruling 31 : SCALAIRE, délibérément, contrairement à `_pendingTaps` qui
+  /// est un `Set` pour la raison symétrique (voir son doc-comment). Avec deux
+  /// doigts posés en même temps sur les deux moitiés d'un même cadran (un
+  /// joueur qui utilise ses deux pouces sur sa propre zone, cas plausible),
+  /// le second doigt écrase l'affichage du premier ; si le doigt affiché
+  /// (celui que `_pressedHalf` retient) se lève en premier, l'unique
+  /// surbrillance visible s'éteint alors que l'autre doigt reste posé.
+  ///
+  /// Accepté tel quel, pour trois raisons :
+  /// 1. Purement cosmétique -- aucun delta n'est perdu ni faussé, l'émission
+  ///    repose entièrement sur `_pendingTaps`, qui retient bien les DEUX
+  ///    taps en attente indépendamment de ce que `_pressedHalf` affiche.
+  /// 2. Auto-réparateur : au relâchement du second doigt, `_pressedHalf`
+  ///    repasse à 0 (`_confirmTap`/`_cancelPress`), rien ne reste allumé en
+  ///    permanence.
+  /// 3. L'affichage n'a besoin que d'UNE surbrillance à la fois (chaque
+  ///    moitié n'a qu'un état visuel, allumée ou pas) -- là où l'émission
+  ///    doit retenir PLUSIEURS taps en attente simultanément (un par doigt).
+  ///    Migrer vers un `Set<int>` résoudrait l'écrasement mais pour un gain
+  ///    cosmétique seul, au prix de distinguer « quelle moitié éteindre »
+  ///    entre deux doigts sur la MÊME moitié (chevauchement déjà couvert par
+  ///    `_pendingTaps` côté émission) -- une complexité que ce défaut, purement
+  ///    visuel et auto-réparateur, ne justifie pas.
   int _pressedHalf = 0;
 
   /// Fraction de la largeur de la zone laissée libre de chaque côté de la
@@ -138,6 +162,10 @@ class _LifeDialState extends ConsumerState<LifeDial> {
     _trackedPointer = null;
     _downPosition = null;
     _wheelSumSinceAdjust = 0;
+    // Sans conséquence (l'objet est détruit juste après), mais par cohérence
+    // avec les remises à zéro ci-dessus -- une omission ici est exactement
+    // le genre de détail qui fait douter un lecteur d'une intention absente.
+    _pressedHalf = 0;
     super.dispose();
   }
 
