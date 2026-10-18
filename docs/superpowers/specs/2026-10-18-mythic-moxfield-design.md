@@ -110,10 +110,29 @@ Le poids total des assets ajoutés ne dépasse pas 3 Mo.
 
 ### 1.4 Orientation par défaut
 
-Les rotations initiales sont dérivées du modèle de sièges retenu par
-`tableLayoutFor`, et d'aucune autre source. Le défaut observé — une
-orientation qui ne correspond pas à la grille affichée — vient de ce que
-les deux étaient calculées séparément.
+**La règle du grand côté.** L'orientation par défaut d'une zone est celle
+qui aligne son sens de lecture sur son **grand côté**. Une zone plus
+haute que large pivote d'un quart de tour ; une zone plus large que haute
+reste à 0° ou 180° selon sa rangée.
+
+Le sens du quart de tour est donné par le bord dont le joueur est le plus
+proche : colonne de gauche à 90°, colonne de droite à 270°.
+
+| Écran | Zone à 4 joueurs | Forme | Rotation par défaut |
+|---|---|---|---|
+| Déplié, 840×700 | 420×350 | plus large que haute | 180° en haut, 0° en bas |
+| Replié, 390×844 | 195×420 | plus haute que large | 90° à gauche, 270° à droite |
+
+C'est la règle que l'utilisateur a formulée : « par défaut on choisit
+toujours la largeur la plus grande pour la zone ». Elle explique aussi
+pourquoi l'orientation paraissait juste sur l'écran déplié et fausse sur
+le replié : une seule règle couvre les deux, elle n'était appliquée
+qu'au premier.
+
+Les rotations initiales sont dérivées de cette règle et du modèle de
+sièges retenu par `tableLayoutFor`, et d'aucune autre source. Le défaut
+observé — une orientation qui ne correspond pas à la grille affichée —
+vient de ce que les deux étaient calculées séparément.
 
 Cette règle ne fait que réaffirmer le §2.1 de la spec table multijoueur
 v2 (« la rotation n'a qu'un seul propriétaire ») : elle avait été écrite,
@@ -153,6 +172,72 @@ n'ont jamais été validées), plancher de lisibilité de la poignée.
 Chaque constante porte sa valeur actuelle et la raison pour laquelle elle
 vaut ça. Aucune n'est exposée dans les Réglages : ce fichier existe pour
 qu'un ajustement après une vraie partie soit un geste, pas une fouille.
+
+### 1.7 Reprendre la main sur l'orientation
+
+La règle du grand côté donne un bon défaut. Elle ne peut pas savoir où
+chacun est réellement assis. Deux contrôles la corrigent.
+
+**Par zone : quatre flèches, pas un cycle.** Le bouton de rotation
+actuel fait tourner la zone d'un quart de tour à chaque appui : pour
+atteindre 270° il faut taper trois fois, et rien n'indique où l'on va.
+Il est remplacé par un sélecteur à quatre flèches — haut, bas, gauche,
+droite — désignant le bord vers lequel le joueur regarde. Une seule
+touche atteint n'importe quelle orientation, et la flèche active est
+visible.
+
+**Pour toute la table : des presets.** Un bouton applique en une fois un
+agencement connu à toutes les zones : **Face-à-face**, **Côtés**,
+**Triangle**, **Cercle**, plus **Tout dans le même sens** pour le cas où
+une seule personne saisit pour les autres. Les presets qui conviennent
+au nombre de joueurs courant sont seuls proposés.
+
+Ce point ferme une **question explicitement laissée ouverte** par la spec
+table multijoueur v2 (§9) : les presets « Côtés », « Triangle » et
+« Cercle » avaient été supprimés au lot 6 sans mandat, et leur sort
+était renvoyé à l'utilisateur. Il les veut. Ils reviennent.
+
+### 1.8 Lisibilité du geste de vie
+
+Le geste lui-même ne change pas (§7). Ce qui change, c'est qu'on voie ce
+qu'on fait.
+
+**Les deux moitiés deviennent visibles.** Rien n'indique aujourd'hui où
+finit la moitié « − » et où commence la moitié « + ». Chaque moitié
+porte un repère permanent et discret — un `−` et un `+` en encre à
+faible opacité, placés vers le bord extérieur, hors du chemin du
+chiffre. Au doigt posé, la moitié touchée s'éclaircit tant que le
+contact dure : c'est l'équivalent tactile du survol, et c'est ce qui
+dit « c'est bien celle-ci que tu viens de toucher ».
+
+**Le delta accumulé devient le second élément le plus visible de la
+zone**, après le total. Le nombre flottant qui résume ce qui vient
+d'être pris ou rendu pendant la fenêtre de regroupement passe d'une
+mention discrète à un bloc lisible à distance de table : taille au
+moins la moitié de celle du total, teinté `feedback/danger` pour une
+perte et `feedback/success` pour un gain, posé contre le chiffre
+principal. Il s'efface à la fermeture de la fenêtre.
+
+La durée de cette fenêtre reste la constante du §1.6, jamais validée en
+partie réelle — c'est le premier réglage à éprouver.
+
+### 1.9 Mode réorganisation, explicite
+
+Le bouton de réorganisation ne dit pas dans quel mode on se trouve. En
+partie, rien ne distingue une table qu'on joue d'une table qu'on
+réarrange, et c'est ainsi qu'on déplace un joueur en croyant lui
+retirer un point de vie.
+
+Les deux modes deviennent visuellement incompatibles :
+
+- **Mode jeu** — l'état normal. Les zones répondent au geste de vie ; la
+  réorganisation est inaccessible sans passer par le bouton.
+- **Mode réorganisation** — la table change d'habit : un voile sur toute
+  la surface, chaque zone bordée et portant une poignée de déplacement et
+  son sélecteur d'orientation (§1.7), le geste de vie **désactivé**, et
+  une barre explicite en pied avec « Terminé ».
+
+On ne peut pas y être par accident, ni en sortir sans le savoir.
 
 ---
 
@@ -228,7 +313,11 @@ toujours là. Cette spec ne fait qu'appliquer la précédente.
 
 `DeckCommanderHeader` est réécrit : art du commandant en bandeau plein
 cadre, nom du deck en surimpression sur un dégradé, identité couleur, et
-une rangée de stats clés — nombre de cartes, prix, power level.
+une rangée de stats clés — nombre de cartes, **coût de mana moyen**,
+power level, puis le prix.
+
+L'ordre compte : le prix passe en dernier. Cet écran sert à préparer une
+partie, pas à faire les courses.
 
 Le cas « deux commandants » (partenaire) partage le bandeau en deux. Le
 cas « aucun commandant » conserve son message actuel, sur un fond neutre
@@ -257,6 +346,28 @@ et ce choix est mémorisé par deck.
 Migration : les cartes existantes sont créées avec `category: null` et
 `categoryLocked: false`, et reçoivent leur catégorie à la première
 ouverture du deck.
+
+### 3.2 bis Comment une carte s'affiche
+
+**La grille d'artworks est le mode par défaut**, et le reste. Une liste
+de noms en texte n'est pas une régression acceptable : on reconnaît une
+carte à son image avant de lire son nom, et c'est le mode que
+`deck_card_list_tab.dart` sait déjà rendre (`_buildDraggableItem(…,
+isGrid: true)`).
+
+Les catégories du §3.2 sont des **en-têtes de section au-dessus de la
+grille**, pas un passage en liste texte. Grouper et illustrer ne
+s'excluent pas : chaque catégorie ouvre sa propre grille d'artworks.
+
+Le mode liste compacte reste accessible d'un tap, pour parcourir un deck
+de 100 cartes de haut en bas ; il n'est jamais le défaut.
+
+**Sur une carte, la quantité et le coût de mana priment sur le prix.** La
+vignette porte sa quantité et son coût de mana ; le prix n'apparaît que
+dans l'onglet Stats et dans la feuille financière existante, qui ne
+changent pas. Motif, dans les mots de l'utilisateur : « on est sur la
+partie perf de jeu, le mana et la quantité dans le deck sont plus
+importants que le prix ».
 
 ### 3.3 Les onglets
 
@@ -322,6 +433,12 @@ réécrits en A.
   code de production doit le faire échouer.
 - Test géométrique des rotations (§1.4), 2 à 6 joueurs, deux
   orientations.
+- Test de la règle du grand côté (§1.4) : pour toute zone dont la
+  hauteur dépasse la largeur, la rotation par défaut est 90° ou 270° ;
+  pour toute zone plus large que haute, 0° ou 180°. Vérifié sur les deux
+  tailles d'écran du tableau du §1.4.
+- Test que le geste de vie est inopérant en mode réorganisation (§1.9),
+  et opérant dès qu'on en sort.
 - Test d'équité des surfaces (§1.1) : à 4 joueurs sur grand écran, les
   quatre zones ont la même aire à 1 % près.
 - Test de dépôt sur le sélecteur de board (§3.3).
@@ -337,10 +454,21 @@ capture, examinée.
 
 - Table 4 joueurs, plié et déplié : quatre quadrants, orientations
   correctes, hub au croisement.
+- Table 4 joueurs **repliée** : colonne gauche à 90°, colonne droite à
+  270°, chiffres lisibles en travers de la table.
 - Tiroir et dégâts de commandant ouverts depuis **chacun** des quatre
   sièges.
+- Repères `−` / `+` visibles sur chaque zone, et l'éclaircissement de la
+  moitié touchée, capturé doigt posé.
+- Delta accumulé affiché, en perte et en gain.
+- Mode réorganisation : capture dedans et dehors, la différence devant
+  être évidente sans légende.
+- Sélecteur d'orientation à quatre flèches, et la liste des presets à 4
+  puis à 6 joueurs.
 - Bibliothèque de decks à 1, 2 et 3 colonnes.
 - Page deck avec commandant, avec partenaire, et sans commandant.
+- Page deck en grille d'artworks groupée par catégorie — le défaut —
+  **et** en liste compacte.
 
 Cette exigence vient d'une leçon de ce projet : un lot déplaçant des
 pixels a déjà été reverté après 1 028 tests verts.
