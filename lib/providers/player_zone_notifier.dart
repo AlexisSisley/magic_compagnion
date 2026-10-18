@@ -1,5 +1,5 @@
 // lib/providers/player_zone_notifier.dart
-// État local d'une zone joueur : nombres flottants, rotation, mode ajustement.
+// État local d'une zone joueur : nombres flottants, mode ajustement.
 //
 // Remplace lib/controllers/player_zone_controller.dart, bâti sur les modes de
 // compteur (life/poison/energy/commanderTax) que la zone V4 n'a plus : le
@@ -30,7 +30,6 @@ class FloatingNumber {
 class PlayerZoneState {
   final List<FloatingNumber> floatingNumbers;
   final int nextNumberId;
-  final double rotationAccumulator;
   final bool isAdjusting;
   final double wheelAccumulator;
   final double wheelGestureDistance;
@@ -38,7 +37,6 @@ class PlayerZoneState {
   const PlayerZoneState({
     this.floatingNumbers = const [],
     this.nextNumberId = 0,
-    this.rotationAccumulator = 0.0,
     this.isAdjusting = false,
     this.wheelAccumulator = 0.0,
     this.wheelGestureDistance = 0.0,
@@ -47,7 +45,6 @@ class PlayerZoneState {
   PlayerZoneState copyWith({
     List<FloatingNumber>? floatingNumbers,
     int? nextNumberId,
-    double? rotationAccumulator,
     bool? isAdjusting,
     double? wheelAccumulator,
     double? wheelGestureDistance,
@@ -55,7 +52,6 @@ class PlayerZoneState {
     return PlayerZoneState(
       floatingNumbers: floatingNumbers ?? this.floatingNumbers,
       nextNumberId: nextNumberId ?? this.nextNumberId,
-      rotationAccumulator: rotationAccumulator ?? this.rotationAccumulator,
       isAdjusting: isAdjusting ?? this.isAdjusting,
       wheelAccumulator: wheelAccumulator ?? this.wheelAccumulator,
       wheelGestureDistance: wheelGestureDistance ?? this.wheelGestureDistance,
@@ -71,9 +67,6 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
   /// déjà de `.family` (un état par clé `playerId`) — ce paramètre ne sert
   /// qu'à satisfaire la signature et n'est donc pas conservé.
   PlayerZoneNotifier(int playerId);
-
-  /// Glissement horizontal cumulé, en pixels, avant de tourner d'un quart.
-  static const double rotationThreshold = 40.0;
 
   // `wheelPixelsPerUnit` et `wheelAccelerationThreshold` vivent maintenant
   // dans `tuning.dart` (tâche 2, regroupement des réglages jamais calibrés) :
@@ -197,34 +190,6 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
     state = state.copyWith(
       floatingNumbers: state.floatingNumbers.where((n) => n.id != id).toList(),
     );
-  }
-
-  // --- Rotation ---
-
-  int rotate90Degrees(int currentQuarterTurns) => (currentQuarterTurns + 1) % 4;
-
-  /// Remet l'accumulateur de rotation à zéro sans toucher au reste de
-  /// l'état. Appelé au début de chaque nouveau geste de glissement
-  /// (`onLongPressStart`) : le résidu d'un geste précédent, achevé sans
-  /// franchir le seuil, ne doit pas se combiner avec un nouveau geste sans
-  /// rapport (position de doigt différente, direction potentiellement
-  /// opposée) — sans quoi le nouveau geste hériterait d'un biais invisible
-  /// pour l'utilisateur.
-  void resetRotationDrag() {
-    state = state.copyWith(rotationAccumulator: 0.0);
-  }
-
-  int? handleRotationDrag(double delta, int currentQuarterTurns) {
-    final accumulated = state.rotationAccumulator + delta;
-    if (accumulated.abs() <= rotationThreshold) {
-      state = state.copyWith(rotationAccumulator: accumulated);
-      return null;
-    }
-    final direction = accumulated > 0 ? 1 : -1;
-    var next = (currentQuarterTurns + direction) % 4;
-    if (next < 0) next += 4;
-    state = state.copyWith(rotationAccumulator: 0.0);
-    return next;
   }
 
   void reset() {

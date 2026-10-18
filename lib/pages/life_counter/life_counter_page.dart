@@ -46,12 +46,12 @@ import '../../widgets/life_counter/dice_roll_dialog.dart';
 import '../../widgets/life_counter/game_setup_modal.dart';
 import '../../widgets/life_counter/layouts/adaptive_grid.dart';
 import '../../widgets/life_counter/layouts/table_layout.dart';
-import '../../models/table_seat.dart';
 import '../../widgets/life_counter/critical_overlay.dart';
 import '../../widgets/life_counter/elimination_overlay.dart';
 import '../../widgets/life_counter/death_confirmation_overlay.dart';
 import '../../widgets/life_counter/draggable_player_zone.dart';
 import '../../widgets/life_counter/reorganise_bar.dart';
+import '../../widgets/life_counter/layouts/orientation_presets.dart';
 import '../../widgets/life_counter/animations/animation_service.dart';
 import '../../widgets/life_counter/snapshot_writer.dart';
 import '../../widgets/life_counter/player_skins.dart';
@@ -148,11 +148,24 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   // lot 6 et que la ronde de correction précédente de cette tâche. Cette clé
   // permet de lire la taille RÉELLEMENT mesurée par la grille (après sa
   // disposition), au lieu de la deviner depuis l'écran.
+  //
+  // Tâche 8b : posée sur la `Column` qui porte la grille ET la barre du mode
+  // réorganisation, plus sur la grille elle-même. Hors mode, les deux ont la
+  // même taille (la grille est l'unique enfant `Expanded`). En mode, la
+  // barre ampute la grille d'environ 155 px : mesurer la grille faisait
+  // alors décrire aux presets, au semis et au réordonnancement la table du
+  // MODE, pas celle qu'on joue -- et, au premier build du mode, l'ancienne
+  // taille, puis la nouvelle au suivant. Près du seuil de la règle du grand
+  // côté, entrer dans le mode suffisait à resemer les rotations d'une
+  // partie neuve. La `Column`, elle, ne change pas de taille quand la barre
+  // apparaît : la référence reste stable pendant tout le mode.
   final GlobalKey _gridKey = GlobalKey();
 
-  /// Taille réellement occupée par `AdaptiveGrid`, lue sur son `RenderBox`
-  /// après disposition -- jamais mutée pendant un `build()`, seulement lue
-  /// depuis des callbacks post-frame (gestes, feuilles modales).
+  /// Taille de la table qu'on joue : celle qu'`AdaptiveGrid` occupe hors
+  /// mode réorganisation, lue sur le `RenderBox` de la `Column` qui la porte
+  /// après disposition (voir `_gridKey`) -- jamais mutée pendant un
+  /// `build()`, seulement lue depuis des callbacks post-frame (gestes,
+  /// feuilles modales) ou pour les presets de la barre.
   ///
   /// Retombée sur `MediaQuery.sizeOf(context)` si la grille n'a pas encore de
   /// contexte (premier appel avant le tout premier `build()`, ou test qui
@@ -933,13 +946,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     _saveSnapshot();
   }
 
-  void _updatePlayerRotation(int playerId, int rotation) {
-    if (_session == null) return;
-    _controller.updateRotation(playerId, rotation);
-    setState(() {});
-    _saveSnapshot();
-  }
-
   void _updatePlayerSkin(int playerId, String? path) {
     if (_session == null) return;
     final players = _session!.players.map((p) {
@@ -1257,38 +1263,50 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     // surimpression, elle masquait le centre des zones du bas -- leur
     // sélecteur d'orientation, et l'endroit même où l'on commence un
     // glisser. La contrepartie : `AdaptiveGrid` perd la hauteur de la barre
-    // tant que le mode dure, et `_measuredGridSize` (donc les presets) lit
-    // cette taille réduite -- c'est la disposition réellement affichée
-    // pendant qu'on réorganise. Effet visible, constaté en capture à
-    // 900×700 : la bande d'actions cède la place au hub tant que le mode
-    // dure (le petit côté de la grille, 546, passe sous
-    // `kLargeScreenShortEdge`) ; « Terminé » et
-    // l'action `edit-mode` du hub restent les deux sorties. La `Column` est
-    // inconditionnelle, pour que
-    // la grille garde sa place dans l'arbre à l'entrée et à la sortie du
-    // mode.
+    // tant que le mode dure. Effet visible, constaté en capture à 900×700 :
+    // la bande d'actions cède la place au hub tant que le mode dure (le
+    // petit côté de la grille, 546, passe sous `kLargeScreenShortEdge`) ;
+    // « Terminé » et l'action `edit-mode` du hub restent les deux sorties.
+    // Les presets, le semis et le réordonnancement, eux, lisent la table
+    // HORS mode : la clé de mesure est sur cette `Column`, dont la taille
+    // ne bouge pas quand la barre apparaît (voir `_gridKey`). La `Column`
+    // est inconditionnelle, pour que la grille garde sa place dans l'arbre
+    // à l'entrée et à la sortie du mode.
     return Column(
+      key: _gridKey,
       children: [
         Expanded(
           child: AdaptiveGrid(
-            key: _gridKey,
             playerZones: playerZones,
             centralBar: _buildCentralBar(),
             actionHub: ActionHub(actions: _gameActions),
           ),
         ),
-        if (_isReorganising)
-          ReorganiseBar(
-            presets: [
-              for (final preset in _getOrientationPresets(_playerCount))
-                (
-                  label: preset.label,
-                  onTap: () => _applyOrientationPreset(preset.rotations),
-                ),
-            ],
-            onDone: () => setState(() => _isReorganising = false),
+        if (_isReorganising) _buildReorganiseBar(orderedPlayers),
+      ],
+    );
+  }
+
+  /// La barre du mode réorganisation, avec les presets que la table
+  /// réellement jouée admet (spec §1.7, voir orientation_presets.dart).
+  ///
+  /// Le preset dont les angles sont ceux de la table en ce moment est mis en
+  /// évidence : c'est la seule façon de voir, sans lire chaque zone, quel
+  /// agencement est en place.
+  Widget _buildReorganiseBar(List<PlayerState> orderedPlayers) {
+    final current = [for (final p in orderedPlayers) p.quarterTurns % 4];
+    final offered =
+        offeredOrientationPresets(_measuredGridSize(context), _playerCount);
+    return ReorganiseBar(
+      presets: [
+        for (final o in offered)
+          (
+            label: o.preset.label,
+            selected: listEquals(o.quarterTurns, current),
+            onTap: () => _applyOrientationPreset(o.quarterTurns),
           ),
       ],
+      onDone: () => setState(() => _isReorganising = false),
     );
   }
 
@@ -1459,7 +1477,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
       player: p, isHighlighted: _highlightedPlayerId == p.id,
       onLifeChanged: (val) => _updateLife(p.id, val),
       onColorChanged: (c) => _updatePlayerColor(p.id, c),
-      onRotationChanged: (r) => _updatePlayerRotation(p.id, r),
       onSkinChanged: (path) => _updatePlayerSkin(p.id, path),
       onNameTap: () => _showPlayerHistory(p.id),
       // Tâche 7 : `p.quarterTurns` (== `widget.player.quarterTurns` côté
@@ -1915,57 +1932,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     }
   }
 
-  /// Presets d'orientation, TOUS dérivés de la géométrie (revue finale,
-  /// ruling 20).
-  ///
-  /// Ce qui existait avant : des listes en dur de 2 à 6 joueurs, écrites pour
-  /// une disposition qui n'existe plus. Mesuré à `Size(900, 700)` / 4
-  /// joueurs — l'écran exact des tests de presets — la disposition rendue est
-  /// `[top, right, bottom, left]`, soit `[2, 3, 0, 1]`, colonnes latérales
-  /// actives ; « Face à face » posait `[2, 2, 0, 0]` et AUCUN des cinq presets
-  /// ne produisait l'orientation juste. L'aperçu, lui, dessinait honnêtement
-  /// le résultat faux : libellé et aperçu se contredisaient à l'écran.
-  ///
-  /// Depuis, il n'y a plus qu'une source de géométrie —
-  /// `tableLayoutFor(_measuredGridSize(context), count)` — et aucune liste en
-  /// dur ne peut plus diverger d'elle.
-  ///
-  /// Les trois libellés supprimés — « Côtés », « Triangle », « Cercle » — ne
-  /// décrivaient aucune disposition de sièges : ils ne peuvent pas être
-  /// exprimés honnêtement une fois la géométrie dérivée, et prétendaient
-  /// placer des joueurs là où la grille ne les met pas.
-  List<_OrientationPreset> _getOrientationPresets(int count) {
-    // La disposition RÉELLEMENT rendue, colonnes latérales comprises.
-    // `TableSeat.quarterTurns` porte déjà la rotation juste pour un siège
-    // donné : rien à recalculer, aucune compensation.
-    final tableRotations = [
-      for (final seat in tableLayoutFor(_measuredGridSize(context), count).seats)
-        seat.quarterTurns,
-    ];
-
-    // Le repli face-à-face, c'est-à-dire la même géométrie privée de ses
-    // colonnes latérales — et non une liste écrite à la main.
-    final faceToFaceRotations = [
-      for (final seat in seatsFor(count, allowSideColumns: false))
-        seat.quarterTurns,
-    ];
-
-    return [
-      _OrientationPreset('Table', tableRotations),
-      // Proposé seulement là où il DIFFÈRE de « Table » : sur un écran (ou un
-      // effectif) où la grille ne pose déjà pas de colonnes latérales, les
-      // deux presets sont le même, et offrir deux boutons identiques sous
-      // deux noms ment sur ce qu'ils font.
-      if (!listEquals(faceToFaceRotations, tableRotations))
-        _OrientationPreset('Face à face', faceToFaceRotations),
-      _OrientationPreset('Même sens', List.filled(count, 0)),
-      // Seul preset qui ne décrive pas des SIÈGES : deux joueurs côte à côte
-      // du même bord de l'appareil, chacun tourné d'un quart de tour vers
-      // l'autre. Il n'a de sens qu'à deux, et n'a pas d'équivalent
-      // géométrique à dériver — `seatsFor` ne modélise pas ce placement.
-      if (count == 2) const _OrientationPreset('Côte à côte', [1, 3]),
-    ];
-  }
+  // Presets d'orientation : voir orientation_presets.dart et
+  // `_buildReorganiseBar`.
+  //
+  // Historique. La revue finale (ruling 20) avait remplacé des listes en dur
+  // par deux presets dérivés de la géométrie (« Table », « Face à face ») et
+  // retiré « Côtés », « Triangle » et « Cercle », qui ne décrivaient alors
+  // aucune disposition de sièges. L'utilisateur les a redemandés le
+  // 18/10/2026 (spec §1.7). Ils reviennent, mais dérivés eux aussi de la
+  // position RENDUE de chaque zone : aucun angle n'est écrit en dur, aucun
+  // n'est calculé depuis l'index d'affichage.
 
   void _applyOrientationPreset(List<int> rotations) {
     if (_session == null) return;
@@ -1981,6 +1957,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     // supposait encore l'ancienne grille, qui pivotait la moitié haute de
     // 180° elle-même — 180° − 180° = 0°, le défaut symétrique de celui que
     // la tâche 4 interdit (180° + 180° = 360°).
+    //
+    // `updateRotation` sans `manual: false` : un preset est un choix de
+    // l'utilisateur, il pose le marqueur manuel comme une flèche (spec
+    // §1.4) et aucun semis ultérieur (pliage) ne doit l'écraser. Un appel
+    // par joueur plutôt qu'une méthode groupée du notifier : les états
+    // intermédiaires sont émis dans le même tour synchrone, avant le
+    // `setState` ci-dessous, et ne sont donc jamais rendus ni écrits ; le
+    // notifier n'a pas à apprendre une seconde façon de poser un angle.
     final players = _orderedPlayers;
     for (int i = 0; i < players.length && i < rotations.length; i++) {
       _controller.updateRotation(players[i].playerId, rotations[i]);
@@ -2123,11 +2107,4 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   void _rollDice(int sides) {
     showDialog(context: context, barrierDismissible: false, builder: (c) => DiceRollAnimationDialog(sides: sides, finalResult: Random().nextInt(sides) + 1, onReroll: () { Navigator.pop(c); _rollDice(sides); }));
   }
-}
-
-/// Data class for an orientation preset.
-class _OrientationPreset {
-  final String label;
-  final List<int> rotations; // quarterTurns per player index
-  const _OrientationPreset(this.label, this.rotations);
 }

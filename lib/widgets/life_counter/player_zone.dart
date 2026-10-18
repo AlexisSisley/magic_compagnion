@@ -4,7 +4,6 @@ import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/counter_type.dart';
 import '../../models/player_model.dart';
@@ -38,7 +37,6 @@ class PlayerZone extends ConsumerStatefulWidget {
     required this.onLifeChanged,
     required this.onColorChanged,
     this.onOpenDrawer,
-    this.onRotationChanged,
     this.onSkinChanged,
     this.onNameTap,
     this.quarterTurns = 0,
@@ -90,13 +88,14 @@ class PlayerZone extends ConsumerStatefulWidget {
   /// GARANTI à la couleur à tous les crans de densité -- y compris `minimal`,
   /// où `PlayerHeader` est masqué.
   ///
-  /// Tâche 8a (Ruling 41) : `_rotate90Degrees` n'y transite plus. L'action
-  /// « Tourner » du tiroir -- un quart de tour par appui -- est remplacée par
-  /// le sélecteur à quatre flèches du mode réorganisation (spec §1.7).
+  /// Tâche 8a : l'action « Tourner » du tiroir -- un quart de tour par
+  /// appui -- est remplacée par le sélecteur à quatre flèches du mode
+  /// réorganisation (spec §1.7). La tâche 8b retire de même le bouton de
+  /// rotation de `PlayerHeader` : cette zone ne sait plus changer son propre
+  /// angle, seul le mode réorganisation le fait.
   final void Function(VoidCallback onShowColorPicker)? onOpenDrawer;
 
   final Function(Color) onColorChanged;
-  final Function(int)? onRotationChanged;
   final Function(String?)? onSkinChanged;
 
   /// Optional callback triggered when the player name in the header is tapped.
@@ -111,15 +110,13 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     with TickerProviderStateMixin {
   LocalCardService get _localCardService => ref.read(localCardServiceProvider);
 
-  /// Le notifier de cette zone (nombres flottants, rotation, mode
+  /// Le notifier de cette zone (nombres flottants, mode
   /// ajustement — voir `player_zone_notifier.dart`). Getter de lecture
   /// ordinaire, jamais utilisé dans `dispose()`.
   PlayerZoneNotifier get _notifier =>
       ref.read(playerZoneNotifierProvider(widget.player.id).notifier);
 
-  Offset _lastLongPressPosition = Offset.zero;
-
-  /// Hauteur réservée à l'en-tête (palette, rotation, nom) au-dessus du
+  /// Hauteur réservée à l'en-tête (palette, nom) au-dessus du
   /// cadran de vie (spec §2.1 : le chiffre occupe le reste de la zone).
   ///
   /// DÉRIVÉE de `density_tier.dart` (tâche 2), jamais recopiée : c'est la
@@ -262,22 +259,6 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     });
   }
 
-  void _rotate90Degrees() {
-    if (widget.onRotationChanged == null) return;
-    final nextRot = _notifier.rotate90Degrees(widget.player.quarterTurns);
-    widget.onRotationChanged!(nextRot);
-    HapticFeedback.lightImpact();
-  }
-
-  void _handleRotationDrag(double delta) {
-    if (widget.onRotationChanged == null) return;
-    final nextRot = _notifier.handleRotationDrag(delta, widget.player.quarterTurns);
-    if (nextRot != null) {
-      widget.onRotationChanged!(nextRot);
-      HapticFeedback.mediumImpact();
-    }
-  }
-
   // --- BUILD ---
 
   @override
@@ -372,7 +353,7 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
             Positioned.fill(child: backgroundWidget),
             Positioned.fill(child: Container(color: AppColors.textOnPrimary.withValues(alpha: 0.3))),
 
-            // Corps central : en-tête (palette/rotation/nom), le chiffre de vie
+            // Corps central : en-tête (palette/nom), le chiffre de vie
             // occupe tout le reste (spec §2.1), la poignée conditionnelle ferme
             // la zone en bas (spec §2.2).
             //
@@ -389,20 +370,6 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                         : PlayerHeader(
                             key: const ValueKey('player-zone-header'),
                             onShowColorPicker: openColorPicker,
-                            onRotate: _rotate90Degrees,
-                            onLongPressStart: (details) {
-                              // Un nouveau geste ne doit pas hériter du résidu d'un
-                              // geste précédent, achevé sans franchir le seuil (voir
-                              // le doc-comment de `resetRotationDrag`).
-                              _notifier.resetRotationDrag();
-                              _lastLongPressPosition = details.localPosition;
-                              HapticFeedback.selectionClick();
-                            },
-                            onLongPressMoveUpdate: (details) {
-                              final double delta = details.localPosition.dx - _lastLongPressPosition.dx;
-                              _lastLongPressPosition = details.localPosition;
-                              _handleRotationDrag(delta);
-                            },
                             playerName: widget.player.name,
                             onNameTap: widget.onNameTap,
                           ),

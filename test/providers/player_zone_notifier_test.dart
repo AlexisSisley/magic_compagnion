@@ -125,26 +125,6 @@ void main() {
     });
   });
 
-  group('rotation', () {
-    test('rotate90Degrees boucle sur 4', () {
-      expect(notifierFor(0).rotate90Degrees(3), 0);
-    });
-
-    test('le glissement sous le seuil ne tourne pas', () {
-      expect(notifierFor(0).handleRotationDrag(10.0, 0), isNull);
-    });
-
-    test('le glissement au-delà du seuil tourne et remet l\'accumulateur à zéro', () {
-      final n = notifierFor(0);
-      expect(n.handleRotationDrag(50.0, 0), 1);
-      expect(stateFor(0).rotationAccumulator, 0.0);
-    });
-
-    test('un glissement négatif tourne dans l\'autre sens sans passer en négatif', () {
-      expect(notifierFor(0).handleRotationDrag(-50.0, 0), 3);
-    });
-  });
-
   test('les instances sont indépendantes par playerId', () {
     notifierFor(0).enterAdjustMode();
     expect(stateFor(0).isAdjusting, isTrue);

@@ -2529,123 +2529,133 @@ void main() {
     }
   }
 
-  // Revue finale, Critical #3 (ruling 20) : les presets sont TOUS dérivés de
-  // la géométrie. Les valeurs attendues ci-dessous sont donc celles que la
-  // grille rend RÉELLEMENT à `Size(900, 700)`, l'écran de ces tests :
+  // Tâche 8b (spec §1.7) : les presets « Face-à-face », « Côtés »,
+  // « Triangle », « Cercle » et « Même sens » sont dérivés de la position
+  // RENDUE de chaque zone (orientation_presets.dart, qui porte la preuve
+  // géométrique fine). Ici, la vraie page à `Size(900, 700)` :
   //
-  //   n=2 : [top, bottom]                              -> [2, 0]
-  //   n=3 : [top, bottom, bottom]                      -> [2, 0, 0]
-  //   n=4 : [top, top, bottom, bottom]                 -> [2, 2, 0, 0]
-  //   n=5 : [top, top, right, bottom, left]            -> [2, 2, 3, 0, 1]
-  //   n=6 : [top, top, right, bottom, bottom, left]    -> [2, 2, 3, 0, 0, 1]
-  //   n=7 : repli face-à-face (playerCount > 6)        -> [2,2,2,0,0,0,0]
+  //   n=2 : bandes haut/bas                -> Face-à-face [2,0], Côtés [1,3]
+  //   n=3 : bande haute, deux zones en bas -> Triangle [2,1,3]
+  //   n=4 : grille 2×2                     -> Côtés [1,3,1,3],
+  //         Face-à-face [2,2,0,0], Cercle (moulinet) [2,3,1,0]
+  //   n=5 : `around`                       -> Cercle [2,2,3,0,1] (les sièges),
+  //         Face-à-face [2,2,0,0,0] (colonnes latérales en bas)
+  //   n=6 : `around`                       -> Cercle [2,2,3,0,0,1]
+  //   n=7 : double rangée                  -> Face-à-face [2,2,2,0,0,0,0]
   //
-  // Tâche 3 (spec §1.1, équité des surfaces) : à 4 joueurs, il n'y a plus de
-  // colonnes latérales du tout (zone 450×350 à cet écran, plus large que
-  // haute, donc `faceToFace` -- règle du grand côté, §1.4). AVANT cette
-  // tâche, n=4 utilisait encore le modèle à colonnes latérales permanentes
-  // ([top, right, bottom, left] -> [2, 3, 0, 1]) : seuls 5 et 6 joueurs le
-  // conservent désormais, une grille égale n'étant pas réalisable à ces
-  // effectifs.
-  //
-  // Les listes en dur de 2 à 6 joueurs disaient [2,2,0,0] à quatre : AUCUN des
-  // cinq presets ne produisait l'orientation juste, et l'aperçu — qui lit déjà
-  // la vraie géométrie — dessinait honnêtement le résultat faux.
-  //
-  // « Côtés », « Triangle » et « Cercle » ont disparu : ils ne décrivaient
-  // aucune disposition de sièges. « Face à face » n'est proposé que là où il
-  // DIFFÈRE de « Table », donc à 5 et 6 joueurs sur cet écran -- plus à 4
-  // depuis la tâche 3, puisque « Table » lui-même pose maintenant le repli
-  // [2,2,0,0] -- les tests d'absence ci-dessous verrouillent cette règle.
-  group('presets d\'orientation (revue finale — dérivés de la géométrie)', () {
-    // Tâche 3 (spec §1.1) : plus de colonnes latérales à 4 joueurs -- "Table"
-    // pose désormais le même repli face-à-face qu'avant cette tâche "Face à
-    // face" posait séparément.
-    testWidgets('4 joueurs — "Table" pose la géométrie réelle [2,2,0,0]',
+  // Historique : la revue finale (ruling 20) avait retiré « Côtés »,
+  // « Triangle » et « Cercle » faute de géométrie à dériver ; l'utilisateur
+  // les a redemandés, ils reviennent dérivés.
+  group('presets d\'orientation (tâche 8b — dérivés de la position rendue)',
+      () {
+    /// Libellés des presets de la barre, dans leur ordre d'affichage.
+    List<String> offeredLabels(WidgetTester tester) {
+      final buttons = find.descendant(
+        of: find.byType(ReorganiseBar),
+        matching: find.byType(OutlinedButton),
+      );
+      final widgets = tester.widgetList<OutlinedButton>(buttons).toList()
+        ..sort((a, b) {
+          final ra = tester.getTopLeft(find.byWidget(a));
+          final rb = tester.getTopLeft(find.byWidget(b));
+          return ra.dy != rb.dy
+              ? ra.dy.compareTo(rb.dy)
+              : ra.dx.compareTo(rb.dx);
+        });
+      return [for (final w in widgets) (w.child as Text).data!];
+    }
+
+    testWidgets(
+        '4 joueurs — la barre propose Côtés, Face-à-face, Cercle, Même sens, '
+        'dans l\'ordre de la maquette', (tester) async {
+      await pumpForOrientation(tester, 4);
+      await openOrientationSheet(tester);
+      expect(offeredLabels(tester),
+          ['Côtés', 'Face-à-face', 'Cercle', 'Même sens']);
+    });
+
+    testWidgets('4 joueurs — « Cercle » pose le moulinet [2,3,1,0]',
         (tester) async {
       final container = await pumpForOrientation(tester, 4);
-      await expectPresetRotations(tester, container, 'Table', [2, 2, 0, 0]);
+      await expectPresetRotations(tester, container, 'Cercle', [2, 3, 1, 0]);
     });
 
-    testWidgets(
-        '4 joueurs — "Face à face" n\'est pas proposé : il ne diffère plus '
-        'de "Table" (spec §1.1, tâche 3)', (tester) async {
-      await pumpForOrientation(tester, 4);
-      await openOrientationSheet(tester);
-      expect(find.text('Face à face'), findsNothing);
-      expect(find.text('Table'), findsOneWidget);
-    });
-
-    testWidgets('4 joueurs — "Même sens" pose [0,0,0,0]', (tester) async {
+    testWidgets('4 joueurs — « Côtés » pose [1,3,1,3]', (tester) async {
       final container = await pumpForOrientation(tester, 4);
-      await expectPresetRotations(tester, container, 'Même sens', [0, 0, 0, 0]);
+      await expectPresetRotations(tester, container, 'Côtés', [1, 3, 1, 3]);
     });
 
     testWidgets(
-        '4 joueurs — les presets qui ne décrivaient aucune disposition de '
-        'sièges ont disparu', (tester) async {
-      await pumpForOrientation(tester, 4);
-      await openOrientationSheet(tester);
-      for (final label in const ['Côtés', 'Cercle', 'Triangle']) {
-        expect(find.text(label), findsNothing,
-            reason: '"$label" ne correspond à aucune géométrie de sièges et ne '
-                'peut donc pas être dérivé honnêtement');
-      }
+        '4 joueurs — « Face-à-face » pose [2,2,0,0], puis « Même sens » '
+        'remet tout à 0, et un preset pose le marqueur manuel',
+        (tester) async {
+      final container = await pumpForOrientation(tester, 4);
+      await expectPresetRotations(
+          tester, container, 'Face-à-face', [2, 2, 0, 0]);
+      expect(
+        container
+            .read(gameSessionNotifierProvider)!
+            .players
+            .every((p) => p.manualRotation),
+        isTrue,
+        reason: 'spec §1.4 : un preset est un choix, aucun semis ultérieur '
+            'ne doit l\'écraser',
+      );
+      // Toujours en mode : le même tap, sans rouvrir la barre.
+      await selectOrientationPreset(tester, 'Même sens');
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect([for (final p in session.players) p.quarterTurns], [0, 0, 0, 0]);
     });
 
-    testWidgets('2 joueurs — "Table" pose [2,0]', (tester) async {
+    testWidgets('2 joueurs — Face-à-face, Côtés, Même sens ; « Côtés » pose '
+        '[1,3]', (tester) async {
       final container = await pumpForOrientation(tester, 2);
-      await expectPresetRotations(tester, container, 'Table', [2, 0]);
-    });
-
-    testWidgets('2 joueurs — "Côte à côte" pose [1,3]', (tester) async {
-      final container = await pumpForOrientation(tester, 2);
-      await expectPresetRotations(tester, container, 'Côte à côte', [1, 3]);
-    });
-
-    testWidgets(
-        '2 joueurs — "Face à face" n\'est pas proposé : il ne diffère pas '
-        'de "Table"', (tester) async {
-      await pumpForOrientation(tester, 2);
       await openOrientationSheet(tester);
-      expect(find.text('Face à face'), findsNothing);
-      expect(find.text('Table'), findsOneWidget);
+      expect(offeredLabels(tester), ['Face-à-face', 'Côtés', 'Même sens']);
+      await selectOrientationPreset(tester, 'Côtés');
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect([for (final p in session.players) p.quarterTurns], [1, 3]);
     });
 
-    testWidgets('3 joueurs — "Table" pose [2,0,0]', (tester) async {
+    testWidgets('3 joueurs — Face-à-face, Triangle, Même sens ; « Triangle » '
+        'pose [2,1,3]', (tester) async {
       final container = await pumpForOrientation(tester, 3);
-      await expectPresetRotations(tester, container, 'Table', [2, 0, 0]);
+      await openOrientationSheet(tester);
+      expect(offeredLabels(tester), ['Face-à-face', 'Triangle', 'Même sens']);
+      await selectOrientationPreset(tester, 'Triangle');
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect([for (final p in session.players) p.quarterTurns], [2, 1, 3]);
     });
 
-    testWidgets('5 joueurs — "Table" pose la géométrie réelle [2,2,3,0,1]',
-        (tester) async {
+    testWidgets(
+        '5 joueurs — « Cercle » pose les sièges [2,2,3,0,1], « Face-à-face » '
+        '[2,2,0,0,0]', (tester) async {
       final container = await pumpForOrientation(tester, 5);
       await expectPresetRotations(
-          tester, container, 'Table', [2, 2, 3, 0, 1]);
+          tester, container, 'Cercle', [2, 2, 3, 0, 1]);
+      await selectOrientationPreset(tester, 'Face-à-face');
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect([for (final p in session.players) p.quarterTurns],
+          [2, 2, 0, 0, 0]);
     });
 
-    testWidgets('5 joueurs — "Face à face" pose le repli [2,2,0,0,0]',
-        (tester) async {
-      final container = await pumpForOrientation(tester, 5);
-      await expectPresetRotations(
-          tester, container, 'Face à face', [2, 2, 0, 0, 0]);
-    });
-
-    testWidgets('6 joueurs — "Table" pose la géométrie réelle [2,2,3,0,0,1]',
+    testWidgets('6 joueurs — « Cercle » pose les sièges [2,2,3,0,0,1]',
         (tester) async {
       final container = await pumpForOrientation(tester, 6);
       await expectPresetRotations(
-          tester, container, 'Table', [2, 2, 3, 0, 0, 1]);
+          tester, container, 'Cercle', [2, 2, 3, 0, 0, 1]);
     });
 
     testWidgets(
-        '7 joueurs — "Table" pose le repli géométrique [2,2,2,0,0,0,0] : le '
-        'siège réel de chacun, jamais un topCount supposé', (tester) async {
+        '7 joueurs — seuls Face-à-face et Même sens ; « Face-à-face » pose '
+        '[2,2,2,0,0,0,0]', (tester) async {
       final container = await pumpForOrientation(tester, 7);
-      // `seatsFor` retombe toujours en face-à-face au-delà de 6 joueurs, donc
-      // « Table » et le repli coïncident et un seul preset est proposé.
-      await expectPresetRotations(
-          tester, container, 'Table', [2, 2, 2, 0, 0, 0, 0]);
+      await openOrientationSheet(tester);
+      expect(offeredLabels(tester), ['Face-à-face', 'Même sens']);
+      await selectOrientationPreset(tester, 'Face-à-face');
+      final session = container.read(gameSessionNotifierProvider)!;
+      expect([for (final p in session.players) p.quarterTurns],
+          [2, 2, 2, 0, 0, 0, 0]);
     });
   });
 

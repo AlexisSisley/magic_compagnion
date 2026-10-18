@@ -254,8 +254,12 @@ void main() {
             alignment: Alignment.bottomCenter,
             child: ReorganiseBar(
               presets: [
-                for (final label in const ['Table', 'Même sens'])
-                  (label: label, onTap: () => tapped.add(label)),
+                for (final label in const ['Cercle', 'Même sens'])
+                  (
+                    label: label,
+                    selected: false,
+                    onTap: () => tapped.add(label),
+                  ),
               ],
               onDone: () => done++,
             ),
@@ -267,15 +271,15 @@ void main() {
       expect(find.text('le décompte est suspendu'), findsOneWidget);
 
       await tester.tap(find.text('Même sens'));
-      await tester.tap(find.text('Table'));
-      expect(tapped, ['Même sens', 'Table']);
+      await tester.tap(find.text('Cercle'));
+      expect(tapped, ['Même sens', 'Cercle']);
       expect(done, 0);
 
       await tester.tap(find.text('Terminé'));
       expect(done, 1);
 
       for (final key in const [
-        'reorganise-preset-Table',
+        'reorganise-preset-Cercle',
         'reorganise-preset-Même sens',
         'reorganise-done',
       ]) {

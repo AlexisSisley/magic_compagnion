@@ -11,12 +11,15 @@ import 'package:flutter/material.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
 
-/// Un preset d'orientation tel que la barre l'affiche : un libellé et ce
-/// qu'il fait. La barre ne connaît pas la géométrie -- la page dérive les
-/// presets de la disposition réellement rendue (`_getOrientationPresets`) et
-/// les lui passe tout faits. L'enum `OrientationPreset` du plan arrivera
-/// avec la refonte des presets (tâche 8b) si elle s'avère utile.
-typedef ReorganisePreset = ({String label, VoidCallback onTap});
+/// Un preset d'orientation tel que la barre l'affiche : un libellé, s'il
+/// décrit les angles en place ([selected]), et ce qu'il fait. La barre ne
+/// connaît pas la géométrie -- la page dérive les presets de la table
+/// réellement jouée (orientation_presets.dart) et les lui passe tout faits.
+typedef ReorganisePreset = ({
+  String label,
+  bool selected,
+  VoidCallback onTap,
+});
 
 class ReorganiseBar extends StatelessWidget {
   const ReorganiseBar({
@@ -71,19 +74,33 @@ class ReorganiseBar extends StatelessWidget {
                 runSpacing: 6,
                 children: [
                   for (final preset in presets)
-                    OutlinedButton(
-                      key: ValueKey('reorganise-preset-${preset.label}'),
-                      onPressed: preset.onTap,
-                      style: OutlinedButton.styleFrom(
-                        // 48 de haut : aucune cible sous
-                        // `kMinInteractiveDimension`.
-                        minimumSize: const Size(
-                            kMinInteractiveDimension, kMinInteractiveDimension),
-                        foregroundColor: AppColors.textPrimary,
-                        side: const BorderSide(color: AppColors.borderMedium),
-                        shape: const StadiumBorder(),
+                    // Le preset en place est bordé et teinté d'or, comme
+                    // sur la maquette ; `Semantics.selected` le dit aussi à
+                    // un lecteur d'écran, qui ne voit pas la couleur.
+                    Semantics(
+                      selected: preset.selected,
+                      child: OutlinedButton(
+                        key: ValueKey('reorganise-preset-${preset.label}'),
+                        onPressed: preset.onTap,
+                        style: OutlinedButton.styleFrom(
+                          // 48 de haut : aucune cible sous
+                          // `kMinInteractiveDimension`.
+                          minimumSize: const Size(kMinInteractiveDimension,
+                              kMinInteractiveDimension),
+                          foregroundColor: preset.selected
+                              ? AppColors.primary
+                              : AppColors.textPrimary,
+                          backgroundColor: preset.selected
+                              ? AppColors.primary.withAlpha(40)
+                              : null,
+                          side: BorderSide(
+                              color: preset.selected
+                                  ? AppColors.primary
+                                  : AppColors.borderMedium),
+                          shape: const StadiumBorder(),
+                        ),
+                        child: Text(preset.label),
                       ),
-                      child: Text(preset.label),
                     ),
                 ],
               ),

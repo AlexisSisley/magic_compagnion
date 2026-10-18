@@ -200,15 +200,12 @@ void main() {
 
     // Tâche 8a : les presets vivent dans `ReorganiseBar`, en pied du mode
     // réorganisation -- on y est déjà, on y reste.
-    // Tâche 3 (spec §1.1) : à 4 joueurs sur cet écran (900×700), la grille
-    // réelle est désormais `faceToFace` -- le bouton "Face à face" n'est
-    // plus proposé du tout (il n'existe que là où il DIFFÈRE de "Table",
-    // voir `_getOrientationPresets`) : les deux presets posent la même
-    // géométrie. On tape donc "Table", qui pose [2, 2, 0, 0] dans l'ordre
-    // d'AFFICHAGE courant [3, 1, 2, 0] : position0(joueur3)->2,
-    // position1(joueur1)->2, position2(joueur2)->0, position3(joueur0)->0 --
-    // le même tableau qu'avant cette tâche, seul le nom du bouton change.
-    await tester.tap(find.byKey(const ValueKey('reorganise-preset-Table')));
+    // Tâche 8b : « Cercle », le moulinet de la grille 2×2 à cet écran
+    // (900×700) : [2, 3, 1, 0] dans l'ordre d'AFFICHAGE courant [3, 1, 2, 0]
+    // -- position0(joueur3)->2, position1(joueur1)->3, position2(joueur2)->1,
+    // position3(joueur0)->0. Quatre angles distincts : chaque joueur a le
+    // sien, une erreur d'ordre ne peut pas tomber juste par symétrie.
+    await tester.tap(find.byKey(const ValueKey('reorganise-preset-Cercle')));
     await tester.pumpAndSettle();
 
     final session = container.read(gameSessionNotifierProvider)!;
@@ -219,11 +216,10 @@ void main() {
 
     expect(
       rotationsByCanonicalId,
-      [0, 2, 0, 2],
-      reason: 'le preset doit suivre la position d\'AFFICHAGE de chaque '
+      [0, 3, 1, 2],
+      reason: "le preset doit suivre la position d'AFFICHAGE de chaque "
           'joueur ([3,1,2,0]), pas son playerId canonique : un calcul en '
-          'ordre canonique aurait donné [2,2,0,0], le résultat d\'avant '
-          'réordonnancement',
+          'ordre canonique aurait donné [2,3,1,0]',
     );
   });
 

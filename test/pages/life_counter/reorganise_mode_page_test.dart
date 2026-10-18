@@ -8,6 +8,9 @@
 //   y compris après un réordonnancement où l'index d'affichage ne désigne
 //   plus le même joueur ;
 // - un preset touché dans la barre applique réellement ses rotations.
+// Tâche 8b : le preset en place est mis en évidence, et la table de
+// référence des presets et du semis reste celle hors mode (la barre ampute
+// la grille, pas la table jouée).
 //
 // Même harnais que reorder_rotation_test.dart : snapshot à 4 joueurs, écran
 // 900×700 (la bande, donc le bouton du mode, y est visible).
@@ -24,6 +27,8 @@ import 'package:magic_companion/pages/life_counter/life_counter_page.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
+import 'package:magic_companion/theme/app_colors.dart';
+import 'package:magic_companion/widgets/life_counter/layouts/adaptive_grid.dart';
 import 'package:magic_companion/widgets/life_counter/reorganise_bar.dart';
 import 'package:magic_companion/widgets/life_counter/tuning.dart';
 import 'package:magic_companion/widgets/life_counter/zone/life_dial.dart';
@@ -127,6 +132,16 @@ Future<void> _flushBuffer(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Libellés des presets mis en évidence (bordure dorée) dans la barre.
+List<String> _highlighted(WidgetTester tester) => [
+      for (final button in tester.widgetList<OutlinedButton>(find.descendant(
+        of: find.byType(ReorganiseBar),
+        matching: find.byType(OutlinedButton),
+      )))
+        if (button.style!.side!.resolve(const {})!.color == AppColors.primary)
+          (button.child as Text).data!,
+    ];
+
 void main() {
   testWidgets(
       'en mode réorganisation, un appui sur la moitié « + » ne change pas la '
@@ -219,23 +234,77 @@ void main() {
 
   testWidgets(
       'un preset touché dans la barre applique ses rotations '
-      '(« Table » puis « Même sens »)', (tester) async {
+      '(« Face-à-face » puis « Même sens ») et devient le preset en évidence',
+      (tester) async {
     final container = await _pumpFourPlayerTable(tester);
     await _enterReorganise(tester);
 
-    // Le snapshot démarre tout à 0 : « Même sens » seul ne prouverait rien.
-    // « Table » d'abord (géométrie réelle à cet écran : [2,2,0,0], voir
-    // life_counter_page_test.dart), puis « Même sens ».
-    await tester.tap(find.byKey(const ValueKey('reorganise-preset-Table')));
+    // Le snapshot démarre tout à 0 : c'est déjà « Même sens », seul preset
+    // en évidence à l'entrée.
+    expect(_highlighted(tester), ['Même sens']);
+
+    // « Face-à-face » d'abord (géométrie réelle à cet écran : [2,2,0,0]),
+    // puis « Même sens ».
+    await tester
+        .tap(find.byKey(const ValueKey('reorganise-preset-Face-à-face')));
     await tester.pumpAndSettle();
     expect(_turnsByCanonicalId(container), [2, 2, 0, 0]);
+    expect(_highlighted(tester), ['Face-à-face'],
+        reason: 'la mise en évidence suit les angles en place');
 
     await tester
         .tap(find.byKey(const ValueKey('reorganise-preset-Même sens')));
     await tester.pumpAndSettle();
     expect(_turnsByCanonicalId(container), [0, 0, 0, 0]);
+    expect(_highlighted(tester), ['Même sens']);
     expect(find.byType(ReorganiseBar), findsOneWidget,
         reason: 'un preset ne fait pas sortir du mode : seul « Terminé » '
             'le fait');
+  });
+
+  // Tâche 8b : la barre du mode, posée sous la grille, l'ampute d'environ
+  // 155 px. À 700×760, une table neuve à 4 joueurs a des zones plus hautes
+  // que larges (350×380 : colonnes, [1,3,1,3]) ; amputée, elle passerait à
+  // des zones plus larges que hautes (face-à-face, [2,2,0,0]). Si le semis
+  // ou les presets lisaient la grille du mode, entrer dans le mode
+  // resèmerait une partie neuve et changerait les presets proposés.
+  testWidgets(
+      'entrer puis sortir du mode ne resème pas une partie neuve, et les '
+      'presets décrivent la table jouée, pas la grille amputée par la barre',
+      (tester) async {
+    _setScreenSize(tester, const Size(700, 760));
+    // Aucun snapshot : la page démarre elle-même la partie, donc la session
+    // est neuve et le semis automatique est armé (voir rotation_seeding_test).
+    SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer(
+      overrides: [
+        gameHistoryServiceProvider.overrideWithValue(GameHistoryService()),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LifeCounterPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(_turnsByCanonicalId(container), [1, 3, 1, 3],
+        reason: 'précondition : semis de démarrage en colonnes');
+
+    await _enterReorganise(tester);
+    final grid = tester.getSize(find.byType(AdaptiveGrid));
+    expect(grid.height / 2, lessThan(grid.width / 2),
+        reason: 'précondition : dans le mode, la grille amputée a des zones '
+            'plus larges que hautes -- elle changerait de disposition');
+
+    expect(_turnsByCanonicalId(container), [1, 3, 1, 3],
+        reason: 'entrer dans le mode ne doit pas resemer la partie');
+    expect(_highlighted(tester), ['Côtés'],
+        reason: 'les angles semés sont ceux de « Côtés » sur la table jouée');
+
+    await _tapDone(tester);
+    expect(_turnsByCanonicalId(container), [1, 3, 1, 3],
+        reason: 'en sortir non plus');
   });
 }
