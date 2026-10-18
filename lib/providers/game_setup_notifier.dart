@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/game_format.dart';
 import '../models/profile_model.dart';
 import '../services/profile_service.dart';
+import '../widgets/life_counter/player_skins.dart';
 import 'service_providers.dart';
 
 // --- RESULT OBJECT pour les actions ---
@@ -100,19 +101,20 @@ class GameSetupState {
 
 // --- COULEURS PAR DEFAUT POUR LES PROFILS ---
 
-/// Couleurs par defaut proposees lors de la creation de profils.
-const List<int> defaultProfileColorValues = [
-  0xFFB71C1C, // Colors.red.shade900
-  0xFF0D47A1, // Colors.blue.shade900
-  0xFF2E7D32, // Colors.green.shade800
-  0xFF4A148C, // Colors.purple.shade900
-  0xFFE65100, // Colors.orange.shade900
-  0xFF004D40, // Colors.teal.shade900
-  0xFF4E342E, // Colors.brown.shade800
-  0xFF880E4F, // Colors.pink.shade900
-  0xFF1A237E, // Colors.indigo.shade900
-  0xFF424242, // AppColors.greyShade800
-];
+/// Couleurs par defaut proposees lors de la creation de profils, derivees de
+/// `kPlayerSkins` (source unique des couleurs de joueur, voir
+/// `player_skins.dart`).
+///
+/// Portait avant une liste de 10 entiers hexadecimaux recopies a la main
+/// (`0xFFB71C1C, // Colors.red.shade900`) : le garde-fou de
+/// `player_skins_test.dart` qui cherche `Colors.*.shade*` ne voyait rien ici,
+/// puisque la teinte Material n'etait plus qu'un commentaire -- exactement
+/// la meme couleur de joueur en dur que celles supprimees ailleurs, sous une
+/// forme que le premier garde-fou ne detectait pas. Pas de `const` : derive
+/// `kPlayerSkins`, qui n'est lui-meme pas calculable a la compilation
+/// (`Color.toARGB32()` n'est pas une fonction const).
+List<int> get defaultProfileColorValues =>
+    kPlayerSkins.map((skin) => skin.color.toARGB32()).toList();
 
 // --- NOTIFIER ---
 

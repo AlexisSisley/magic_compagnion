@@ -16,6 +16,7 @@ import 'package:magic_companion/models/profile_model.dart';
 import 'package:magic_companion/providers/game_setup_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/profile_service.dart';
+import 'package:magic_companion/widgets/life_counter/player_skins.dart';
 
 // --- Fake ProfileService pour les tests ---
 
@@ -245,12 +246,14 @@ void main() {
   });
 
   // ============================================================
-  // defaultProfileColorValues
+  // defaultProfileColorValues -- derive de kPlayerSkins (player_skins.dart)
+  // depuis la tache 1 du chantier A : ces assertions verifient l'ALIGNEMENT
+  // avec la source unique, pas des teintes Material qui n'existent plus.
   // ============================================================
 
   group('defaultProfileColorValues', () {
-    test('contains 10 colors', () {
-      expect(defaultProfileColorValues, hasLength(10));
+    test('contains as many colors as kPlayerSkins', () {
+      expect(defaultProfileColorValues, hasLength(kPlayerSkins.length));
     });
 
     test('all values are valid ARGB color integers', () {
@@ -260,14 +263,12 @@ void main() {
       }
     });
 
-    test('first color is red shade', () {
-      // 0xFFB71C1C = Colors.red.shade900
-      expect(defaultProfileColorValues[0], 0xFFB71C1C);
+    test('first color matches kPlayerSkins first entry', () {
+      expect(defaultProfileColorValues[0], kPlayerSkins[0].color.toARGB32());
     });
 
-    test('second color is blue shade', () {
-      // 0xFF0D47A1 = Colors.blue.shade900
-      expect(defaultProfileColorValues[1], 0xFF0D47A1);
+    test('second color matches kPlayerSkins second entry', () {
+      expect(defaultProfileColorValues[1], kPlayerSkins[1].color.toARGB32());
     });
   });
 
