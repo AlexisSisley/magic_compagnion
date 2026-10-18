@@ -28,6 +28,7 @@ import 'package:magic_companion/pages/life_counter/life_counter_page.dart';
 import 'package:magic_companion/providers/game_session_notifier.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/game_history_service.dart';
+import 'package:magic_companion/widgets/life_counter/layouts/adaptive_grid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void _setScreenSize(WidgetTester tester, Size size) {
@@ -149,5 +150,28 @@ void main() {
             'siège "left" -> 1) devient bien la nouvelle ("faceToFace", '
             'siège "bottom" -> 0), preuve que le semis automatique '
             'fonctionne toujours pour qui n\'a rien choisi');
+  });
+
+  // `didChangeMetrics` part aussi à chaque frame de l'animation du clavier.
+  // Le `build()` de la page produit un `AdaptiveGrid` neuf à chaque passage :
+  // tant que c'est la même instance, la page ne s'est pas reconstruite.
+  testWidgets(
+      "une variation d'insets ne reconstruit pas la page ; un changement de "
+      'taille, si', (tester) async {
+    await _pumpFreshGame(tester, const Size(390, 844));
+    final before = tester.widget(find.byType(AdaptiveGrid));
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pump();
+    expect(identical(tester.widget(find.byType(AdaptiveGrid)), before), isTrue,
+        reason: 'le clavier ne change pas la taille de la fenêtre : aucune '
+            'raison de reconstruire la page');
+
+    _setScreenSize(tester, const Size(840, 700));
+    await tester.pump();
+    expect(identical(tester.widget(find.byType(AdaptiveGrid)), before), isFalse,
+        reason: 'un pliage change la taille : la page se reconstruit, pour '
+            'reprogrammer le semis');
   });
 }

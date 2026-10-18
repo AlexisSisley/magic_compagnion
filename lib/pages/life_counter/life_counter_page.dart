@@ -335,6 +335,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     // Tâche 4 : observe les changements de métriques de la fenêtre (rotation
     // de l'appareil, pliage/dépliage) -- voir `didChangeMetrics` plus bas.
     WidgetsBinding.instance.addObserver(this);
+    _lastViewSize = _currentViewSize();
     // Résolution précoce et unique : garantit que `dispose()` n'a jamais à
     // évaluer ce champ lui-même (voir sa déclaration plus haut).
     _sessionService = ref.read(gameSessionServiceProvider);
@@ -368,6 +369,17 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
+  // Taille logique de la fenêtre au dernier `didChangeMetrics` retenu.
+  Size? _lastViewSize;
+
+  /// Taille logique de la fenêtre de l'application, `null` si la plateforme
+  /// n'en expose pas (aucune vue implicite).
+  Size? _currentViewSize() {
+    final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+    if (view == null) return null;
+    return view.physicalSize / view.devicePixelRatio;
+  }
+
   @override
   void didChangeMetrics() {
     super.didChangeMetrics();
@@ -376,6 +388,16 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
     // `build()` reprogramme `_seedRotationsIfLayoutChanged` (voir sa doc),
     // qui lira la taille réellement mesurée une fois la nouvelle disposition
     // posée.
+    //
+    // Filtré sur la TAILLE de la fenêtre : `didChangeMetrics` part aussi à
+    // chaque variation d'insets, donc à chaque frame de l'animation du
+    // clavier, et reconstruisait alors toute la page pour rien. Le pliage et
+    // la rotation changent la taille, ils passent toujours. Sans vue
+    // connue, on reconstruit comme avant plutôt que de risquer un semis
+    // manqué.
+    final size = _currentViewSize();
+    if (size != null && size == _lastViewSize) return;
+    _lastViewSize = size;
     if (mounted) setState(() {});
   }
 
