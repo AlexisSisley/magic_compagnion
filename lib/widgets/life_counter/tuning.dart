@@ -19,6 +19,16 @@
 /// `package:flutter/gestures.dart`), qui vaut 500 ms. On recopie cette
 /// valeur réellement en vigueur plutôt que d'en introduire une nouvelle :
 /// ce chantier ne change aucun réglage sans décision explicite.
+///
+/// Tout test qui synchronise un `tester.pump` sur ce délai (pour laisser le
+/// `Timer` d'appui long de `life_dial.dart` se déclencher) doit importer
+/// CETTE constante, pas celle de `package:flutter/gestures.dart` : les deux
+/// valent 500 ms aujourd'hui, donc rien ne distingue les deux à l'usage —
+/// mais le jour où cette valeur est recalibrée ici (raison d'être de ce
+/// fichier), un test resté accroché à la constante du SDK continuerait
+/// d'attendre l'ancienne durée pendant que le widget bascule sur la
+/// nouvelle, pour un échec ou une instabilité sans rapport apparent avec la
+/// cause.
 const Duration kLongPressTimeout = Duration(milliseconds: 500);
 
 /// Fenêtre pendant laquelle les changements de vie successifs sont cumulés

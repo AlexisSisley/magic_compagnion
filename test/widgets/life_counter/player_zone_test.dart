@@ -1,5 +1,4 @@
 // test/widgets/life_counter/player_zone_test.dart
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +8,7 @@ import 'package:magic_companion/providers/player_zone_notifier.dart';
 import 'package:magic_companion/widgets/life_counter/layouts/density_tier.dart';
 import 'package:magic_companion/widgets/life_counter/player_header.dart';
 import 'package:magic_companion/widgets/life_counter/player_zone.dart';
+import 'package:magic_companion/widgets/life_counter/tuning.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
 import 'package:magic_companion/widgets/life_counter/zone/damage_attribution_row.dart';
 import 'package:magic_companion/widgets/life_counter/zone/life_dial.dart';

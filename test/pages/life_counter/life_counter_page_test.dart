@@ -2,7 +2,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +21,7 @@ import 'package:magic_companion/services/game_history_service.dart';
 import 'package:magic_companion/services/game_session_service.dart';
 import 'package:magic_companion/widgets/life_counter/death_confirmation_overlay.dart';
 import 'package:magic_companion/widgets/life_counter/layouts/table_layout.dart';
+import 'package:magic_companion/widgets/life_counter/tuning.dart';
 import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.dart';
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
 import 'package:magic_companion/widgets/life_counter/zone/life_dial.dart';

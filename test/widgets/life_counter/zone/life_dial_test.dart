@@ -1,8 +1,8 @@
 // test/widgets/life_counter/zone/life_dial_test.dart
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:magic_companion/widgets/life_counter/tuning.dart';
 import 'package:magic_companion/widgets/life_counter/zone/life_dial.dart';
 
 Future<List<int>> pumpDial(
