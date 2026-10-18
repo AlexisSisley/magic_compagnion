@@ -130,9 +130,11 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
     final gestureMagnitude = gestureDistance.abs();
     final accelerated = gestureMagnitude > wheelAccelerationThreshold;
 
-    // Au-delà du seuil, chaque pixel supplémentaire compte double : un grand
-    // geste doit couvrir une grosse perte de PV sans traverser l'écran.
-    final double effective = accelerated ? magnitude * 2 : magnitude;
+    // Au-delà du seuil, chaque pixel supplémentaire compte plusieurs fois
+    // (voir tuning.dart) : un grand geste doit couvrir une grosse perte de PV
+    // sans traverser l'écran.
+    final double effective =
+        accelerated ? magnitude * wheelAcceleratedMultiplier : magnitude;
 
     final steps = (effective / wheelPixelsPerUnit).floor();
     if (steps == 0) {
@@ -147,7 +149,9 @@ class PlayerZoneNotifier extends Notifier<PlayerZoneState> {
     // convertit donc les pixels consommés dans l'autre sens avant de calculer
     // ce qu'il reste.
     final consumedEffective = steps * wheelPixelsPerUnit;
-    final consumedRaw = accelerated ? consumedEffective / 2 : consumedEffective;
+    final consumedRaw = accelerated
+        ? consumedEffective / wheelAcceleratedMultiplier
+        : consumedEffective;
     final remaining = magnitude - consumedRaw;
     state = state.copyWith(
       wheelAccumulator: accumulated.isNegative ? -remaining : remaining,

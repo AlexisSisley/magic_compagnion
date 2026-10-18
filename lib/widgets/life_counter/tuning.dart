@@ -51,10 +51,23 @@ const double wheelPixelsPerUnit = 8.0;
 /// Mécanisme RÉEL (voir `handleWheelDrag`) : ce n'est PAS un facteur continu
 /// appliqué en permanence. Tant que la distance totale du geste reste sous ce
 /// seuil, chaque pixel compte pour un pixel. Au-delà, le reste du geste est
-/// DOUBLÉ (`magnitude * 2`, codé en dur dans `player_zone_notifier.dart`,
-/// hors de ce fichier) avant conversion en pas via [wheelPixelsPerUnit]. Un
-/// ancien brief de cette tâche avait supposé un `kWheelAcceleration` en
-/// facteur continu réglable — ce réglage n'existe pas dans le code, et n'a
-/// donc pas sa place ici tant que le mécanisme n'est pas réellement
-/// paramétrable.
+/// multiplié par [wheelAcceleratedMultiplier] avant conversion en pas via
+/// [wheelPixelsPerUnit] — les deux constantes se lisent ensemble : celle-ci
+/// dit QUAND ça accélère, l'autre dit DE COMBIEN.
 const double wheelAccelerationThreshold = 120.0;
+
+/// Facteur appliqué au déplacement une fois [wheelAccelerationThreshold]
+/// dépassé (voir `handleWheelDrag`), dans les deux sens : en avant pour
+/// convertir les pixels du geste en pixels « effectifs », en arrière pour
+/// reconvertir le résidu non consommé en pixels bruts. Les deux usages
+/// doivent rester le même facteur, sans quoi le résidu dériverait d'un
+/// geste à l'autre.
+///
+/// Déplacée depuis le littéral `2` codé en dur dans `handleWheelDrag`
+/// (introduit au commit `4612cbb3`, « fix: base wheel acceleration on total
+/// gesture distance, not local residual »). Ce commit documente POURQUOI une
+/// accélération existe, mais ne justifie nulle part le choix de doubler
+/// précisément (plutôt que ×1.5 ou ×3) : même réserve que [wheelPixelsPerUnit]
+/// et [wheelAccelerationThreshold], je ne sais pas d'où vient cette magnitude
+/// précise, seulement qu'elle est celle en vigueur.
+const double wheelAcceleratedMultiplier = 2.0;

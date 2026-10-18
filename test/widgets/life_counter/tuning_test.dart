@@ -12,5 +12,6 @@ void main() {
     expect(kDamageBufferWindow.inMilliseconds, inInclusiveRange(1000, 5000));
     expect(wheelPixelsPerUnit, inInclusiveRange(1.0, 50.0));
     expect(wheelAccelerationThreshold, inInclusiveRange(50.0, 500.0));
+    expect(wheelAcceleratedMultiplier, inInclusiveRange(1.0, 10.0));
   });
 }
