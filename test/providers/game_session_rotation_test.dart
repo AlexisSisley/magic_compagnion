@@ -5,6 +5,14 @@
 // (persisté) n'en est qu'un CACHE, écrit par `seedRotationsFromSeats` quand la
 // disposition change, et par `updateRotation` quand l'utilisateur choisit à la
 // main.
+//
+// Ruling 28 (révision de la tâche 4) : un choix manuel pose
+// `PlayerState.manualRotation` (via `updateRotation`) et devient intouchable
+// par `seedRotationsFromSeats`, quelle que soit la disposition reçue ensuite
+// -- la décision inverse prise au rapport de tâche 4 (§5, « un changement de
+// disposition écrase un choix manuel ») est abrogée par ce ruling. Le groupe
+// « Ruling 28 » ci-dessous remplace les deux tests de la tâche 4 qui
+// encodaient l'ancien comportement.
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -140,16 +148,14 @@ void main() {
       );
     });
 
-    // Question 2 du rapport de tâche : un choix manuel (`updateRotation`)
-    // survit à un re-semis qui porte la MÊME disposition -- c'est le filtre
-    // de `_seedRotationsIfLayoutChanged` (dans la page) qui garantit ça en
-    // amont, mais ce test prouve que le notifier lui-même ne réécrit QUE les
-    // joueurs dont la valeur diffère du siège semé : si on ne rappelait
-    // jamais `seedRotationsFromSeats` avec une disposition inchangée (ce que
-    // fait la page), le choix manuel n'est jamais repris.
+    // `updateRotation` pose `manualRotation` : même un RE-semis explicite sur
+    // la MÊME disposition (pas seulement l'absence d'appel que la page
+    // s'impose via `_seedRotationsIfLayoutChanged`) ne doit plus reprendre le
+    // joueur 1 -- la garde vit désormais dans le notifier lui-même, pas
+    // seulement dans la décision de l'appelant de rappeler ou non.
     test(
-        'un choix manuel (updateRotation) n est pas repris par un notify sur '
-        'la même disposition', () {
+        'un choix manuel (updateRotation) n est pas repris par un re-semis '
+        'explicite sur la même disposition', () {
       getNotifier()
           .startNewGame(format: commanderFormat, playerConfigs: configs);
       final seats = tableLayoutFor(const Size(390, 844), 4).seats;
@@ -161,43 +167,79 @@ void main() {
           container.read(gameSessionNotifierProvider)!.players[1].quarterTurns,
           0);
 
-      // La page ne rappelle `seedRotationsFromSeats` QUE si la disposition a
-      // changé (voir `_seedRotationsIfLayoutChanged`) : simuler ce
-      // comportement ici en ne rappelant rien d'autre, et vérifier que rien
-      // n'a glissé derrière le dos du test.
+      // Re-semis explicite, mêmes sièges : la page ne ferait normalement pas
+      // cet appel (disposition inchangée), mais le notifier doit refuser de
+      // reprendre le joueur 1 même si on le lui demande quand même.
+      getNotifier().seedRotationsFromSeats([0, 1, 2, 3], seats);
       expect(
           container.read(gameSessionNotifierProvider)!.players[1].quarterTurns,
-          0);
+          0,
+          reason: 'manualRotation protège le joueur 1, peu importe qui '
+              'rappelle seedRotationsFromSeats ni avec quels sièges');
     });
 
-    // Question 3 du rapport de tâche (choix assumé) : un changement de
-    // disposition réécrit un choix manuel antérieur -- `quarterTurns` reste
-    // un cache de la dérivation géométrique, jamais une seconde vérité
-    // indépendante.
-    test(
-        'un nouveau semis après changement de disposition écrase un choix '
-        'manuel antérieur', () {
-      getNotifier()
-          .startNewGame(format: commanderFormat, playerConfigs: configs);
-      final folded = tableLayoutFor(const Size(390, 844), 4).seats;
-      getNotifier().seedRotationsFromSeats([0, 1, 2, 3], folded);
+    group('Ruling 28 -- un choix manuel survit à un changement de disposition',
+        () {
+      test(
+          'le joueur marqué garde SA rotation ; le joueur non marqué suit la '
+          'nouvelle disposition', () {
+        getNotifier()
+            .startNewGame(format: commanderFormat, playerConfigs: configs);
+        final folded = tableLayoutFor(const Size(390, 844), 4).seats;
+        getNotifier().seedRotationsFromSeats([0, 1, 2, 3], folded);
 
-      // Choix manuel du joueur 1 : "Même sens" (0), alors que son siège
-      // replié voulait un quart de tour.
-      getNotifier().updateRotation(1, 0);
-      expect(folded[1].quarterTurns, isNot(0));
+        // Choix manuel du joueur 1 : "Même sens" (0), alors que son siège
+        // replié voulait un quart de tour -- et marque `manualRotation`.
+        getNotifier().updateRotation(1, 0);
+        expect(folded[1].quarterTurns, isNot(0));
+        expect(
+            container.read(gameSessionNotifierProvider)!.players[1]
+                .manualRotation,
+            isTrue);
 
-      // L'appareil se déplie : nouvelle disposition, colonnes latérales
-      // devenues face-à-face -- les quarterTurns dérivés changent.
-      final unfolded = tableLayoutFor(const Size(840, 700), 4).seats;
-      expect(unfolded.map((s) => s.quarterTurns),
-          isNot(folded.map((s) => s.quarterTurns)));
+        // Le joueur 2, lui, n'a jamais rien choisi : `manualRotation` reste
+        // faux.
+        expect(
+            container.read(gameSessionNotifierProvider)!.players[2]
+                .manualRotation,
+            isFalse);
 
-      getNotifier().seedRotationsFromSeats([0, 1, 2, 3], unfolded);
+        // L'appareil se déplie : nouvelle disposition, colonnes latérales
+        // devenues face-à-face -- les quarterTurns dérivés changent.
+        final unfolded = tableLayoutFor(const Size(840, 700), 4).seats;
+        expect(unfolded.map((s) => s.quarterTurns),
+            isNot(folded.map((s) => s.quarterTurns)));
 
-      expect(
-          container.read(gameSessionNotifierProvider)!.players[1].quarterTurns,
-          unfolded[1].quarterTurns);
+        getNotifier().seedRotationsFromSeats([0, 1, 2, 3], unfolded);
+
+        final players = container.read(gameSessionNotifierProvider)!.players;
+        expect(players[1].quarterTurns, 0,
+            reason: 'ruling 28 : le joueur 1 avait choisi 0 à la main, le '
+                'dépliage ne doit PAS le lui reprendre');
+        expect(players[2].quarterTurns, unfolded[2].quarterTurns,
+            reason: 'cas symétrique : un joueur non marqué continue de '
+                'suivre la disposition, ici comme avant ce ruling');
+      });
+
+      test('une nouvelle partie réinitialise le marqueur (seul moment prévu)',
+          () {
+        getNotifier()
+            .startNewGame(format: commanderFormat, playerConfigs: configs);
+        getNotifier().updateRotation(1, 0);
+        expect(
+            container.read(gameSessionNotifierProvider)!.players[1]
+                .manualRotation,
+            isTrue);
+
+        // Nouvelle partie : `GameSession.newGame` reconstruit des
+        // `PlayerState` neufs, `manualRotation` retombe sur son défaut.
+        getNotifier()
+            .startNewGame(format: commanderFormat, playerConfigs: configs);
+        expect(
+            container.read(gameSessionNotifierProvider)!.players[1]
+                .manualRotation,
+            isFalse);
+      });
     });
   });
 }

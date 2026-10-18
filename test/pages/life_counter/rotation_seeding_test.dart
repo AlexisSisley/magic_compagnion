@@ -15,10 +15,11 @@
 // Question 2 (survie d'un choix manuel à une reconstruction) : le test
 // "une rotation choisie à la main survit" le prouve.
 //
-// Question 3 (pliage/dépliage après un choix manuel) : le test "un
-// changement de disposition après un choix manuel" montre le choix retenu --
-// la disposition gagne, le choix manuel est perdu -- et pourquoi (spec
-// game_session_notifier.dart, doc de `seedRotationsFromSeats`).
+// Question 3 (pliage/dépliage après un choix manuel) -- RÉVISÉE par le
+// ruling 28, qui annule la décision prise au rapport de tâche 4 : le test
+// "un changement de disposition après un choix manuel" prouve maintenant
+// l'INVERSE (le choix manuel gagne), avec son cas symétrique (un joueur non
+// marqué continue de suivre la disposition).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -112,26 +113,41 @@ void main() {
   });
 
   testWidgets(
-      'un changement de disposition après un choix manuel écrase ce choix '
-      '(décision assumée, voir rapport de tâche 4, Q3)', (tester) async {
+      'ruling 28 -- un changement de disposition après un choix manuel '
+      'préserve ce choix (le joueur non marqué, lui, continue de suivre la '
+      'disposition)', (tester) async {
     final container = await _pumpFreshGame(tester, const Size(390, 844));
     final notifier = container.read(gameSessionNotifierProvider.notifier);
 
+    // Précondition : écran replié, `columnPairs` -> `[1, 3, 1, 3]`.
+    expect(_quarterTurnsCanonical(container.read(gameSessionNotifierProvider)!),
+        [1, 3, 1, 3]);
+
     notifier.updateRotation(1, 0); // choix manuel, diffère du défaut (3)
     expect(container.read(gameSessionNotifierProvider)!.players[1].quarterTurns, 0);
+    expect(
+        container.read(gameSessionNotifierProvider)!.players[1].manualRotation,
+        isTrue);
+    // Le joueur 2 n'a rien choisi : toujours non marqué.
+    expect(
+        container.read(gameSessionNotifierProvider)!.players[2].manualRotation,
+        isFalse);
 
     // L'appareil se déplie : nouvel écran large, `faceToFace` --
-    // `[top, top, bottom, bottom]` -> quarterTurns `[2, 2, 0, 0]`.
+    // `[top, top, bottom, bottom]` -> quarterTurns dérivés `[2, 2, 0, 0]`.
     _setScreenSize(tester, const Size(840, 700));
     await tester.pumpAndSettle();
 
-    expect(
-      _quarterTurnsCanonical(container.read(gameSessionNotifierProvider)!),
-      [2, 2, 0, 0],
-      reason: 'le dépliage redérive TOUTES les rotations depuis la nouvelle '
-          'disposition, y compris celle du joueur 1 qui avait choisi 0 à la '
-          'main -- `PlayerState.quarterTurns` reste un cache de la '
-          'disposition, jamais une seconde vérité indépendante',
-    );
+    final after = _quarterTurnsCanonical(container.read(gameSessionNotifierProvider)!);
+    expect(after[1], 0,
+        reason: 'ruling 28 : le joueur 1 avait choisi 0 à la main -- le '
+            'dépliage ne doit PAS le lui reprendre, même si son siège '
+            '"faceToFace" voudrait 2');
+    expect(after[2], 0,
+        reason: 'cas symétrique : le joueur 2, non marqué, continue de '
+            'suivre la disposition -- son ancienne valeur ("columnPairs", '
+            'siège "left" -> 1) devient bien la nouvelle ("faceToFace", '
+            'siège "bottom" -> 0), preuve que le semis automatique '
+            'fonctionne toujours pour qui n\'a rien choisi');
   });
 }

@@ -37,6 +37,29 @@ class PlayerState {
   final Duration? eliminatedAt;
   final bool isMonarch;
   final int quarterTurns;
+
+  /// Ruling 28 : `true` si `quarterTurns` a été posé par un choix MANUEL
+  /// (`GameSessionNotifier.updateRotation`) plutôt que semé automatiquement
+  /// depuis la disposition (`seedRotationsFromSeats`). Marque la provenance
+  /// de `quarterTurns`, pas sa valeur : un joueur marqué garde la SIENNE à
+  /// travers tout changement de disposition (pliage, dépliage, rotation de
+  /// l'appareil) ; un joueur non marqué continue de suivre la dérivation
+  /// géométrique.
+  ///
+  /// DÉLIBÉRÉMENT absent de [toJson]/[fromJson] -- ni persisté, ni migré.
+  /// Deux raisons, pas une commodité :
+  /// 1. `_hasOwnFreshSession` (life_counter_page.dart) garantit déjà qu'une
+  ///    partie REPRISE depuis un snapshot n'est jamais auto-resemée -- la
+  ///    valeur de ce champ, pour une telle partie, n'a donc AUCUNE
+  ///    conséquence observable, à aucun moment de son cycle de vie. Lui
+  ///    donner une existence persistée ajouterait un champ sérialisé et une
+  ///    migration de schéma pour une information qui ne serait jamais lue.
+  /// 2. Une NOUVELLE partie (`GameSession.newGame`) construit des
+  ///    `PlayerState` tout neufs, où ce champ retombe sur son défaut
+  ///    (`false`) : c'est exactement le seul moment où il doit se
+  ///    réinitialiser (ruling 28, point 5) -- gratuit, sans code dédié.
+  final bool manualRotation;
+
   final List<LifeEvent> lifeHistory;
 
   const PlayerState({
@@ -49,6 +72,7 @@ class PlayerState {
     this.eliminatedAt,
     this.isMonarch = false,
     this.quarterTurns = 0,
+    this.manualRotation = false,
     this.lifeHistory = const [],
   });
 
@@ -62,6 +86,7 @@ class PlayerState {
     Duration? eliminatedAt,
     bool? isMonarch,
     int? quarterTurns,
+    bool? manualRotation,
     List<LifeEvent>? lifeHistory,
   }) {
     return PlayerState(
@@ -74,6 +99,7 @@ class PlayerState {
       eliminatedAt: eliminatedAt ?? this.eliminatedAt,
       isMonarch: isMonarch ?? this.isMonarch,
       quarterTurns: quarterTurns ?? this.quarterTurns,
+      manualRotation: manualRotation ?? this.manualRotation,
       lifeHistory: lifeHistory ?? this.lifeHistory,
     );
   }

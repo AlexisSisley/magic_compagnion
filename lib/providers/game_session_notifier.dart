@@ -196,28 +196,43 @@ class GameSessionNotifier extends Notifier<GameSession?> {
     state = session.reorderPlayers(newOrder);
   }
 
+  /// Pose une rotation CHOISIE À LA MAIN (poignée de rotation, glisser-
+  /// déposer qui change de siège, presets d'orientation -- tous les
+  /// appelants actuels de cette méthode).
+  ///
+  /// Ruling 28 : marque [playerId] via `PlayerState.manualRotation`, qui
+  /// protège désormais sa valeur contre tout semis automatique ultérieur
+  /// (`seedRotationsFromSeats`), quelle que soit la disposition à venir --
+  /// pliage, dépliage, rotation de l'appareil. C'est le SEUL point d'entrée
+  /// qui pose ce marqueur : toute future action manuelle (tâche 8 : les
+  /// quatre flèches par zone, et les presets d'orientation déjà en place
+  /// dans `_applyOrientationPreset`, qui appelle déjà cette méthode)
+  /// l'obtient donc gratuitement en passant par ici, sans rien connaître de
+  /// `manualRotation` elle-même.
   void updateRotation(int playerId, int quarterTurns) {
     final session = state;
     if (session == null) return;
     final players = session.players.map((p) {
-      if (p.playerId == playerId) return p.copyWith(quarterTurns: quarterTurns);
+      if (p.playerId == playerId) {
+        return p.copyWith(quarterTurns: quarterTurns, manualRotation: true);
+      }
       return p;
     }).toList();
     state = session.copyWith(players: players);
   }
 
-  /// Applique aux joueurs les rotations que leur donne la disposition
-  /// actuellement rendue.
+  /// Applique aux joueurs NON MARQUÉS les rotations que leur donne la
+  /// disposition actuellement rendue.
   ///
   /// La rotation n'a qu'un seul propriétaire (spec §1.4, et §2.1 de la spec
   /// table multijoueur v2) : `TableSeat.quarterTurns`, dérivé du côté de
   /// table par `tableLayoutFor`/`seatsForArrangement` (Tâche 3). Ce point
-  /// d'entrée existe pour que `PlayerState.quarterTurns`, qui est persisté,
-  /// reste un CACHE de cette dérivation et jamais une seconde vérité :
-  /// `life_counter_page.dart` le rappelle chaque fois que la disposition
-  /// RÉELLEMENT rendue change (démarrage de partie, rotation de l'appareil,
-  /// pliage/dépliage, changement d'effectif) -- jamais à chaque frame, voir
-  /// `_seedRotationsIfLayoutChanged` côté page.
+  /// d'entrée existe pour que `PlayerState.quarterTurns` reste un CACHE de
+  /// cette dérivation pour tout joueur qui n'a jamais choisi la sienne à la
+  /// main : `life_counter_page.dart` le rappelle chaque fois que la
+  /// disposition RÉELLEMENT rendue change (démarrage de partie, rotation de
+  /// l'appareil, pliage/dépliage, changement d'effectif) -- jamais à chaque
+  /// frame, voir `_seedRotationsIfLayoutChanged` côté page.
   ///
   /// [order] donne les `playerId` dans l'ordre d'AFFICHAGE -- celui utilisé
   /// pour construire les zones passées à `AdaptiveGrid`
@@ -229,18 +244,15 @@ class GameSessionNotifier extends Notifier<GameSession?> {
   /// affiché ailleurs -- exactement la dérive que `_onReorderPlayers` (dans
   /// la page) évite déjà en passant par `order[displayIndex]`.
   ///
-  /// Une rotation choisie à la main (`updateRotation` ci-dessus, les presets
-  /// d'orientation) n'appelle jamais cette méthode : elle écrase donc la
-  /// valeur semée, et le reste tel quel tant que la disposition ne change
-  /// pas -- `_seedRotationsIfLayoutChanged` ne resème que lorsque les
-  /// `quarterTurns` dérivés diffèrent du dernier semis, jamais sur un simple
-  /// rebuild. Mais si la disposition change À NOUVEAU (ex. dépliage),
-  /// `seedRotationsFromSeats` réécrit TOUS les sièges reçus sans exception,
-  /// y compris ceux qu'un choix manuel avait réglés : décision délibérée
-  /// (voir le rapport de tâche 4, question 3) -- rien ici ne distingue un
-  /// `quarterTurns` "manuel" d'un `quarterTurns` "semé", la seule trace qui
-  /// survit à un changement de disposition est donc toujours celle de la
-  /// dérivation géométrique.
+  /// Ruling 28 (revient sur la décision de la tâche 4, qui faisait l'inverse
+  /// -- voir git blame si besoin d'archéologie) : un joueur dont
+  /// `manualRotation == true` (posé par `updateRotation`, le seul chemin qui
+  /// le pose) n'est JAMAIS touché ici, quelle que soit la disposition reçue.
+  /// Il garde la rotation qu'il a choisie jusqu'à la prochaine partie
+  /// (`GameSession.newGame` reconstruit des `PlayerState` neufs, où
+  /// `manualRotation` retombe sur son défaut `false` -- seul moment où ce
+  /// marqueur se réinitialise). Un joueur non marqué continue, lui, de
+  /// suivre la dérivation géométrique à chaque disposition différente.
   void seedRotationsFromSeats(List<int> order, List<TableSeat> seats) {
     final session = state;
     if (session == null) return;
@@ -249,6 +261,7 @@ class GameSessionNotifier extends Notifier<GameSession?> {
       for (int i = 0; i < order.length; i++) order[i]: seats[i].quarterTurns,
     };
     final players = session.players.map((p) {
+      if (p.manualRotation) return p; // Ruling 28 : jamais écrasé.
       final quarterTurns = rotationByPlayerId[p.playerId];
       if (quarterTurns == null || quarterTurns == p.quarterTurns) return p;
       return p.copyWith(quarterTurns: quarterTurns);
