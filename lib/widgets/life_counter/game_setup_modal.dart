@@ -14,6 +14,7 @@ import 'package:magic_companion/widgets/cards/scryfall_image.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/router/app_routes.dart';
 import 'package:go_router/go_router.dart';
+import 'player_skins.dart';
 
 class GameSetupModal extends ConsumerStatefulWidget {
   final int initialLife;
@@ -49,12 +50,6 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
   late int _maxPoison;
   late int _maxCommanderDamage;
   late bool _lethalAtZeroLife;
-
-  final List<Color> _defaultColors = [
-    Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
-    Colors.purple.shade900, Colors.orange.shade900, Colors.teal.shade900,
-    Colors.brown.shade800, Colors.pink.shade900, Colors.indigo.shade900, AppColors.greyShade800,
-  ];
 
   @override
   void initState() {
@@ -311,7 +306,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
   Widget _buildProfileAvatar(Profile? profile, int index) {
     if (profile == null) {
       return CircleAvatar(
-        backgroundColor: _defaultColors[index % _defaultColors.length],
+        backgroundColor: defaultSkinForSeat(index).color,
         radius: 18,
         child: Text('${index + 1}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
       );
@@ -616,7 +611,9 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
     final nameCtrl = TextEditingController(text: existingProfile?.name);
     ScryfallCard? cmd1;
     ScryfallCard? cmd2;
-    Color selectedColor = existingProfile != null ? Color(existingProfile.colorValue) : _defaultColors[1];
+    Color selectedColor = existingProfile != null
+        ? Color(existingProfile.colorValue)
+        : defaultSkinForSeat(1).color;
 
     return showDialog<Profile>(
       context: context,
@@ -722,7 +719,7 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
   Future<Profile?> _showCreateProfileDialog() async {
     final nameCtrl = TextEditingController();
     ScryfallCard? selectedCommander;
-    Color selectedColor = _defaultColors[1];
+    Color selectedColor = defaultSkinForSeat(1).color;
 
     return showDialog<Profile>(
       context: context,
@@ -800,19 +797,32 @@ class _GameSetupModalState extends ConsumerState<GameSetupModal> {
                   Wrap(
                     spacing: 12, runSpacing: 12,
                     alignment: WrapAlignment.center,
-                    children: _defaultColors.map((c) => GestureDetector(
-                      onTap: () => setState(() => selectedColor = c),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 32, height: 32,
-                        decoration: BoxDecoration(
-                          color: c, shape: BoxShape.circle,
-                          border: selectedColor == c ? Border.all(color: AppColors.textPrimary, width: 2) : null,
-                          boxShadow: selectedColor == c ? [BoxShadow(color: c.withValues(alpha: 0.6), blurRadius: 8)] : null,
+                    children: kPlayerSkins.map((skin) {
+                      final c = skin.color;
+                      return GestureDetector(
+                        onTap: () => setState(() => selectedColor = c),
+                        // Zone de 48x48 (kMinInteractiveDimension) autour du
+                        // pastille de 32 : le disque reste petit visuellement
+                        // mais la cible tactile ne descend pas sous le
+                        // minimum accessible.
+                        child: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Center(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: 32, height: 32,
+                              decoration: BoxDecoration(
+                                color: c, shape: BoxShape.circle,
+                                border: selectedColor == c ? Border.all(color: AppColors.textPrimary, width: 2) : null,
+                                boxShadow: selectedColor == c ? [BoxShadow(color: c.withValues(alpha: 0.6), blurRadius: 8)] : null,
+                              ),
+                              child: selectedColor == c ? const Icon(Icons.check, size: 16, color: AppColors.textPrimary) : null,
+                            ),
+                          ),
                         ),
-                        child: selectedColor == c ? const Icon(Icons.check, size: 16, color: AppColors.textPrimary) : null,
-                      ),
-                    )).toList(),
+                      );
+                    }).toList(),
                   ),
                 ],
               ),

@@ -53,6 +53,7 @@ import '../../widgets/life_counter/death_confirmation_overlay.dart';
 import '../../widgets/life_counter/draggable_player_zone.dart';
 import '../../widgets/life_counter/animations/animation_service.dart';
 import '../../widgets/life_counter/snapshot_writer.dart';
+import '../../widgets/life_counter/player_skins.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../router/app_router.dart';
 
@@ -160,12 +161,6 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
   // `clearSnapshot()`). Voir `snapshot_writer.dart` pour le détail de ces
   // trois garanties.
   late final SnapshotWriter _snapshotWriter;
-
-  final List<Color> _defaultColors = [
-    Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
-    Colors.purple.shade900, Colors.orange.shade900, Colors.teal.shade900,
-    Colors.brown.shade800, Colors.pink.shade900, Colors.indigo.shade900, AppColors.greyShade800
-  ];
 
   // --- Legacy Player bridge ---
   Player _toLegacyPlayer(int index, PlayerState ps) {
@@ -435,7 +430,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage> {
           ? assignedProfiles[index]
           : null;
       final name = profile?.name ?? 'Joueur ${index + 1}';
-      final color = profile?.colorValue ?? _defaultColors[index % _defaultColors.length].toARGB32();
+      final color = profile?.colorValue ?? defaultSkinForSeat(index).color.toARGB32();
 
       if (profile != null && profile.commanderGallery.isNotEmpty) {
         _playerCommanderGalleries[index] = List.from(profile.commanderGallery);

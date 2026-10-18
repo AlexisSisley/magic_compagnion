@@ -22,16 +22,7 @@ import 'package:magic_companion/services/local_card_service.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
 import '../../cards/versions_selector_sheet.dart';
-
-/// Palette de couleurs unies proposée par [showPlayerSkinPicker]. Pas de
-/// `const` : `AppColors.greyShade800` est un getter, pas une constante (voir
-/// la même note dans `conditional_handle.dart`).
-final List<Color> playerSkinColorOptions = [
-  Colors.red.shade900, Colors.blue.shade900, Colors.green.shade800,
-  AppColors.greyShade800, Colors.purple.shade900, Colors.orange.shade900,
-  Colors.teal.shade900, Colors.pink.shade900, Colors.brown.shade800,
-  Colors.indigo.shade900, Colors.blueGrey.shade800, Colors.black
-];
+import '../player_skins.dart';
 
 /// Construit l'image (ou la paire d'images, en split-screen) affichée en
 /// fond de la zone, d'après `player.backgroundImagePath` /
@@ -164,18 +155,23 @@ void showPlayerSkinPicker({
           Wrap(
             spacing: 12, runSpacing: 12,
             alignment: WrapAlignment.center,
-            children: playerSkinColorOptions.map((c) => GestureDetector(
-              onTap: () { onColorChanged(c); Navigator.of(dialogCtx).pop(); },
-              child: Container(
-                width: 45, height: 45,
-                decoration: BoxDecoration(
-                  color: c,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.textMuted, width: 2),
-                  boxShadow: [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 8)]
+            children: kPlayerSkins.map((skin) {
+              final c = skin.color;
+              return GestureDetector(
+                onTap: () { onColorChanged(c); Navigator.of(dialogCtx).pop(); },
+                child: Container(
+                  // 48x48 minimum (kMinInteractiveDimension) : le disque de
+                  // 45 dessinait déjà une cible sous le seuil accessible.
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                    color: c,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.textMuted, width: 2),
+                    boxShadow: [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 8)]
+                  ),
                 ),
-              ),
-            )).toList(),
+              );
+            }).toList(),
           ),
         ],
       ),

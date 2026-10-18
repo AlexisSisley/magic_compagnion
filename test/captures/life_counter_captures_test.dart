@@ -49,8 +49,8 @@ import 'package:magic_companion/widgets/life_counter/zone/commander_damage_grid.
 import 'package:magic_companion/widgets/life_counter/zone/conditional_handle.dart';
 import 'package:magic_companion/widgets/life_counter/zone/counter_editor_dialog.dart';
 import 'package:magic_companion/widgets/life_counter/zone/player_drawer.dart';
-import 'package:magic_companion/widgets/life_counter/zone/player_skin_picker.dart'
-    show playerSkinColorOptions;
+import 'package:magic_companion/widgets/life_counter/player_skins.dart'
+    show kPlayerSkins;
 
 // Compteurs personnalises reutilises entre les captures 1, 3 et 4 -- memes
 // donnees "realistes" partout plutot que de les redecrire a chaque fois.
@@ -606,12 +606,12 @@ void main() {
         '6',
       );
       // Une couleur nettement distincte des defauts (rouge intégré/vert) --
-      // teal, pour que le choix soit visible dans la capture.
-      final tealSwatch = playerSkinColorOptions.firstWhere(
-        (c) => c.toARGB32() == Colors.teal.shade900.toARGB32(),
+      // Île (bleu), pour que le choix soit visible dans la capture.
+      final distinctSkin = kPlayerSkins.firstWhere(
+        (skin) => skin.label == 'Île',
       );
       await tester.tap(
-        find.byKey(ValueKey('counter_editor_color_${tealSwatch.toARGB32()}')),
+        find.byKey(ValueKey('counter_editor_color_${distinctSkin.color.toARGB32()}')),
       );
       await tester.pump();
 

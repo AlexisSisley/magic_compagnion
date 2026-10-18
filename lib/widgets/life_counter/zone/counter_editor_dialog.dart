@@ -17,7 +17,7 @@ import 'package:flutter/services.dart';
 import 'package:magic_companion/models/counter_type.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
-import 'player_skin_picker.dart' show playerSkinColorOptions;
+import '../player_skins.dart' show kPlayerSkins;
 
 /// Dérive un id de compteur à partir du nom saisi -- ce dialogue n'a pas de
 /// champ id dédié. Minuscules, tout ce qui n'est pas alphanumérique réduit à
@@ -57,7 +57,7 @@ class _CounterEditorDialogState extends State<CounterEditorDialog> {
   final _nameController = TextEditingController();
   final _emojiController = TextEditingController();
   final _maxValueController = TextEditingController();
-  late Color _selectedColor = playerSkinColorOptions.first;
+  late Color _selectedColor = kPlayerSkins.first.color;
 
   @override
   void dispose() {
@@ -142,19 +142,19 @@ class _CounterEditorDialogState extends State<CounterEditorDialog> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final color in playerSkinColorOptions)
+                for (final skin in kPlayerSkins)
                   GestureDetector(
-                    key: ValueKey('counter_editor_color_${color.toARGB32()}'),
-                    onTap: () => setState(() => _selectedColor = color),
+                    key: ValueKey('counter_editor_color_${skin.color.toARGB32()}'),
+                    onTap: () => setState(() => _selectedColor = skin.color),
                     child: Container(
                       // Cible tactile >= 48x48 (contrainte du lot).
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: color,
+                        color: skin.color,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: _selectedColor.toARGB32() == color.toARGB32()
+                          color: _selectedColor.toARGB32() == skin.color.toARGB32()
                               ? AppColors.textPrimary
                               : Colors.transparent,
                           width: 3,

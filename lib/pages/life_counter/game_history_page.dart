@@ -124,8 +124,14 @@ class _GameHistoryPageState extends ConsumerState<GameHistoryPage> {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         margin: const EdgeInsets.only(bottom: 12), // Marge pour matcher la card
+        // AppColors.error (et non un Colors.*.shade en dur) : ce fond de
+        // swipe-to-delete n'est pas une couleur de joueur, mais le garde
+        // anti-couleurs-en-dur de player_skins_test.dart scanne tout le
+        // dossier life_counter sans distinguer les deux usages. L'unification
+        // sous un token sémantique dédié (feedbackDanger) reste une tâche
+        // ultérieure du chantier.
         decoration: BoxDecoration(
-          color: Colors.red.shade900,
+          color: AppColors.error,
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Icon(Icons.delete, color: AppColors.textPrimary),
