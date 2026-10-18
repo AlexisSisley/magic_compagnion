@@ -270,4 +270,78 @@ void main() {
       );
     },
   );
+
+  // Sièges 1 et 3 : les deux seuls qui échangent largeur et hauteur, et les
+  // seuls qu'une inversion dans `_toSeatFrame` ou dans la glissade
+  // confondrait sans que les sièges 0 et 2 le voient. Les insets sont
+  // DIFFÉRENTS à gauche et à droite : celui du bord du siège doit écarter le
+  // contenu, l'autre tombe sur le haut local, retiré comme pour tout siège.
+  const leftInset = 40.0;
+  const rightInset = 10.0;
+  MediaQueryData sideInsets(MediaQueryData m) => m.copyWith(
+        padding: const EdgeInsets.only(left: leftInset, right: rightInset),
+        viewPadding: const EdgeInsets.only(left: leftInset, right: rightInset),
+      );
+
+  testWidgets(
+    'siège 1 : la feuille glisse depuis le bord GAUCHE, y finit collée, et '
+    "écarte son contenu de l'inset gauche",
+    (tester) async {
+      final ctx = await _pumpHost(tester, media: sideInsets);
+
+      showSeatedSheet<void>(
+        context: ctx,
+        quarterTurns: 1,
+        builder: (_) => const SizedBox(height: 100, child: Text('contenu')),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      final mid = tester.getRect(_sheetOf(find.text('contenu')));
+      expect(mid.left, lessThan(0),
+          reason: 'en cours de glissade, la feuille dépasse encore du bord '
+              'gauche, le sien');
+      expect(mid.right, lessThan(_screen.width / 2));
+
+      await tester.pumpAndSettle();
+      final sheet = tester.getRect(_sheetOf(find.text('contenu')));
+      expect(sheet.left, moreOrLessEquals(0));
+      expect(sheet.height, moreOrLessEquals(_screen.height));
+      final content = tester.getRect(find.text('contenu'));
+      expect(content.left, moreOrLessEquals(leftInset),
+          reason: "l'inset gauche est le bas local de ce siège");
+      expect(sheet.right - content.right, lessThan(rightInset),
+          reason: "l'inset droit est son haut local, retiré");
+    },
+  );
+
+  testWidgets(
+    'siège 3 : la feuille glisse depuis le bord DROIT, y finit collée, et '
+    "écarte son contenu de l'inset droit",
+    (tester) async {
+      final ctx = await _pumpHost(tester, media: sideInsets);
+
+      showSeatedSheet<void>(
+        context: ctx,
+        quarterTurns: 3,
+        builder: (_) => const SizedBox(height: 100, child: Text('contenu')),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      final mid = tester.getRect(_sheetOf(find.text('contenu')));
+      expect(mid.right, greaterThan(_screen.width),
+          reason: 'en cours de glissade, la feuille dépasse encore du bord '
+              'droit, le sien');
+      expect(mid.left, greaterThan(_screen.width / 2));
+
+      await tester.pumpAndSettle();
+      final sheet = tester.getRect(_sheetOf(find.text('contenu')));
+      expect(sheet.right, moreOrLessEquals(_screen.width));
+      expect(sheet.height, moreOrLessEquals(_screen.height));
+      final content = tester.getRect(find.text('contenu'));
+      expect(_screen.width - content.right, moreOrLessEquals(rightInset),
+          reason: "l'inset droit est le bas local de ce siège");
+      expect(content.left - sheet.left, lessThan(leftInset),
+          reason: "l'inset gauche est son haut local, retiré");
+    },
+  );
 }
