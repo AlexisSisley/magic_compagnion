@@ -208,6 +208,10 @@ void main() {
 
     // Purge les Timer internes de la bulle avant la fin du test.
     await tester.pump(const Duration(milliseconds: 700));
+    // Tâche 6 : purge aussi le minuteur de bilan cumulé armé par le palier
+    // non-silencieux (voir le commentaire équivalent plus haut dans ce
+    // fichier).
+    await tester.pump(kDamageBufferWindow + const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
   });
 
@@ -292,6 +296,12 @@ void main() {
 
     // Purge les deux Timer internes (50 ms puis 600 ms) avant la fin du test.
     await tester.pump(const Duration(milliseconds: 700));
+    // Tâche 6 (chantier A) : ce tap arme aussi désormais le minuteur de
+    // bilan cumulé (`PlayerZoneNotifier.accumulate`, fenêtre
+    // `kDamageBufferWindow` = 2 s) -- sans cette purge supplémentaire,
+    // l'assertion `!timersPending` du binding de test échoue en fin de
+    // test.
+    await tester.pump(kDamageBufferWindow + const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
   });
 

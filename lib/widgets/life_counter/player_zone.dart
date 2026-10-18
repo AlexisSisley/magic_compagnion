@@ -21,6 +21,7 @@ import 'zone/life_dial.dart';
 import 'zone/conditional_handle.dart';
 import 'zone/player_skin_picker.dart';
 import 'zone/damage_attribution_row.dart';
+import 'zone/pending_delta.dart';
 
 /// Résout un compteur intégré par id (voir le doc-comment de la
 /// construction de `CounterSummary` dans `_PlayerZoneState.build` ci-dessous
@@ -214,6 +215,13 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
     widget.onLifeChanged(change);
     if (silent) return;
     _showFloatingNumber(change);
+    // Tâche 6 : cumule ce changement dans le bilan de la salve en cours
+    // (`PendingDelta`, montée plus bas dans `buildContent`). Volontairement
+    // APRÈS le `if (silent) return;` ci-dessus : un pas de molette annulé en
+    // route vers un palier (voir le doc-comment de `silent` sur ce paramètre)
+    // ne doit pas non plus polluer le bilan affiché -- même raisonnement que
+    // pour `_showFloatingNumber`, auquel ce bilan s'ajoute sans le remplacer.
+    _notifier.accumulate(change);
     if (change > 0) {
       _pulseController.forward(from: 0);
     } else if (change < 0) {
@@ -394,21 +402,62 @@ class _PlayerZoneState extends ConsumerState<PlayerZone>
                     // chiffre occupe tout le cadran désormais, l'animation
                     // s'applique donc au cadran entier plutôt qu'à un Text isolé
                     // comme au temps de LifeDisplay.
-                    child: AnimatedBuilder(
-                      animation: Listenable.merge([_pulseController, _shakeController]),
-                      builder: (context, child) {
-                        final double scale = _pulseController.isAnimating ? _pulseAnimation.value : 1.0;
-                        final double shakeX = _shakeController.isAnimating ? _shakeAnimation.value : 0.0;
-                        return Transform.translate(
-                          offset: Offset(shakeX, 0),
-                          child: Transform.scale(scale: scale, child: child),
-                        );
-                      },
-                      child: LifeDial(
-                        playerId: widget.player.id,
-                        life: widget.player.life,
-                        onDelta: _triggerChange,
-                      ),
+                    //
+                    // Tâche 6 : ce `Stack` enveloppe le cadran sans changer sa
+                    // taille (un enfant non positionné d'un `Stack` sous
+                    // contrainte stricte en hérite exactement -- voir le
+                    // rapport de tâche) pour superposer `PendingDelta` SOUS le
+                    // chiffre de vie, à la position que documentait déjà
+                    // `AppTextStyles.lifeBadge` avant même que ce widget
+                    // existe. `IgnorePointer` : ce badge est un affichage pur,
+                    // et `LifeDial` a besoin de TOUTE la surface de ce
+                    // `Stack` pour ses propres gestes (moitiés −/+, molette) —
+                    // un badge qui interceptait le tap casserait la zone sous
+                    // lui.
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        AnimatedBuilder(
+                          animation:
+                              Listenable.merge([_pulseController, _shakeController]),
+                          builder: (context, child) {
+                            final double scale = _pulseController.isAnimating
+                                ? _pulseAnimation.value
+                                : 1.0;
+                            final double shakeX = _shakeController.isAnimating
+                                ? _shakeAnimation.value
+                                : 0.0;
+                            return Transform.translate(
+                              offset: Offset(shakeX, 0),
+                              child: Transform.scale(scale: scale, child: child),
+                            );
+                          },
+                          child: LifeDial(
+                            playerId: widget.player.id,
+                            life: widget.player.life,
+                            onDelta: _triggerChange,
+                          ),
+                        ),
+                        Align(
+                          alignment: const Alignment(0, 0.55),
+                          child: IgnorePointer(
+                            child: PendingDelta(
+                              delta: ref
+                                  .watch(playerZoneNotifierProvider(widget.player.id))
+                                  .pendingDelta,
+                              // Taille NOMINALE du total (`AppTextStyles.lifeNumeral`
+                              // vaut 88px avant que `LifeDial` ne le réduise via
+                              // `FittedBox` si la place manque) : le facteur
+                              // d'échelle réel appliqué par ce `FittedBox` n'est pas
+                              // exposé hors de `LifeDial`, donc ce badge suit la
+                              // valeur nominale plutôt que la taille effectivement
+                              // rendue à l'écran.
+                              totalFontSize:
+                                  AppTextStyles.lifeNumeral().fontSize!,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   ConditionalHandle(

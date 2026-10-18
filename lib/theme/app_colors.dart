@@ -154,6 +154,24 @@ abstract final class AppColors {
   static const Color info = Color(0xFF7FB2FF);
 
   // ============================================================
+  // FEEDBACK DE DOMAINE (life counter, tâche 6 du chantier A)
+  // ============================================================
+
+  // Espace de noms SEPARE de `success`/`error` ci-dessus, délibérément,
+  // malgré la coïncidence de valeur du jour : `success`/`error` sont la
+  // famille SEMANTIQUE (validation de formulaire, états système...),
+  // `feedbackSuccess`/`feedbackDanger` sont la famille DOMAINE (le bilan de
+  // vie gagnée/perdue dans le compteur). La spec de direction artistique
+  // interdit qu'une famille sémantique et une famille domaine partagent une
+  // valeur : si l'une des deux doit un jour diverger (p. ex. un rouge
+  // d'erreur plus vif pour l'accessibilité, sans toucher au rouge de perte
+  // de vie), les deux espaces de noms doivent pouvoir évoluer sans se tirer
+  // l'un l'autre. Ne PAS fusionner avec `success`/`error`, même si ça parait
+  // redondant tant que les valeurs coïncident.
+  static const Color feedbackDanger = Color(0xFFFF7A6E);
+  static const Color feedbackSuccess = Color(0xFF6FD98F);
+
+  // ============================================================
   // SYNERGY / SALT / POWER LEVEL (Sprint 11-12)
   // ============================================================
 

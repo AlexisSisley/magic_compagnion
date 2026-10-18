@@ -391,6 +391,11 @@ void main() {
     // tap réel -- voir `_PlayerZoneState._showFloatingNumber`) avant la fin
     // du test, sous peine de l'assertion `!timersPending` du binding.
     await tester.pump(const Duration(milliseconds: 700));
+    // Tâche 6 (chantier A) : chaque tap arme désormais AUSSI le minuteur de
+    // bilan cumulé de `PlayerZoneNotifier.accumulate` (fenêtre
+    // `kDamageBufferWindow` = 2s), distinct du buffer de page déjà purgé
+    // ci-dessus -- même symptôme (`!timersPending`) si on l'oublie.
+    await tester.pump(kDamageBufferWindow + const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
   });
 
@@ -1326,6 +1331,9 @@ void main() {
     // Purge les minuteurs de nombres flottants encore en vol (600ms) avant
     // la fin du test, sous peine de l'assertion `!timersPending` du binding.
     await tester.pump(const Duration(milliseconds: 700));
+    // Tâche 6 (chantier A) : purge aussi le minuteur de bilan cumulé de
+    // `PlayerZoneNotifier.accumulate` (kDamageBufferWindow = 2s).
+    await tester.pump(kDamageBufferWindow + const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
   });
 
@@ -1449,6 +1457,9 @@ void main() {
     // Purge les minuteurs de nombres flottants encore en vol (600ms) avant
     // la fin du test, sous peine de l'assertion `!timersPending` du binding.
     await tester.pump(const Duration(milliseconds: 700));
+    // Tâche 6 (chantier A) : purge aussi le minuteur de bilan cumulé de
+    // `PlayerZoneNotifier.accumulate` (kDamageBufferWindow = 2s).
+    await tester.pump(kDamageBufferWindow + const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
   });
 
@@ -1470,8 +1481,21 @@ void main() {
       await tester.pump();
     }
 
-    expect(find.text('+2'), findsOneWidget,
-        reason: 'précondition : le buffer tourne bien, positif, sur Sarah');
+    // Tâche 6 (chantier A) : `find.text('+2')` seul est devenu ambigu --
+    // `PendingDelta` (le nouveau bilan de `player_zone.dart`, monté sous le
+    // chiffre de vie) affiche AUSSI "+2" pour un gain, avec le même "+" que
+    // le badge de buffer de cette page (seul le cas négatif les distingue,
+    // "−2" en moins Unicode contre "-2" en trait d'union -- voir
+    // `PendingDelta`). On cible donc explicitement le badge de CETTE page
+    // (`zone_pending_badge`), celui dont ce test vérifie le comportement.
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('zone_pending_badge')),
+        matching: find.text('+2'),
+      ),
+      findsOneWidget,
+      reason: 'précondition : le buffer tourne bien, positif, sur Sarah',
+    );
     expect(find.byKey(const ValueKey('damage-attribution-0')), findsNothing,
         reason: 'un gain de vie en attente ne doit jamais proposer '
             'd\'attribution : ce serait transformer +2 PV en −2 PV plus 2 '
@@ -1480,6 +1504,9 @@ void main() {
     expect(find.byKey(const ValueKey('damage-attribution-3')), findsNothing);
 
     await tester.pump(const Duration(milliseconds: 700));
+    // Tâche 6 (chantier A) : purge aussi le minuteur de bilan cumulé de
+    // `PlayerZoneNotifier.accumulate` (kDamageBufferWindow = 2s).
+    await tester.pump(kDamageBufferWindow + const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
   });
 
@@ -1520,6 +1547,9 @@ void main() {
             'rien à attribuer sur un buffer revenu à 0');
 
     await tester.pump(const Duration(milliseconds: 700));
+    // Tâche 6 (chantier A) : purge aussi le minuteur de bilan cumulé de
+    // `PlayerZoneNotifier.accumulate` (kDamageBufferWindow = 2s).
+    await tester.pump(kDamageBufferWindow + const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
   });
 
