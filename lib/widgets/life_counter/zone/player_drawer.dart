@@ -21,9 +21,15 @@ import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'commander_damage_grid.dart';
 import 'counter_editor_dialog.dart';
+import 'seated_sheet.dart';
 
 Future<void> showPlayerDrawer({
   required BuildContext context,
+  // Tâche 7 : rotation du siège de CE joueur (`widget.player.quarterTurns`
+  // dans `PlayerZone`, déjà utilisée pour son `RotatedBox`) -- propagée
+  // jusqu'ici pour que `showSeatedSheet` fasse surgir le tiroir depuis le
+  // bord du joueur plutôt que systématiquement depuis le bas de l'écran.
+  required int quarterTurns,
   required String playerName,
   required List<CounterType> activeCounters,
   required Map<String, int> counters,
@@ -91,14 +97,14 @@ Future<void> showPlayerDrawer({
   required VoidCallback onShowHistory,
 }) {
   HapticFeedback.selectionClick();
-  return showModalBottomSheet<void>(
+  // `showSeatedSheet` pose déjà la couleur, le rayon et le `SafeArea` --
+  // `backgroundColor`/`isScrollControlled`/`shape`, propres à
+  // `showModalBottomSheet`, n'ont donc plus lieu d'être ici (tâche 7).
+  return showSeatedSheet<void>(
     context: context,
-    backgroundColor: AppColors.greyShade800,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-    ),
+    quarterTurns: quarterTurns,
     builder: (sheetCtx) => _PlayerDrawerBody(
+      quarterTurns: quarterTurns,
       playerName: playerName,
       activeCounters: activeCounters,
       counters: counters,
@@ -148,6 +154,7 @@ Future<void> showPlayerDrawer({
 
 class _PlayerDrawerBody extends StatefulWidget {
   const _PlayerDrawerBody({
+    required this.quarterTurns,
     required this.playerName,
     required this.activeCounters,
     required this.counters,
@@ -169,6 +176,11 @@ class _PlayerDrawerBody extends StatefulWidget {
     required this.onShowHistory,
   });
 
+  // Tâche 7 : rotation du siège, reçue de `showPlayerDrawer` -- relayée à
+  // `CounterEditorDialog.show` dans `_openCreateCounterDialog` ci-dessous,
+  // pour que le dialogue de création ouvert PAR-DESSUS ce tiroir soit, lui
+  // aussi, orienté vers le même joueur.
+  final int quarterTurns;
   final String playerName;
 
   /// Compteurs actifs de la session, dans l'ordre d'affichage voulu
@@ -253,7 +265,10 @@ class _PlayerDrawerBodyState extends State<_PlayerDrawerBody> {
   /// `CounterCatalogNotifier.saveCustomType`), et l'utilisateur reste dans
   /// le tiroir pour corriger, exactement comme une annulation.
   Future<void> _openCreateCounterDialog() async {
-    final type = await CounterEditorDialog.show(context);
+    final type = await CounterEditorDialog.show(
+      context,
+      quarterTurns: widget.quarterTurns,
+    );
     if (type == null) return; // annulé : rien à créer.
     final result = await widget.onCreateCounter(type);
     if (!mounted) return;

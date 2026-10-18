@@ -85,6 +85,7 @@ Future<_Captured> _openDrawer(
           builder: (context) => ElevatedButton(
             onPressed: () => showPlayerDrawer(
               context: context,
+              quarterTurns: 0,
               playerName: 'Alexis',
               activeCounters: activeCounters,
               counters: counters,
@@ -418,7 +419,10 @@ void main() {
       (tester) async {
     await _openDrawer(tester, isMonarch: false);
     expect(find.text('Monarque'), findsOneWidget);
-    await tester.tapAt(const Offset(10, 10)); // ferme le sheet
+    // Tâche 7 : la feuille assise est pleine largeur et, sur 800x600, pleine
+    // hauteur -- plus aucune barrière à toucher en (10, 10), contrairement à
+    // l'ancien bottom sheet plafonné à 640 px. Le retour système la ferme.
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     await _openDrawer(tester, isMonarch: true);

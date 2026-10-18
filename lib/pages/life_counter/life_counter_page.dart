@@ -1398,8 +1398,14 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
       onRotationChanged: (r) => _updatePlayerRotation(p.id, r),
       onSkinChanged: (path) => _updatePlayerSkin(p.id, path),
       onNameTap: () => _showPlayerHistory(p.id),
+      // Tâche 7 : `p.quarterTurns` (== `widget.player.quarterTurns` côté
+      // `PlayerZone`, déjà utilisée pour son `RotatedBox`) est capturée ICI
+      // par fermeture plutôt qu'ajoutée au callback `onOpenDrawer` --
+      // `_buildPlayerZone` a déjà `p` sous la main, inutile d'élargir la
+      // surface publique de `PlayerZone` pour une valeur qu'elle connaît
+      // déjà de son côté.
       onOpenDrawer: (onRotate, onShowColorPicker) =>
-          _openPlayerDrawer(ps, onRotate, onShowColorPicker),
+          _openPlayerDrawer(ps, p.quarterTurns, onRotate, onShowColorPicker),
       attributionOpponents:
           showAttribution ? _attributionOpponents(ps.playerId) : null,
       onAttributeDamage: (sourcePlayerId) =>
@@ -1421,6 +1427,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
   /// sélecteur plein écran, orienté à l'envers — voir _onDrawerCommanderDamage).
   void _openPlayerDrawer(
     PlayerState ps,
+    int quarterTurns,
     VoidCallback onRotate,
     VoidCallback onShowColorPicker,
   ) {
@@ -1473,6 +1480,7 @@ class _LifeCounterPageState extends ConsumerState<LifeCounterPage>
 
     showPlayerDrawer(
       context: context,
+      quarterTurns: quarterTurns,
       playerName: ps.config.name,
       activeCounters: activeCounters,
       counters: {

@@ -18,6 +18,7 @@ import 'package:magic_companion/models/counter_type.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_text_styles.dart';
 import '../player_skins.dart' show kPlayerSkins;
+import 'seated_sheet.dart';
 
 /// Dérive un id de compteur à partir du nom saisi -- ce dialogue n'a pas de
 /// champ id dédié. Minuscules, tout ce qui n'est pas alphanumérique réduit à
@@ -42,9 +43,18 @@ class CounterEditorDialog extends StatefulWidget {
 
   /// Affiche le dialogue et rend le `CounterType` candidat saisi, ou `null`
   /// si annulé -- ne sauvegarde rien (voir le doc-comment de fichier).
-  static Future<CounterType?> show(BuildContext context) {
-    return showDialog<CounterType>(
+  ///
+  /// Tâche 7 : `quarterTurns` est la rotation du siège du joueur qui crée ce
+  /// compteur (`widget.player.quarterTurns` dans `PlayerZone`, relayée par
+  /// le tiroir qui ouvre ce dialogue) -- un `showDialog` classique arrivait
+  /// toujours au centre, à l'endroit, quel que soit le joueur assis en face.
+  static Future<CounterType?> show(
+    BuildContext context, {
+    required int quarterTurns,
+  }) {
+    return showSeatedSheet<CounterType>(
       context: context,
+      quarterTurns: quarterTurns,
       builder: (_) => const CounterEditorDialog(),
     );
   }

@@ -36,7 +36,7 @@ void main() {
           body: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
-                result = await CounterEditorDialog.show(context);
+                result = await CounterEditorDialog.show(context, quarterTurns: 0);
               },
               child: const Text('ouvrir'),
             ),
@@ -75,7 +75,7 @@ void main() {
           body: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
-                result = await CounterEditorDialog.show(context);
+                result = await CounterEditorDialog.show(context, quarterTurns: 0);
               },
               child: const Text('ouvrir'),
             ),
@@ -167,7 +167,7 @@ void main() {
           body: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () async {
-                result = await CounterEditorDialog.show(context);
+                result = await CounterEditorDialog.show(context, quarterTurns: 0);
               },
               child: const Text('ouvrir'),
             ),

@@ -174,6 +174,7 @@ void main() {
                   onOpenDrawer: (onRotate, onShowColorPicker) =>
                       showPlayerDrawer(
                     context: context,
+                    quarterTurns: 0,
                     playerName: 'Alexis',
                     // Requis depuis le lot 5 : le tiroir rend les compteurs
                     // ACTIFS de la session au lieu d'une liste figée. Ce
@@ -262,6 +263,7 @@ void main() {
                   onOpenDrawer: (onRotate, onShowColorPicker) =>
                       showPlayerDrawer(
                     context: context,
+                    quarterTurns: 0,
                     playerName: 'Alexis',
                     // Requis depuis le lot 5 : le tiroir rend les compteurs
                     // ACTIFS de la session. Ici les trois intégrés dont ce

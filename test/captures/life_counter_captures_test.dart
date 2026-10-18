@@ -302,6 +302,7 @@ Future<void> _pumpDrawer(
               child: ElevatedButton(
                 onPressed: () => showPlayerDrawer(
                   context: context,
+                  quarterTurns: 0,
                   playerName: playerName,
                   activeCounters: activeCounters,
                   counters: counters,
@@ -580,7 +581,8 @@ void main() {
             body: Builder(
               builder: (context) => Center(
                 child: ElevatedButton(
-                  onPressed: () => CounterEditorDialog.show(context),
+                  onPressed: () =>
+                      CounterEditorDialog.show(context, quarterTurns: 0),
                   child: const Text('Nouveau compteur'),
                 ),
               ),
