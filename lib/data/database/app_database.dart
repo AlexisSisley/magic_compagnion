@@ -804,6 +804,11 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Supprime tous les réglages dont la clé commence par [prefix].
+  Future<void> deleteSettingsWithPrefix(String prefix) async {
+    await (delete(appSettings)..where((s) => s.key.like('$prefix%'))).go();
+  }
+
   Future<void> deleteSetting(String key) async {
     await (delete(appSettings)..where((s) => s.key.equals(key))).go();
   }

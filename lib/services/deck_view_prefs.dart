@@ -42,7 +42,9 @@ class DeckViewPrefs {
   int get hashCode => Object.hash(grouping, layout);
 }
 
-String _key(String deckId) => 'deck_view:$deckId';
+const String _keyPrefix = 'deck_view:';
+
+String _key(String deckId) => '$_keyPrefix$deckId';
 
 T _byName<T extends Enum>(List<T> values, Object? name, T fallback) {
   for (final v in values) {
@@ -80,6 +82,12 @@ Future<void> saveDeckViewPrefs(
   DeckViewPrefs prefs,
 ) {
   return db.setSetting(_key(deckId), json.encode(prefs.toJson()));
+}
+
+/// Efface les préférences de tous les decks, par exemple quand une restauration
+/// remplace la bibliothèque : les identifiants de l'ancienne ne reviennent pas.
+Future<void> deleteAllDeckViewPrefs(AppDatabase db) {
+  return db.deleteSettingsWithPrefix(_keyPrefix);
 }
 
 /// Efface les préférences d'un deck supprimé, pour ne pas laisser de clé

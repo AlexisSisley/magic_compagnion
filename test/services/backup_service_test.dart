@@ -177,6 +177,20 @@ void main() {
       expect((await db.getDeckCardsByDeckId('d1')).single.proxyQuantity, 2);
     });
 
+    test('restaurer efface les preferences d affichage des decks', () async {
+      await db.insertDeck(DecksCompanion.insert(id: 'd1', name: 'Test'));
+      await db.setSetting('deck_view:d1', '{"layout":"list"}');
+      await db.setSetting('deck_view:disparu', '{}');
+      await db.setSetting('autre_reglage', 'garde');
+      final svc = BackupService(database: db);
+
+      await svc.restoreFromJson(await svc.generateBackupJson());
+
+      expect(await db.getSetting('deck_view:d1'), isNull);
+      expect(await db.getSetting('deck_view:disparu'), isNull);
+      expect(await db.getSetting('autre_reglage'), 'garde');
+    });
+
     test('une sauvegarde ancienne sans ces cles importe avec [] et null', () async {
       final svc = BackupService(database: db);
       await svc.restoreFromJson(json.encode({

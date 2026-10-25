@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../data/database/app_database.dart';
 import '../models/card_category.dart';
+import 'deck_view_prefs.dart';
 
 class BackupService {
   static const List<String> _dataKeys = [
@@ -206,6 +207,9 @@ class BackupService {
     for (final d in existingDecks) {
       await _db.deleteDeckAndCards(d.id);
     }
+    // Les préférences d'affichage suivent les decks : sans cela, chaque
+    // restauration laisserait des clés orphelines dans les réglages.
+    await deleteAllDeckViewPrefs(_db);
 
     // Delete all wishlists
     final existingWishlists = await _db.getAllWishlistsRaw();
