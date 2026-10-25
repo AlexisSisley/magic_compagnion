@@ -251,7 +251,7 @@ void main() {
       expect(find.text('Carte du main').hitTestable(), findsOneWidget);
     });
 
-    for (final tab in ['Stats', 'Infos']) {
+    for (final tab in ['Stats', 'Suggestions', 'Infos']) {
       testWidgets('l onglet $tab défile sous le bandeau sans erreur', (
         tester,
       ) async {
@@ -259,6 +259,7 @@ void main() {
         await openPage(tester);
         await tester.tap(find.text(tab));
         await tester.pumpAndSettle();
+        expect(find.byType(DeckCommanderHeader).hitTestable(), findsOneWidget);
 
         await tester.drag(
           find.byType(TabBarView),
@@ -268,6 +269,9 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
+        // Le geste a bien été couplé au défilement de la page : le bandeau
+        // est sorti, la TabBar reste en place.
+        expect(find.byType(DeckCommanderHeader).hitTestable(), findsNothing);
         expect(find.byType(TabBar).hitTestable(), findsOneWidget);
       });
     }
