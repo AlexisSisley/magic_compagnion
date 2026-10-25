@@ -25,6 +25,7 @@ Widget _app({
   required List<_Drop> drops,
   List<DeckBoard>? selections,
   DeckBoard selected = DeckBoard.main,
+  List<Widget> trailing = const [],
 }) {
   return MaterialApp(
     theme: buildAppTheme(),
@@ -42,6 +43,7 @@ Widget _app({
             },
             onSelect: (b) => selections?.add(b),
             onDrop: (c, from, to) => drops.add(_Drop(c, from, to)),
+            trailing: trailing,
           ),
           const SizedBox(height: 200),
           LongPressDraggable<Map<String, dynamic>>(
@@ -123,6 +125,29 @@ void main() {
         reason: l,
       );
     }
+  });
+
+  testWidgets('les widgets de fin suivent les puces, dans la même rangée', (
+    tester,
+  ) async {
+    const fin = Key('fin');
+    await tester.pumpWidget(
+      _app(
+        drops: [],
+        trailing: const [SizedBox(key: fin, width: 60, height: 48)],
+      ),
+    );
+
+    final wrap = find.byType(Wrap);
+    expect(find.descendant(of: wrap, matching: find.byKey(fin)), findsOneWidget);
+    final wishlist = tester.getRect(find.text('Wishlist 0'));
+    final rect = tester.getRect(find.byKey(fin));
+    // Après la dernière puce : à sa droite sur la même ligne, ou plus bas.
+    expect(
+      rect.left > wishlist.right || rect.top > wishlist.bottom,
+      isTrue,
+      reason: '$rect vs $wishlist',
+    );
   });
 
   testWidgets('un tap sur une puce la sélectionne', (tester) async {

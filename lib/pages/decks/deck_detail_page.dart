@@ -26,6 +26,7 @@ import '../../utils/deck_metrics.dart';
 import '../../widgets/decks/deck_visual_share_list.dart';
 import '../../widgets/decks/deck_board_selector.dart';
 import '../../widgets/decks/deck_info_tab.dart';
+import '../../widgets/decks/deck_view_toggles.dart';
 
 class DeckDetailPage extends ConsumerStatefulWidget {
   final Deck deck;
@@ -411,31 +412,45 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
       ),
       body: deckState.isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary))
-          : Column(
-              children: [
-                DeckCommanderHeader(
-                  deck: deck,
-                  fullCardData: deckState.fullCardData,
-                  cardCount: deckState.mainCount,
-                  averageManaValue: averageManaValue(deck.mainboard, deckState.fullCardData),
-                  powerLevel: deckState.powerLevel,
-                  totalPrice: deckState.totalDeckPrice,
-                ),
-                // Sous le bandeau, comme sur la maquette : le nom du deck
-                // passe avant les vues.
-                _buildTabBar(),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildListTab(deckState),
-                      DeckStatsTab(mainboard: deck.mainboard, cardData: deckState.fullCardData),
-                      DeckSuggestionsTab(deck: deck),
-                      DeckInfoTab(tokens: deckState.tokens, report: _ctrl.generateLegalityReport()),
-                    ],
+          // Le bandeau défile avec la liste : sur un téléphone, il laisse
+          // sa place aux cartes dès qu'on descend, et revient en haut de
+          // liste. Les listes des onglets n'ont pas de ScrollController à
+          // elles : elles prennent celui que NestedScrollView leur fournit.
+          : NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                SliverToBoxAdapter(
+                  child: DeckCommanderHeader(
+                    deck: deck,
+                    fullCardData: deckState.fullCardData,
+                    cardCount: deckState.mainCount,
+                    averageManaValue: averageManaValue(deck.mainboard, deckState.fullCardData),
+                    powerLevel: deckState.powerLevel,
+                    totalPrice: deckState.totalDeckPrice,
                   ),
                 ),
               ],
+              // La TabBar ouvre le corps plutôt qu'un en-tête épinglé : un
+              // en-tête épinglé recouvrirait le haut des onglets (puces de
+              // board comprises) sans SliverOverlapInjector dans chacun. Le
+              // corps, lui, reste entier à l'écran une fois le bandeau sorti.
+              body: Column(
+                children: [
+                  // Sous le bandeau, comme sur la maquette : le nom du deck
+                  // passe avant les vues.
+                  _buildTabBar(),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildListTab(deckState),
+                        DeckStatsTab(mainboard: deck.mainboard, cardData: deckState.fullCardData),
+                        DeckSuggestionsTab(deck: deck),
+                        DeckInfoTab(tokens: deckState.tokens, report: _ctrl.generateLegalityReport()),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
     );
   }
@@ -470,7 +485,10 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     );
   }
 
-  /// Onglet Liste : le sélecteur de board, puis la liste du board choisi.
+  /// Onglet Liste : le sélecteur de board, avec les interrupteurs
+  /// d'affichage au bout de la même rangée, puis la liste du board choisi.
+  /// La rangée reste au-dessus de la liste et ne défile pas avec elle : c'est
+  /// la cible du glisser-déposer, elle doit rester visible pendant un glisser.
   /// Une seule liste, câblée sur `_selectedBoard` : chaque callback vise le
   /// board affiché.
   Widget _buildListTab(DeckDetailState deckState) {
@@ -498,6 +516,13 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
             _handleMoveCard(card, to, from);
             setState(() => _selectedBoard = to);
           },
+          trailing: [
+            DeckViewToggles(
+              prefs: deckState.viewPrefs,
+              onGrouping: _ctrl.setGrouping,
+              onLayout: _ctrl.setLayout,
+            ),
+          ],
         ),
         Expanded(
           child: DeckCardListTab(
@@ -522,8 +547,6 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
             onAddToCollection: (c, qty) => _handleAddToCollection(c, qty),
             onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
             viewPrefs: deckState.viewPrefs,
-            onGrouping: _ctrl.setGrouping,
-            onLayout: _ctrl.setLayout,
             onSetCategory: (c, cat) => _ctrl.setCategory(c, board, cat),
             onResetCategory: (c) => _ctrl.resetCategory(c, board),
           ),

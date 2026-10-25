@@ -118,8 +118,8 @@ void main() {
     DeckViewPrefs viewPrefs = const DeckViewPrefs(
       grouping: DeckGrouping.category,
     ),
-    ValueChanged<DeckGrouping>? onGrouping,
-    ValueChanged<DeckLayout>? onLayout,
+    DeckBoard currentBoard = DeckBoard.main,
+    VoidCallback? onExportToGlobalWishlist,
     void Function(DeckCard, CardCategory)? onSetCategory,
     ValueChanged<DeckCard>? onResetCategory,
   }) {
@@ -131,11 +131,10 @@ void main() {
             cardList: cardList,
             fullCardData: fullCardData,
             collection: const [],
-            currentBoard: DeckBoard.main,
+            currentBoard: currentBoard,
             onUpdateQuantity: (_, _) {},
+            onExportToGlobalWishlist: onExportToGlobalWishlist,
             viewPrefs: viewPrefs,
-            onGrouping: onGrouping ?? (_) {},
-            onLayout: onLayout ?? (_) {},
             onSetCategory: onSetCategory ?? (_, _) {},
             onResetCategory: onResetCategory ?? (_) {},
           ),
@@ -471,25 +470,6 @@ void main() {
       expect(find.text('RAMP'), findsNothing);
     });
 
-    testWidgets('l\'interrupteur Type appelle onGrouping(type)', (
-      tester,
-    ) async {
-      DeckGrouping? got;
-      await tester.pumpWidget(
-        buildTabWithDb(
-          [dc('a', category: CardCategory.ramp)],
-          db,
-          onGrouping: (g) => got = g,
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Type'));
-      await tester.pump();
-
-      expect(got, DeckGrouping.type);
-    });
-
     testWidgets('en mode type, les en-têtes d\'origine reviennent', (
       tester,
     ) async {
@@ -511,23 +491,6 @@ void main() {
       expect(find.text('RAMP'), findsNothing);
     });
 
-    testWidgets('l\'icône liste appelle onLayout(list)', (tester) async {
-      DeckLayout? got;
-      await tester.pumpWidget(
-        buildTabWithDb(
-          [dc('a', category: CardCategory.ramp)],
-          db,
-          onLayout: (l) => got = l,
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byIcon(Icons.view_list));
-      await tester.pump();
-
-      expect(got, DeckLayout.list);
-    });
-
     testWidgets('en mode liste, des DeckCardTile et plus de grille', (
       tester,
     ) async {
@@ -544,29 +507,53 @@ void main() {
       expect(find.byType(DeckCardGridTile), findsNothing);
     });
 
-    testWidgets('les interrupteurs ont des cibles de 48 px de haut', (
-      tester,
-    ) async {
+    testWidgets('sur le main, ni compte de cartes ni interrupteurs : la '
+        'liste commence tout de suite', (tester) async {
       await tester.pumpWidget(
         buildTabWithDb([dc('a', category: CardCategory.ramp)], db),
       );
       await tester.pumpAndSettle();
 
-      expect(
-        tester.getSize(find.byType(SegmentedButton<DeckGrouping>)).height,
-        greaterThanOrEqualTo(48),
+      expect(find.textContaining('cartes'), findsNothing);
+      expect(find.byType(SegmentedButton<DeckGrouping>), findsNothing);
+      expect(find.byIcon(Icons.view_list), findsNothing);
+      expect(find.byType(IconButton), findsNothing);
+    });
+
+    testWidgets('sur la wishlist, la ligne des achats garde ses deux boutons', (
+      tester,
+    ) async {
+      var exported = 0;
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [dc('a', category: CardCategory.ramp)],
+          db,
+          currentBoard: DeckBoard.wishlist,
+          onExportToGlobalWishlist: () => exported++,
+        ),
       );
-      for (final icon in [Icons.grid_view, Icons.view_list]) {
-        expect(
-          tester.getSize(
-            find.ancestor(
-              of: find.byIcon(icon),
-              matching: find.byType(IconButton),
-            ),
-          ),
-          const Size(48, 48),
-        );
-      }
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Export Cardmarket Mass Entry'), findsOneWidget);
+      await tester.tap(find.byTooltip('Créer une Wishlist Globale (App)'));
+      expect(exported, 1);
+      expect(find.byType(SegmentedButton<DeckGrouping>), findsNothing);
+    });
+
+    testWidgets('sur considering, seul l\'export Cardmarket reste', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [dc('a', category: CardCategory.ramp)],
+          db,
+          currentBoard: DeckBoard.considering,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Export Cardmarket Mass Entry'), findsOneWidget);
+      expect(find.byTooltip('Créer une Wishlist Globale (App)'), findsNothing);
     });
 
     testWidgets('une carte verrouillée porte le cadenas, pas les autres', (

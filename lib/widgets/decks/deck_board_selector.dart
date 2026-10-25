@@ -30,12 +30,17 @@ class DeckBoardSelector extends StatelessWidget {
   final ValueChanged<DeckBoard> onSelect;
   final void Function(DeckCard card, DeckBoard from, DeckBoard to) onDrop;
 
+  /// Widgets posés après les puces, dans le même `Wrap` (les interrupteurs
+  /// d'affichage de la liste) : une rangée de moins au-dessus des cartes.
+  final List<Widget> trailing;
+
   const DeckBoardSelector({
     super.key,
     required this.selected,
     required this.counts,
     required this.onSelect,
     required this.onDrop,
+    this.trailing = const [],
   });
 
   @override
@@ -50,6 +55,7 @@ class DeckBoardSelector extends StatelessWidget {
         child: Wrap(
           spacing: 8,
           runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             for (final board in DeckBoard.values)
               _BoardPill(
@@ -59,6 +65,7 @@ class DeckBoardSelector extends StatelessWidget {
                 onSelect: onSelect,
                 onDrop: onDrop,
               ),
+            ...trailing,
           ],
         ),
       ),

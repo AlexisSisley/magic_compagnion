@@ -42,11 +42,11 @@ class DeckCardListTab extends ConsumerStatefulWidget {
   final Function(DeckCard, int, String?)? onAddToWishlist;
 
   /// Affichage mémorisé du deck (regroupement, grille ou liste) et les
-  /// callbacks qui le changent ou corrigent la catégorie d'une carte : la page
-  /// les câble au contrôleur, l'onglet ne garde aucun état d'affichage.
+  /// callbacks qui corrigent la catégorie d'une carte : la page les câble au
+  /// contrôleur, l'onglet ne garde aucun état d'affichage. Les interrupteurs
+  /// qui changent l'affichage vivent dans la rangée des puces de board
+  /// (DeckViewToggles), pas ici.
   final DeckViewPrefs viewPrefs;
-  final ValueChanged<DeckGrouping> onGrouping;
-  final ValueChanged<DeckLayout> onLayout;
   final void Function(DeckCard, CardCategory) onSetCategory;
   final ValueChanged<DeckCard> onResetCategory;
 
@@ -68,8 +68,6 @@ class DeckCardListTab extends ConsumerStatefulWidget {
     this.onAddToCollection,
     this.onAddToWishlist,
     required this.viewPrefs,
-    required this.onGrouping,
-    required this.onLayout,
     required this.onSetCategory,
     required this.onResetCategory,
   });
@@ -181,40 +179,34 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
         byCategory ? _buildCategoryList(widget.cardList) : _buildGroupedList(widget.cardList);
     final isGrid = widget.viewPrefs.layout == DeckLayout.grid;
 
+    final shopping = widget.currentBoard == DeckBoard.wishlist ||
+        widget.currentBoard == DeckBoard.considering;
+
     return Column(
       children: [
-        // Barre d'outils de la liste
-        Container(
-          // Pleine largeur : sans elle, le Container épouse son Wrap et la barre
-          // devient un îlot centré.
-          width: double.infinity,
-          color: AppColors.overlayLight,
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            alignment: WrapAlignment.spaceBetween,
-            children: [
-              Text('${widget.cardList.fold(0, (s, c) => s + c.quantity)} cartes', style: AppTextStyles.label(color: AppColors.textMuted)),
-              if (widget.currentBoard == DeckBoard.wishlist && widget.onExportToGlobalWishlist != null)
-                IconButton(
-                  icon: const Icon(Icons.cloud_upload, size: 18, color: AppColors.accentGreen),
-                  tooltip: 'Créer une Wishlist Globale (App)',
-                  onPressed: widget.onExportToGlobalWishlist,
-                ),
-              // Bouton Export Cardmarket (visible surtout pour Wishlist/Considering)
-              if (widget.currentBoard == DeckBoard.wishlist || widget.currentBoard == DeckBoard.considering)
+        // Ligne fine des achats, seulement sur Wishlist et Considering : sur
+        // Main et Side, les interrupteurs d'affichage sont montés dans la
+        // rangée des puces et la liste commence tout de suite.
+        if (shopping)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.currentBoard == DeckBoard.wishlist && widget.onExportToGlobalWishlist != null)
+                  IconButton(
+                    icon: const Icon(Icons.cloud_upload, size: 18, color: AppColors.accentGreen),
+                    tooltip: 'Créer une Wishlist Globale (App)',
+                    onPressed: widget.onExportToGlobalWishlist,
+                  ),
                 IconButton(
                   icon: const Icon(Icons.shopping_cart_checkout, size: 18, color: AppColors.accent),
                   tooltip: 'Export Cardmarket Mass Entry',
                   onPressed: _exportCardmarket,
                 ),
-              _buildGroupingToggle(),
-              _buildLayoutToggle(),
-            ],
+              ],
+            ),
           ),
-        ),
 
         Expanded(
           child: LayoutBuilder(
@@ -279,53 +271,6 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
           const Expanded(child: Divider(height: 1, color: AppColors.borderMedium)),
         ],
       ),
-    );
-  }
-
-  /// Interrupteur « Catégorie | Type ». Le thème de base a un `primary`
-  /// lilas : sans `foregroundColor` explicite, le libellé sélectionné sortirait
-  /// lilas sur le fond or.
-  Widget _buildGroupingToggle() {
-    return SegmentedButton<DeckGrouping>(
-      showSelectedIcon: false,
-      segments: const [
-        ButtonSegment(value: DeckGrouping.category, label: Text('Catégorie')),
-        ButtonSegment(value: DeckGrouping.type, label: Text('Type')),
-      ],
-      selected: {widget.viewPrefs.grouping},
-      onSelectionChanged: (s) => widget.onGrouping(s.first),
-      style: ButtonStyle(
-        minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
-        foregroundColor: WidgetStateProperty.resolveWith((states) =>
-            states.contains(WidgetState.selected) ? AppColors.textOnPrimary : AppColors.textSecondary),
-        backgroundColor: WidgetStateProperty.resolveWith((states) =>
-            states.contains(WidgetState.selected) ? AppColors.primary : AppColors.transparent),
-      ),
-    );
-  }
-
-  /// Interrupteur grille | liste, deux icônes de 48 px.
-  Widget _buildLayoutToggle() {
-    Widget button(DeckLayout layout, IconData icon, String tooltip) {
-      final selected = widget.viewPrefs.layout == layout;
-      return IconButton(
-        icon: Icon(icon, size: 20),
-        tooltip: tooltip,
-        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-        style: IconButton.styleFrom(
-          foregroundColor: selected ? AppColors.textOnPrimary : AppColors.textSecondary,
-          backgroundColor: selected ? AppColors.primary : AppColors.transparent,
-        ),
-        onPressed: () => widget.onLayout(layout),
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        button(DeckLayout.grid, Icons.grid_view, 'Grille'),
-        button(DeckLayout.list, Icons.view_list, 'Liste'),
-      ],
     );
   }
 

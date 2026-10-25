@@ -17,7 +17,10 @@ import 'package:magic_companion/services/deck_service.dart';
 import 'package:magic_companion/services/scryfall_api_service.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_theme.dart';
+import 'package:magic_companion/widgets/decks/deck_board_selector.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
+import 'package:magic_companion/widgets/decks/deck_commander_header.dart';
+import 'package:magic_companion/widgets/decks/deck_view_toggles.dart';
 
 class _SilentApi extends ScryfallApiService {
   @override
@@ -121,22 +124,153 @@ void main() {
     expect(bar.labelColor, AppColors.primary);
   });
 
-  testWidgets('la barre d outils de la liste fait toute la largeur', (
-    tester,
-  ) async {
+  testWidgets('plus de barre d outils : les interrupteurs sont au bout de '
+      'la rangée des puces', (tester) async {
+    // Assez large pour que les puces et les interrupteurs tiennent sur une
+    // ligne avec la police de test, plus large que les vraies.
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
     await openPage(tester);
 
-    final barre = find.ancestor(
-      of: find.text('1 cartes'),
-      matching: find.byWidgetPredicate(
-        (w) => w is Container && w.color == AppColors.overlayLight,
-      ),
-    );
-    expect(barre, findsOneWidget);
+    expect(find.text('1 cartes'), findsNothing);
     expect(
-      tester.getSize(barre).width,
-      tester.getSize(find.byType(DeckDetailPage)).width,
+      find.descendant(
+        of: find.byType(DeckBoardSelector),
+        matching: find.byType(DeckViewToggles),
+      ),
+      findsOneWidget,
     );
+    // Sur la même ligne que les puces à 800 px : la liste gagne une rangée.
+    final pill = tester.getRect(find.text('Wishlist 0'));
+    final toggles = tester.getRect(find.byType(DeckViewToggles));
+    expect(toggles.left, greaterThan(pill.right));
+    expect(toggles.center.dy, closeTo(pill.center.dy, 1));
+    // Le premier élément de la liste suit directement la rangée.
+    expect(
+      tester.getTopLeft(find.byType(DeckCardGridTile)).dy -
+          tester.getBottomLeft(find.byType(DeckBoardSelector)).dy,
+      lessThan(60),
+    );
+  });
+
+  group('le bandeau défile avec la liste', () {
+    /// Assez de cartes au main pour que la liste dépasse l'écran.
+    Future<void> seedMany() async {
+      for (var i = 0; i < 40; i++) {
+        await db.upsertDeckCard(
+          deckId: 'd1',
+          board: 'main',
+          scryfallId: 'extra-$i',
+          cardName: 'Extra ${i.toString().padLeft(2, '0')}',
+          quantityToAdd: 1,
+        );
+      }
+    }
+
+    Future<void> scrollList(WidgetTester tester, double dy) async {
+      await tester.drag(
+        find.byType(DeckCardGridTile).first,
+        Offset(0, dy),
+        warnIfMissed: false,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('descendre sort le bandeau ; onglets et puces restent', (
+      tester,
+    ) async {
+      await seedMany();
+      await openPage(tester);
+      final appBarBottom = tester.getBottomLeft(find.byType(AppBar)).dy;
+      expect(
+        tester.getTopLeft(find.byType(DeckCommanderHeader)).dy,
+        appBarBottom,
+      );
+
+      await scrollList(tester, -400);
+
+      expect(tester.takeException(), isNull);
+      // Le bandeau est sorti de l'écran ; la TabBar a pris sa place.
+      expect(find.byType(DeckCommanderHeader).hitTestable(), findsNothing);
+      expect(tester.getTopLeft(find.byType(TabBar)).dy, appBarBottom);
+      for (final label in ['Main 41', 'Side 1', 'Considering 0', 'Wishlist 0']) {
+        expect(find.text(label).hitTestable(), findsOneWidget, reason: label);
+      }
+      expect(find.byType(DeckViewToggles).hitTestable(), findsOneWidget);
+      // La liste elle-même a défilé : sa première carte n'est plus visible.
+      expect(find.text('Carte du main').hitTestable(), findsNothing);
+    });
+
+    testWidgets('après défilement, le dépôt sur une puce marche toujours', (
+      tester,
+    ) async {
+      await seedMany();
+      await openPage(tester);
+      await scrollList(tester, -400);
+
+      final source = find.byType(DeckCardGridTile).hitTestable().first;
+      final id = (tester.widget<DeckCardGridTile>(source)).card.scryfallId;
+      await dragTo(tester, source, 'Side 1');
+
+      expect(tester.takeException(), isNull);
+      final rows = await db.getDeckCardsByDeckId('d1');
+      expect(rows.where((r) => r.scryfallId == id).map((r) => r.board), [
+        'side',
+      ]);
+      expect(pillColor(tester, 'Side 2'), AppColors.primary);
+    });
+
+    testWidgets('après défilement, un appui long sans bouger ouvre le menu', (
+      tester,
+    ) async {
+      await seedMany();
+      await openPage(tester);
+      await scrollList(tester, -400);
+
+      await tester.longPress(find.byType(DeckCardGridTile).hitTestable().first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Catégorie…'), findsOneWidget);
+    });
+
+    testWidgets('changer de board repart du haut de la liste', (tester) async {
+      await seedMany();
+      await openPage(tester);
+      await scrollList(tester, -400);
+      await scrollList(tester, -400);
+      expect(find.text('Carte du main').hitTestable(), findsNothing);
+
+      await tester.tap(find.text('Side 1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Main 41'));
+      await tester.pumpAndSettle();
+
+      // La première carte du main (tri par nom à mana value égale) est
+      // revenue sous les puces.
+      expect(find.text('Carte du main').hitTestable(), findsOneWidget);
+    });
+
+    for (final tab in ['Stats', 'Infos']) {
+      testWidgets('l onglet $tab défile sous le bandeau sans erreur', (
+        tester,
+      ) async {
+        await seedMany();
+        await openPage(tester);
+        await tester.tap(find.text(tab));
+        await tester.pumpAndSettle();
+
+        await tester.drag(
+          find.byType(TabBarView),
+          const Offset(0, -300),
+          warnIfMissed: false,
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(TabBar).hitTestable(), findsOneWidget);
+      });
+    }
   });
 
   testWidgets('Liste montre le sélecteur, le main par défaut', (tester) async {
