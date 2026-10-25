@@ -33,7 +33,7 @@ void showDeckIdentityFilterModal({
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Identite Couleur',
+                    Text('Identité couleur',
                         style: AppTextStyles.bold(fontSize: 20)),
                     if (currentState.selectedIdentityName != null)
                       TextButton(
@@ -84,7 +84,7 @@ void showDeckIdentityFilterModal({
                               Text(name,
                                   style: TextStyle(
                                       color: isSelected
-                                          ? Colors.yellow
+                                          ? AppColors.primary
                                           : AppColors.textPrimary,
                                       fontWeight: isSelected
                                           ? FontWeight.bold
