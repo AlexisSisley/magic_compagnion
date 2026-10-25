@@ -285,13 +285,38 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
 
   /// Recalculé dès que les données des cartes ou le commandant changent. Sans
   /// EDHREC le service rend des facteurs par défaut : c'est une estimation.
+  ///
+  /// Le niveau ne porte que sur le main et les commandants, comme le CMC moyen
+  /// affiché à côté : une carte de wishlist ou de side ne joue pas. Le service
+  /// ne connaît pas les quantités, on lui passe donc chaque carte autant de fois
+  /// qu'elle est jouée.
   void _computePowerLevel() {
     final deck = state.currentDeck;
+    final commanderId =
+        deck.commanderScryfallId ?? deck.commanderSecondaryScryfallId;
+    final byId = {for (final c in state.fullCardData) c.id: c};
+    final played = <ScryfallCard>[];
+    final mainIds = <String>{};
+    for (final dc in deck.mainboard) {
+      mainIds.add(dc.scryfallId);
+      final sc = byId[dc.scryfallId];
+      if (sc == null) continue;
+      for (var i = 0; i < dc.quantity; i++) {
+        played.add(sc);
+      }
+    }
+    for (final id in [
+      deck.commanderScryfallId,
+      deck.commanderSecondaryScryfallId,
+    ]) {
+      final sc = id == null ? null : byId[id];
+      if (sc != null && !mainIds.contains(id)) played.add(sc);
+    }
     state = state.copyWith(
       powerLevel: DeckPowerLevelService.estimatePowerLevel(
         deck: deck,
-        fullCardData: state.fullCardData,
-        commanderScryfallId: deck.commanderScryfallId,
+        fullCardData: played,
+        commanderScryfallId: commanderId,
       ),
     );
   }
@@ -420,6 +445,12 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     );
     state = state.copyWith(currentDeck: updatedDeck);
     await _loadFullCardData();
+    if (!mounted) return;
+    // La nouvelle impression a pu créer une ligne sans catégorie (l'ancienne
+    // n'en avait pas non plus) : on la déduit tout de suite plutôt qu'à la
+    // prochaine ouverture.
+    await _categorizeUncategorized();
+    if (!mounted) return;
     _calculateDeckValue();
   }
 
@@ -765,6 +796,8 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
       currentDeck: d,
       fullCardData: [],
       totalDeckPrice: 0.0,
+      // Plus aucune carte : la pilule ne doit pas survivre au deck qu'elle décrivait.
+      powerLevel: null,
     );
     if (hadCards) {
       return const DeckDetailActionResult(

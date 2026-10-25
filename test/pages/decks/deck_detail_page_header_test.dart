@@ -45,6 +45,8 @@ class _Api extends ScryfallApiService {
     'data': [
       _json('cmdr', 'Le Chef', 'Legendary Creature — Human', 4),
       _json('spell', 'Un sort', 'Sorcery', 3, prices: {'eur': '12.50'}),
+      _json('cheap', 'Un petit sort', 'Instant', 1),
+      _json('partner', 'Le Second', 'Legendary Creature — Human', 6),
     ],
   };
 }
@@ -125,13 +127,15 @@ void main() {
     expect(inHeader('25 €'), findsOneWidget);
     final expected = DeckPowerLevelService.estimatePowerLevel(
       deck: deck,
+      // Le commandant une fois, le sort deux fois : sa quantité compte.
       fullCardData: [
         ScryfallCard.fromJson(
           _json('cmdr', 'Le Chef', 'Legendary Creature', 4),
         ),
-        ScryfallCard.fromJson(
-          _json('spell', 'Un sort', 'Sorcery', 3, prices: {'eur': '12.50'}),
-        ),
+        for (var i = 0; i < 2; i++)
+          ScryfallCard.fromJson(
+            _json('spell', 'Un sort', 'Sorcery', 3, prices: {'eur': '12.50'}),
+          ),
       ],
       commanderScryfallId: 'cmdr',
     )!;
@@ -162,31 +166,163 @@ void main() {
     expect(find.text('Aucun commandant défini'), findsOneWidget);
   });
 
-  testWidgets('le power level est recalculé quand le contenu du deck change', (
+  /// Facteur continu : le score arrondi peut rester égal, pas lui.
+  double? manaCurve(ProviderContainer c, Deck deck) => c
+      .read(deckDetailControllerProvider(deck))
+      .powerLevel
+      ?.factors['Mana Curve'];
+
+  ProviderContainer containerOf(WidgetTester tester) =>
+      ProviderScope.containerOf(tester.element(find.byType(DeckDetailPage)));
+
+  double expectedCurve(List<(String, num, String, int)> cards) {
+    final played = [
+      for (final (id, cmc, type, qty) in cards)
+        for (var i = 0; i < qty; i++)
+          ScryfallCard.fromJson(_json(id, id, type, cmc)),
+    ];
+    return DeckPowerLevelService.calculateCmcScore(played);
+  }
+
+  testWidgets('une carte de wishlist ne change pas le power level', (
     tester,
   ) async {
+    await db.upsertDeckCard(
+      deckId: 'd1',
+      board: 'wishlist',
+      scryfallId: 'cheap',
+      cardName: 'Un petit sort',
+      quantityToAdd: 1,
+    );
     await DeckService(database: db).setCommander('d1', 'cmdr');
     final deck = await load();
     await tester.pumpWidget(app(deck));
     await settle(tester);
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(DeckDetailPage)),
+    // Commandant (4) et deux sorts à 3 : la carte à 1 de la wishlist n'y est pas.
+    expect(
+      manaCurve(containerOf(tester), deck),
+      expectedCurve([
+        ('cmdr', 4, 'Legendary Creature', 1),
+        ('spell', 3, 'Sorcery', 2),
+      ]),
     );
-    final before = container
-        .read(deckDetailControllerProvider(deck))
-        .powerLevel;
-    expect(before, isNotNull);
-    final card = deck.mainboard.first;
+  });
+
+  testWidgets('le power level change quand le main change', (tester) async {
+    await db.upsertDeckCard(
+      deckId: 'd1',
+      board: 'wishlist',
+      scryfallId: 'cheap',
+      cardName: 'Un petit sort',
+      quantityToAdd: 1,
+    );
+    await DeckService(database: db).setCommander('d1', 'cmdr');
+    final deck = await load();
+    await tester.pumpWidget(app(deck));
+    await settle(tester);
+    final container = containerOf(tester);
+    final avant = manaCurve(container, deck);
+
+    // Déplacer la carte à 1 vers le main fait baisser la courbe moyenne.
+    final cheap = deck.wishlist.single;
     await container
         .read(deckDetailControllerProvider(deck).notifier)
-        .updateTags(card, ['x'], DeckBoard.main);
+        .moveCard(cheap, DeckBoard.main, DeckBoard.wishlist);
 
-    // Sans EDHREC le score peut rester égal : c'est le recalcul (nouvelle
-    // instance) qui prouve que la pilule ne reste pas figée.
+    final apres = manaCurve(container, deck);
+    expect(apres, isNot(avant));
     expect(
-      container.read(deckDetailControllerProvider(deck)).powerLevel,
-      isNot(same(before)),
+      apres,
+      expectedCurve([
+        ('cmdr', 4, 'Legendary Creature', 1),
+        ('spell', 3, 'Sorcery', 2),
+        ('cheap', 1, 'Instant', 1),
+      ]),
     );
+
+    // Une quantité qui baisse compte aussi, et non la seule présence.
+    final sort = container
+        .read(deckDetailControllerProvider(deck))
+        .currentDeck
+        .mainboard
+        .firstWhere((c) => c.scryfallId == 'spell');
+    await container
+        .read(deckDetailControllerProvider(deck).notifier)
+        .updateQuantity(sort, -1, DeckBoard.main);
+    expect(
+      manaCurve(container, deck),
+      expectedCurve([
+        ('cmdr', 4, 'Legendary Creature', 1),
+        ('spell', 3, 'Sorcery', 1),
+        ('cheap', 1, 'Instant', 1),
+      ]),
+    );
+  });
+
+  testWidgets('après Vider, la pilule Power disparaît', (tester) async {
+    await DeckService(database: db).setCommander('d1', 'cmdr');
+    final deck = await load();
+    await tester.pumpWidget(app(deck));
+    await settle(tester);
+    expect(find.textContaining('Power'), findsOneWidget);
+
+    await containerOf(tester)
+        .read(deckDetailControllerProvider(deck).notifier)
+        .clearDeck();
+    await settle(tester);
+
+    expect(find.textContaining('Power'), findsNothing);
+  });
+
+  testWidgets('un partenaire seul garde la pilule Power', (tester) async {
+    await DeckService(database: db).setCommander('d1', 'partner', slot: 2);
+    final deck = await load();
+    expect(deck.commanderScryfallId, isNull);
+    await tester.pumpWidget(app(deck));
+    await settle(tester);
+
+    expect(find.textContaining('Power'), findsOneWidget);
+  });
+
+  testWidgets('un deck vide ne dit pas de CMC moyen', (tester) async {
+    await DeckService(database: db).clearDeck('d1');
+    await tester.pumpWidget(app(await load()));
+    await settle(tester);
+
+    expect(find.textContaining('CMC moyen'), findsNothing);
+    expect(find.text('0 carte'), findsOneWidget);
+  });
+
+  testWidgets('switchVersion déduit la catégorie de la nouvelle ligne', (
+    tester,
+  ) async {
+    // La carte d'origine n'est pas résolue par Scryfall : elle reste sans
+    // catégorie, donc rien à recopier sur la nouvelle impression.
+    await db.upsertDeckCard(
+      deckId: 'd1',
+      board: 'main',
+      scryfallId: 'inconnue',
+      cardName: 'Inconnue',
+      quantityToAdd: 1,
+    );
+    final deck = await load();
+    await tester.pumpWidget(app(deck));
+    await settle(tester);
+
+    // Le rechargement attend 50 ms entre deux lots : l'horloge du test doit
+    // avancer pendant l'appel.
+    final fin = containerOf(tester)
+        .read(deckDetailControllerProvider(deck).notifier)
+        .switchVersion(
+          deck.mainboard.firstWhere((c) => c.scryfallId == 'inconnue'),
+          ScryfallCard.fromJson(_json('cheap', 'Un petit sort', 'Instant', 1)),
+          DeckBoard.main,
+        );
+    await settle(tester);
+    await fin;
+
+    final rows = await db.getDeckCardsByDeckId('d1');
+    expect(rows.firstWhere((r) => r.scryfallId == 'cheap').category, isNotNull);
   });
 }

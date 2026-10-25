@@ -168,7 +168,10 @@ class DeckCommanderHeader extends StatelessWidget {
               ),
               // Chaque séparateur voyage avec l'élément qu'il précède : un
               // retour à la ligne ne peut pas l'abandonner en bout de ligne.
-              _withDot(Text('CMC moyen $cmc', style: muted), muted),
+              // Un deck sans carte à coût n'a pas de CMC à annoncer : même règle
+              // que les en-têtes de section, segment et séparateur omis.
+              if (averageManaValue > 0)
+                _withDot(Text('CMC moyen $cmc', style: muted), muted),
               if (powerLevel != null) _withDot(_powerPill(powerLevel!), muted),
             ],
           ),
