@@ -2,8 +2,11 @@
 // Tests unitaires pour BackupService
 
 import 'dart:convert';
+import 'package:drift/native.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:magic_companion/data/database/app_database.dart';
 import 'package:magic_companion/services/backup_service.dart';
 
 void main() {
@@ -141,5 +144,50 @@ void main() {
       () => service.restoreFromJson(corruptedJson),
       throwsA(isA<Exception>()),
     );
+  });
+
+  // ──────────────────────────────────────────────
+  // Tags et date de modification des decks (sauvegarde Drift)
+  // ──────────────────────────────────────────────
+  group('decks Drift : tags et updatedAt', () {
+    late AppDatabase db;
+
+    setUp(() => db = AppDatabase(NativeDatabase.memory()));
+    tearDown(() async => db.close());
+
+    test('export puis import rendent tags et updatedAt identiques', () async {
+      final date = DateTime.utc(2026, 3, 4, 5, 6, 7);
+      await db.insertDeck(DecksCompanion.insert(
+        id: 'd1',
+        name: 'Test',
+        tags: Value(json.encode(['Casual', 'Ramp'])),
+        updatedAt: Value(date),
+      ));
+      await db.upsertDeckCard(
+          deckId: 'd1', board: 'main', scryfallId: 'c1', cardName: 'Sol Ring',
+          absoluteQuantity: 3, proxyQuantity: 2);
+      final svc = BackupService(database: db);
+
+      final sauvegarde = await svc.generateBackupJson();
+      await svc.restoreFromJson(sauvegarde);
+
+      final deck = (await db.getAllDecksRaw()).single;
+      expect(AppDatabase.decodeTags(deck.tags), ['Casual', 'Ramp']);
+      expect(deck.updatedAt!.isAtSameMomentAs(date), isTrue);
+      expect((await db.getDeckCardsByDeckId('d1')).single.proxyQuantity, 2);
+    });
+
+    test('une sauvegarde ancienne sans ces cles importe avec [] et null', () async {
+      final svc = BackupService(database: db);
+      await svc.restoreFromJson(json.encode({
+        'user_decks': [
+          {'id': 'old', 'name': 'Ancien', 'mainboard': [], 'sideboard': []},
+        ],
+      }));
+
+      final deck = (await db.getAllDecksRaw()).single;
+      expect(AppDatabase.decodeTags(deck.tags), isEmpty);
+      expect(deck.updatedAt, isNull);
+    });
   });
 }

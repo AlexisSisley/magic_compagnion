@@ -16,6 +16,7 @@ mixin CardListUpsertMixin {
   /// [absoluteQuantity] : quantité absolue à définir (priorité basse vs quantityToAdd).
   /// [newTags] : si non-null, remplace les tags existants.
   /// [isFoil] : statut foil de la carte. Si null, ne modifie pas le foil existant.
+  /// [proxyQuantity] : nombre de proxys. Si null, ne modifie pas l'existant.
   bool upsertCardInList(
     List<DeckCard> cards, {
     required String scryfallId,
@@ -25,6 +26,7 @@ mixin CardListUpsertMixin {
     bool matchByFoil = false,
     bool? isFoil,
     List<String>? newTags,
+    int? proxyQuantity,
   }) {
     final index = cards.indexWhere((c) =>
         c.scryfallId == scryfallId &&
@@ -42,6 +44,7 @@ mixin CardListUpsertMixin {
 
       if (newTags != null) existingCard.tags = newTags;
       if (isFoil != null) existingCard.isFoil = isFoil;
+      if (proxyQuantity != null) existingCard.proxyQuantity = proxyQuantity;
 
       if (newQuantity <= 0) {
         cards.removeAt(index);
@@ -61,6 +64,7 @@ mixin CardListUpsertMixin {
           scryfallId: scryfallId,
           name: cardName,
           quantity: newQuantity,
+          proxyQuantity: proxyQuantity ?? 0,
           isFoil: isFoil ?? false,
           tags: newTags ?? [],
         ));

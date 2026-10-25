@@ -240,6 +240,25 @@ void main() {
       expect(sideOnly.first.name, 'Swords');
     });
 
+    test('upsertDeckCard ecrit proxyQuantity a la creation puis a la mise a jour', () async {
+      await db.insertDeck(DecksCompanion.insert(id: 'deck-1', name: 'Test'));
+      await db.upsertDeckCard(
+          deckId: 'deck-1', board: 'main', scryfallId: 'c1', cardName: 'Card',
+          quantityToAdd: 3, proxyQuantity: 2);
+      expect((await db.getDeckCardsByDeckId('deck-1')).single.proxyQuantity, 2);
+
+      await db.upsertDeckCard(
+          deckId: 'deck-1', board: 'main', scryfallId: 'c1', cardName: 'Card',
+          proxyQuantity: 1);
+      expect((await db.getDeckCardsByDeckId('deck-1')).single.proxyQuantity, 1);
+
+      // Sans valeur fournie, la mise a jour ne touche pas aux proxys.
+      await db.upsertDeckCard(
+          deckId: 'deck-1', board: 'main', scryfallId: 'c1', cardName: 'Card',
+          quantityToAdd: 1);
+      expect((await db.getDeckCardsByDeckId('deck-1')).single.proxyQuantity, 1);
+    });
+
     test('deleteDeckAndCards removes deck and all its cards', () async {
       await db.insertDeck(DecksCompanion.insert(id: 'deck-1', name: 'Test'));
       await db.upsertDeckCard(deckId: 'deck-1', board: 'main', scryfallId: 'c1', cardName: 'Card', quantityToAdd: 1);

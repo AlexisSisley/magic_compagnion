@@ -3,8 +3,10 @@
 // Tests unitaires pour DeckService.
 // Auteur : Sanji, Lead Developer.
 
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:magic_companion/data/database/app_database.dart';
 import 'package:magic_companion/services/deck_service.dart';
 import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
@@ -366,5 +368,138 @@ void main() {
     expect(newCard.quantity, 3);
     expect(newCard.tags, ['Staple']);
     expect(newCard.isFoil, isTrue);
+  });
+
+  // ---------------------------------------------------------------
+  // Chemins d'ecriture sur base Drift : proxys, foils, tags, horodatage
+  // ---------------------------------------------------------------
+  group('ecritures Drift', () {
+    late AppDatabase db;
+    late DateTime horloge;
+    late DeckService svc;
+
+    setUp(() async {
+      db = AppDatabase(NativeDatabase.memory());
+      horloge = DateTime(2026, 1, 1);
+      svc = DeckService(database: db, now: () => horloge);
+      await db.insertDeck(DecksCompanion.insert(id: 'd1', name: 'Test'));
+    });
+
+    tearDown(() async => db.close());
+
+    DeckCard cartePrecieuse() => DeckCard(
+          scryfallId: 'c1',
+          name: 'Sol Ring',
+          quantity: 3,
+          proxyQuantity: 2,
+          isFoil: true,
+          tags: ['Ramp'],
+        );
+
+    Future<Deck> relire() async =>
+        (await svc.loadDecks()).firstWhere((d) => d.id == 'd1');
+
+    void expectCartePrecieuse(DeckCard c) {
+      expect(c.quantity, 3);
+      expect(c.proxyQuantity, 2);
+      expect(c.isFoil, isTrue);
+      expect(c.tags, ['Ramp']);
+    }
+
+    test('updateDeck conserve proxyQuantity, isFoil et tags des cartes', () async {
+      final deck = await relire();
+      deck.mainboard.add(cartePrecieuse());
+      await svc.updateDeck(deck);
+
+      expectCartePrecieuse((await relire()).mainboard.single);
+    });
+
+    test('moveCard main vers side rend la carte identique', () async {
+      final deck = await relire();
+      deck.mainboard.add(cartePrecieuse());
+      await svc.updateDeck(deck);
+
+      await svc.moveCard(
+        deckId: 'd1',
+        card: (await relire()).mainboard.single,
+        fromBoard: DeckBoard.main,
+        toBoard: DeckBoard.side,
+      );
+
+      final relu = await relire();
+      expect(relu.mainboard, isEmpty);
+      expectCartePrecieuse(relu.sideboard.single);
+    });
+
+    test('changeCardVersion conserve les proxys', () async {
+      final deck = await relire();
+      deck.mainboard.add(cartePrecieuse());
+      await svc.updateDeck(deck);
+
+      final nouvelle = ScryfallCard(
+        id: 'c2',
+        oracleId: '',
+        name: 'Sol Ring',
+        imageUrl: '',
+        rulesText: '',
+        typeLine: '',
+        legalities: {},
+        prices: {},
+        lang: 'en',
+        colorIdentity: [],
+        setName: '',
+        setCode: '',
+        collectorNumber: '',
+        rarity: '',
+        purchaseUris: {},
+      );
+      await svc.changeCardVersion(
+        deckId: 'd1',
+        oldCard: (await relire()).mainboard.single,
+        newVersion: nouvelle,
+        board: DeckBoard.main,
+      );
+
+      final c = (await relire()).mainboard.single;
+      expect(c.scryfallId, 'c2');
+      expect(c.proxyQuantity, 2);
+    });
+
+    test('updateDeckTags remplace les tags du deck', () async {
+      await svc.updateDeckTags('d1', ['Casual']);
+      expect((await relire()).tags, ['Casual']);
+    });
+
+    test('un deck neuf a des tags vides et la date de creation', () async {
+      final id = await svc.createNewDeck('Neuf');
+      final deck = (await svc.loadDecks()).firstWhere((d) => d.id == id);
+      expect(deck.tags, isEmpty);
+      expect(deck.updatedAt, horloge);
+    });
+
+    Future<void> expectAvance(String nom, Future<void> Function() ecrire) async {
+      final avant = horloge = horloge.add(const Duration(days: 1));
+      await ecrire();
+      expect((await relire()).updatedAt, avant, reason: nom);
+    }
+
+    test('chaque ecriture fait avancer updatedAt', () async {
+      await expectAvance('updateDeck', () async => svc.updateDeck(await relire()));
+      await expectAvance(
+          'upsertCardInDeck',
+          () => svc.upsertCardInDeck(
+              deckId: 'd1', scryfallId: 'c1', cardName: 'Sol Ring', quantityToAdd: 1));
+      await expectAvance(
+          'moveCard',
+          () async => svc.moveCard(
+              deckId: 'd1',
+              card: (await relire()).mainboard.single,
+              fromBoard: DeckBoard.main,
+              toBoard: DeckBoard.side));
+      await expectAvance('setCommander', () => svc.setCommander('d1', 'cmd-1'));
+      await expectAvance('unsetCommander', () => svc.unsetCommander('d1'));
+      await expectAvance('clearDeck', () => svc.clearDeck('d1'));
+      await expectAvance('updateDeckTags', () => svc.updateDeckTags('d1', ['x']));
+    });
   });
 }

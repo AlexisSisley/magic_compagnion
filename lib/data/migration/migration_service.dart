@@ -115,6 +115,10 @@ class MigrationService {
         commanderScryfallId: Value(map['commanderScryfallId'] as String?),
         commanderSecondaryScryfallId: Value(map['commanderSecondaryScryfallId'] as String?),
         colors: Value(json.encode(map['colors'] ?? [])),
+        tags: Value(json.encode(map['tags'] ?? [])),
+        updatedAt: Value(map['updatedAt'] == null
+            ? null
+            : DateTime.parse(map['updatedAt'] as String)),
       ));
 
       // Inserer les cartes pour chaque board
@@ -137,6 +141,7 @@ class MigrationService {
         absoluteQuantity: map['quantity'] as int,
         newTags: (map['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
         isFoil: map['isFoil'] as bool? ?? false,
+        proxyQuantity: map['proxyQuantity'] as int?,
       );
     }
   }

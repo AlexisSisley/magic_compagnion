@@ -85,6 +85,8 @@ class BackupService {
           'commanderScryfallId': deck.commanderScryfallId,
           'commanderSecondaryScryfallId': deck.commanderSecondaryScryfallId,
           'colors': json.decode(deck.colors),
+          'tags': json.decode(deck.tags),
+          'updatedAt': deck.updatedAt?.toIso8601String(),
           'mainboard': boards['mainboard'],
           'sideboard': boards['sideboard'],
           'considering': boards['considering'],
@@ -240,6 +242,11 @@ class BackupService {
           commanderScryfallId: drift.Value(map['commanderScryfallId'] as String?),
           commanderSecondaryScryfallId: drift.Value(map['commanderSecondaryScryfallId'] as String?),
           colors: drift.Value(json.encode(map['colors'] ?? [])),
+          // Une sauvegarde ancienne n'a ni tags ni date : [] et null.
+          tags: drift.Value(json.encode(map['tags'] ?? [])),
+          updatedAt: drift.Value(map['updatedAt'] == null
+              ? null
+              : DateTime.parse(map['updatedAt'] as String)),
         ));
         for (final boardEntry in {'mainboard': 'main', 'sideboard': 'side', 'considering': 'considering', 'wishlist': 'wishlist'}.entries) {
           final cards = map[boardEntry.key] as List? ?? [];
@@ -253,6 +260,7 @@ class BackupService {
               absoluteQuantity: cardMap['quantity'] as int,
               newTags: (cardMap['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
               isFoil: cardMap['isFoil'] as bool? ?? false,
+              proxyQuantity: cardMap['proxyQuantity'] as int?,
             );
           }
         }

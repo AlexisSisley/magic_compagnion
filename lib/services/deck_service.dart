@@ -15,7 +15,18 @@ class DeckService with CardListUpsertMixin {
   static const _decksKey = 'user_decks';
   final AppDatabase? _db;
 
-  DeckService({AppDatabase? database}) : _db = database;
+  /// Horloge injectable : l'horodatage d'une ecriture doit etre testable sans
+  /// dormir entre deux appels.
+  final DateTime Function() _now;
+
+  DeckService({AppDatabase? database, DateTime Function() now = DateTime.now})
+      : _db = database,
+        _now = now;
+
+  /// Marque le deck comme modifie. Toute ecriture, meme sur une seule carte,
+  /// fait remonter le deck dans la bibliotheque triee par date.
+  Future<void> _touch(String deckId) => _db!.updateDeckEntry(
+      deckId, DecksCompanion(updatedAt: Value(_now())));
 
   String _boardToString(DeckBoard board) {
     switch (board) {
@@ -74,6 +85,8 @@ class DeckService with CardListUpsertMixin {
       commanderScryfallId: d.commanderScryfallId,
       commanderSecondaryScryfallId: d.commanderSecondaryScryfallId,
       colors: AppDatabase.decodeTags(d.colors),
+      tags: AppDatabase.decodeTags(d.tags),
+      updatedAt: d.updatedAt,
       mainboard: mainboard,
       sideboard: sideboard,
       considering: considering,
@@ -113,7 +126,7 @@ class DeckService with CardListUpsertMixin {
     // dans la meme milliseconde et produire le MEME id -- l'identifiant ne
     // distinguerait alors pas mieux que le nom. Un suffixe est ajoute tant
     // que l'id est deja pris.
-    final base = DateTime.now().millisecondsSinceEpoch.toString();
+    final base = _now().millisecondsSinceEpoch.toString();
     final pris = (await loadDecks()).map((d) => d.id).toSet();
     var id = base;
     for (var n = 1; pris.contains(id); n++) {
@@ -125,6 +138,7 @@ class DeckService with CardListUpsertMixin {
         name: name,
         format: const Value('Standard'),
         colors: const Value('[]'),
+        updatedAt: Value(_now()),
       ));
       return id;
     }
@@ -133,6 +147,7 @@ class DeckService with CardListUpsertMixin {
       name: name,
       colors: [],
       format: 'Standard',
+      updatedAt: _now(),
     );
     final decks = await loadDecks();
     decks.add(newDeck);
@@ -148,6 +163,8 @@ class DeckService with CardListUpsertMixin {
         commanderScryfallId: Value(updatedDeck.commanderScryfallId),
         commanderSecondaryScryfallId: Value(updatedDeck.commanderSecondaryScryfallId),
         colors: Value(json.encode(updatedDeck.colors)),
+        tags: Value(json.encode(updatedDeck.tags)),
+        updatedAt: Value(_now()),
       ));
       // Sync all cards: clear and re-insert
       await _db.clearDeckCards(updatedDeck.id);
@@ -166,6 +183,7 @@ class DeckService with CardListUpsertMixin {
             absoluteQuantity: card.quantity,
             newTags: card.tags,
             isFoil: card.isFoil,
+            proxyQuantity: card.proxyQuantity,
           );
         }
       }
@@ -174,6 +192,7 @@ class DeckService with CardListUpsertMixin {
     final decks = await loadDecks();
     final index = decks.indexWhere((d) => d.id == updatedDeck.id);
     if (index != -1) {
+      updatedDeck.updatedAt = _now();
       decks[index] = updatedDeck;
       await _saveDecksList(decks);
     }
@@ -188,6 +207,7 @@ class DeckService with CardListUpsertMixin {
     DeckBoard board = DeckBoard.main,
     List<String>? newTags,
     bool? isFoil,
+    int? proxyQuantity,
   }) async {
     if (_db != null) {
       await _db.upsertDeckCard(
@@ -199,7 +219,9 @@ class DeckService with CardListUpsertMixin {
         absoluteQuantity: absoluteQuantity,
         newTags: newTags,
         isFoil: isFoil,
+        proxyQuantity: proxyQuantity,
       );
+      await _touch(deckId);
       final rawDeck = (await _db.getAllDecksRaw()).where((d) => d.id == deckId).first;
       final cards = await _db.getDeckCardsByDeckId(deckId);
       return _dbDeckToDeck(rawDeck, cards);
@@ -226,6 +248,7 @@ class DeckService with CardListUpsertMixin {
       absoluteQuantity: absoluteQuantity,
       isFoil: isFoil,
       newTags: newTags,
+      proxyQuantity: proxyQuantity,
     );
     await updateDeck(deck);
     return deck;
@@ -244,7 +267,8 @@ class DeckService with CardListUpsertMixin {
     return await upsertCardInDeck(
       deckId: deckId, scryfallId: newVersion.id, cardName: newVersion.name,
       absoluteQuantity: oldCard.quantity, board: board,
-      newTags: oldCard.tags, isFoil: oldCard.isFoil
+      newTags: oldCard.tags, isFoil: oldCard.isFoil,
+      proxyQuantity: oldCard.proxyQuantity,
     );
   }
 
@@ -260,7 +284,8 @@ class DeckService with CardListUpsertMixin {
     );
     final updatedDeck = await upsertCardInDeck(
       deckId: deckId, scryfallId: card.scryfallId, cardName: card.name,
-      quantityToAdd: card.quantity, board: toBoard, newTags: card.tags
+      quantityToAdd: card.quantity, board: toBoard, newTags: card.tags,
+      isFoil: card.isFoil, proxyQuantity: card.proxyQuantity,
     );
     return updatedDeck;
   }
@@ -278,6 +303,7 @@ class DeckService with CardListUpsertMixin {
           format: const Value('Commander'),
         ));
       }
+      await _touch(deckId);
       final rawDeck = (await _db.getAllDecksRaw()).where((d) => d.id == deckId).first;
       final cards = await _db.getDeckCardsByDeckId(deckId);
       return _dbDeckToDeck(rawDeck, cards);
@@ -316,6 +342,7 @@ class DeckService with CardListUpsertMixin {
         commanderScryfallId: Value(newCmd),
         commanderSecondaryScryfallId: Value(newCmd2),
         format: Value(newFormat),
+        updatedAt: Value(_now()),
       ));
       final updatedDeck = (await _db.getAllDecksRaw()).where((d) => d.id == deckId).first;
       final cards = await _db.getDeckCardsByDeckId(deckId);
@@ -343,10 +370,11 @@ class DeckService with CardListUpsertMixin {
   Future<Deck> clearDeck(String deckId) async {
     if (_db != null) {
       await _db.clearDeckCards(deckId);
-      await _db.updateDeckEntry(deckId, const DecksCompanion(
-        commanderScryfallId: Value(null),
-        commanderSecondaryScryfallId: Value(null),
-        format: Value('Standard'),
+      await _db.updateDeckEntry(deckId, DecksCompanion(
+        commanderScryfallId: const Value(null),
+        commanderSecondaryScryfallId: const Value(null),
+        format: const Value('Standard'),
+        updatedAt: Value(_now()),
       ));
       final updatedDeck = (await _db.getAllDecksRaw()).where((d) => d.id == deckId).first;
       final cards = await _db.getDeckCardsByDeckId(deckId);
@@ -362,5 +390,22 @@ class DeckService with CardListUpsertMixin {
     deck.format = 'Standard';
     await updateDeck(deck);
     return deck;
+  }
+
+  /// Remplace les tags du deck (etiquettes de la bibliotheque).
+  Future<void> updateDeckTags(String deckId, List<String> tags) async {
+    if (_db != null) {
+      await _db.updateDeckEntry(deckId, DecksCompanion(
+        tags: Value(json.encode(tags)),
+        updatedAt: Value(_now()),
+      ));
+      return;
+    }
+    final decks = await loadDecks();
+    final idx = decks.indexWhere((d) => d.id == deckId);
+    if (idx == -1) throw StateError('Deck $deckId not found');
+    decks[idx].tags = tags;
+    decks[idx].updatedAt = _now();
+    await _saveDecksList(decks);
   }
 }

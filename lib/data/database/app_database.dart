@@ -524,6 +524,7 @@ class AppDatabase extends _$AppDatabase {
     int? absoluteQuantity,
     List<String>? newTags,
     bool? isFoil,
+    int? proxyQuantity,
   }) async {
     final existing = await (select(deckCards)
           ..where((c) =>
@@ -548,6 +549,7 @@ class AppDatabase extends _$AppDatabase {
             quantity: Value(newQuantity),
             tags: newTags != null ? Value(json.encode(newTags)) : const Value.absent(),
             isFoil: isFoil != null ? Value(isFoil) : const Value.absent(),
+            proxyQuantity: proxyQuantity != null ? Value(proxyQuantity) : const Value.absent(),
           ),
         );
       }
@@ -567,6 +569,7 @@ class AppDatabase extends _$AppDatabase {
           name: cardName,
           quantity: Value(newQuantity),
           isFoil: Value(isFoil ?? false),
+          proxyQuantity: Value(proxyQuantity ?? 0),
           tags: Value(json.encode(newTags ?? [])),
         ));
       }
