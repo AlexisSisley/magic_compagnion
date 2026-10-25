@@ -295,30 +295,32 @@ void main() {
   // -------------------------------------------------------------------------
 
   group('Captures -- widgets reels apres migration typographique', () {
-    // Ni commandant ni couleurs, et ce n'est pas un appauvrissement gratuit :
-    // les deux font partir une requete reseau que le binding de test ne peut
-    // pas satisfaire. La vignette de commandant est un `ScryfallImage`
-    // (illustration distante), et chaque pastille de couleur est un SVG de
-    // symbole de mana charge depuis Scryfall -- celui-ci echoue en
-    // "Bad state: Invalid SVG data" et interrompt `pumpWidget`. Ce que cette
-    // capture regarde est le TEXTE (nom, format, compte, prix), c'est-a-dire
-    // ce que la migration typographique a deplace.
-    Deck deck(String name, String format, List<String> colors) => Deck(
+    // Les pastilles de couleur sont des ronds peints (plus des SVG reseau) :
+    // elles se rendent hors ligne. L'art du commandant, lui, est un
+    // `ScryfallImage` distant que le binding de test ne peut pas satisfaire :
+    // la capture montre donc son repli, et la tuile garde la meme forme que
+    // sans commandant. Le deck « Atraxa » porte un commandant pour le prouver.
+    Deck deck(String name, String format, List<String> colors,
+            {String? commander, int cards = 100}) =>
+        Deck(
           id: name,
           name: name,
           format: format,
           colors: colors,
+          commanderScryfallId: commander,
+          mainboard: [DeckCard(scryfallId: name, name: name, quantity: cards)],
         );
 
     testWidgets('23 - tuiles de liste de decks', (tester) async {
       _setSurfaceSize(tester, const Size(390, 844));
 
       final decks = [
-        deck('Atraxa Superfriends', 'Commander', const []),
-        deck('Burn Mono-Rouge', 'Modern', const []),
+        deck('Atraxa Superfriends', 'Commander', const ['W', 'U', 'B', 'G'],
+            commander: 'd0d33d52-3d28-4635-b985-51e126289259', cards: 100),
+        deck('Burn Mono-Rouge', 'Modern', const ['R'], cards: 60),
         deck('Azorius Controle Tempo Moderne Edition Longue', 'Standard',
-            const []),
-        deck('Elfes', 'Legacy', const []),
+            const ['W', 'U'], cards: 75),
+        deck('Elfes', 'Legacy', const [], cards: 1),
       ];
 
       await _runGuarded(() async {
@@ -327,15 +329,19 @@ void main() {
           return ColoredBox(
             color: p.canvas,
             child: ListView(
+              padding: const EdgeInsets.all(12),
               children: [
                 for (final d in decks)
-                  DeckListCard(
-                    key: ValueKey(d.id),
-                    deck: d,
-                    totalPrice: 142.5,
-                    onTap: () {},
-                    confirmDismiss: (_) async => false,
-                    onDismissed: () {},
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: DeckListCard(
+                      key: ValueKey(d.id),
+                      deck: d,
+                      totalPrice: d.name == 'Elfes' ? 0 : 289.4,
+                      onTap: () {},
+                      confirmDismiss: (_) async => false,
+                      onDismissed: () {},
+                    ),
                   ),
               ],
             ),

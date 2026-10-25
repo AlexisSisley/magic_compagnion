@@ -38,8 +38,6 @@ void main() {
         'confirmation de suppression et badge de rareté',
     'lib/pages/collections/wishlist_tab.dart':
         'bordure/fond décoratifs de la liste de souhaits',
-    'lib/pages/decks/deck_list_page.dart':
-        'fond de swipe-to-delete (même famille que game_history_page, Ruling 2)',
     'lib/pages/oracle/magic_oracle_page.dart': "boutons de l'écran Oracle",
     'lib/pages/settings/dev_tools_page.dart':
         "bouton d'avertissement des outils dev",
