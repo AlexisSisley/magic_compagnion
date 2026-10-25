@@ -44,7 +44,9 @@ class DeckListCard extends StatelessWidget {
   /// dégradé.
   static final List<Shadow> _textShadows = [
     Shadow(
-        color: AppColors.textOnPrimary.withValues(alpha: 0.7), blurRadius: 4),
+      color: AppColors.textOnPrimary.withValues(alpha: 0.7),
+      blurRadius: 4,
+    ),
   ];
   static const double _pipSize = 13;
 
@@ -74,6 +76,15 @@ class DeckListCard extends StatelessWidget {
   static String _formatPrice(double price) =>
       price > 0 ? '${price.round()} €' : '—';
 
+  /// Fond neutre quand l'art manque (pas de commandant, ou image qui ne
+  /// charge pas) : mieux qu'une icône d'image cassée sur une tuile de deck.
+  static Widget _artFallback(MagicPalette palette) => ColoredBox(
+    color: palette.raised,
+    child: const Center(
+      child: Icon(Icons.style_outlined, color: AppColors.textMuted, size: 48),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final commanderId = deck.commanderScryfallId;
@@ -87,155 +98,189 @@ class DeckListCard extends StatelessWidget {
       background: Container(
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-            color: Colors.red.shade900, borderRadius: borderRadius),
+          color: Colors.red.shade900,
+          borderRadius: borderRadius,
+        ),
         alignment: Alignment.centerRight,
-        child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          Text('USE THE FORCE',
-              style: AppTextStyles.bold(fontSize: 16).copyWith(letterSpacing: 1.5)),
-          const SizedBox(width: 12),
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              const Icon(Icons.back_hand, color: AppColors.textPrimary, size: 30),
-              Icon(Icons.flash_on, color: Colors.blueAccent.shade100, size: 40),
-            ],
-          ),
-        ]),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              'USE THE FORCE',
+              style: AppTextStyles.bold(
+                fontSize: 16,
+              ).copyWith(letterSpacing: 1.5),
+            ),
+            const SizedBox(width: 12),
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(
+                  Icons.back_hand,
+                  color: AppColors.textPrimary,
+                  size: 30,
+                ),
+                Icon(
+                  Icons.flash_on,
+                  color: Colors.blueAccent.shade100,
+                  size: 40,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
       confirmDismiss: confirmDismiss,
       onDismissed: (_) => onDismissed(),
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: borderRadius,
-            border: Border.all(color: AppColors.borderSubtle),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (commanderId != null)
-                ScryfallImage(
-                  imageUrl: ScryfallApi.artCropRedirectUrl(commanderId),
-                  fit: BoxFit.cover,
-                )
-              else
-                ColoredBox(
-                  color: palette.raised,
-                  child: const Center(
-                    child: Icon(Icons.style_outlined,
-                        color: AppColors.textMuted, size: 48),
-                  ),
-                ),
-              // Dégradé de pied : le texte reste lisible sur n'importe quel art.
-              // Il est étagé et dimensionné par le bloc de texte (hauteur
-              // fixe), donc ses paliers tombent au même endroit par rapport au
-              // nom quelle que soit la largeur de la tuile : à 25 % de la
-              // hauteur, là où commence le nom, le fond est déjà à 60 %.
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      stops: deckCardGradientStops,
-                      colors: [
-                        for (final a in deckCardGradientAlphas)
-                          AppColors.textOnPrimary.withValues(alpha: a),
-                      ],
+      // Un seul nœud pour tout le pied de tuile : sans lui, le lecteur d'écran
+      // énonce le nom, le compte, le prix et le format en morceaux. Le nom et
+      // le compte suffisent pour choisir, le prix reste lisible à l'écran.
+      child: Semantics(
+        button: true,
+        label: '${deck.name}, $cardCount ${cardCount > 1 ? 'cartes' : 'carte'}',
+        onLongPressHint: onLongPress == null ? null : 'Dossiers',
+        excludeSemantics: true,
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: borderRadius,
+              border: Border.all(color: AppColors.borderSubtle),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Un commandant importé sans résolution porte « LOCAL:<nom> » :
+                // son URL d'art échouerait à coup sûr, on ne la demande pas.
+                if (commanderId != null && !commanderId.startsWith('LOCAL:'))
+                  ScryfallImage(
+                    imageUrl: ScryfallApi.artCropRedirectUrl(commanderId),
+                    fit: BoxFit.cover,
+                    errorWidget: _artFallback(palette),
+                  )
+                else
+                  _artFallback(palette),
+                // Dégradé de pied : le texte reste lisible sur n'importe quel art.
+                // Il est étagé et dimensionné par le bloc de texte (hauteur
+                // fixe), donc ses paliers tombent au même endroit par rapport au
+                // nom quelle que soit la largeur de la tuile : à 25 % de la
+                // hauteur, là où commence le nom, le fond est déjà à 60 %.
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: deckCardGradientStops,
+                        colors: [
+                          for (final a in deckCardGradientAlphas)
+                            AppColors.textOnPrimary.withValues(alpha: a),
+                        ],
+                      ),
                     ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 28, 12, 10),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          deck.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.sectionTitle()
-                              .copyWith(shadows: _textShadows),
-                        ),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          height: _pipSize,
-                          child: Row(
-                            children: [
-                              for (final (i, c) in deck.colors.indexed)
-                                Container(
-                                  key: ValueKey('deck-color-pip-$i'),
-                                  width: _pipSize,
-                                  height: _pipSize,
-                                  margin: const EdgeInsets.only(right: 4),
-                                  decoration: BoxDecoration(
-                                    color: _manaColor(c),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: AppColors.borderSubtle),
-                                  ),
-                                ),
-                            ],
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 28, 12, 10),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            deck.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.sectionTitle().copyWith(
+                              shadows: _textShadows,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text.rich(
-                          TextSpan(children: [
-                            TextSpan(
-                              text:
-                                  '$cardCount ${cardCount > 1 ? 'cartes' : 'carte'} · ',
-                              style: AppTextStyles.text(
-                                      color: AppColors.textSecondary,
-                                      fontSize: 12)
-                                  .copyWith(shadows: _textShadows),
+                          const SizedBox(height: 4),
+                          SizedBox(
+                            height: _pipSize,
+                            child: Row(
+                              children: [
+                                for (final (i, c) in deck.colors.indexed)
+                                  Container(
+                                    key: ValueKey('deck-color-pip-$i'),
+                                    width: _pipSize,
+                                    height: _pipSize,
+                                    margin: const EdgeInsets.only(right: 4),
+                                    decoration: BoxDecoration(
+                                      color: _manaColor(c),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: AppColors.borderSubtle,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text.rich(
                             TextSpan(
-                              text: _formatPrice(totalPrice),
-                              style: AppTextStyles.bold(
-                                      color: AppColors.primary, fontSize: 12)
-                                  .copyWith(shadows: _textShadows),
+                              children: [
+                                TextSpan(
+                                  text:
+                                      '$cardCount ${cardCount > 1 ? 'cartes' : 'carte'} · ',
+                                  style: AppTextStyles.text(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                  ).copyWith(shadows: _textShadows),
+                                ),
+                                TextSpan(
+                                  text: _formatPrice(totalPrice),
+                                  style: AppTextStyles.bold(
+                                    color: AppColors.primary,
+                                    fontSize: 12,
+                                  ).copyWith(shadows: _textShadows),
+                                ),
+                              ],
                             ),
-                          ]),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    deck.format.toUpperCase(),
-                    style: AppTextStyles.bold(
-                        color: AppColors.textOnPrimary, fontSize: 10),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      deck.format.toUpperCase(),
+                      style: AppTextStyles.bold(
+                        color: AppColors.textOnPrimary,
+                        fontSize: 10,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              // Dernier enfant : l'éclaboussure d'encre doit passer par-dessus
-              // l'art, sinon l'image la masquerait.
-              Positioned.fill(
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: InkWell(onTap: onTap, onLongPress: onLongPress),
+                // Dernier enfant : l'éclaboussure d'encre doit passer par-dessus
+                // l'art, sinon l'image la masquerait.
+                Positioned.fill(
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: InkWell(onTap: onTap, onLongPress: onLongPress),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

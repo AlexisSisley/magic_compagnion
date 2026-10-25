@@ -184,4 +184,35 @@ void main() {
     await pump(tester, host(card(withQty(2))));
     expect(find.textContaining('2 cartes', findRichText: true), findsOneWidget);
   });
+
+  testWidgets('commandant « LOCAL: » : aucune image demandée, icône de deck',
+      (tester) async {
+    await pump(tester, host(card(deck(commander: 'LOCAL:Atraxa'))));
+    expect(find.byType(ScryfallImage), findsNothing);
+    expect(find.byIcon(Icons.style_outlined), findsOneWidget);
+  });
+
+  testWidgets('l art reçoit un repli neutre, pas l icône d image cassée',
+      (tester) async {
+    await pump(tester, host(card(deck(commander: 'abc-123'))));
+    final image = tester.widget<ScryfallImage>(find.byType(ScryfallImage));
+    expect(image.errorWidget, isNotNull);
+  });
+
+  testWidgets('la tuile expose un libellé et un rôle de bouton',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await pump(
+        tester,
+        host(card(
+          deck(
+            mainboard: [DeckCard(scryfallId: 'a', name: 'A', quantity: 1)],
+          ),
+          onLongPress: () {},
+        )));
+    expect(find.bySemanticsLabel('Atraxa, 1 carte'), findsOneWidget);
+    final node = tester.getSemantics(find.bySemanticsLabel('Atraxa, 1 carte'));
+    expect(node.flagsCollection.isButton, isTrue);
+    handle.dispose();
+  });
 }
