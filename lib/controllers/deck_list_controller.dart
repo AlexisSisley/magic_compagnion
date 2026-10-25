@@ -12,7 +12,6 @@ import '../models/deck_model.dart';
 import '../providers/preferred_language_provider.dart';
 import '../providers/service_providers.dart';
 import '../utils/price_helper.dart';
-import 'deck_list_filters.dart';
 import '../services/card_resolver.dart';
 import '../services/collection_service.dart';
 import '../services/deck_format_service.dart';
@@ -21,6 +20,7 @@ import '../services/local_card_service.dart';
 import '../services/moxfield_deck_client.dart';
 import '../services/moxfield_deck_mapper.dart';
 import '../services/translation_worker.dart';
+import 'deck_list_filters.dart';
 
 // --- RESULT OBJECT pour les actions ---
 
@@ -206,13 +206,11 @@ class DeckListController extends StateNotifier<DeckListState> {
     _applyFilters();
   }
 
-  /// Nul (ou « Tous », libelle de la pastille actuelle) retire le filtre.
+  /// Nul retire le filtre.
   void updateFormat(String? format) {
-    if (format == null || format == 'Tous') {
-      state = state.copyWith(clearFormat: true);
-    } else {
-      state = state.copyWith(selectedFormat: format);
-    }
+    state = format == null
+        ? state.copyWith(clearFormat: true)
+        : state.copyWith(selectedFormat: format);
     _applyFilters();
   }
 
@@ -257,6 +255,17 @@ class DeckListController extends StateNotifier<DeckListState> {
   /// Union triee des tags de tous les decks : les « dossiers » proposes.
   List<String> get availableTags =>
       ({for (final d in state.decks) ...d.tags}.toList()..sort());
+
+  /// Formats portes par les decks, sans doublon de casse (la premiere graphie
+  /// rencontree est conservee), tries.
+  List<String> get availableFormats {
+    final seen = <String, String>{};
+    for (final d in state.decks) {
+      seen.putIfAbsent(d.format.toLowerCase(), () => d.format);
+    }
+    return seen.values.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  }
 
   void _applyFilters() {
     final filtered = applyDeckFilters(

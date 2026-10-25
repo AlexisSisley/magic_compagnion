@@ -718,4 +718,131 @@ Random text here
       );
     });
   });
+
+  group('DeckListController filtres', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    /// Cree des decks (nom, format, tags) dans le DeckService en repli
+    /// SharedPreferences, puis rend un controleur qui les a charges.
+    Future<DeckListController> build(
+        List<(String, String, List<String>)> specs) async {
+      final service = DeckService();
+      for (final (name, format, tags) in specs) {
+        final id = await service.createNewDeck(name);
+        final deck = (await service.loadDecks()).firstWhere((d) => d.id == id);
+        deck.format = format;
+        await service.updateDeck(deck);
+        await service.updateDeckTags(id, tags);
+      }
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final dio = _mockDio((o) => _translationResponse(o));
+      final resolver = CardResolver(api: ScryfallApiService(dio: dio), db: db);
+      final controller = DeckListController(
+        deckService: service,
+        localCardService: LocalCardService(),
+        collectionService:
+            CollectionService(database: db, resolver: resolver),
+        translationWorker: TranslationWorker(resolver: resolver, db: db),
+        cardResolver: resolver,
+        moxfieldClient: MoxfieldDeckClient(),
+        db: db,
+      );
+      await controller.loadDecks();
+      addTearDown(controller.dispose);
+      return controller;
+    }
+
+    List<String> names(DeckListController c) =>
+        c.state.filteredDecks.map((d) => d.name).toList();
+
+    test('updateTags filtre filteredDecks', () async {
+      final c = await build([
+        ('A', 'Standard', ['X']),
+        ('B', 'Standard', ['Y']),
+        ('C', 'Standard', []),
+      ]);
+      expect(names(c), ['A', 'B', 'C']);
+      c.updateTags(['X']);
+      expect(names(c), ['A']);
+    });
+
+    test('updatePriceRange filtre, null efface', () async {
+      final c = await build([('A', 'Standard', []), ('B', 'Standard', [])]);
+      // Aucune carte : prix 0, donc exclus d'une fourchette qui ne contient pas 0.
+      c.updatePriceRange((1, 10));
+      expect(names(c), isEmpty);
+      expect(c.state.priceRange, (1.0, 10.0));
+      c.updatePriceRange(null);
+      expect(c.state.priceRange, isNull);
+      expect(names(c), ['A', 'B']);
+    });
+
+    test('clearAllFilters vide format, identite, tags, prix; garde recherche et tri',
+        () async {
+      final c = await build([
+        ('Alpha', 'Commander', ['X']),
+        ('Beta', 'Standard', []),
+      ]);
+      c.updateSearchQuery('a');
+      c.updateSort(DeckSort.priceDesc);
+      c.updateFormat('Commander');
+      c.updateIdentityFilter('Incolore', []);
+      c.updateTags(['X']);
+      c.updatePriceRange((0, 5));
+
+      c.clearAllFilters();
+
+      expect(c.state.selectedFormat, isNull);
+      expect(c.state.selectedIdentityColors, isNull);
+      expect(c.state.selectedIdentityName, isNull);
+      expect(c.state.selectedTags, isEmpty);
+      expect(c.state.priceRange, isNull);
+      expect(c.state.searchQuery, 'a');
+      expect(c.state.selectedSort, DeckSort.priceDesc);
+      expect(names(c), unorderedEquals(['Alpha', 'Beta']));
+    });
+
+    test('availableTags : union triee sans doublon', () async {
+      final c = await build([
+        ('A', 'Standard', ['Zeta', 'Beta']),
+        ('B', 'Standard', ['Beta', 'Alpha']),
+      ]);
+      expect(c.availableTags, ['Alpha', 'Beta', 'Zeta']);
+    });
+
+    test('availableFormats : sans doublon de casse, premiere graphie, trie',
+        () async {
+      final c = await build([
+        ('A', 'Standard', []),
+        ('B', 'commander', []),
+        ('C', 'Commander', []),
+        ('D', 'Modern', []),
+      ]);
+      final formats = c.availableFormats;
+      expect(formats.length, 3);
+      expect(formats.map((f) => f.toLowerCase()).toList(),
+          ['commander', 'modern', 'standard']);
+      // La graphie conservee est celle du premier deck rencontre pour ce format.
+      expect(formats.where((f) => f.toLowerCase() == 'commander').single,
+          c.state.decks.firstWhere((d) => d.format.toLowerCase() == 'commander').format);
+    });
+
+    test('un tag selectionne disparait quand le dernier deck qui le porte est supprime',
+        () async {
+      final c = await build([
+        ('A', 'Standard', ['X']),
+        ('B', 'Standard', ['Y']),
+      ]);
+      c.updateTags(['X', 'Y']);
+      final idA = c.state.decks.firstWhere((d) => d.name == 'A').id;
+
+      await c.deleteDeck(idA);
+
+      expect(c.state.selectedTags, ['Y']);
+      expect(names(c), ['B']);
+    });
+  });
 }

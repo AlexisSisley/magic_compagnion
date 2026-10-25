@@ -169,8 +169,11 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                             const SizedBox(width: 8),
                             _buildChoiceChip(
                               label: state.selectedFormat ?? 'Tous',
-                              items: ['Tous', 'Commander', 'Standard'],
-                              onSelected: (v) => _controller.updateFormat(v),
+                              items: ['Tous', ..._controller.availableFormats],
+                              // « Tous » n'est qu'un libelle : le controleur
+                              // reçoit null pour « aucun filtre ».
+                              onSelected: (v) =>
+                                  _controller.updateFormat(v == 'Tous' ? null : v),
                             ),
                             const SizedBox(width: 8),
                             _buildChoiceChip(
