@@ -165,6 +165,33 @@ void main() {
       expect(deck.considering.map((c) => c.name), contains('Contagion Engine'));
     });
 
+    test('moxfield import applies authorTags', () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final json = _deckJson()
+        ..['authorTags'] = {
+          'Wurmcoil Engine': ['Ramp', 'ramp', ' Win-con '],
+        };
+      final controller = _buildController(
+        moxfieldDio: _mockDio((_) => json),
+        scryfallDio: _mockScryfallDio([]),
+        db: db,
+      );
+
+      final result = await controller
+          .importDeckFromMoxfieldUrl('https://moxfield.com/decks/tags');
+
+      expect(result.success, isTrue, reason: result.message);
+      final decks = await DeckService().loadDecks();
+      final deck = decks.firstWhere((d) => d.name == 'Invincible toph');
+      final wurm = deck.mainboard.firstWhere((c) => c.name == 'Wurmcoil Engine');
+      final other = deck.mainboard.firstWhere((c) => c.name == 'Trinisphere');
+      expect(wurm.tags, ['Ramp', 'Win-con']);
+      expect(wurm.tagsEdited, isTrue);
+      expect(other.tags, isEmpty);
+      expect(other.tagsEdited, isFalse);
+    });
+
     test('les identifiants envoyes a Scryfall sont des scryfall_id, jamais des noms',
         () async {
       final db = AppDatabase(NativeDatabase.memory());

@@ -45,12 +45,17 @@ class MoxfieldDeckData {
   final String? commanderScryfallId;
   final String? partnerScryfallId;
 
+  /// Tags de l'auteur, par nom de carte. Presence de `authorTags` dans la
+  /// reponse non relevee sur un vrai deck : lecture defensive, `{}` sinon.
+  final Map<String, List<String>> authorTags;
+
   const MoxfieldDeckData({
     required this.name,
     required this.format,
     this.lines = const [],
     this.commanderScryfallId,
     this.partnerScryfallId,
+    this.authorTags = const {},
   });
 }
 
@@ -125,7 +130,23 @@ class MoxfieldDeckMapper {
       lines: lines,
       commanderScryfallId: ids.isNotEmpty ? ids.first : null,
       partnerScryfallId: ids.length > 1 ? ids[1] : null,
+      authorTags: _authorTags(json['authorTags']),
     );
+  }
+
+  /// carte -> liste de chaines. Toute autre forme donne `{}` ; une valeur qui
+  /// n'est pas une liste est ignoree, ainsi que les elements non textuels.
+  static Map<String, List<String>> _authorTags(dynamic raw) {
+    if (raw is! Map) return const {};
+    final result = <String, List<String>>{};
+    for (final entry in raw.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      if (key is! String || value is! List) continue;
+      final tags = value.whereType<String>().toList();
+      if (tags.isNotEmpty) result[key] = tags;
+    }
+    return result;
   }
 
   static MoxfieldCardLine? _line(dynamic raw, String board) {

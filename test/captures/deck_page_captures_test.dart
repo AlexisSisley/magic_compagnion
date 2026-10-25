@@ -30,13 +30,17 @@ import 'package:flutter/services.dart' show FontLoader, MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:magic_companion/controllers/card_tag_catalog_controller.dart';
 import 'package:magic_companion/data/database/app_database.dart';
+import 'package:magic_companion/models/deck_model.dart';
+import 'package:magic_companion/pages/settings/card_tags_page.dart';
 import 'package:magic_companion/pages/decks/deck_detail_page.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/deck_service.dart';
 import 'package:magic_companion/services/deck_view_prefs.dart';
 import 'package:magic_companion/services/scryfall_api_service.dart';
 import 'package:magic_companion/theme/app_theme.dart';
+import 'package:magic_companion/widgets/decks/card_tags_sheet.dart';
 import 'package:magic_companion/widgets/decks/deck_commander_header.dart';
 
 // ---------------------------------------------------------------------------
@@ -401,15 +405,21 @@ void main() {
       ),
     );
     for (final f in _fixtures.where((f) => !f.$1.startsWith('cmdr'))) {
-      // Une carte corrigee a la main : une creature taguee « Pioche ».
-      final locked = f.$1 == 'witness';
+      // Cartes corrigees a la main : une creature taguee « Pioche », et Sol
+      // Ring a deux tags (« Ramp » principal, « Combo » secondaire : la
+      // pastille de la vignette et la ligne de la liste montrent le second).
+      final tagged = {
+        'witness': const ['Pioche'],
+        'sol': const ['Ramp', 'Combo'],
+      }[f.$1];
+      final locked = tagged != null;
       await db.upsertDeckCard(
         deckId: 'd1',
         board: 'main',
         scryfallId: f.$1,
         cardName: f.$2,
         quantityToAdd: f.$8,
-        newTags: locked ? const ['Pioche'] : null,
+        newTags: tagged,
         tagsEdited: locked ? true : null,
       );
     }
@@ -551,6 +561,22 @@ void main() {
       });
     }
 
+    testWidgets('liste groupee par tags a 390', (tester) async {
+      await _runGuarded(() async {
+        await seed(commander: 'cmdr', grouping: DeckGrouping.tag);
+        await mount(tester, sizes['390']!);
+        await tester.tap(find.byIcon(Icons.view_list));
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+      });
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/deck_page_liste_tags_390.png'),
+      );
+    });
+
     testWidgets('bandeau sorti apres un defilement a 390', (tester) async {
       await _runGuarded(() async {
         await seed(commander: 'cmdr');
@@ -571,6 +597,100 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/deck_page_liste_bandeau_sorti_390.png'),
+      );
+    });
+  });
+
+  group('Captures -- tags de cartes', () {
+    testWidgets('feuille de tags de la carte a 390', (tester) async {
+      await _runGuarded(() async {
+        await seed();
+        tester.view.physicalSize = sizes['390']!;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        final container = ProviderContainer(
+          overrides: [appDatabaseProvider.overrideWithValue(db)],
+        );
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: buildAppTheme(),
+              home: Builder(
+                builder: (context) => Scaffold(
+                  body: TextButton(
+                    onPressed: () => showCardTagsSheet(
+                      context,
+                      card: DeckCard(
+                        scryfallId: 'sol',
+                        name: 'Sol Ring',
+                        quantity: 1,
+                        tags: const ['Ramp', 'Combo'],
+                        tagsEdited: true,
+                      ),
+                      deckTags: const ['Combo', 'Artefacts'],
+                      canSuggest: true,
+                      onSave: (_) {},
+                      onReset: () {},
+                    ),
+                    child: const Text('ouvrir'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.runAsync(
+          () => container.read(cardTagCatalogProvider.notifier).load(),
+        );
+        await tester.tap(find.text('ouvrir'));
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+      });
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/deck_page_feuille_tags_390.png'),
+      );
+    });
+
+    testWidgets('ecran Tags de cartes a 390', (tester) async {
+      await _runGuarded(() async {
+        await seed();
+        tester.view.physicalSize = sizes['390']!;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [appDatabaseProvider.overrideWithValue(db)],
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: buildAppTheme(),
+              home: const CardTagsPage(),
+            ),
+          ),
+        );
+        // Les acces base de Drift passent par de vraies E/S.
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 200)),
+        );
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+      });
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/deck_page_tags_de_cartes_390.png'),
       );
     });
   });

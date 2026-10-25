@@ -301,4 +301,39 @@ void main() {
 
     expect(d.format, 'Modern Storm');
   });
+
+  test('moxfield authorTags are mapped', () {
+    final json = _deck()
+      ..['authorTags'] = {
+        'Sol Ring': ['Ramp'],
+        'Wurmcoil Engine': ['Ramp', 'Win-con'],
+      };
+
+    final d = MoxfieldDeckMapper.fromJson(json);
+
+    expect(d.authorTags, {
+      'Sol Ring': ['Ramp'],
+      'Wurmcoil Engine': ['Ramp', 'Win-con'],
+    });
+  });
+
+  test('moxfield authorTags absent give none', () {
+    expect(MoxfieldDeckMapper.fromJson(_deck()).authorTags, isEmpty);
+  });
+
+  test('moxfield authorTags of unexpected shape give none', () {
+    for (final bad in <Object?>[
+      ['Ramp'],
+      42,
+      'Ramp',
+      null,
+      {'Sol Ring': 'Ramp'},
+      {'Sol Ring': [1, 2]},
+      {'Sol Ring': {'a': 'b'}},
+    ]) {
+      final json = _deck()..['authorTags'] = bad;
+      expect(MoxfieldDeckMapper.fromJson(json).authorTags, isEmpty,
+          reason: 'forme $bad');
+    }
+  });
 }

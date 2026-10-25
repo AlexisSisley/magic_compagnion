@@ -549,4 +549,37 @@ Sideboard
       );
     });
   });
+
+  group('Tags CSV', () {
+    test('csv round trip keeps separate tags', () {
+      final deck = Deck(
+        id: 'rt-tags',
+        name: 'Tags',
+        format: 'Commander',
+        mainboard: [
+          DeckCard(
+              scryfallId: 'a',
+              name: 'Sol Ring',
+              quantity: 1,
+              tags: ['Ramp', 'Combo']),
+        ],
+      );
+
+      final csv = DeckFormatService.exportToCsv(deck);
+      final parsed = DeckFormatService.autoDetectAndParse(csv);
+
+      expect(parsed.cardTags['Sol Ring'], ['Ramp', 'Combo']);
+    });
+
+    test('archidekt section categories are not tags', () {
+      const input = '''Quantity,Name,Categories
+1,Sol Ring,"Ramp, commander, SIDEBOARD, Maybeboard"
+1,Atraxa,"Commander"''';
+
+      final result = DeckFormatService.parseDecklistCsv(input);
+
+      expect(result.cardTags['Sol Ring'], ['Ramp']);
+      expect(result.cardTags.containsKey('Atraxa'), isFalse);
+    });
+  });
 }

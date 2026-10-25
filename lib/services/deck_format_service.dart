@@ -182,6 +182,8 @@ class DeckFormatService {
 
   /// Parse une decklist au format CSV (Archidekt, generique).
   /// Detecte les colonnes par header. Supporte les variantes de noms de colonnes.
+  static const Set<String> _sectionNames = {'commander', 'sideboard', 'maybeboard'};
+
   static DecklistParseResult parseDecklistCsv(String csvContent) {
     final List<DecklistEntry> mainboard = [];
     final List<DecklistEntry> sideboard = [];
@@ -240,10 +242,13 @@ class DeckFormatService {
       if (categoriesIdx != -1 && cols.length > categoriesIdx) {
         final rawCategories = cols[categoriesIdx].trim().replaceAll('"', '');
         if (rawCategories.isNotEmpty) {
+          // `,` (Archidekt) et `;` (notre propre export) separent les tags ;
+          // les noms de section qu'Archidekt range parmi les categories n'en
+          // sont pas.
           final tags = rawCategories
-              .split(',')
+              .split(RegExp('[,;]'))
               .map((t) => t.trim())
-              .where((t) => t.isNotEmpty)
+              .where((t) => t.isNotEmpty && !_sectionNames.contains(t.toLowerCase()))
               .toList();
           if (tags.isNotEmpty) {
             cardTags[name] = tags;

@@ -477,6 +477,44 @@ Random text here
       expect(deck.mainboard.single.scryfallId, 'LOCAL:Carte Fantome');
     });
 
+    test('importDeck applies csv tags and marks them edited', () async {
+      final dio = _mockDio((options) {
+        if (!_isCollectionRequest(options)) return _translationResponse(options);
+        return {
+          'data': [
+            for (final n in ['Sol Ring', 'Command Tower'])
+              {
+                'id': 'id-$n',
+                'oracle_id': 'oracle-$n',
+                'name': n,
+                'set': 'tst',
+                'collector_number': '1',
+                'lang': 'en',
+              }
+          ],
+          'not_found': [],
+        };
+      });
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final controller = _createImportController(dio: dio, db: db);
+
+      await controller.importDeck(
+        'Deck Tags',
+        'Quantity,Name,Categories\n'
+        '1,Sol Ring,"ramp; Ramp,  Combo  "\n'
+        '1,Command Tower,""',
+      );
+
+      final deck = controller.state.decks.firstWhere((d) => d.name == 'Deck Tags');
+      final sol = deck.mainboard.firstWhere((c) => c.name == 'Sol Ring');
+      final tower = deck.mainboard.firstWhere((c) => c.name == 'Command Tower');
+      expect(sol.tags, ['ramp', 'Combo']);
+      expect(sol.tagsEdited, isTrue);
+      expect(tower.tags, isEmpty);
+      expect(tower.tagsEdited, isFalse);
+    });
+
     test(
         'une carte absente du bulk local mais resolue par Scryfall apporte '
         'quand meme sa couleur a l\'identite du deck (regression round 3)', () async {

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import '../data/database/app_database.dart';
 import '../data/secondary_breakfast.dart';
 import '../models/card_print.dart';
+import '../models/card_tag.dart';
 import '../models/deck_model.dart';
 import '../providers/preferred_language_provider.dart';
 import '../providers/service_providers.dart';
@@ -374,6 +375,7 @@ class DeckListController extends StateNotifier<DeckListState> {
     final Set<String> deckColors = {};
 
     DeckCard toDeckCard(DecklistEntry entry) {
+      final tags = _importedTags(parseResult.cardTags[entry.name]);
       final print = _consumePrint(printsByKey, entry);
       if (print != null) {
         deckColors.addAll(print.colorIdentity);
@@ -382,6 +384,8 @@ class DeckListController extends StateNotifier<DeckListState> {
           name: entry.name,
           quantity: entry.quantity,
           isFoil: entry.isFoil,
+          tags: tags,
+          tagsEdited: tags.isNotEmpty,
         );
       }
       final local = _localCardService.getCardByName(entry.name);
@@ -391,6 +395,8 @@ class DeckListController extends StateNotifier<DeckListState> {
         name: entry.name,
         quantity: entry.quantity,
         isFoil: entry.isFoil,
+        tags: tags,
+        tagsEdited: tags.isNotEmpty,
       );
     }
 
@@ -486,13 +492,18 @@ class DeckListController extends StateNotifier<DeckListState> {
       // necessaire.
       final parId = {for (final p in resolution.resolved) p.scryfallId: p};
 
-      DeckCard toDeckCard(MoxfieldCardLine l) => DeckCard(
-            scryfallId: parId[l.scryfallId]?.scryfallId ?? 'LOCAL:${l.name}',
-            name: l.name,
-            quantity: l.quantity,
-            proxyQuantity: l.isProxy ? l.quantity : 0,
-            isFoil: l.isFoil,
-          );
+      DeckCard toDeckCard(MoxfieldCardLine l) {
+        final tags = _importedTags(data.authorTags[l.name]);
+        return DeckCard(
+          scryfallId: parId[l.scryfallId]?.scryfallId ?? 'LOCAL:${l.name}',
+          name: l.name,
+          quantity: l.quantity,
+          proxyQuantity: l.isProxy ? l.quantity : 0,
+          isFoil: l.isFoil,
+          tags: tags,
+          tagsEdited: tags.isNotEmpty,
+        );
+      }
 
       // Par identifiant, jamais par nom : le nom vient de Moxfield et
       // l'utilisateur ne le choisit pas. Importer deux fois le meme deck, ou
@@ -574,6 +585,17 @@ class DeckListController extends StateNotifier<DeckListState> {
   }
 
   // --- HELPERS ---
+
+  /// Tags importes d'une carte : noms normalises, sans doublon a la casse
+  /// pres, ordre conserve (le premier est le tag principal).
+  List<String> _importedTags(List<String>? raw) {
+    final tags = <String>[];
+    for (final r in raw ?? const <String>[]) {
+      final name = normalizeTagName(r);
+      if (name != null && !tags.any((t) => sameTag(t, name))) tags.add(name);
+    }
+    return tags;
+  }
 
   /// Cle d'association entre un [DecklistEntry] et le [ResolvedPrint] qui lui
   /// correspond. Par nom, pas par set+numero : un [ResolvedPrint] porte
