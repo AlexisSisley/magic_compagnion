@@ -16,6 +16,9 @@ enum DeckFilterKind { format, identity, tags, price }
 const double _hitHeight = 48;
 const double _pillHeight = 32;
 
+/// Largeur a partir de laquelle les puces tiennent entre Filtres et le tri.
+const double _inlineMinWidth = 600;
+
 /// Libelle de la puce de prix. Une borne haute infinie veut dire « sans
 /// plafond » : le curseur de la feuille y pose sa butee droite.
 String deckPriceChipLabel((double, double) range) {
@@ -89,31 +92,43 @@ class DeckFilterBar extends StatelessWidget {
         ),
     ];
 
+    // Les puces passent a la ligne plutot que de defiler : une puce hors champ
+    // laisserait le compteur annoncer un filtre que rien ne montre.
+    final wrap = Wrap(spacing: 8, children: chips);
+    final filters = _FiltersPill(count: activeCount, onTap: onOpenFilters);
+    final sort = _SortPill(sort: criteria.sort, onSort: onSort);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          _FiltersPill(count: activeCount, onTap: onOpenFilters),
-          const SizedBox(width: 8),
-          // Les puces defilent : sur un telephone, quatre filtres actifs ne
-          // tiennent pas a cote du tri.
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final chip in chips)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: chip,
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          _SortPill(sort: criteria.sort, onSort: onSort),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Etroit : Filtres et tri se partagent la premiere ligne, les puces
+          // prennent toute la largeur dessous (a cote, elles n'auraient pas la
+          // place d'une seule puce). Large : les puces se rangent entre les
+          // deux pilules.
+          if (constraints.maxWidth < _inlineMinWidth) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [filters, sort],
+                ),
+                if (chips.isNotEmpty) wrap,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              filters,
+              const SizedBox(width: 8),
+              Expanded(child: wrap),
+              const SizedBox(width: 8),
+              sort,
+            ],
+          );
+        },
       ),
     );
   }

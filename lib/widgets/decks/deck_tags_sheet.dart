@@ -188,6 +188,9 @@ class _DeckTagsSheetState extends State<DeckTagsSheet> {
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(48, 48),
                   backgroundColor: AppColors.primaryShade800,
+                  // Le theme de base colore le texte des boutons en lilas : sur
+                  // l'or, seul le noir de la charte est lisible.
+                  foregroundColor: AppColors.textOnPrimary,
                 ),
                 child: const Text('Enregistrer'),
               ),

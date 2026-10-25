@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/theme/app_theme.dart';
 import 'package:magic_companion/widgets/decks/deck_library_grid.dart';
@@ -168,5 +169,12 @@ void main() {
         expect(cleared, 1);
       },
     );
+  });
+
+  testWidgets("« Tout effacer » prend l'or de la charte, pas le lilas du thème",
+      (tester) async {
+    await tester.pumpWidget(host(grid(const [])));
+    final style = DefaultTextStyle.of(tester.element(find.text('Tout effacer')));
+    expect(style.style.color, AppColors.primary);
   });
 }

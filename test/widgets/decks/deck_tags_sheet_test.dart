@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_theme.dart';
 import 'package:magic_companion/widgets/decks/deck_tags_sheet.dart';
 
@@ -111,5 +112,11 @@ void main() {
     await tester.pumpAndSettle();
     await save(tester);
     expect(result, ['b']);
+  });
+
+  testWidgets("« Enregistrer » est noir sur l'or, pas lilas", (tester) async {
+    await openSheet(tester, (_) {});
+    final style = DefaultTextStyle.of(tester.element(find.text('Enregistrer')));
+    expect(style.style.color, AppColors.textOnPrimary);
   });
 }

@@ -215,4 +215,54 @@ void main() {
       expect(find.text('Nombre de cartes'), findsOneWidget);
     });
   });
+
+  group('petit écran', () {
+    for (final w in [360.0, 390.0]) {
+      testWidgets(
+        'quatre filtres actifs à $w : toutes les puces sont visibles',
+        (tester) async {
+          tester.view.physicalSize = Size(w, 800);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(() {
+            tester.view.resetPhysicalSize();
+            tester.view.resetDevicePixelRatio();
+          });
+          await tester.pumpWidget(
+            bar(
+              width: w,
+              criteria: const DeckFilterCriteria(
+                format: 'Commander',
+                identityColors: ['W', 'U'],
+                tags: ['Casual', 'cEDH'],
+                priceRange: (0, 300),
+              ),
+              activeCount: 4,
+            ),
+          );
+          for (final kind in DeckFilterKind.values) {
+            final clear = find.byKey(
+              ValueKey('deck-filter-clear-${kind.name}'),
+            );
+            expect(clear, findsOneWidget);
+            final rect = tester.getRect(clear);
+            expect(rect.left, greaterThanOrEqualTo(0));
+            expect(rect.right, lessThanOrEqualTo(w));
+            expect(rect.bottom, lessThanOrEqualTo(800));
+            // Atteignable : le point central tombe bien sur la croix.
+            expect(clear.hitTestable(), findsOneWidget);
+          }
+          // Filtres à gauche, tri à droite, sur la première ligne.
+          final filters = tester.getRect(
+            find.byKey(const ValueKey('deck-filter-open')),
+          );
+          final sort = tester.getRect(
+            find.byKey(const ValueKey('deck-filter-sort')),
+          );
+          expect(filters.top, sort.top);
+          expect(filters.left, lessThan(sort.left));
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  });
 }

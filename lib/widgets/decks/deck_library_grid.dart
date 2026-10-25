@@ -108,6 +108,12 @@ class DeckLibraryGrid extends StatelessWidget {
                 constraints: const BoxConstraints(minHeight: 48),
                 child: OutlinedButton(
                   onPressed: onClearAll,
+                  // Le theme de base colore le texte en lilas ; l'accent de la
+                  // charte est l'or.
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                  ),
                   child: const Text('Tout effacer'),
                 ),
               ),
