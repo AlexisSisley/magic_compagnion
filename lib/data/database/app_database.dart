@@ -542,6 +542,29 @@ class AppDatabase extends _$AppDatabase {
     ));
   }
 
+  /// Pose en un lot les catégories déduites. Seule une carte encore sans
+  /// catégorie et non verrouillée est écrite : la condition est dans la
+  /// requête, si bien qu'une correction à la main faite pendant le calcul
+  /// n'est jamais écrasée.
+  Future<void> applyDeducedDeckCardCategories(
+    String deckId,
+    List<({String board, String scryfallId, String category})> entries,
+  ) async {
+    if (entries.isEmpty) return;
+    await transaction(() async {
+      for (final e in entries) {
+        await (update(deckCards)
+              ..where((c) =>
+                  c.deckId.equals(deckId) &
+                  c.board.equals(e.board) &
+                  c.scryfallId.equals(e.scryfallId) &
+                  c.category.isNull() &
+                  c.categoryLocked.equals(false)))
+            .write(DeckCardsCompanion(category: Value(e.category)));
+      }
+    });
+  }
+
   Future<void> upsertDeckCard({
     required String deckId,
     required String board,
@@ -779,6 +802,10 @@ class AppDatabase extends _$AppDatabase {
     await into(appSettings).insertOnConflictUpdate(
       AppSettingsCompanion.insert(key: key, value: value),
     );
+  }
+
+  Future<void> deleteSetting(String key) async {
+    await (delete(appSettings)..where((s) => s.key.equals(key))).go();
   }
 
   Future<void> setSettingInt(String key, int value) async {

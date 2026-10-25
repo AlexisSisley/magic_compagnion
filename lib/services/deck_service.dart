@@ -8,6 +8,7 @@ import '../data/database/app_database.dart';
 import '../models/card_category.dart';
 import '../models/deck_model.dart';
 import '../utils/card_list_upsert_mixin.dart';
+import 'deck_view_prefs.dart';
 
 // Enum pour identifier la zone cible
 enum DeckBoard { main, side, considering, wishlist }
@@ -109,6 +110,7 @@ class DeckService with CardListUpsertMixin {
   Future<void> deleteDeck(String deckId) async {
     if (_db != null) {
       await _db.deleteDeckAndCards(deckId);
+      await deleteDeckViewPrefs(_db, deckId);
       return;
     }
     final decks = await loadDecks();
@@ -205,6 +207,64 @@ class DeckService with CardListUpsertMixin {
       decks[index] = updatedDeck;
       await _saveDecksList(decks);
     }
+  }
+
+  /// Enregistre l'identité couleur recalculée, et rien d'autre. Ne touche ni
+  /// aux cartes ni à la date de modification : c'est un recalcul fait à
+  /// l'ouverture, qui ne doit ni faire remonter le deck dans la bibliothèque
+  /// ni réécrire des cartes depuis un instantané devenu périmé.
+  Future<void> updateDeckColors(String deckId, List<String> colors) async {
+    if (_db != null) {
+      await _db.updateDeckEntry(
+          deckId, DecksCompanion(colors: Value(json.encode(colors))));
+      return;
+    }
+    final decks = await loadDecks();
+    final idx = decks.indexWhere((d) => d.id == deckId);
+    if (idx == -1) return;
+    decks[idx].colors = colors;
+    await _saveDecksList(decks);
+  }
+
+  /// Pose en un lot les catégories déduites à l'ouverture du deck. Une carte
+  /// déjà catégorisée ou verrouillée n'est pas réécrite. Pas de [_touch] :
+  /// ouvrir un deck n'est pas le modifier.
+  Future<void> applyDeducedCategories(
+    String deckId,
+    List<({DeckBoard board, String scryfallId, CardCategory category})>
+        entries,
+  ) async {
+    if (entries.isEmpty) return;
+    if (_db != null) {
+      await _db.applyDeducedDeckCardCategories(deckId, [
+        for (final e in entries)
+          (
+            board: _boardToString(e.board),
+            scryfallId: e.scryfallId,
+            category: e.category.name,
+          ),
+      ]);
+      return;
+    }
+    final decks = await loadDecks();
+    final idx = decks.indexWhere((d) => d.id == deckId);
+    if (idx == -1) return;
+    final deck = decks[idx];
+    for (final e in entries) {
+      final list = switch (e.board) {
+        DeckBoard.main => deck.mainboard,
+        DeckBoard.side => deck.sideboard,
+        DeckBoard.considering => deck.considering,
+        DeckBoard.wishlist => deck.wishlist,
+      };
+      for (final c in list.where((c) =>
+          c.scryfallId == e.scryfallId &&
+          c.category == null &&
+          !c.categoryLocked)) {
+        c.category = e.category;
+      }
+    }
+    await _saveDecksList(decks);
   }
 
   Future<Deck> upsertCardInDeck({

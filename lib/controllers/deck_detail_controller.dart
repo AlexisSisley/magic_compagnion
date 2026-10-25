@@ -5,14 +5,18 @@ import 'dart:developer';
 
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../data/database/app_database.dart';
+import '../models/card_category.dart';
 import '../models/deck_model.dart';
 import '../models/scryfall_card_model.dart';
 import '../providers/service_providers.dart';
 import '../utils/price_helper.dart';
 import '../models/legality_report.dart';
+import '../services/card_category_service.dart';
 import '../services/collection_service.dart';
 import '../services/deck_format_service.dart';
 import '../services/deck_service.dart';
+import '../services/deck_view_prefs.dart';
 import '../services/legality_service.dart';
 import '../services/scryfall_api_service.dart';
 import '../services/wishlist_service.dart';
@@ -55,6 +59,7 @@ class DeckDetailState {
   final bool isValidating;
   final String? errorMessage;
   final List<TokenInfo> tokens;
+  final DeckViewPrefs viewPrefs;
 
   DeckDetailState({
     required this.currentDeck,
@@ -65,6 +70,7 @@ class DeckDetailState {
     this.isValidating = false,
     this.errorMessage,
     this.tokens = const [],
+    this.viewPrefs = const DeckViewPrefs(),
   });
 
   DeckDetailState copyWith({
@@ -76,6 +82,7 @@ class DeckDetailState {
     bool? isValidating,
     String? errorMessage,
     List<TokenInfo>? tokens,
+    DeckViewPrefs? viewPrefs,
   }) {
     return DeckDetailState(
       currentDeck: currentDeck ?? this.currentDeck,
@@ -86,6 +93,7 @@ class DeckDetailState {
       isValidating: isValidating ?? this.isValidating,
       errorMessage: errorMessage,
       tokens: tokens ?? this.tokens,
+      viewPrefs: viewPrefs ?? this.viewPrefs,
     );
   }
 
@@ -105,16 +113,22 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
   final WishlistService _wishlistService;
   final ScryfallApiService _apiService;
 
+  /// Base des préférences d'affichage. Nulle (tests, repli sans Drift),
+  /// l'affichage garde ses défauts et ses changements ne sont pas mémorisés.
+  final AppDatabase? _database;
+
   DeckDetailController({
     required Deck initialDeck,
     required DeckService deckService,
     required CollectionService collectionService,
     required WishlistService wishlistService,
     required ScryfallApiService apiService,
+    AppDatabase? database,
   })  : _deckService = deckService,
         _collectionService = collectionService,
         _wishlistService = wishlistService,
         _apiService = apiService,
+        _database = database,
         super(DeckDetailState(currentDeck: initialDeck)) {
     loadInitialData();
   }
@@ -127,12 +141,61 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     await Future.wait([
       _loadFullCardData(),
       _loadCollection(),
+      _loadViewPrefs(),
     ]);
+    if (!mounted) return;
+    // Le texte des cartes n'est connu qu'ici : c'est donc à l'ouverture, et
+    // non à l'ajout, que les cartes sans catégorie reçoivent la leur.
+    await _categorizeUncategorized();
     if (!mounted) return;
     _calculateDeckValue();
     await _computeTokens();
     if (!mounted) return;
     state = state.copyWith(isLoading: false);
+  }
+
+  Future<void> _loadViewPrefs() async {
+    final db = _database;
+    if (db == null) return;
+    final prefs = await loadDeckViewPrefs(db, state.currentDeck.id);
+    if (!mounted) return;
+    state = state.copyWith(viewPrefs: prefs);
+  }
+
+  /// Déduit la catégorie des cartes qui n'en ont pas, en un seul lot persisté.
+  /// Une carte verrouillée ou sans données Scryfall (carte `LOCAL:`, échec
+  /// réseau) est laissée telle quelle.
+  Future<void> _categorizeUncategorized() async {
+    final deck = state.currentDeck;
+    final byId = {for (final c in state.fullCardData) c.id: c};
+    final entries =
+        <({DeckBoard board, String scryfallId, CardCategory category})>[];
+    final deduced = <DeckCard, CardCategory>{};
+    for (final (board, cards) in [
+      (DeckBoard.main, deck.mainboard),
+      (DeckBoard.side, deck.sideboard),
+      (DeckBoard.considering, deck.considering),
+      (DeckBoard.wishlist, deck.wishlist),
+    ]) {
+      for (final card in cards) {
+        if (card.category != null || card.categoryLocked) continue;
+        if (card.scryfallId.startsWith('LOCAL:')) continue;
+        final sc = byId[card.scryfallId];
+        if (sc == null) continue;
+        final category =
+            classifyCard(typeLine: sc.typeLine, oracleText: sc.oracleText);
+        entries.add(
+            (board: board, scryfallId: card.scryfallId, category: category));
+        deduced[card] = category;
+      }
+    }
+    if (entries.isEmpty) return;
+    await _deckService.applyDeducedCategories(deck.id, entries);
+    if (!mounted) return;
+    deduced.forEach((card, category) => card.category = category);
+    // Le deck affiché a pu être remplacé pendant l'écriture : on notifie celui
+    // de l'état courant, sans le remettre sur l'instantané du départ.
+    state = state.copyWith(currentDeck: state.currentDeck);
   }
 
   Future<void> _loadCollection() async {
@@ -192,9 +255,12 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     final sortedColors = computedColors.toList()
       ..sort((a, b) => (order[a] ?? 9).compareTo(order[b] ?? 9));
 
+    // Écriture limitée aux couleurs : réécrire tout le deck depuis `deck`,
+    // capturé avant les appels réseau, écraserait les cartes écrites entre-temps
+    // (catégories déduites, ajouts).
     if (deck.colors.join() != sortedColors.join()) {
       deck.colors = sortedColors;
-      _deckService.updateDeck(deck, touch: false);
+      await _deckService.updateDeckColors(deck.id, sortedColors);
     }
 
     if (!mounted) return;
@@ -370,6 +436,51 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
       newTags: tags,
     );
     state = state.copyWith(currentDeck: updatedDeck);
+  }
+
+  // --- CATÉGORIES ---
+
+  /// Catégorie sous laquelle la carte s'affiche : sans catégorie (carte
+  /// locale, données absentes), elle tombe dans « Autres ».
+  CardCategory displayCategory(DeckCard card) =>
+      card.category ?? CardCategory.other;
+
+  /// Correction à la main : la catégorie est verrouillée, plus aucune
+  /// déduction ne la réécrit.
+  Future<void> setCategory(
+      DeckCard card, DeckBoard board, CardCategory category) async {
+    await _deckService.setCardCategory(
+        state.currentDeck.id, board, card.scryfallId, category,
+        locked: true);
+    await _reloadDeck();
+  }
+
+  /// Rend la carte à la déduction automatique : déverrouille et re-déduit
+  /// depuis le texte de la carte, ou remet à vide s'il n'est pas connu.
+  Future<void> resetCategory(DeckCard card, DeckBoard board) async {
+    final sc =
+        state.fullCardData.where((s) => s.id == card.scryfallId).firstOrNull;
+    final category = (sc == null || card.scryfallId.startsWith('LOCAL:'))
+        ? null
+        : classifyCard(typeLine: sc.typeLine, oracleText: sc.oracleText);
+    await _deckService.setCardCategory(
+        state.currentDeck.id, board, card.scryfallId, category,
+        locked: false);
+    await _reloadDeck();
+  }
+
+  // --- PRÉFÉRENCES D'AFFICHAGE ---
+
+  Future<void> setGrouping(DeckGrouping grouping) =>
+      _saveViewPrefs(state.viewPrefs.copyWith(grouping: grouping));
+
+  Future<void> setLayout(DeckLayout layout) =>
+      _saveViewPrefs(state.viewPrefs.copyWith(layout: layout));
+
+  Future<void> _saveViewPrefs(DeckViewPrefs prefs) async {
+    state = state.copyWith(viewPrefs: prefs);
+    final db = _database;
+    if (db != null) await saveDeckViewPrefs(db, state.currentDeck.id, prefs);
   }
 
   // --- COLLECTION / WISHLIST MULTI-ADD ---
@@ -630,6 +741,14 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
 
   // --- PRIVATE HELPERS ---
 
+  Future<void> _reloadDeck() async {
+    final d = (await _deckService.loadDecks())
+        .where((d) => d.id == state.currentDeck.id)
+        .firstOrNull;
+    if (d == null || !mounted) return;
+    state = state.copyWith(currentDeck: d);
+  }
+
   ScryfallCard _findCardOrUnknown(String scryfallId) {
     return state.fullCardData.where((c) => c.id == scryfallId).firstOrNull ??
         ScryfallCard(
@@ -661,6 +780,7 @@ final deckDetailControllerProvider = StateNotifierProvider.autoDispose
     final collectionService = ref.watch(collectionServiceProvider);
     final wishlistService = ref.watch(wishlistServiceProvider);
     final apiService = ref.watch(scryfallApiServiceProvider);
+    final database = ref.watch(appDatabaseProvider);
 
     return DeckDetailController(
       initialDeck: initialDeck,
@@ -668,6 +788,7 @@ final deckDetailControllerProvider = StateNotifierProvider.autoDispose
       collectionService: collectionService,
       wishlistService: wishlistService,
       apiService: apiService,
+      database: database,
     );
   },
 );
