@@ -200,7 +200,6 @@ void main() {
             onPlus: () {},
             onMinus: () {},
             onTap: () {},
-            onLongPress: () {},
           ),
         ),
       ),

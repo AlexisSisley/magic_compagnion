@@ -563,18 +563,6 @@ void main() {
       expect((await relire()).tags, ['Casual']);
     });
 
-    test('updateDeck(touch: false) ne change pas updatedAt', () async {
-      await svc.updateDeckTags('d1', ['x']);
-      final avant = (await relire()).updatedAt;
-      horloge = horloge.add(const Duration(days: 5));
-      final deck = await relire();
-      deck.colors = ['W'];
-      await svc.updateDeck(deck, touch: false);
-      final apres = await relire();
-      expect(apres.updatedAt, avant);
-      expect(apres.colors, ['W']);
-    });
-
     test('updateDeckTags remplace les tags du deck', () async {
       await svc.updateDeckTags('d1', ['Casual']);
       expect((await relire()).tags, ['Casual']);

@@ -25,7 +25,7 @@ class DeckInfoTab extends StatelessWidget {
       padding: const EdgeInsets.only(top: 8, bottom: 32),
       children: [
         _sectionTitle('Tokens (${tokens.length})'),
-        DeckTokensTab(tokens: tokens, embedded: true),
+        DeckTokensTab(tokens: tokens),
         _sectionTitle('Légalité'),
         DeckLegalityTab(report: report, embedded: true),
       ],

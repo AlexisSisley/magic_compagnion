@@ -10,15 +10,11 @@ import '../../controllers/deck_detail_controller.dart';
 class DeckTokensTab extends StatelessWidget {
   final List<TokenInfo> tokens;
 
-  /// Sans défilement propre : la liste vit alors dans le défilement d'un
-  /// parent (l'onglet Infos), où un second défilement vertical casserait.
-  final bool embedded;
-
-  const DeckTokensTab({super.key, required this.tokens, this.embedded = false});
+  const DeckTokensTab({super.key, required this.tokens});
 
   @override
   Widget build(BuildContext context) {
-    if (tokens.isEmpty && embedded) {
+    if (tokens.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Text(
@@ -28,37 +24,11 @@ class DeckTokensTab extends StatelessWidget {
       );
     }
 
-    if (tokens.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.token, color: AppColors.borderMedium, size: 64),
-              const SizedBox(height: 16),
-              Text(
-                'Ce deck ne necessite aucun token',
-                style: AppTextStyles.text(color: AppColors.textMuted, fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (embedded) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(children: [for (final token in tokens) _buildToken(token)]),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: tokens.length,
-      itemBuilder: (context, index) => _buildToken(tokens[index]),
+    // Le défilement appartient à l'onglet Infos qui l'héberge : un second
+    // défilement vertical imbriqué casserait.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(children: [for (final token in tokens) _buildToken(token)]),
     );
   }
 

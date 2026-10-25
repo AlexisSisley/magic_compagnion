@@ -162,9 +162,9 @@ class DeckService with CardListUpsertMixin {
 
   /// Reecrit le deck et ses cartes. Les tags n'en font pas partie : le Deck
   /// recu peut dater d'avant un [updateDeckTags], qui reste leur seul
-  /// ecrivain. [touch] a false pour un recalcul automatique (couleurs a
-  /// l'ouverture) : ouvrir un deck n'est pas le modifier.
-  Future<void> updateDeck(Deck updatedDeck, {bool touch = true}) async {
+  /// ecrivain. Toute ecriture date le deck : le recalcul automatique des
+  /// couleurs a l'ouverture passe par [updateDeckColors], qui ne le fait pas.
+  Future<void> updateDeck(Deck updatedDeck) async {
     if (_db != null) {
       await _db.updateDeckEntry(updatedDeck.id, DecksCompanion(
         name: Value(updatedDeck.name),
@@ -172,7 +172,7 @@ class DeckService with CardListUpsertMixin {
         commanderScryfallId: Value(updatedDeck.commanderScryfallId),
         commanderSecondaryScryfallId: Value(updatedDeck.commanderSecondaryScryfallId),
         colors: Value(json.encode(updatedDeck.colors)),
-        updatedAt: touch ? Value(_now()) : const Value.absent(),
+        updatedAt: Value(_now()),
       ));
       // Sync all cards: clear and re-insert
       await _db.clearDeckCards(updatedDeck.id);
@@ -203,7 +203,7 @@ class DeckService with CardListUpsertMixin {
     final index = decks.indexWhere((d) => d.id == updatedDeck.id);
     if (index != -1) {
       updatedDeck.tags = decks[index].tags;
-      if (touch) updatedDeck.updatedAt = _now();
+      updatedDeck.updatedAt = _now();
       decks[index] = updatedDeck;
       await _saveDecksList(decks);
     }

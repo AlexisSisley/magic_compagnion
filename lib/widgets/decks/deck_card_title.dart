@@ -165,10 +165,6 @@ class DeckCardGridTile extends StatelessWidget {
   final VoidCallback onMinus;
   final VoidCallback onTap;
 
-  /// Nul quand la vignette vit dans un `LongPressDraggable` : voir
-  /// [DeckCardTile.longPressOpensMenu].
-  final VoidCallback? onLongPress;
-
   /// Catégorie corrigée à la main : la vignette le dit (liseré or et cadenas)
   /// pour qu'on sache qu'aucune déduction ne la réécrira.
   final bool categoryLocked;
@@ -185,7 +181,6 @@ class DeckCardGridTile extends StatelessWidget {
     required this.onPlus,
     required this.onMinus,
     required this.onTap,
-    this.onLongPress,
     this.categoryLocked = false,
     this.display,
   });
@@ -198,7 +193,6 @@ class DeckCardGridTile extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      onLongPress: onLongPress,
       child: Card(
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
