@@ -370,6 +370,28 @@ void main() {
     expect(newCard.isFoil, isTrue);
   });
 
+  test('repli SharedPreferences : moveCard fusionne proxys et foil', () async {
+    final id = await createAndGetDeckId('Prefs');
+    final deck = (await service.loadDecks()).single;
+    deck.mainboard.add(DeckCard(
+        scryfallId: 'c1', name: 'Sol Ring', quantity: 2, proxyQuantity: 1, isFoil: true));
+    deck.sideboard.add(DeckCard(
+        scryfallId: 'c1', name: 'Sol Ring', quantity: 1, proxyQuantity: 1));
+    await service.updateDeck(deck);
+
+    await service.moveCard(
+      deckId: id,
+      card: (await service.loadDecks()).single.mainboard.single,
+      fromBoard: DeckBoard.main,
+      toBoard: DeckBoard.side,
+    );
+
+    final c = (await service.loadDecks()).single.sideboard.single;
+    expect(c.quantity, 3);
+    expect(c.proxyQuantity, 2);
+    expect(c.isFoil, isTrue);
+  });
+
   // ---------------------------------------------------------------
   // Chemins d'ecriture sur base Drift : proxys, foils, tags, horodatage
   // ---------------------------------------------------------------
@@ -463,6 +485,90 @@ void main() {
       final c = (await relire()).mainboard.single;
       expect(c.scryfallId, 'c2');
       expect(c.proxyQuantity, 2);
+    });
+
+    test('moveCard fusionne avec la carte deja presente sur la cible', () async {
+      final deck = await relire();
+      deck.mainboard.add(DeckCard(
+          scryfallId: 'c1', name: 'Sol Ring', quantity: 2, proxyQuantity: 1));
+      deck.sideboard.add(DeckCard(
+          scryfallId: 'c1', name: 'Sol Ring', quantity: 1, proxyQuantity: 1));
+      await svc.updateDeck(deck);
+
+      await svc.moveCard(
+        deckId: 'd1',
+        card: (await relire()).mainboard.single,
+        fromBoard: DeckBoard.main,
+        toBoard: DeckBoard.side,
+      );
+
+      final c = (await relire()).sideboard.single;
+      expect(c.quantity, 3);
+      expect(c.proxyQuantity, 2);
+    });
+
+    test('moveCard fusionne le foil : l un OU l autre', () async {
+      final deck = await relire();
+      deck.mainboard.add(DeckCard(scryfallId: 'c1', name: 'Sol Ring', quantity: 1));
+      deck.sideboard.add(DeckCard(
+          scryfallId: 'c1', name: 'Sol Ring', quantity: 1, isFoil: true));
+      await svc.updateDeck(deck);
+
+      await svc.moveCard(
+        deckId: 'd1',
+        card: (await relire()).mainboard.single,
+        fromBoard: DeckBoard.main,
+        toBoard: DeckBoard.side,
+      );
+
+      expect((await relire()).sideboard.single.isFoil, isTrue);
+    });
+
+    test('changeCardVersion fusionne avec la version deja presente', () async {
+      final deck = await relire();
+      deck.mainboard.add(DeckCard(
+          scryfallId: 'c1', name: 'Sol Ring', quantity: 2, proxyQuantity: 1));
+      deck.mainboard.add(DeckCard(
+          scryfallId: 'c2', name: 'Sol Ring', quantity: 2, proxyQuantity: 1,
+          isFoil: true));
+      await svc.updateDeck(deck);
+
+      final nouvelle = ScryfallCard(
+        id: 'c2', oracleId: '', name: 'Sol Ring', imageUrl: '', rulesText: '',
+        typeLine: '', legalities: {}, prices: {}, lang: 'en',
+        colorIdentity: [], setName: '', setCode: '', collectorNumber: '',
+        rarity: '', purchaseUris: {},
+      );
+      await svc.changeCardVersion(
+        deckId: 'd1',
+        oldCard: (await relire()).mainboard.firstWhere((c) => c.scryfallId == 'c1'),
+        newVersion: nouvelle,
+        board: DeckBoard.main,
+      );
+
+      final c = (await relire()).mainboard.single;
+      expect(c.scryfallId, 'c2');
+      expect(c.proxyQuantity, 2);
+      expect(c.isFoil, isTrue);
+    });
+
+    test('updateDeck avec un Deck perime ne retire pas les tags', () async {
+      await svc.updateDeckTags('d1', ['Casual']);
+      final perime = Deck(id: 'd1', name: 'Test', colors: [], format: 'Standard');
+      await svc.updateDeck(perime);
+      expect((await relire()).tags, ['Casual']);
+    });
+
+    test('updateDeck(touch: false) ne change pas updatedAt', () async {
+      await svc.updateDeckTags('d1', ['x']);
+      final avant = (await relire()).updatedAt;
+      horloge = horloge.add(const Duration(days: 5));
+      final deck = await relire();
+      deck.colors = ['W'];
+      await svc.updateDeck(deck, touch: false);
+      final apres = await relire();
+      expect(apres.updatedAt, avant);
+      expect(apres.colors, ['W']);
     });
 
     test('updateDeckTags remplace les tags du deck', () async {

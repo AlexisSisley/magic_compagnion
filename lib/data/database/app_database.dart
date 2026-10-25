@@ -525,6 +525,7 @@ class AppDatabase extends _$AppDatabase {
     List<String>? newTags,
     bool? isFoil,
     int? proxyQuantity,
+    bool mergeVariants = false,
   }) async {
     final existing = await (select(deckCards)
           ..where((c) =>
@@ -541,6 +542,16 @@ class AppDatabase extends _$AppDatabase {
         newQuantity = absoluteQuantity;
       }
 
+      // Fusion (deplacement, changement de version) : la carte qui arrive
+      // s'ajoute a celle deja presente au lieu de la remplacer, et ses proxys
+      // et son foil s'ajoutent aussi.
+      final int? finalProxy = (mergeVariants && proxyQuantity != null)
+          ? (existing.proxyQuantity + proxyQuantity).clamp(0, newQuantity < 0 ? 0 : newQuantity)
+          : proxyQuantity;
+      final bool? finalFoil = (mergeVariants && isFoil != null)
+          ? (existing.isFoil || isFoil)
+          : isFoil;
+
       if (newQuantity <= 0) {
         await (delete(deckCards)..where((c) => c.id.equals(existing.id))).go();
       } else {
@@ -548,8 +559,8 @@ class AppDatabase extends _$AppDatabase {
           DeckCardsCompanion(
             quantity: Value(newQuantity),
             tags: newTags != null ? Value(json.encode(newTags)) : const Value.absent(),
-            isFoil: isFoil != null ? Value(isFoil) : const Value.absent(),
-            proxyQuantity: proxyQuantity != null ? Value(proxyQuantity) : const Value.absent(),
+            isFoil: finalFoil != null ? Value(finalFoil) : const Value.absent(),
+            proxyQuantity: finalProxy != null ? Value(finalProxy) : const Value.absent(),
           ),
         );
       }

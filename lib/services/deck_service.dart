@@ -155,7 +155,11 @@ class DeckService with CardListUpsertMixin {
     return id;
   }
 
-  Future<void> updateDeck(Deck updatedDeck) async {
+  /// Reecrit le deck et ses cartes. Les tags n'en font pas partie : le Deck
+  /// recu peut dater d'avant un [updateDeckTags], qui reste leur seul
+  /// ecrivain. [touch] a false pour un recalcul automatique (couleurs a
+  /// l'ouverture) : ouvrir un deck n'est pas le modifier.
+  Future<void> updateDeck(Deck updatedDeck, {bool touch = true}) async {
     if (_db != null) {
       await _db.updateDeckEntry(updatedDeck.id, DecksCompanion(
         name: Value(updatedDeck.name),
@@ -163,8 +167,7 @@ class DeckService with CardListUpsertMixin {
         commanderScryfallId: Value(updatedDeck.commanderScryfallId),
         commanderSecondaryScryfallId: Value(updatedDeck.commanderSecondaryScryfallId),
         colors: Value(json.encode(updatedDeck.colors)),
-        tags: Value(json.encode(updatedDeck.tags)),
-        updatedAt: Value(_now()),
+        updatedAt: touch ? Value(_now()) : const Value.absent(),
       ));
       // Sync all cards: clear and re-insert
       await _db.clearDeckCards(updatedDeck.id);
@@ -192,7 +195,8 @@ class DeckService with CardListUpsertMixin {
     final decks = await loadDecks();
     final index = decks.indexWhere((d) => d.id == updatedDeck.id);
     if (index != -1) {
-      updatedDeck.updatedAt = _now();
+      updatedDeck.tags = decks[index].tags;
+      if (touch) updatedDeck.updatedAt = _now();
       decks[index] = updatedDeck;
       await _saveDecksList(decks);
     }
@@ -208,6 +212,7 @@ class DeckService with CardListUpsertMixin {
     List<String>? newTags,
     bool? isFoil,
     int? proxyQuantity,
+    bool mergeVariants = false,
   }) async {
     if (_db != null) {
       await _db.upsertDeckCard(
@@ -220,6 +225,7 @@ class DeckService with CardListUpsertMixin {
         newTags: newTags,
         isFoil: isFoil,
         proxyQuantity: proxyQuantity,
+        mergeVariants: mergeVariants,
       );
       await _touch(deckId);
       final rawDeck = (await _db.getAllDecksRaw()).where((d) => d.id == deckId).first;
@@ -249,6 +255,7 @@ class DeckService with CardListUpsertMixin {
       isFoil: isFoil,
       newTags: newTags,
       proxyQuantity: proxyQuantity,
+      mergeVariants: mergeVariants,
     );
     await updateDeck(deck);
     return deck;
@@ -268,7 +275,7 @@ class DeckService with CardListUpsertMixin {
       deckId: deckId, scryfallId: newVersion.id, cardName: newVersion.name,
       absoluteQuantity: oldCard.quantity, board: board,
       newTags: oldCard.tags, isFoil: oldCard.isFoil,
-      proxyQuantity: oldCard.proxyQuantity,
+      proxyQuantity: oldCard.proxyQuantity, mergeVariants: true,
     );
   }
 
@@ -286,6 +293,7 @@ class DeckService with CardListUpsertMixin {
       deckId: deckId, scryfallId: card.scryfallId, cardName: card.name,
       quantityToAdd: card.quantity, board: toBoard, newTags: card.tags,
       isFoil: card.isFoil, proxyQuantity: card.proxyQuantity,
+      mergeVariants: true,
     );
     return updatedDeck;
   }

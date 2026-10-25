@@ -17,6 +17,9 @@ mixin CardListUpsertMixin {
   /// [newTags] : si non-null, remplace les tags existants.
   /// [isFoil] : statut foil de la carte. Si null, ne modifie pas le foil existant.
   /// [proxyQuantity] : nombre de proxys. Si null, ne modifie pas l'existant.
+  /// [mergeVariants] : la carte qui arrive fusionne avec l'existante (proxys
+  /// additionnes, plafonnes a la quantite finale ; foil = l'un OU l'autre) au
+  /// lieu de la remplacer.
   bool upsertCardInList(
     List<DeckCard> cards, {
     required String scryfallId,
@@ -27,6 +30,7 @@ mixin CardListUpsertMixin {
     bool? isFoil,
     List<String>? newTags,
     int? proxyQuantity,
+    bool mergeVariants = false,
   }) {
     final index = cards.indexWhere((c) =>
         c.scryfallId == scryfallId &&
@@ -43,8 +47,16 @@ mixin CardListUpsertMixin {
       }
 
       if (newTags != null) existingCard.tags = newTags;
-      if (isFoil != null) existingCard.isFoil = isFoil;
-      if (proxyQuantity != null) existingCard.proxyQuantity = proxyQuantity;
+      if (isFoil != null) {
+        existingCard.isFoil =
+            mergeVariants ? (existingCard.isFoil || isFoil) : isFoil;
+      }
+      if (proxyQuantity != null) {
+        existingCard.proxyQuantity = mergeVariants
+            ? (existingCard.proxyQuantity + proxyQuantity)
+                .clamp(0, newQuantity < 0 ? 0 : newQuantity)
+            : proxyQuantity;
+      }
 
       if (newQuantity <= 0) {
         cards.removeAt(index);

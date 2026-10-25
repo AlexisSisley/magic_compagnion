@@ -194,7 +194,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
 
     if (deck.colors.join() != sortedColors.join()) {
       deck.colors = sortedColors;
-      _deckService.updateDeck(deck);
+      _deckService.updateDeck(deck, touch: false);
     }
 
     if (!mounted) return;
