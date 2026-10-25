@@ -548,6 +548,8 @@ void main() {
 
       final c = (await relire()).mainboard.single;
       expect(c.scryfallId, 'c2');
+      // 2 exemplaires deplaces + 2 deja presents : aucune copie perdue.
+      expect(c.quantity, 4);
       expect(c.proxyQuantity, 2);
       expect(c.isFoil, isTrue);
     });

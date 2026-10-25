@@ -273,7 +273,7 @@ class DeckService with CardListUpsertMixin {
     );
     return await upsertCardInDeck(
       deckId: deckId, scryfallId: newVersion.id, cardName: newVersion.name,
-      absoluteQuantity: oldCard.quantity, board: board,
+      quantityToAdd: oldCard.quantity, board: board,
       newTags: oldCard.tags, isFoil: oldCard.isFoil,
       proxyQuantity: oldCard.proxyQuantity, mergeVariants: true,
     );
