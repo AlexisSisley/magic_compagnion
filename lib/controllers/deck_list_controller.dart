@@ -12,6 +12,7 @@ import '../models/deck_model.dart';
 import '../providers/preferred_language_provider.dart';
 import '../providers/service_providers.dart';
 import '../utils/price_helper.dart';
+import 'deck_list_filters.dart';
 import '../services/card_resolver.dart';
 import '../services/collection_service.dart';
 import '../services/deck_format_service.dart';
@@ -42,10 +43,14 @@ class DeckListState {
   final bool isLoading;
   final bool isImporting;
   final String searchQuery;
-  final String selectedFormat;
-  final String selectedSort;
+
+  /// Nul = tous les formats.
+  final String? selectedFormat;
+  final DeckSort selectedSort;
   final String? selectedIdentityName;
   final List<String>? selectedIdentityColors;
+  final List<String> selectedTags;
+  final (double, double)? priceRange;
 
   const DeckListState({
     this.decks = const [],
@@ -54,10 +59,12 @@ class DeckListState {
     this.isLoading = true,
     this.isImporting = false,
     this.searchQuery = '',
-    this.selectedFormat = 'Tous',
-    this.selectedSort = 'name',
+    this.selectedFormat,
+    this.selectedSort = DeckSort.name,
     this.selectedIdentityName,
     this.selectedIdentityColors,
+    this.selectedTags = const [],
+    this.priceRange,
   });
 
   DeckListState copyWith({
@@ -68,10 +75,14 @@ class DeckListState {
     bool? isImporting,
     String? searchQuery,
     String? selectedFormat,
-    String? selectedSort,
+    DeckSort? selectedSort,
     String? selectedIdentityName,
     List<String>? selectedIdentityColors,
+    List<String>? selectedTags,
+    (double, double)? priceRange,
     bool clearIdentity = false,
+    bool clearFormat = false,
+    bool clearPriceRange = false,
   }) {
     return DeckListState(
       decks: decks ?? this.decks,
@@ -80,10 +91,12 @@ class DeckListState {
       isLoading: isLoading ?? this.isLoading,
       isImporting: isImporting ?? this.isImporting,
       searchQuery: searchQuery ?? this.searchQuery,
-      selectedFormat: selectedFormat ?? this.selectedFormat,
+      selectedFormat: clearFormat ? null : (selectedFormat ?? this.selectedFormat),
       selectedSort: selectedSort ?? this.selectedSort,
       selectedIdentityName: clearIdentity ? null : (selectedIdentityName ?? this.selectedIdentityName),
       selectedIdentityColors: clearIdentity ? null : (selectedIdentityColors ?? this.selectedIdentityColors),
+      selectedTags: selectedTags ?? this.selectedTags,
+      priceRange: clearPriceRange ? null : (priceRange ?? this.priceRange),
     );
   }
 }
@@ -177,7 +190,12 @@ class DeckListController extends StateNotifier<DeckListState> {
       prices[deck.id] = total;
     }
 
-    state = state.copyWith(decks: decks, deckPrices: prices, isLoading: false);
+    state = state.copyWith(
+      decks: decks,
+      deckPrices: prices,
+      isLoading: false,
+      selectedTags: pruneSelectedTags(state.selectedTags, decks),
+    );
     _applyFilters();
   }
 
@@ -188,13 +206,18 @@ class DeckListController extends StateNotifier<DeckListState> {
     _applyFilters();
   }
 
-  void updateFormat(String format) {
-    state = state.copyWith(selectedFormat: format);
+  /// Nul (ou « Tous », libelle de la pastille actuelle) retire le filtre.
+  void updateFormat(String? format) {
+    if (format == null || format == 'Tous') {
+      state = state.copyWith(clearFormat: true);
+    } else {
+      state = state.copyWith(selectedFormat: format);
+    }
     _applyFilters();
   }
 
-  void updateSort(String sortCode) {
-    state = state.copyWith(selectedSort: sortCode);
+  void updateSort(DeckSort sort) {
+    state = state.copyWith(selectedSort: sort);
     _applyFilters();
   }
 
@@ -208,40 +231,47 @@ class DeckListController extends StateNotifier<DeckListState> {
     _applyFilters();
   }
 
+  void updateTags(List<String> tags) {
+    state = state.copyWith(selectedTags: tags);
+    _applyFilters();
+  }
+
+  void updatePriceRange((double, double)? range) {
+    state = range == null
+        ? state.copyWith(clearPriceRange: true)
+        : state.copyWith(priceRange: range);
+    _applyFilters();
+  }
+
+  /// Retire tous les filtres ; la recherche et le tri restent en place.
+  void clearAllFilters() {
+    state = state.copyWith(
+      clearFormat: true,
+      clearIdentity: true,
+      clearPriceRange: true,
+      selectedTags: const [],
+    );
+    _applyFilters();
+  }
+
+  /// Union triee des tags de tous les decks : les « dossiers » proposes.
+  List<String> get availableTags =>
+      ({for (final d in state.decks) ...d.tags}.toList()..sort());
+
   void _applyFilters() {
-    final query = state.searchQuery.toLowerCase();
-
-    var tempDecks = state.decks.where((deck) {
-      if (!deck.name.toLowerCase().contains(query)) return false;
-
-      final bool isCommander = deck.commanderScryfallId != null;
-      if (state.selectedFormat == 'Commander' && !isCommander) return false;
-      if (state.selectedFormat == 'Standard' && isCommander) return false;
-
-      if (state.selectedIdentityColors != null) {
-        if (state.selectedIdentityColors!.isEmpty) {
-          if (deck.colors.isNotEmpty) return false;
-        } else {
-          final deckSet = deck.colors.toSet();
-          final filterSet = state.selectedIdentityColors!.toSet();
-          if (deckSet.length != filterSet.length || !deckSet.containsAll(filterSet)) {
-            return false;
-          }
-        }
-      }
-      return true;
-    }).toList();
-
-    tempDecks.sort((a, b) {
-      if (state.selectedSort == 'price_desc') {
-        return (state.deckPrices[b.id] ?? 0).compareTo(state.deckPrices[a.id] ?? 0);
-      } else if (state.selectedSort == 'price_asc') {
-        return (state.deckPrices[a.id] ?? 0).compareTo(state.deckPrices[b.id] ?? 0);
-      }
-      return a.name.compareTo(b.name);
-    });
-
-    state = state.copyWith(filteredDecks: tempDecks);
+    final filtered = applyDeckFilters(
+      state.decks,
+      state.deckPrices,
+      DeckFilterCriteria(
+        query: state.searchQuery,
+        format: state.selectedFormat,
+        identityColors: state.selectedIdentityColors,
+        tags: state.selectedTags,
+        priceRange: state.priceRange,
+        sort: state.selectedSort,
+      ),
+    );
+    state = state.copyWith(filteredDecks: filtered);
   }
 
   // --- ACTIONS ---
@@ -567,13 +597,7 @@ class DeckListController extends StateNotifier<DeckListState> {
     return null;
   }
 
-  String getSortLabel(String code) {
-    switch(code) {
-      case 'price_desc': return 'Prix (Décroissant)';
-      case 'price_asc': return 'Prix (Croissant)';
-      default: return 'Nom (A-Z)';
-    }
-  }
+  String getSortLabel(DeckSort sort) => deckSortLabel(sort);
 
   double getDeckPrice(String deckId) => state.deckPrices[deckId] ?? 0.0;
 }

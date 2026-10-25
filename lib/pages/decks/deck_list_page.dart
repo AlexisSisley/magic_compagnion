@@ -8,6 +8,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../controllers/deck_list_controller.dart';
+import '../../controllers/deck_list_filters.dart';
 import '../../models/deck_model.dart';
 import '../../router/app_router.dart';
 import '../../services/scryfall_api.dart';
@@ -167,23 +168,20 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                             _buildIdentityFilterChip(state),
                             const SizedBox(width: 8),
                             _buildChoiceChip(
-                              label: state.selectedFormat,
+                              label: state.selectedFormat ?? 'Tous',
                               items: ['Tous', 'Commander', 'Standard'],
                               onSelected: (v) => _controller.updateFormat(v),
                             ),
                             const SizedBox(width: 8),
                             _buildChoiceChip(
                               label: _controller.getSortLabel(state.selectedSort),
-                              items: ['Nom (A-Z)', 'Prix (Décroissant)', 'Prix (Croissant)'],
-                              onSelected: (label) {
-                                String code = 'name';
-                                if(label.contains('Décroissant')) {
-                                  code = 'price_desc';
-                                } else if(label.contains('Croissant')) {
-                                  code = 'price_asc';
-                                }
-                                _controller.updateSort(code);
-                              }
+                              items: DeckSort.values.map(deckSortLabel).toList(),
+                              onSelected: (label) => _controller.updateSort(
+                                DeckSort.values.firstWhere(
+                                  (s) => deckSortLabel(s) == label,
+                                  orElse: () => DeckSort.name,
+                                ),
+                              ),
                             ),
                           ],
                         ),

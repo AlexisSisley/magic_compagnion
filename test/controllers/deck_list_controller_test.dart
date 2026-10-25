@@ -6,6 +6,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:magic_companion/controllers/deck_list_controller.dart';
+import 'package:magic_companion/controllers/deck_list_filters.dart';
 import 'package:magic_companion/data/database/app_database.dart';
 import 'package:magic_companion/services/card_resolver.dart';
 import 'package:magic_companion/services/collection_service.dart';
@@ -133,8 +134,10 @@ void main() {
       expect(state.isLoading, true);
       expect(state.isImporting, false);
       expect(state.searchQuery, '');
-      expect(state.selectedFormat, 'Tous');
-      expect(state.selectedSort, 'name');
+      expect(state.selectedFormat, isNull);
+      expect(state.selectedSort, DeckSort.name);
+      expect(state.selectedTags, isEmpty);
+      expect(state.priceRange, isNull);
       expect(state.selectedIdentityName, isNull);
       expect(state.selectedIdentityColors, isNull);
     });
@@ -151,6 +154,29 @@ void main() {
       expect(copied.searchQuery, 'new');
       expect(copied.selectedFormat, 'Commander');
       expect(copied.isImporting, true);
+    });
+
+    test('copyWith pose les nouveaux champs et les efface', () {
+      final state = const DeckListState().copyWith(
+        selectedTags: ['A'],
+        priceRange: (1, 5),
+        selectedSort: DeckSort.updated,
+      );
+      expect(state.selectedTags, ['A']);
+      expect(state.priceRange, (1.0, 5.0));
+      expect(state.selectedSort, DeckSort.updated);
+
+      final kept = state.copyWith(searchQuery: 'x');
+      expect(kept.priceRange, (1.0, 5.0));
+
+      final cleared = state.copyWith(clearPriceRange: true);
+      expect(cleared.priceRange, isNull);
+    });
+
+    test('copyWith clearFormat retire le format', () {
+      const state = DeckListState(selectedFormat: 'Commander');
+      expect(state.copyWith(clearFormat: true).selectedFormat, isNull);
+      expect(state.copyWith().selectedFormat, 'Commander');
     });
 
     test('copyWith clearIdentity resets identity fields', () {
