@@ -760,6 +760,32 @@ void main() {
           const Size(8, 8));
     });
 
+    testWidgets('type grouping grid tile shows all tags, primary included', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [
+            dc('bears', tags: ['Ramp', 'Blink', 'Pioche']),
+          ],
+          db,
+          viewPrefs: const DeckViewPrefs(grouping: DeckGrouping.type),
+          fullCardData: [sc('bears', 'Creature — Bear', 2)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Semantics &&
+              w.properties.label == 'Tags : Ramp, Blink, Pioche',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('tag-dot-Ramp')), findsOneWidget);
+    });
+
     testWidgets('grid tile caps dots at three and counts the rest', (
       tester,
     ) async {

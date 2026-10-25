@@ -358,6 +358,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
         display: display,
         tagCatalog: widget.tagCatalog,
+        showPrimaryTag: widget.viewPrefs.grouping != DeckGrouping.tag,
         onPlus: () => widget.onUpdateQuantity(card, 1),
         onMinus: () => widget.onUpdateQuantity(card, -1),
         onTap: () { if (scryfallCard != null) pushCardDetail(context, cardName: scryfallCard.name); },

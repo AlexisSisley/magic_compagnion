@@ -194,6 +194,9 @@ class DeckCardGridTile extends StatelessWidget {
   /// Catalogue des tags, pour colorer les points des tags secondaires.
   final List<CardTagDef> tagCatalog;
 
+  /// Faux quand le tag principal est déjà l'en-tête de la section.
+  final bool showPrimaryTag;
+
   const DeckCardGridTile({
     super.key,
     required this.card,
@@ -205,6 +208,7 @@ class DeckCardGridTile extends StatelessWidget {
     required this.onTap,
     this.display,
     this.tagCatalog = const [],
+    this.showPrimaryTag = true,
   });
 
   /// Trois points de 8 px au plus, puis « +n » s'il en reste.
@@ -243,7 +247,7 @@ class DeckCardGridTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final secondaryTags = card.tags.skip(1).toList();
+    final dotTags = showPrimaryTag ? card.tags : card.tags.skip(1).toList();
     final imageUrl = scryfallCard?.imageUrl ?? scryfallCard?.smallImageUrl;
     final displayName = display?.name ?? card.name;
     final isFallback = display?.isFallback ?? false;
@@ -318,7 +322,7 @@ class DeckCardGridTile extends StatelessWidget {
               ),
 
             // --- 3. Coin haut-gauche : collection, puis points des tags secondaires ---
-            if (isInCollection || secondaryTags.isNotEmpty)
+            if (isInCollection || dotTags.isNotEmpty)
               Positioned(
                 top: 4, left: 4,
                 child: Row(
@@ -330,8 +334,8 @@ class DeckCardGridTile extends StatelessWidget {
                         padding: const EdgeInsets.all(2),
                         child: const Icon(Icons.check_circle, color: AppColors.success, size: 16),
                       ),
-                    if (isInCollection && secondaryTags.isNotEmpty) const SizedBox(width: 4),
-                    if (secondaryTags.isNotEmpty) _buildTagDots(secondaryTags),
+                    if (isInCollection && dotTags.isNotEmpty) const SizedBox(width: 4),
+                    if (dotTags.isNotEmpty) _buildTagDots(dotTags),
                   ],
                 ),
               ),
