@@ -150,12 +150,15 @@ class _DeckFilterSheetState extends State<DeckFilterSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Filtres', style: AppTextStyles.bold(fontSize: 20)),
+                // Le libellé ne promet pas plus que l'action : la recherche
+                // et le tri sont conservés. La couleur d'avant-plan est posée
+                // sur le bouton pour que l'ondulation ne vire pas au lilas.
                 TextButton(
                   onPressed: widget.controller.clearAllFilters,
-                  child: const Text(
-                    'Tout effacer',
-                    style: TextStyle(color: AppColors.accentRed),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.accentRed,
                   ),
+                  child: const Text('Effacer les filtres'),
                 ),
               ],
             ),

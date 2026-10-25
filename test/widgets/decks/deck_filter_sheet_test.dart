@@ -17,6 +17,7 @@ import 'package:magic_companion/services/local_card_service.dart';
 import 'package:magic_companion/services/moxfield_deck_client.dart';
 import 'package:magic_companion/services/scryfall_api_service.dart';
 import 'package:magic_companion/services/translation_worker.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/theme/app_theme.dart';
 import 'package:magic_companion/widgets/decks/deck_filter_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -167,7 +168,7 @@ void main() {
     expect(c.state.selectedFormat, isNull);
   });
 
-  testWidgets('« Tout effacer » appelle clearAllFilters et garde le tri', (
+  testWidgets('« Effacer les filtres » appelle clearAllFilters et garde le tri', (
     tester,
   ) async {
     final c = await build(tester, [
@@ -181,10 +182,25 @@ void main() {
     await openSheet(tester, c);
     expect(activeFilterCount(c.state.criteria), 4);
 
-    await tester.tap(find.text('Tout effacer'));
+    await tester.tap(find.text('Effacer les filtres'));
     await tester.pumpAndSettle();
     expect(activeFilterCount(c.state.criteria), 0);
     expect(c.state.selectedSort, DeckSort.priceDesc);
+  });
+
+  testWidgets('« Effacer les filtres » prend le rouge de la charte, pas le lilas',
+      (tester) async {
+    final c = await build(tester, [
+      ('A', 'Commander', ['X']),
+    ]);
+    await openSheet(tester, c);
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Effacer les filtres'),
+    );
+    expect(
+      button.style?.foregroundColor?.resolve({}),
+      AppColors.accentRed,
+    );
   });
 
   group('prix', () {
