@@ -676,6 +676,8 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
     );
   }
 
+  /// Dans chaque section, par type comme par catégorie, les cartes suivent la
+  /// courbe de mana : mana value croissante, puis nom (voir sortByManaValue).
   List<_GroupedCardList> _buildGroupedList(List<DeckCard> cardList) {
     Map<String, List<DeckCard>> groupedMap = { 'Créatures': [], 'Planeswalkers': [], 'Sorts': [], 'Artefacts': [], 'Enchantements': [], 'Terrains': [], 'Autres': [] };
     for (final deckCard in cardList) {
@@ -685,7 +687,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
       groupedMap[type]?.add(deckCard);
     }
     List<_GroupedCardList> groupedList = [];
-    groupedMap.forEach((title, cards) { if (cards.isNotEmpty) { cards.sort((a, b) => a.name.compareTo(b.name)); groupedList.add(_GroupedCardList(title: title, cards: cards)); } });
+    groupedMap.forEach((title, cards) { if (cards.isNotEmpty) { groupedList.add(_GroupedCardList(title: title, cards: sortByManaValue(cards, widget.fullCardData))); } });
     return groupedList;
   }
 
@@ -701,7 +703,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
         if (byCategory[cat] != null)
           _GroupedCardList(
             title: cardCategoryLabel(cat),
-            cards: byCategory[cat]!..sort((a, b) => a.name.compareTo(b.name)),
+            cards: sortByManaValue(byCategory[cat]!, widget.fullCardData),
           ),
     ];
   }

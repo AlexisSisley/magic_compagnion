@@ -409,6 +409,51 @@ void main() {
       expect(find.text('AUTRES'), findsOneWidget);
     });
 
+    for (final grouping in DeckGrouping.values) {
+      testWidgets('en mode ${grouping.name}, une section est triée par mana '
+          'value puis par nom', (tester) async {
+        // Noms choisis à rebours de la mana value : un tri par nom seul
+        // donnerait l'ordre inverse.
+        DeckCard named(String id, String name) => DeckCard(
+          scryfallId: id,
+          name: name,
+          quantity: 1,
+          category: CardCategory.creatures,
+        );
+        await tester.pumpWidget(
+          buildTabWithDb(
+            [
+              named('c5', 'Aaa'),
+              named('c1', 'Zzz'),
+              named('c3', 'Mmm'),
+              named('c3b', 'Bbb'),
+            ],
+            db,
+            viewPrefs: DeckViewPrefs(
+              grouping: grouping,
+              layout: DeckLayout.list,
+            ),
+            fullCardData: [
+              sc('c5', 'Creature — Angel', 5),
+              sc('c1', 'Creature — Elf', 1),
+              sc('c3', 'Creature — Bear', 3),
+              sc('c3b', 'Creature — Bear', 3),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final ys = [
+          'Zzz',
+          'Bbb',
+          'Mmm',
+          'Aaa',
+        ].map((n) => tester.getTopLeft(find.text(n)).dy).toList();
+        expect(ys, orderedEquals([...ys]..sort()));
+        expect(ys.toSet(), hasLength(4));
+      });
+    }
+
     testWidgets('sans préférence, les sections sont celles des types', (
       tester,
     ) async {

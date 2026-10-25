@@ -30,3 +30,19 @@ double averageManaValue(
 /// Nombre de colonnes de la grille d'artworks selon la largeur disponible :
 /// des vignettes d'environ 130 px, entre 3 (téléphone) et 8 (grand écran).
 int deckCardGridColumns(double width) => (width / 130).floor().clamp(3, 8);
+
+/// Ordre des cartes dans une section de la liste : mana value croissante,
+/// puis nom à égalité. Une carte sans donnée Scryfall (ou sans cmc) compte
+/// pour 0 : elle rejoint les terrains en tête, rangée par nom avec eux.
+/// Rend une nouvelle liste ; celle reçue n'est pas touchée.
+List<DeckCard> sortByManaValue(
+  Iterable<DeckCard> cards,
+  List<ScryfallCard> fullCardData,
+) {
+  final byId = {for (final c in fullCardData) c.id: c};
+  double mv(DeckCard c) => byId[c.scryfallId]?.cmc ?? 0;
+  return cards.toList()..sort((a, b) {
+    final byMv = mv(a).compareTo(mv(b));
+    return byMv != 0 ? byMv : a.name.compareTo(b.name);
+  });
+}
