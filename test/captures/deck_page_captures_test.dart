@@ -23,7 +23,7 @@ import 'dart:typed_data';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show FontLoader;
+import 'package:flutter/services.dart' show FontLoader, MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -98,11 +98,26 @@ Future<void> _loadRealFontsForCaptures() async {
   }
 }
 
+/// Erreurs ASYNCHRONES attendues hors ligne dans le harnais de test : polices
+/// google_fonts non telechargeables, plugins natifs (shared_preferences,
+/// path_provider) absents, SVG de symboles de mana qui ne se chargent pas.
+/// Tout le reste est une vraie erreur.
+bool _isExpectedOfflineError(Object error) {
+  final text = error.toString();
+  return error is MissingPluginException ||
+      text.contains('Invalid SVG data') ||
+      text.contains('GoogleFonts.config.allowRuntimeFetching is false');
+}
+
 /// La Future orpheline de `googleFontsTextStyle` (chargement reseau rejete)
 /// doit etre absorbee par une zone a soi, sinon le test reste marque [E]
-/// malgre un rendu correct.
+/// malgre un rendu correct. Seules les erreurs hors ligne attendues sont
+/// absorbees : la premiere autre (seed, mount...) est relancee a la fin, pour
+/// que le test echoue sur sa vraie cause.
 Future<void> _runGuarded(Future<void> Function() body) async {
   final done = Completer<void>();
+  Object? unexpected;
+  StackTrace? unexpectedStack;
   runZonedGuarded(
     () async {
       try {
@@ -111,10 +126,18 @@ Future<void> _runGuarded(Future<void> Function() body) async {
         if (!done.isCompleted) done.complete();
       }
     },
-    // Erreur asynchrone orpheline : absorbee, sans clore le corps en cours.
-    (error, stack) {},
+    (error, stack) {
+      if (_isExpectedOfflineError(error)) return;
+      if (unexpected == null) {
+        unexpected = error;
+        unexpectedStack = stack;
+      }
+    },
   );
   await done.future;
+  if (unexpected != null) {
+    Error.throwWithStackTrace(unexpected!, unexpectedStack!);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -361,6 +384,7 @@ void main() {
 
   Future<void> seed({String? commander, String? partner}) async {
     db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
     await db.insertDeck(
       DecksCompanion.insert(
         id: 'd1',
@@ -468,7 +492,6 @@ void main() {
               'goldens/deck_page_bandeau_${state.key}_${size.key}.png',
             ),
           );
-          await db.close();
         });
       }
     }
@@ -495,7 +518,6 @@ void main() {
           find.byType(MaterialApp),
           matchesGoldenFile('goldens/deck_page_grille_defilee_${size.key}.png'),
         );
-        await db.close();
       });
 
       testWidgets('liste compacte a ${size.key}', (tester) async {
@@ -512,7 +534,6 @@ void main() {
           find.byType(MaterialApp),
           matchesGoldenFile('goldens/deck_page_liste_compacte_${size.key}.png'),
         );
-        await db.close();
       });
     }
   });
