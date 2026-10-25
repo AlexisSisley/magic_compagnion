@@ -189,5 +189,24 @@ void main() {
       expect(AppDatabase.decodeTags(deck.tags), isEmpty);
       expect(deck.updatedAt, isNull);
     });
+
+    test('une date illisible importe le deck avec updatedAt nul', () async {
+      final svc = BackupService(database: db);
+      await svc.restoreFromJson(json.encode({
+        'user_decks': [
+          {
+            'id': 'x',
+            'name': 'Date cassée',
+            'updatedAt': 'pas une date',
+            'mainboard': [],
+            'sideboard': [],
+          },
+        ],
+      }));
+
+      final deck = (await db.getAllDecksRaw()).single;
+      expect(deck.name, 'Date cassée');
+      expect(deck.updatedAt, isNull);
+    });
   });
 }

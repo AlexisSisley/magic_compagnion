@@ -244,9 +244,10 @@ class BackupService {
           colors: drift.Value(json.encode(map['colors'] ?? [])),
           // Une sauvegarde ancienne n'a ni tags ni date : [] et null.
           tags: drift.Value(json.encode(map['tags'] ?? [])),
-          updatedAt: drift.Value(map['updatedAt'] == null
-              ? null
-              : DateTime.parse(map['updatedAt'] as String)),
+          // tryParse : une date illisible ne doit pas faire échouer toute la
+          // restauration, le deck est simplement importé sans date.
+          updatedAt: drift.Value(
+              DateTime.tryParse(map['updatedAt']?.toString() ?? '')),
         ));
         for (final boardEntry in {'mainboard': 'main', 'sideboard': 'side', 'considering': 'considering', 'wishlist': 'wishlist'}.entries) {
           final cards = map[boardEntry.key] as List? ?? [];

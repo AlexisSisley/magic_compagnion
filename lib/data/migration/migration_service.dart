@@ -116,9 +116,9 @@ class MigrationService {
         commanderSecondaryScryfallId: Value(map['commanderSecondaryScryfallId'] as String?),
         colors: Value(json.encode(map['colors'] ?? [])),
         tags: Value(json.encode(map['tags'] ?? [])),
-        updatedAt: Value(map['updatedAt'] == null
-            ? null
-            : DateTime.parse(map['updatedAt'] as String)),
+        // tryParse : une date illisible donne un deck sans date, pas une
+        // migration en échec rejouée à chaque lancement.
+        updatedAt: Value(DateTime.tryParse(map['updatedAt']?.toString() ?? '')),
       ));
 
       // Inserer les cartes pour chaque board
