@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import '../data/database/app_database.dart';
 import '../models/card_category.dart';
 import '../models/deck_model.dart';
+import '../models/edhrec_models.dart';
 import '../models/scryfall_card_model.dart';
 import '../providers/service_providers.dart';
 import '../utils/price_helper.dart';
@@ -15,6 +16,7 @@ import '../models/legality_report.dart';
 import '../services/card_category_service.dart';
 import '../services/collection_service.dart';
 import '../services/deck_format_service.dart';
+import '../services/deck_power_level_service.dart';
 import '../services/deck_service.dart';
 import '../services/deck_view_prefs.dart';
 import '../services/legality_service.dart';
@@ -50,6 +52,8 @@ class TokenInfo {
   });
 }
 
+const Object _keepPowerLevel = Object();
+
 class DeckDetailState {
   final Deck currentDeck;
   final List<ScryfallCard> fullCardData;
@@ -61,6 +65,10 @@ class DeckDetailState {
   final List<TokenInfo> tokens;
   final DeckViewPrefs viewPrefs;
 
+  /// Estimation du niveau de puissance, sans données EDHREC : nulle sans
+  /// commandant.
+  final DeckPowerLevel? powerLevel;
+
   DeckDetailState({
     required this.currentDeck,
     this.fullCardData = const [],
@@ -71,6 +79,7 @@ class DeckDetailState {
     this.errorMessage,
     this.tokens = const [],
     this.viewPrefs = const DeckViewPrefs(),
+    this.powerLevel,
   });
 
   DeckDetailState copyWith({
@@ -83,6 +92,9 @@ class DeckDetailState {
     String? errorMessage,
     List<TokenInfo>? tokens,
     DeckViewPrefs? viewPrefs,
+    // Sentinelle : `null` explicite efface le niveau (commandant retiré), alors
+    // que l'omettre le conserve.
+    Object? powerLevel = _keepPowerLevel,
   }) {
     return DeckDetailState(
       currentDeck: currentDeck ?? this.currentDeck,
@@ -94,6 +106,9 @@ class DeckDetailState {
       errorMessage: errorMessage,
       tokens: tokens ?? this.tokens,
       viewPrefs: viewPrefs ?? this.viewPrefs,
+      powerLevel: identical(powerLevel, _keepPowerLevel)
+          ? this.powerLevel
+          : powerLevel as DeckPowerLevel?,
     );
   }
 
@@ -265,6 +280,20 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
 
     if (!mounted) return;
     state = state.copyWith(fullCardData: loadedCards);
+    _computePowerLevel();
+  }
+
+  /// Recalculé dès que les données des cartes ou le commandant changent. Sans
+  /// EDHREC le service rend des facteurs par défaut : c'est une estimation.
+  void _computePowerLevel() {
+    final deck = state.currentDeck;
+    state = state.copyWith(
+      powerLevel: DeckPowerLevelService.estimatePowerLevel(
+        deck: deck,
+        fullCardData: state.fullCardData,
+        commanderScryfallId: deck.commanderScryfallId,
+      ),
+    );
   }
 
   void _calculateDeckValue() {
@@ -523,12 +552,14 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
       await _deckService.unsetCommander(deck.id, slot: 1);
       final d = (await _deckService.loadDecks()).where((d) => d.id == deck.id).first;
       state = state.copyWith(currentDeck: d);
+      _computePowerLevel();
       return const DeckDetailActionResult(message: 'Retire du slot Commandant.');
     }
     if (deckCard.scryfallId == deck.commanderSecondaryScryfallId) {
       await _deckService.unsetCommander(deck.id, slot: 2);
       final d = (await _deckService.loadDecks()).where((d) => d.id == deck.id).first;
       state = state.copyWith(currentDeck: d);
+      _computePowerLevel();
       return const DeckDetailActionResult(message: 'Retire du slot Partenaire.');
     }
 

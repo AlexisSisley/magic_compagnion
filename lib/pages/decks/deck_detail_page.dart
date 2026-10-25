@@ -20,6 +20,8 @@ import '../../widgets/decks/deck_suggestions_tab.dart';
 import '../../widgets/decks/deck_card_list_tab.dart';
 import '../../widgets/decks/deck_financial_sheet.dart';
 import '../../widgets/decks/deck_card_picker.dart';
+import '../../widgets/decks/deck_commander_header.dart';
+import '../../utils/deck_metrics.dart';
 // IMPORT DU NOUVEAU WIDGET
 import '../../widgets/decks/deck_visual_share_list.dart';
 import '../../widgets/decks/deck_tokens_tab.dart';
@@ -373,14 +375,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        toolbarHeight: 75,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(deck.name, style: AppTextStyles.appBarTitle()),
-            Text('${deckState.mainCount} cartes \u2022 ${deck.format}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          ],
-        ),
+        toolbarHeight: 56,
         backgroundColor: AppColors.textOnPrimary,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(58),
@@ -444,7 +439,14 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
           ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary))
           : Column(
               children: [
-                _buildCommanderHeader(deckState),
+                DeckCommanderHeader(
+                  deck: deck,
+                  fullCardData: deckState.fullCardData,
+                  cardCount: deckState.mainCount,
+                  averageManaValue: averageManaValue(deck.mainboard, deckState.fullCardData),
+                  powerLevel: deckState.powerLevel,
+                  totalPrice: deckState.totalDeckPrice,
+                ),
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
@@ -534,83 +536,6 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                 ),
               ],
             ),
-    );
-  }
-
-  Widget _buildCommanderHeader(DeckDetailState deckState) {
-    final deck = deckState.currentDeck;
-    final c1Id = deck.commanderScryfallId;
-    final c2Id = deck.commanderSecondaryScryfallId;
-
-    if (c1Id == null && c2Id == null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        color: AppColors.overlayDark,
-        child: const Text('Aucun Commandant defini', style: TextStyle(color: AppColors.textMuted, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: AppColors.textOnPrimary,
-        border: Border(bottom: BorderSide(color: AppColors.primaryShade900, width: 2)),
-        image: const DecorationImage(image: AssetImage('assets/images/background_texture_black.png'), fit: BoxFit.cover, opacity: 0.5),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (c1Id != null) _buildSingleCommander(deckState, c1Id, 'Commander'),
-          if (c1Id != null && c2Id != null)
-             Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Icon(Icons.add, color: AppColors.primaryShade700)),
-          if (c2Id != null) _buildSingleCommander(deckState, c2Id, 'Partenaire'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSingleCommander(DeckDetailState deckState, String id, String label) {
-    String? imageUrl;
-    String name = 'Chargement...';
-    final card = deckState.fullCardData.where((c) => c.id == id).firstOrNull;
-    if (card != null) {
-      imageUrl = card.artCropUrl ?? card.imageUrl;
-      name = card.name;
-    }
-
-    return Expanded(
-      child: Column(
-        children: [
-          Text(label, style: const TextStyle(color: AppColors.accentOrange, fontSize: 10, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              height: 60,
-              width: double.infinity,
-              color: AppColors.greyShade900,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (imageUrl != null && imageUrl.isNotEmpty)
-                    Image.network(imageUrl, fit: BoxFit.cover, alignment: Alignment.topCenter,
-                      errorBuilder: (c, e, s) => const SizedBox()),
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [AppColors.transparent, AppColors.overlayVeryDark]),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 4, left: 4, right: 4,
-                    child: Text(name, style: AppTextStyles.bold(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

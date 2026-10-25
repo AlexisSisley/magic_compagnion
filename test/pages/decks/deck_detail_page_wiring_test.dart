@@ -16,6 +16,7 @@ import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/deck_service.dart';
 import 'package:magic_companion/services/deck_view_prefs.dart';
 import 'package:magic_companion/services/scryfall_api_service.dart';
+import 'package:magic_companion/theme/app_theme.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
 
 /// Scryfall muet : aucune carte n'est résolue, la page s'ouvre sur ce que la
@@ -63,7 +64,7 @@ void main() {
           appDatabaseProvider.overrideWithValue(db),
           scryfallApiServiceProvider.overrideWithValue(_SilentApi()),
         ],
-        child: MaterialApp(home: DeckDetailPage(deck: deck)),
+        child: MaterialApp(theme: buildAppTheme(), home: DeckDetailPage(deck: deck)),
       ),
     );
     // Laisse le contrôleur finir son chargement (base en mémoire).

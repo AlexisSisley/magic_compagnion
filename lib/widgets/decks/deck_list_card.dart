@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/magic_palette.dart';
 import '../cards/scryfall_image.dart';
+import 'mana_pips.dart';
 
 /// Paliers du dégradé de pied (exposés pour le test de lisibilité).
 const List<double> deckCardGradientStops = [0.0, 0.25, 1.0];
@@ -50,30 +51,11 @@ class DeckListCard extends StatelessWidget {
   ];
   static const double _pipSize = 13;
 
-  /// Les pastilles utilisent les couleurs de mana de la charte et non les SVG
-  /// de Scryfall : la tuile doit rester rendable hors ligne et en test.
-  static Color _manaColor(String symbol) {
-    switch (symbol.toUpperCase()) {
-      case 'W':
-        return AppColors.manaWhite;
-      case 'U':
-        return AppColors.manaBlue;
-      case 'B':
-        return AppColors.manaBlack;
-      case 'R':
-        return AppColors.manaRed;
-      case 'G':
-        return AppColors.manaGreen;
-      default:
-        return AppColors.manaColorless;
-    }
-  }
-
   /// Prix arrondi à l'euro ; « — » quand il est inconnu (0 ou absent), pour
   /// ne pas afficher un « 0 € » qui passerait pour un deck gratuit.
   /// `PriceHelper` ne propose que des formats à deux décimales, d'où ce
   /// formatage local.
-  static String _formatPrice(double price) =>
+  static String formatPrice(double price) =>
       price > 0 ? '${price.round()} €' : '—';
 
   /// Fond neutre quand l'art manque (pas de commandant, ou image qui ne
@@ -200,27 +182,7 @@ class DeckListCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          SizedBox(
-                            height: _pipSize,
-                            child: Row(
-                              children: [
-                                for (final (i, c) in deck.colors.indexed)
-                                  Container(
-                                    key: ValueKey('deck-color-pip-$i'),
-                                    width: _pipSize,
-                                    height: _pipSize,
-                                    margin: const EdgeInsets.only(right: 4),
-                                    decoration: BoxDecoration(
-                                      color: _manaColor(c),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: AppColors.borderSubtle,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
+                          ManaPips(colors: deck.colors, size: _pipSize),
                           const SizedBox(height: 4),
                           Text.rich(
                             TextSpan(
@@ -234,7 +196,7 @@ class DeckListCard extends StatelessWidget {
                                   ).copyWith(shadows: _textShadows),
                                 ),
                                 TextSpan(
-                                  text: _formatPrice(totalPrice),
+                                  text: formatPrice(totalPrice),
                                   style: AppTextStyles.bold(
                                     color: AppColors.primary,
                                     fontSize: 12,
