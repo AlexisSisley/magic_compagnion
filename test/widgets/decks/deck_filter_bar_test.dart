@@ -264,5 +264,38 @@ void main() {
         },
       );
     }
+
+    testWidgets(
+      'un tag de 60 caractères à 390 ne déborde pas, la croix reste atteignable',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        await tester.pumpWidget(
+          bar(
+            width: 390,
+            criteria: DeckFilterCriteria(tags: ['x' * 60]),
+            activeCount: 1,
+          ),
+        );
+        final clear = find.byKey(const ValueKey('deck-filter-clear-tags'));
+        expect(tester.takeException(), isNull);
+        expect(clear.hitTestable(), findsOneWidget);
+        expect(tester.getRect(clear).right, lessThanOrEqualTo(390));
+      },
+    );
+  });
+
+  testWidgets('la barre est alignée sur la marge de 20 de la grille', (
+    tester,
+  ) async {
+    await tester.pumpWidget(bar(width: 390));
+    final filters = tester.getRect(
+      find.byKey(const ValueKey('deck-filter-open')),
+    );
+    expect(filters.left, 20);
   });
 }

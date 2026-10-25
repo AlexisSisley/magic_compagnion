@@ -16,6 +16,12 @@ enum DeckFilterKind { format, identity, tags, price }
 const double _hitHeight = 48;
 const double _pillHeight = 32;
 
+/// Largeur maximale d'une puce de filtre actif.
+const double _chipMaxWidth = 240;
+
+/// Marge laterale de la barre : la meme que celle de la grille de decks.
+const double _sideMargin = 20;
+
 /// Largeur a partir de laquelle les puces tiennent entre Filtres et le tri.
 const double _inlineMinWidth = 600;
 
@@ -99,7 +105,7 @@ class DeckFilterBar extends StatelessWidget {
     final sort = _SortPill(sort: criteria.sort, onSort: onSort);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: _sideMargin),
       child: LayoutBuilder(
         builder: (context, constraints) {
           // Etroit : Filtres et tri se partagent la premiere ligne, les puces
@@ -250,38 +256,51 @@ class _ActiveChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _PillFrame(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 12),
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13,
+    // Plafonnee : un nom de dossier long ne doit ni deborder de la ligne ni
+    // repousser la croix hors de l'ecran. Le texte s'abrege, la croix reste.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: _chipMaxWidth),
+      child: _PillFrame(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                  ),
+                ),
               ),
             ),
-          ),
-          // La croix garde une cible de 48 x 48 : elle deborde de la pilule
-          // dessinee mais pas de la zone de 48 de la ligne.
-          InkWell(
-            key: ValueKey('deck-filter-clear-${kind.name}'),
-            onTap: () => onClear(kind),
-            customBorder: const CircleBorder(),
-            child: Semantics(
-              button: true,
-              label: 'Retirer le filtre $label',
-              excludeSemantics: true,
-              child: const SizedBox(
-                width: _hitHeight,
-                height: _hitHeight,
-                child: Icon(Icons.close, size: 16, color: AppColors.textMuted),
+            // La croix garde une cible de 48 x 48 : elle deborde de la pilule
+            // dessinee mais pas de la zone de 48 de la ligne.
+            InkWell(
+              key: ValueKey('deck-filter-clear-${kind.name}'),
+              onTap: () => onClear(kind),
+              customBorder: const CircleBorder(),
+              child: Semantics(
+                button: true,
+                label: 'Retirer le filtre $label',
+                excludeSemantics: true,
+                child: const SizedBox(
+                  width: _hitHeight,
+                  height: _hitHeight,
+                  child: Icon(
+                    Icons.close,
+                    size: 16,
+                    color: AppColors.textMuted,
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

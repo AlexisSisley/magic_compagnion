@@ -259,7 +259,13 @@ void main() {
       await tester.tap(button);
       await tester.pumpAndSettle();
     });
-    expect(find.text('Identite Couleur'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(DraggableScrollableSheet),
+        matching: find.text('Identité couleur'),
+      ),
+      findsOneWidget,
+    );
 
     // Première entrée de la liste : visible sans défilement.
     expect(find.text('Blanc'), findsOneWidget);

@@ -158,9 +158,11 @@ class _DeckTagsSheetState extends State<DeckTagsSheet> {
                     controller: _input,
                     style: const TextStyle(color: AppColors.textPrimary),
                     textInputAction: TextInputAction.done,
+                    maxLength: 30,
                     onSubmitted: (_) => _add(),
                     decoration: const InputDecoration(
                       labelText: 'Nouveau dossier',
+                      counterText: '',
                       filled: true,
                       fillColor: AppColors.overlayMedium,
                     ),

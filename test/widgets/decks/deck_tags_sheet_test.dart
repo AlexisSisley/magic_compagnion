@@ -63,6 +63,14 @@ void main() {
     expect(result, ['cEDH']);
   });
 
+  testWidgets('un nom de dossier est limité à 30 caractères', (tester) async {
+    List<String>? result;
+    await openSheet(tester, (r) => result = r);
+    await addTag(tester, 'x' * 60);
+    await save(tester);
+    expect(result, ['x' * 30]);
+  });
+
   testWidgets('le texte est rogné', (tester) async {
     List<String>? result;
     await openSheet(tester, (r) => result = r);
