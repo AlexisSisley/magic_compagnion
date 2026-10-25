@@ -509,7 +509,7 @@ Random text here
       final deck = controller.state.decks.firstWhere((d) => d.name == 'Deck Tags');
       final sol = deck.mainboard.firstWhere((c) => c.name == 'Sol Ring');
       final tower = deck.mainboard.firstWhere((c) => c.name == 'Command Tower');
-      expect(sol.tags, ['ramp', 'Combo']);
+      expect(sol.tags, ['Ramp', 'Combo']);
       expect(sol.tagsEdited, isTrue);
       expect(tower.tags, isEmpty);
       expect(tower.tagsEdited, isFalse);

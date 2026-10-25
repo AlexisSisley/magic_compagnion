@@ -51,9 +51,10 @@ INSERT INTO deck_cards (deck_id, board, scryfall_id, name, quantity, proxy_quant
         (c) => c.scryfallId == id,
       );
 
-  test('(a) une catégorie de rôle devient le tag principal', () async {
+  test('(a) une catégorie de rôle non verrouillée n\'écrit aucun tag',
+      () async {
     final a = await row('a');
-    expect(AppDatabase.decodeTags(a.tags), ['Removal']);
+    expect(AppDatabase.decodeTags(a.tags), isEmpty);
     expect(a.tagsEdited, isFalse);
     expect(a.quantity, 2);
     expect(a.proxyQuantity, 1);

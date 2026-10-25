@@ -14,6 +14,8 @@ import '../providers/preferred_language_provider.dart';
 import '../providers/service_providers.dart';
 import '../utils/price_helper.dart';
 import '../services/card_resolver.dart';
+import '../services/card_tag_catalog.dart';
+import '../utils/card_tag_edit.dart';
 import '../services/collection_service.dart';
 import '../services/deck_format_service.dart';
 import '../services/deck_service.dart';
@@ -373,9 +375,10 @@ class DeckListController extends StateNotifier<DeckListState> {
     // bulk local (oracle-cards.json) est fige a la date de build de l'app et
     // ignorerait silencieusement toute carte plus recente.
     final Set<String> deckColors = {};
+    final tagCatalog = await CardTagCatalog(_db).load();
 
     DeckCard toDeckCard(DecklistEntry entry) {
-      final tags = _importedTags(parseResult.cardTags[entry.name]);
+      final tags = _importedTags(parseResult.cardTags[entry.name], tagCatalog);
       final print = _consumePrint(printsByKey, entry);
       if (print != null) {
         deckColors.addAll(print.colorIdentity);
@@ -492,8 +495,9 @@ class DeckListController extends StateNotifier<DeckListState> {
       // necessaire.
       final parId = {for (final p in resolution.resolved) p.scryfallId: p};
 
+      final tagCatalog = await CardTagCatalog(_db).load();
       DeckCard toDeckCard(MoxfieldCardLine l) {
-        final tags = _importedTags(data.authorTags[l.name]);
+        final tags = _importedTags(data.authorTags[l.name], tagCatalog);
         return DeckCard(
           scryfallId: parId[l.scryfallId]?.scryfallId ?? 'LOCAL:${l.name}',
           name: l.name,
@@ -587,12 +591,12 @@ class DeckListController extends StateNotifier<DeckListState> {
   // --- HELPERS ---
 
   /// Tags importes d'une carte : noms normalises, sans doublon a la casse
-  /// pres, ordre conserve (le premier est le tag principal).
-  List<String> _importedTags(List<String>? raw) {
-    final tags = <String>[];
+  /// pres, ordre conserve (le premier est le tag principal). Un nom du
+  /// catalogue prend son orthographe.
+  List<String> _importedTags(List<String>? raw, List<CardTagDef> catalog) {
+    var tags = <String>[];
     for (final r in raw ?? const <String>[]) {
-      final name = normalizeTagName(r);
-      if (name != null && !tags.any((t) => sameTag(t, name))) tags.add(name);
+      tags = addTag(tags, r, catalog);
     }
     return tags;
   }

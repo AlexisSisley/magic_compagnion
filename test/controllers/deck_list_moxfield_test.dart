@@ -170,7 +170,7 @@ void main() {
       addTearDown(db.close);
       final json = _deckJson()
         ..['authorTags'] = {
-          'Wurmcoil Engine': ['Ramp', 'ramp', ' Win-con '],
+          'Wurmcoil Engine': ['ramp', 'Ramp', ' win-con '],
         };
       final controller = _buildController(
         moxfieldDio: _mockDio((_) => json),

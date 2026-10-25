@@ -870,5 +870,28 @@ void main() {
         const Size(10, 10),
       );
     });
+
+    testWidgets('un tag utilisateur nommé Sans tag a sa propre section '
+        'colorée, distincte des cartes sans tag', (tester) async {
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [
+            dc('a', tags: ['Sans tag']),
+            dc('b'),
+          ],
+          db,
+          tagCatalog: const [CardTagDef(name: 'Sans tag', color: 0xFF112233)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final dots = tester
+          .widgetList<Container>(find.byKey(const ValueKey('tag-header-dot')))
+          .toList();
+      final colors = dots.map((d) => (d.decoration as BoxDecoration).color);
+      // Section du tag (couleur du catalogue), puis cartes sans tag (neutre).
+      expect(colors, [const Color(0xFF112233), AppColors.textMuted]);
+      expect(find.text('SANS TAG'), findsNWidgets(2));
+    });
   });
 }

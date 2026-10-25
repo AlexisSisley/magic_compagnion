@@ -276,7 +276,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
             width: 10,
             height: 10,
             decoration: BoxDecoration(
-              color: group.title == 'Sans tag'
+              color: group.isUntagged
                   ? AppColors.textMuted
                   : cardTagColor(group.title, widget.tagCatalog),
               shape: BoxShape.circle,
@@ -610,9 +610,12 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
       titles.putIfAbsent(key, () => tag);
       byKey.putIfAbsent(key, () => []).add(c);
     }
-    _GroupedCardList section(String title, List<DeckCard> cards) =>
+    _GroupedCardList section(String title, List<DeckCard> cards,
+            {bool isUntagged = false}) =>
         _GroupedCardList(
-            title: title, cards: sortByManaValue(cards, widget.fullCardData));
+            title: title,
+            cards: sortByManaValue(cards, widget.fullCardData),
+            isUntagged: isUntagged);
     final catalogKeys = catalog.map((t) => t.name.toLowerCase()).toSet();
     final deckKeys = byKey.keys.where((k) => !catalogKeys.contains(k)).toList()
       ..sort();
@@ -621,7 +624,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
         if (byKey[def.name.toLowerCase()] case final cards?)
           section(def.name, cards),
       for (final key in deckKeys) section(titles[key]!, byKey[key]!),
-      if (untagged.isNotEmpty) section('Sans tag', untagged),
+      if (untagged.isNotEmpty) section('Sans tag', untagged, isUntagged: true),
     ];
   }
 
@@ -637,4 +640,10 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
   }
 }
 
-class _GroupedCardList { final String title; final List<DeckCard> cards; _GroupedCardList({required this.title, required this.cards}); }
+class _GroupedCardList {
+  final String title;
+  final List<DeckCard> cards;
+  /// Section des cartes sans tag (et non un tag utilisateur du même nom).
+  final bool isUntagged;
+  _GroupedCardList({required this.title, required this.cards, this.isUntagged = false});
+}

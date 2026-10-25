@@ -571,6 +571,26 @@ Sideboard
       expect(parsed.cardTags['Sol Ring'], ['Ramp', 'Combo']);
     });
 
+    test('un tag contenant un guillemet fait l\'aller-retour CSV', () {
+      final deck = Deck(
+        id: 'rt-quote',
+        name: 'Quote',
+        format: 'Commander',
+        mainboard: [
+          DeckCard(
+              scryfallId: 'a',
+              name: 'Sol Ring',
+              quantity: 1,
+              tags: ['Le "bon" choix', 'Combo']),
+        ],
+      );
+
+      final csv = DeckFormatService.exportToCsv(deck);
+      final parsed = DeckFormatService.autoDetectAndParse(csv);
+
+      expect(parsed.cardTags['Sol Ring'], ['Le "bon" choix', 'Combo']);
+    });
+
     test('archidekt section categories are not tags', () {
       const input = '''Quantity,Name,Categories
 1,Sol Ring,"Ramp, commander, SIDEBOARD, Maybeboard"

@@ -206,7 +206,7 @@ class _CardTagsSheetState extends ConsumerState<CardTagsSheet> {
                     },
                     style: FilledButton.styleFrom(
                       minimumSize: const Size(48, 48),
-                      backgroundColor: AppColors.primaryShade800,
+                      backgroundColor: AppColors.primaryGold,
                       // Le thème colore le texte des boutons en lilas : sur
                       // l'or, seul le noir de la charte est lisible.
                       foregroundColor: AppColors.textOnPrimary,

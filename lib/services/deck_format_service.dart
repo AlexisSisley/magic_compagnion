@@ -240,7 +240,7 @@ class DeckFormatService {
 
       // Tags depuis Archidekt categories
       if (categoriesIdx != -1 && cols.length > categoriesIdx) {
-        final rawCategories = cols[categoriesIdx].trim().replaceAll('"', '');
+        final rawCategories = cols[categoriesIdx].trim();
         if (rawCategories.isNotEmpty) {
           // `,` (Archidekt) et `;` (notre propre export) separent les tags ;
           // les noms de section qu'Archidekt range parmi les categories n'en
@@ -355,7 +355,7 @@ class DeckFormatService {
 
     void writeCards(List<DeckCard> cards, String section) {
       for (final card in cards) {
-        final tagsStr = card.tags.join(';');
+        final tagsStr = card.tags.join(';').replaceAll('"', '""');
         final escapedName = card.name.contains(',') || card.name.contains('"')
             ? '"${card.name.replaceAll('"', '""')}"'
             : card.name;

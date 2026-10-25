@@ -85,16 +85,21 @@ const Set<String> _legacyCategoryKeys = {
   'wincon',
 };
 
-/// Tags d'une carte d'avant la 1.13, depuis son ancienne catégorie : le libellé
-/// par défaut du rôle passe en tête (tag principal), sauf si la carte le porte
-/// déjà à la casse près. [locked] ne change pas les tags : il devient
-/// `tagsEdited`, que l'appelant pose lui-même.
+/// Tags d'une carte d'avant la 1.13, depuis son ancienne catégorie. Seule une
+/// catégorie de rôle VERROUILLÉE (choix explicite de l'utilisateur) devient un
+/// tag : son libellé par défaut passe en tête (tag principal), sauf si la carte
+/// le porte déjà à la casse près. Une catégorie non verrouillée n'était qu'une
+/// suggestion : elle n'écrit rien, pour que la suggestion multi-rôles puisse
+/// s'appliquer à l'ouverture du deck. [locked] devient aussi `tagsEdited`, que
+/// l'appelant pose lui-même.
 List<String> legacyCategoryTags(
   String? category,
   bool locked,
   List<String> tags,
 ) {
-  if (category == null || !_legacyCategoryKeys.contains(category)) return tags;
+  if (!locked || category == null || !_legacyCategoryKeys.contains(category)) {
+    return tags;
+  }
   final label = kDefaultCardTags.firstWhere((t) => t.key == category).name;
   if (tags.any((t) => sameTag(t, label))) return tags;
   return [label, ...tags];

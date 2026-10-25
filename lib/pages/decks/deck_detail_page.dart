@@ -66,13 +66,11 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
 
   // --- UI-ONLY METHODS (dialogs, snackbars, navigation) ---
 
-  /// Ouvre la gestion du catalogue ; au retour, recharge le deck pour que les
-  /// tags renommés ou supprimés se reflètent dans les en-têtes.
-  Future<void> _manageTags() async {
-    await context.push(AppRoutes.cardTags);
-    if (!mounted) return;
-    await _ctrl.refreshAfterTagChanges();
-  }
+  /// Ouvre la gestion du catalogue. Le rechargement du deck après un
+  /// renommage ou une suppression est fait par l'écoute du catalogue dans
+  /// [build] : la page reste montée dans la branche Decks, y compris quand
+  /// la gestion est ouverte depuis les Paramètres.
+  Future<void> _manageTags() => context.push(AppRoutes.cardTags);
 
   Future<void> _handleUpdateQuantity(DeckCard card, int change, DeckBoard board) async {
     final result = await _ctrl.updateQuantity(card, change, board);
@@ -388,6 +386,12 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
   Widget build(BuildContext context) {
     final deckState = ref.watch(deckDetailControllerProvider(widget.deck));
     final deck = deckState.currentDeck;
+    // Un renommage ou une suppression de tag réécrit les cartes en base : les
+    // copies gardées en mémoire par la page sont périmées. Le premier
+    // chargement du catalogue (prev vide) ne change aucune carte.
+    ref.listen(cardTagCatalogProvider, (prev, next) {
+      if (prev != null && prev.isNotEmpty) _ctrl.refreshAfterTagChanges();
+    });
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,

@@ -6,6 +6,7 @@ import 'package:magic_companion/controllers/card_tag_catalog_controller.dart';
 import 'package:magic_companion/data/database/app_database.dart';
 import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/providers/service_providers.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/widgets/decks/card_tags_sheet.dart';
 
 void main() {
@@ -214,6 +215,17 @@ void main() {
     );
     final fg = button.style!.foregroundColor!.resolve({})!;
     expect(fg.computeLuminance(), lessThan(0.2));
+  });
+
+  testWidgets('Enregistrer est sur fond or, comme Nouveau tag', (tester) async {
+    await open(tester);
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Enregistrer'),
+    );
+    expect(
+      button.style!.backgroundColor!.resolve({}),
+      AppColors.primaryGold,
+    );
   });
 
   testWidgets('étoile et croix font au moins 48 px', (tester) async {

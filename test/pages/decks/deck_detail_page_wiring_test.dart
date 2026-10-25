@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:magic_companion/data/database/app_database.dart';
+import 'package:magic_companion/controllers/card_tag_catalog_controller.dart';
 import 'package:magic_companion/pages/decks/deck_detail_page.dart';
 import 'package:magic_companion/pages/settings/card_tags_page.dart';
 import 'package:magic_companion/router/app_routes.dart';
@@ -283,6 +284,37 @@ void main() {
     for (var i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
+    expect(find.text('CARTES'), findsOneWidget);
+    expect(find.text('PIOCHE'), findsNothing);
+  });
+
+  testWidgets('un renommage du catalogue fait hors du menu du deck gagne '
+      'quand même les en-têtes (page restée montée)', (tester) async {
+    await db.setDeckCardTags(
+      deckId: 'd1',
+      board: 'main',
+      scryfallId: 'main-card',
+      tags: ['Pioche'],
+      tagsEdited: true,
+    );
+    await saveDeckViewPrefs(
+      db,
+      'd1',
+      const DeckViewPrefs(grouping: DeckGrouping.tag),
+    );
+    await openPage(tester);
+    expect(find.text('PIOCHE'), findsOneWidget);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(DeckDetailPage)),
+    );
+    await container
+        .read(cardTagCatalogProvider.notifier)
+        .rename('Pioche', 'Cartes');
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
     expect(find.text('CARTES'), findsOneWidget);
     expect(find.text('PIOCHE'), findsNothing);
   });
