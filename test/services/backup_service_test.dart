@@ -191,6 +191,37 @@ void main() {
       expect(await db.getSetting('autre_reglage'), 'garde');
     });
 
+    test('backup exports and restores the tag catalog', () async {
+      final custom = [
+        {'key': 'draw', 'name': 'Ma pioche', 'color': 0xFF42A5F5},
+        {'key': null, 'name': 'Perso', 'color': 0xFF123456},
+      ];
+      await db.setSetting('card_tags:universal', json.encode(custom));
+      final svc = BackupService(database: db);
+
+      final sauvegarde = await svc.generateBackupJson();
+      expect((json.decode(sauvegarde) as Map)['card_tags_universal'], custom);
+
+      await db.setSetting('card_tags:universal', '[]');
+      await svc.restoreFromJson(sauvegarde);
+
+      expect(json.decode((await db.getSetting('card_tags:universal'))!), custom);
+    });
+
+    test('old backup without catalog keeps current catalog', () async {
+      await db.setSetting('card_tags:universal', '[{"key":null,"name":"Garde","color":1}]');
+      final svc = BackupService(database: db);
+
+      await svc.restoreFromJson(json.encode({'user_decks': []}));
+
+      expect(
+        json.decode((await db.getSetting('card_tags:universal'))!),
+        [
+          {'key': null, 'name': 'Garde', 'color': 1},
+        ],
+      );
+    });
+
     test('une sauvegarde ancienne sans ces cles importe avec [] et null', () async {
       final svc = BackupService(database: db);
       await svc.restoreFromJson(json.encode({

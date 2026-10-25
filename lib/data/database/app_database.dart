@@ -874,6 +874,32 @@ class AppDatabase extends _$AppDatabase {
     await (delete(playerConfigCommanders)..where((c) => c.playerConfigId.equals(configId))).go();
   }
 
+  /// Parcourt les tags de toutes les cartes de tous les decks. [rewrite] reçoit
+  /// les tags d'une ligne et rend les nouveaux, ou nul pour la laisser telle
+  /// quelle. Les lignes modifiées sont réécrites dans une seule transaction
+  /// (clé d'une ligne : deckId, board, scryfallId) ; rend leur nombre.
+  /// N'avance pas Deck.updatedAt.
+  Future<int> rewriteAllDeckCardTags(
+    List<String>? Function(List<String> tags) rewrite,
+  ) {
+    return transaction(() async {
+      final rows = await select(deckCards).get();
+      var touched = 0;
+      for (final row in rows) {
+        final next = rewrite(decodeTags(row.tags));
+        if (next == null) continue;
+        await (update(deckCards)
+              ..where((c) =>
+                  c.deckId.equals(row.deckId) &
+                  c.board.equals(row.board) &
+                  c.scryfallId.equals(row.scryfallId)))
+            .write(DeckCardsCompanion(tags: Value(json.encode(next))));
+        touched++;
+      }
+      return touched;
+    });
+  }
+
   // ============================================================
   // HELPERS
   // ============================================================

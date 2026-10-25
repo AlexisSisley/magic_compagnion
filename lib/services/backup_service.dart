@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../data/database/app_database.dart';
 import '../models/card_category.dart';
+import 'card_tag_catalog.dart';
 import 'deck_view_prefs.dart';
 
 class BackupService {
@@ -23,6 +24,9 @@ class BackupService {
     'playerCount',  // C'est un int
     'startingLife'  // C'est un int
   ];
+
+  static const String _tagCatalogBackupKey = 'card_tags_universal';
+  static const String _tagCatalogSettingKey = CardTagCatalog.settingKey;
 
   final AppDatabase? _db;
 
@@ -144,6 +148,17 @@ class BackupService {
 
     final startingLife = await _db.getSettingInt('startingLife');
     if (startingLife != null) backupData['startingLife'] = startingLife;
+
+    // Catalogue des tags universels (absent tant qu'il n'a jamais été écrit)
+    final tagCatalog = await _db.getSetting(_tagCatalogSettingKey);
+    if (tagCatalog != null) {
+      try {
+        final decoded = json.decode(tagCatalog);
+        if (decoded is List) backupData[_tagCatalogBackupKey] = decoded;
+      } on FormatException {
+        // catalogue illisible : il sera recréé par défaut, on ne l'exporte pas
+      }
+    }
 
     backupData['backup_date'] = DateTime.now().toIso8601String();
     backupData['app_version'] = '1.0.0';
@@ -312,6 +327,13 @@ class BackupService {
     }
     if (data.containsKey('startingLife') && data['startingLife'] is int) {
       await _db.setSettingInt('startingLife', data['startingLife'] as int);
+    }
+    // Une sauvegarde ancienne sans catalogue laisse le catalogue courant.
+    if (data[_tagCatalogBackupKey] is List) {
+      await _db.setSetting(
+        _tagCatalogSettingKey,
+        json.encode(data[_tagCatalogBackupKey]),
+      );
     }
   }
 
