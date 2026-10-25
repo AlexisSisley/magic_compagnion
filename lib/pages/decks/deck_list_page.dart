@@ -11,6 +11,7 @@ import '../../controllers/deck_list_filters.dart';
 import '../../models/deck_model.dart';
 import '../../router/app_router.dart';
 import '../../widgets/decks/deck_import_modal.dart';
+import '../../widgets/decks/deck_library_grid.dart';
 import '../../widgets/decks/deck_list_card.dart';
 
 class DeckListPage extends ConsumerStatefulWidget {
@@ -97,7 +98,11 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(deckListControllerProvider);
 
-    return Stack(
+    // Fond opaque : le shell peint sa texture derrière tous les onglets, et la
+    // grille d'art ne doit pas la laisser transparaître entre les tuiles.
+    return ColoredBox(
+      color: AppColors.scaffoldBackground,
+      child: Stack(
       children: [
         NestedScrollView(
           headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
@@ -193,11 +198,12 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
                   // Liste
                   SliverPadding(
                     padding: const EdgeInsets.only(bottom: 80),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _buildDeckCard(state.filteredDecks[index], state),
-                        childCount: state.filteredDecks.length,
-                      ),
+                    sliver: DeckLibraryGrid(
+                      decks: state.filteredDecks,
+                      prices: state.deckPrices,
+                      activeFilters: activeFilterCount(state.criteria),
+                      onClearFilters: _controller.clearAllFilters,
+                      tileBuilder: (deck) => _buildDeckCard(deck, state),
                     ),
                   ),
                 ],
@@ -221,6 +227,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
           ),
         ),
       ],
+      ),
     );
   }
 
@@ -371,9 +378,8 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
   }
 
   Widget _buildDeckCard(Deck deck, DeckListState state) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-      child: DeckListCard(
+    // Pas de marge ici : la grille porte marges et gouttières.
+    return DeckListCard(
         deck: deck,
         totalPrice: state.deckPrices[deck.id] ?? 0.0,
         onTap: () async {
@@ -392,7 +398,6 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
           ),
         ),
         onDismissed: () => _deleteDeck(deck.id),
-      ),
     );
   }
 

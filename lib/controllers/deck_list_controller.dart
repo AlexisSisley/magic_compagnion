@@ -67,6 +67,17 @@ class DeckListState {
     this.priceRange,
   });
 
+  /// Critères courants, assemblés à un seul endroit : le filtrage et le
+  /// compteur de filtres actifs lisent la même source.
+  DeckFilterCriteria get criteria => DeckFilterCriteria(
+        query: searchQuery,
+        format: selectedFormat,
+        identityColors: selectedIdentityColors,
+        tags: selectedTags,
+        priceRange: priceRange,
+        sort: selectedSort,
+      );
+
   DeckListState copyWith({
     List<Deck>? decks,
     List<Deck>? filteredDecks,
@@ -268,18 +279,8 @@ class DeckListController extends StateNotifier<DeckListState> {
   }
 
   void _applyFilters() {
-    final filtered = applyDeckFilters(
-      state.decks,
-      state.deckPrices,
-      DeckFilterCriteria(
-        query: state.searchQuery,
-        format: state.selectedFormat,
-        identityColors: state.selectedIdentityColors,
-        tags: state.selectedTags,
-        priceRange: state.priceRange,
-        sort: state.selectedSort,
-      ),
-    );
+    final filtered =
+        applyDeckFilters(state.decks, state.deckPrices, state.criteria);
     state = state.copyWith(filteredDecks: filtered);
   }
 
