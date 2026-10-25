@@ -9,6 +9,10 @@ import '../../theme/app_text_styles.dart';
 import '../../theme/magic_palette.dart';
 import '../cards/scryfall_image.dart';
 
+/// Paliers du dégradé de pied (exposés pour le test de lisibilité).
+const List<double> deckCardGradientStops = [0.0, 0.25, 1.0];
+const List<double> deckCardGradientAlphas = [0.0, 0.6, 0.9];
+
 /// Tuile 16:9 d'un deck : l'art du commandant occupe tout le fond, le pied
 /// (nom, couleurs, compte et prix) repose sur un dégradé sombre.
 ///
@@ -35,6 +39,13 @@ class DeckListCard extends StatelessWidget {
   });
 
   static const double _radius = 8;
+
+  /// Ombre douce : filet de sécurité quand l'art est très clair malgré le
+  /// dégradé.
+  static final List<Shadow> _textShadows = [
+    Shadow(
+        color: AppColors.textOnPrimary.withValues(alpha: 0.7), blurRadius: 4),
+  ];
   static const double _pipSize = 13;
 
   /// Les pastilles utilisent les couleurs de mana de la charte et non les SVG
@@ -119,6 +130,10 @@ class DeckListCard extends StatelessWidget {
                   ),
                 ),
               // Dégradé de pied : le texte reste lisible sur n'importe quel art.
+              // Il est étagé et dimensionné par le bloc de texte (hauteur
+              // fixe), donc ses paliers tombent au même endroit par rapport au
+              // nom quelle que soit la largeur de la tuile : à 25 % de la
+              // hauteur, là où commence le nom, le fond est déjà à 60 %.
               Positioned(
                 left: 0,
                 right: 0,
@@ -128,9 +143,10 @@ class DeckListCard extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
+                      stops: deckCardGradientStops,
                       colors: [
-                        AppColors.textOnPrimary.withValues(alpha: 0),
-                        AppColors.textOnPrimary.withValues(alpha: 0.85),
+                        for (final a in deckCardGradientAlphas)
+                          AppColors.textOnPrimary.withValues(alpha: a),
                       ],
                     ),
                   ),
@@ -144,7 +160,8 @@ class DeckListCard extends StatelessWidget {
                           deck.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.sectionTitle(),
+                          style: AppTextStyles.sectionTitle()
+                              .copyWith(shadows: _textShadows),
                         ),
                         const SizedBox(height: 4),
                         SizedBox(
@@ -174,12 +191,15 @@ class DeckListCard extends StatelessWidget {
                               text:
                                   '$cardCount ${cardCount > 1 ? 'cartes' : 'carte'} · ',
                               style: AppTextStyles.text(
-                                  color: AppColors.textSecondary, fontSize: 12),
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12)
+                                  .copyWith(shadows: _textShadows),
                             ),
                             TextSpan(
                               text: _formatPrice(totalPrice),
                               style: AppTextStyles.bold(
-                                  color: AppColors.primary, fontSize: 12),
+                                      color: AppColors.primary, fontSize: 12)
+                                  .copyWith(shadows: _textShadows),
                             ),
                           ]),
                           maxLines: 1,

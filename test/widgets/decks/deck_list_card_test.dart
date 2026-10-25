@@ -152,4 +152,36 @@ void main() {
     await tester.longPress(find.byType(DeckListCard));
     expect(pressed, 1);
   });
+
+  testWidgets('le nom reste lisible : fond déjà sombre sous le nom et ombre portée',
+      (tester) async {
+    await pump(tester, host(card(deck(commander: 'abc-123'))));
+
+    final gradient = tester
+        .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+        .map((b) => b.decoration)
+        .whereType<BoxDecoration>()
+        .map((d) => d.gradient)
+        .whereType<LinearGradient>()
+        .single;
+    // Le nom commence à ~25 % de la hauteur du bloc : le fond y est déjà à 60 %.
+    final i = gradient.stops!.indexWhere((s) => s >= 0.25);
+    expect(gradient.colors[i].a, greaterThanOrEqualTo(0.6));
+    expect(gradient.colors.last.a, greaterThanOrEqualTo(0.85));
+
+    final name = tester.widget<Text>(find.text('Atraxa'));
+    expect(name.style!.shadows, isNotEmpty);
+  });
+
+  testWidgets('« 1 carte » au singulier, « 2 cartes » au pluriel',
+      (tester) async {
+    Deck withQty(int q) =>
+        deck(mainboard: [DeckCard(scryfallId: 'a', name: 'A', quantity: q)]);
+
+    await pump(tester, host(card(withQty(1))));
+    expect(find.textContaining('1 carte ·', findRichText: true), findsOneWidget);
+
+    await pump(tester, host(card(withQty(2))));
+    expect(find.textContaining('2 cartes', findRichText: true), findsOneWidget);
+  });
 }
