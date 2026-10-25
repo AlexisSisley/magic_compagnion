@@ -185,6 +185,9 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
       children: [
         // Barre d'outils de la liste
         Container(
+          // Pleine largeur : sans elle, le Container épouse son Wrap et la barre
+          // devient un îlot centré.
+          width: double.infinity,
           color: AppColors.overlayLight,
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
           child: Wrap(

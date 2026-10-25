@@ -121,6 +121,24 @@ void main() {
     expect(bar.labelColor, AppColors.primary);
   });
 
+  testWidgets('la barre d outils de la liste fait toute la largeur', (
+    tester,
+  ) async {
+    await openPage(tester);
+
+    final barre = find.ancestor(
+      of: find.text('1 cartes'),
+      matching: find.byWidgetPredicate(
+        (w) => w is Container && w.color == AppColors.overlayLight,
+      ),
+    );
+    expect(barre, findsOneWidget);
+    expect(
+      tester.getSize(barre).width,
+      tester.getSize(find.byType(DeckDetailPage)).width,
+    );
+  });
+
   testWidgets('Liste montre le sélecteur, le main par défaut', (tester) async {
     await openPage(tester);
 
