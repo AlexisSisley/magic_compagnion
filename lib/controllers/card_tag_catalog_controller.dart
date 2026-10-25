@@ -10,8 +10,13 @@ import '../services/card_tag_catalog.dart';
 class CardTagCatalogController extends StateNotifier<List<CardTagDef>> {
   final CardTagCatalog _catalog;
 
+  /// Chargement lancé par le constructeur : les écritures qui partent de
+  /// [state] (réordonner, recolorer) l'attendent, sinon elles sauveraient
+  /// une liste vide par-dessus le catalogue.
+  late final Future<void> _ready;
+
   CardTagCatalogController(this._catalog) : super(const []) {
-    load();
+    _ready = load();
   }
 
   Future<void> load() async {
@@ -40,6 +45,7 @@ class CardTagCatalogController extends StateNotifier<List<CardTagDef>> {
 
   /// [newIndex] suit la convention de `ReorderableListView.onReorder`.
   Future<void> reorder(int oldIndex, int newIndex) async {
+    await _ready;
     final list = List.of(state);
     if (oldIndex < 0 || oldIndex >= list.length) return;
     if (newIndex > oldIndex) newIndex -= 1;
@@ -49,6 +55,7 @@ class CardTagCatalogController extends StateNotifier<List<CardTagDef>> {
   }
 
   Future<void> setColor(String name, int color) async {
+    await _ready;
     final list = [
       for (final t in state) sameTag(t.name, name) ? t.copyWith(color: color) : t,
     ];

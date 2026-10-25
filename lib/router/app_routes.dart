@@ -52,6 +52,7 @@ class AppRoutes {
   static const String glossary = '/glossary';
   static const String turnGuide = '/glossary/turn-guide';
   static const String profiles = '/profiles';
+  static const String cardTags = '/settings/card-tags';
   static const String settings = '/settings';
 
   // Detail routes (push par-dessus le shell)

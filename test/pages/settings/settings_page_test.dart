@@ -7,8 +7,11 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:magic_companion/data/database/app_database.dart';
+import 'package:magic_companion/pages/settings/card_tags_page.dart';
 import 'package:magic_companion/pages/settings/settings_page.dart';
+import 'package:magic_companion/router/app_routes.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -86,5 +89,36 @@ void main() {
     await tester.pump();
 
     expect(find.text('Gestion des Profils'), findsOneWidget);
+  });
+
+  testWidgets('la tuile Tags de cartes ouvre la page de gestion', (
+    tester,
+  ) async {
+    surfaceHaute(tester);
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const SettingsPage()),
+        GoRoute(
+          path: AppRoutes.cardTags,
+          builder: (_, _) => const CardTagsPage(),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+        child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.text('Tags universels proposés dans tous les decks'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Tags de cartes'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CardTagsPage), findsOneWidget);
   });
 }

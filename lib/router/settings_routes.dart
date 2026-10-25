@@ -3,6 +3,7 @@
 
 import 'package:go_router/go_router.dart';
 
+import '../pages/settings/card_tags_page.dart';
 import '../pages/settings/profile_management_page.dart';
 import '../pages/settings/settings_page.dart';
 import 'app_routes.dart';
@@ -13,6 +14,10 @@ List<RouteBase> settingsRoutes() {
     GoRoute(
       path: AppRoutes.profiles,
       builder: (context, state) => const ProfileManagementPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.cardTags,
+      builder: (context, state) => const CardTagsPage(),
     ),
     GoRoute(
       path: AppRoutes.settings,

@@ -8,8 +8,11 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:magic_companion/data/database/app_database.dart';
 import 'package:magic_companion/pages/decks/deck_detail_page.dart';
+import 'package:magic_companion/pages/settings/card_tags_page.dart';
+import 'package:magic_companion/router/app_routes.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/deck_service.dart';
 import 'package:magic_companion/services/deck_view_prefs.dart';
@@ -205,5 +208,82 @@ void main() {
     await tester.tap(find.text('Tags…'));
     await tester.pumpAndSettle();
     expect(find.text('Suggestion auto'), findsNothing);
+  });
+
+  testWidgets('Gérer les tags ouvre la page, et un renommage gagne les '
+      'en-têtes du deck au retour', (tester) async {
+    // Police de test à chasse fixe : les libellés longs du menu ⋮ débordent
+    // de ses 256 px, ce qui n'arrive pas avec la vraie police. On écarte ce
+    // seul message ; toute autre erreur reste fatale.
+    final previous = FlutterError.onError;
+    FlutterError.onError = (details) {
+      if (details.exceptionAsString().contains('overflowed')) return;
+      previous?.call(details);
+    };
+    addTearDown(() => FlutterError.onError = previous);
+    await db.setDeckCardTags(
+      deckId: 'd1',
+      board: 'main',
+      scryfallId: 'main-card',
+      tags: ['Pioche'],
+      tagsEdited: true,
+    );
+    await saveDeckViewPrefs(
+      db,
+      'd1',
+      const DeckViewPrefs(grouping: DeckGrouping.tag),
+    );
+    final deck = (await DeckService(
+      database: db,
+    ).loadDecks()).firstWhere((d) => d.id == 'd1');
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => DeckDetailPage(deck: deck),
+        ),
+        GoRoute(
+          path: AppRoutes.cardTags,
+          builder: (_, _) => const CardTagsPage(),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          scryfallApiServiceProvider.overrideWithValue(_SilentApi()),
+        ],
+        child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
+      ),
+    );
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.text('PIOCHE'), findsOneWidget);
+
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gérer les tags'));
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.byType(CardTagsPage), findsOneWidget);
+
+    // Renomme Pioche (deuxième ligne).
+    await tester.tap(find.byTooltip('Renommer').at(1));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Cartes');
+    await tester.tap(find.text('Renommer').last);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    router.pop();
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.text('CARTES'), findsOneWidget);
+    expect(find.text('PIOCHE'), findsNothing);
   });
 }

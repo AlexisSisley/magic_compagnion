@@ -8,9 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../router/app_routes.dart';
 import '../../models/deck_model.dart';
 import '../../services/deck_service.dart';
 import '../../controllers/card_tag_catalog_controller.dart';
@@ -63,6 +65,14 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
       ref.read(deckDetailControllerProvider(widget.deck).notifier);
 
   // --- UI-ONLY METHODS (dialogs, snackbars, navigation) ---
+
+  /// Ouvre la gestion du catalogue ; au retour, recharge le deck pour que les
+  /// tags renommés ou supprimés se reflètent dans les en-têtes.
+  Future<void> _manageTags() async {
+    await context.push(AppRoutes.cardTags);
+    if (!mounted) return;
+    await _ctrl.refreshAfterTagChanges();
+  }
 
   Future<void> _handleUpdateQuantity(DeckCard card, int change, DeckBoard board) async {
     final result = await _ctrl.updateQuantity(card, change, board);
@@ -390,6 +400,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
             onSelected: (val) {
                if (val == 'legality') _showValidationResults();
                if (val == 'finance') _showFinancialAnalysis();
+               if (val == 'tags') _manageTags();
                if (val == 'share_deck') _shareFullDeck();
                if (val == 'share_considering') _shareConsidering();
                if (val == 'share_wishlist') _shareWishlist();
@@ -399,6 +410,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
             itemBuilder: (ctx) => [
               const PopupMenuItem(value: 'finance', child: Row(children: [Icon(Icons.euro, size: 18), SizedBox(width: 8), Text('Finance')])),
               const PopupMenuItem(value: 'legality', child: Row(children: [Icon(Icons.gavel, size: 18), SizedBox(width: 8), Text('Legalite')])),
+              const PopupMenuItem(value: 'tags', child: Row(children: [Icon(Icons.label, size: 18), SizedBox(width: 8), Text('Gérer les tags')])),
               const PopupMenuItem(value: 'share_image', child: Row(children: [Icon(Icons.image, size: 18), SizedBox(width: 8), Text('Partager (Image)')])),
 
               const PopupMenuDivider(),

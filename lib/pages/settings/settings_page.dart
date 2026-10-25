@@ -212,15 +212,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             _buildSectionTitle('Joueurs'),
             Card(
               color: p.raised,
-              child: ListTile(
-                leading: Icon(Icons.group_outlined, color: p.inkSecondary),
-                title: Text('Gestion des Profils',
-                    style: AppTextStyles.text(color: p.inkPrimary)),
-                subtitle: Text('Joueurs enregistrés et leurs couleurs',
-                    style: AppTextStyles.text(
-                        color: p.inkSecondary, fontSize: 12)),
-                trailing: Icon(Icons.chevron_right, color: p.inkSecondary),
-                onTap: () => context.push(AppRoutes.profiles),
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: Icon(Icons.group_outlined, color: p.inkSecondary),
+                    title: Text('Gestion des Profils',
+                        style: AppTextStyles.text(color: p.inkPrimary)),
+                    subtitle: Text('Joueurs enregistrés et leurs couleurs',
+                        style: AppTextStyles.text(
+                            color: p.inkSecondary, fontSize: 12)),
+                    trailing: Icon(Icons.chevron_right, color: p.inkSecondary),
+                    onTap: () => context.push(AppRoutes.profiles),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.label_outline, color: p.inkSecondary),
+                    title: Text('Tags de cartes',
+                        style: AppTextStyles.text(color: p.inkPrimary)),
+                    subtitle: Text('Tags universels proposés dans tous les decks',
+                        style: AppTextStyles.text(
+                            color: p.inkSecondary, fontSize: 12)),
+                    trailing: Icon(Icons.chevron_right, color: p.inkSecondary),
+                    onTap: () => context.push(AppRoutes.cardTags),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
