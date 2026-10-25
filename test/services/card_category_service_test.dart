@@ -93,6 +93,74 @@ void main() {
       'Players can\'t cast spells with odd mana value.',
       CardCategory.other,
     ),
+    (
+      'Lightning Bolt',
+      'Instant',
+      'Lightning Bolt deals 3 damage to any target.',
+      CardCategory.removal,
+    ),
+    (
+      'Chain Lightning',
+      'Sorcery',
+      'Chain Lightning deals 3 damage to any target. Then that player or that permanent\'s controller may pay {R}{R}. If the player does, they may copy this spell and may choose a new target for that copy.',
+      CardCategory.removal,
+    ),
+    (
+      'Cathars\' Crusade',
+      'Enchantment',
+      'Whenever a creature enters the battlefield under your control, put a +1/+1 counter on each creature you control.',
+      CardCategory.other,
+    ),
+    (
+      'Blasphemous Act',
+      'Sorcery',
+      'This spell costs {1} less to cast for each creature on the battlefield.\nBlasphemous Act deals 13 damage to each creature.',
+      CardCategory.wipe,
+    ),
+    (
+      'Ephemerate',
+      'Instant',
+      'Exile target creature you control, then return it to the battlefield under its owner\'s control.\nRebound',
+      CardCategory.other,
+    ),
+    (
+      'Restoration Angel',
+      'Creature — Angel',
+      'Flash\nFlying\nWhen Restoration Angel enters the battlefield, you may exile target non-Angel creature you control, then return that card to the battlefield under your control.',
+      CardCategory.creatures,
+    ),
+    (
+      'Lightning Greaves',
+      'Artifact — Equipment',
+      'Equipped creature has haste and shroud.\nEquip {0}',
+      CardCategory.protection,
+    ),
+    // Carte fictive : le gain de vie est dans une autre phrase que le mot-clé.
+    (
+      'Créature indestructible qui gagne des PV',
+      'Creature — Angel',
+      'Indestructible\nWhen this creature enters the battlefield, you gain 2 life.',
+      CardCategory.creatures,
+    ),
+    // Carte fictive : protection conditionnelle de soi, classée protection.
+    (
+      'Hexproof conditionnel',
+      'Creature — Elf',
+      'This creature has hexproof as long as you control another creature.',
+      CardCategory.protection,
+    ),
+    (
+      'Valakut Awakening',
+      'Sorcery // Land',
+      'Put any number of cards from your hand on the bottom of your library, then draw that many cards plus one.\nValakut Stoneforges\n({T}: Add {R}.)',
+      CardCategory.draw,
+    ),
+    (
+      'Exploration',
+      'Enchantment',
+      'You may play an additional land on each of your turns.',
+      CardCategory.ramp,
+    ),
   ];
 
   for (final (name, type, text, expected) in cases) {
