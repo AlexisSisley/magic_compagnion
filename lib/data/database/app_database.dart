@@ -50,6 +50,8 @@ class Decks extends Table {
   TextColumn get commanderScryfallId => text().nullable()();
   TextColumn get commanderSecondaryScryfallId => text().nullable()();
   TextColumn get colors => text().withDefault(const Constant('[]'))(); // JSON array
+  TextColumn get tags => text().withDefault(const Constant('[]'))(); // JSON array
+  DateTimeColumn get updatedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -297,7 +299,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration {
@@ -325,6 +327,10 @@ class AppDatabase extends _$AppDatabase {
           await m.createTable(translationAbsences);
           await m.createTable(translationTasks);
           await _createCardPrintsOracleLangIndex(m);
+        }
+        if (from < 5) {
+          await m.addColumn(decks, decks.tags);
+          await m.addColumn(decks, decks.updatedAt);
         }
       },
     );

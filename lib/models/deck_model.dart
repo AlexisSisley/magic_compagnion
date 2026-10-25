@@ -50,6 +50,12 @@ class Deck {
   List<String> colors;
   String format;
 
+  /// Etiquettes libres du deck (ex. « Casual », « cEDH »), distinctes de celles des cartes.
+  List<String> tags;
+
+  /// Derniere modification ; nul pour un deck anterieur au suivi de cette date.
+  DateTime? updatedAt;
+
   Deck({
     required this.id,
     required this.name,
@@ -61,11 +67,14 @@ class Deck {
     this.commanderSecondaryScryfallId,
     List<String>? colors,
     this.format = 'Standard',
+    List<String>? tags,
+    this.updatedAt,
   })  : mainboard = mainboard ?? [],
         sideboard = sideboard ?? [],
         considering = considering ?? [],
         wishlist = wishlist ?? [],
-        colors = colors ?? [];
+        colors = colors ?? [],
+        tags = tags ?? [];
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -78,6 +87,8 @@ class Deck {
         'commanderSecondaryScryfallId': commanderSecondaryScryfallId,
         'colors': colors,
         'format': format,
+        'tags': tags,
+        'updatedAt': updatedAt?.toIso8601String(),
       };
 
   factory Deck.fromJson(Map<String, dynamic> json) => Deck(
@@ -91,5 +102,9 @@ class Deck {
         commanderSecondaryScryfallId: json['commanderSecondaryScryfallId'],
         colors: (json['colors'] as List?)?.map((e) => e.toString()).toList() ?? [],
         format: json['format'] ?? 'Standard',
+        tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
+        updatedAt: json['updatedAt'] == null
+            ? null
+            : DateTime.tryParse(json['updatedAt'].toString()),
       );
 }

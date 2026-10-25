@@ -512,6 +512,27 @@ class $DecksTable extends Decks with TableInfo<$DecksTable, DbDeck> {
     requiredDuringInsert: false,
     defaultValue: const Constant('[]'),
   );
+  static const VerificationMeta _tagsMeta = const VerificationMeta('tags');
+  @override
+  late final GeneratedColumn<String> tags = GeneratedColumn<String>(
+    'tags',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -520,6 +541,8 @@ class $DecksTable extends Decks with TableInfo<$DecksTable, DbDeck> {
     commanderScryfallId,
     commanderSecondaryScryfallId,
     colors,
+    tags,
+    updatedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -576,6 +599,18 @@ class $DecksTable extends Decks with TableInfo<$DecksTable, DbDeck> {
         colors.isAcceptableOrUnknown(data['colors']!, _colorsMeta),
       );
     }
+    if (data.containsKey('tags')) {
+      context.handle(
+        _tagsMeta,
+        tags.isAcceptableOrUnknown(data['tags']!, _tagsMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -609,6 +644,14 @@ class $DecksTable extends Decks with TableInfo<$DecksTable, DbDeck> {
         DriftSqlType.string,
         data['${effectivePrefix}colors'],
       )!,
+      tags: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tags'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
     );
   }
 
@@ -625,6 +668,8 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
   final String? commanderScryfallId;
   final String? commanderSecondaryScryfallId;
   final String colors;
+  final String tags;
+  final DateTime? updatedAt;
   const DbDeck({
     required this.id,
     required this.name,
@@ -632,6 +677,8 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
     this.commanderScryfallId,
     this.commanderSecondaryScryfallId,
     required this.colors,
+    required this.tags,
+    this.updatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -648,6 +695,10 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
       );
     }
     map['colors'] = Variable<String>(colors);
+    map['tags'] = Variable<String>(tags);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
     return map;
   }
 
@@ -664,6 +715,10 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
           ? const Value.absent()
           : Value(commanderSecondaryScryfallId),
       colors: Value(colors),
+      tags: Value(tags),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
     );
   }
 
@@ -683,6 +738,8 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
         json['commanderSecondaryScryfallId'],
       ),
       colors: serializer.fromJson<String>(json['colors']),
+      tags: serializer.fromJson<String>(json['tags']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
     );
   }
   @override
@@ -697,6 +754,8 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
         commanderSecondaryScryfallId,
       ),
       'colors': serializer.toJson<String>(colors),
+      'tags': serializer.toJson<String>(tags),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
     };
   }
 
@@ -707,6 +766,8 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
     Value<String?> commanderScryfallId = const Value.absent(),
     Value<String?> commanderSecondaryScryfallId = const Value.absent(),
     String? colors,
+    String? tags,
+    Value<DateTime?> updatedAt = const Value.absent(),
   }) => DbDeck(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -718,6 +779,8 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
         ? commanderSecondaryScryfallId.value
         : this.commanderSecondaryScryfallId,
     colors: colors ?? this.colors,
+    tags: tags ?? this.tags,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
   );
   DbDeck copyWithCompanion(DecksCompanion data) {
     return DbDeck(
@@ -731,6 +794,8 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
           ? data.commanderSecondaryScryfallId.value
           : this.commanderSecondaryScryfallId,
       colors: data.colors.present ? data.colors.value : this.colors,
+      tags: data.tags.present ? data.tags.value : this.tags,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
 
@@ -744,7 +809,9 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
           ..write(
             'commanderSecondaryScryfallId: $commanderSecondaryScryfallId, ',
           )
-          ..write('colors: $colors')
+          ..write('colors: $colors, ')
+          ..write('tags: $tags, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
@@ -757,6 +824,8 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
     commanderScryfallId,
     commanderSecondaryScryfallId,
     colors,
+    tags,
+    updatedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -768,7 +837,9 @@ class DbDeck extends DataClass implements Insertable<DbDeck> {
           other.commanderScryfallId == this.commanderScryfallId &&
           other.commanderSecondaryScryfallId ==
               this.commanderSecondaryScryfallId &&
-          other.colors == this.colors);
+          other.colors == this.colors &&
+          other.tags == this.tags &&
+          other.updatedAt == this.updatedAt);
 }
 
 class DecksCompanion extends UpdateCompanion<DbDeck> {
@@ -778,6 +849,8 @@ class DecksCompanion extends UpdateCompanion<DbDeck> {
   final Value<String?> commanderScryfallId;
   final Value<String?> commanderSecondaryScryfallId;
   final Value<String> colors;
+  final Value<String> tags;
+  final Value<DateTime?> updatedAt;
   final Value<int> rowid;
   const DecksCompanion({
     this.id = const Value.absent(),
@@ -786,6 +859,8 @@ class DecksCompanion extends UpdateCompanion<DbDeck> {
     this.commanderScryfallId = const Value.absent(),
     this.commanderSecondaryScryfallId = const Value.absent(),
     this.colors = const Value.absent(),
+    this.tags = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DecksCompanion.insert({
@@ -795,6 +870,8 @@ class DecksCompanion extends UpdateCompanion<DbDeck> {
     this.commanderScryfallId = const Value.absent(),
     this.commanderSecondaryScryfallId = const Value.absent(),
     this.colors = const Value.absent(),
+    this.tags = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
@@ -805,6 +882,8 @@ class DecksCompanion extends UpdateCompanion<DbDeck> {
     Expression<String>? commanderScryfallId,
     Expression<String>? commanderSecondaryScryfallId,
     Expression<String>? colors,
+    Expression<String>? tags,
+    Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -816,6 +895,8 @@ class DecksCompanion extends UpdateCompanion<DbDeck> {
       if (commanderSecondaryScryfallId != null)
         'commander_secondary_scryfall_id': commanderSecondaryScryfallId,
       if (colors != null) 'colors': colors,
+      if (tags != null) 'tags': tags,
+      if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -827,6 +908,8 @@ class DecksCompanion extends UpdateCompanion<DbDeck> {
     Value<String?>? commanderScryfallId,
     Value<String?>? commanderSecondaryScryfallId,
     Value<String>? colors,
+    Value<String>? tags,
+    Value<DateTime?>? updatedAt,
     Value<int>? rowid,
   }) {
     return DecksCompanion(
@@ -837,6 +920,8 @@ class DecksCompanion extends UpdateCompanion<DbDeck> {
       commanderSecondaryScryfallId:
           commanderSecondaryScryfallId ?? this.commanderSecondaryScryfallId,
       colors: colors ?? this.colors,
+      tags: tags ?? this.tags,
+      updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -866,6 +951,12 @@ class DecksCompanion extends UpdateCompanion<DbDeck> {
     if (colors.present) {
       map['colors'] = Variable<String>(colors.value);
     }
+    if (tags.present) {
+      map['tags'] = Variable<String>(tags.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -883,6 +974,8 @@ class DecksCompanion extends UpdateCompanion<DbDeck> {
             'commanderSecondaryScryfallId: $commanderSecondaryScryfallId, ',
           )
           ..write('colors: $colors, ')
+          ..write('tags: $tags, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7963,6 +8056,8 @@ typedef $$DecksTableCreateCompanionBuilder =
       Value<String?> commanderScryfallId,
       Value<String?> commanderSecondaryScryfallId,
       Value<String> colors,
+      Value<String> tags,
+      Value<DateTime?> updatedAt,
       Value<int> rowid,
     });
 typedef $$DecksTableUpdateCompanionBuilder =
@@ -7973,6 +8068,8 @@ typedef $$DecksTableUpdateCompanionBuilder =
       Value<String?> commanderScryfallId,
       Value<String?> commanderSecondaryScryfallId,
       Value<String> colors,
+      Value<String> tags,
+      Value<DateTime?> updatedAt,
       Value<int> rowid,
     });
 
@@ -8034,6 +8131,16 @@ class $$DecksTableFilterComposer extends Composer<_$AppDatabase, $DecksTable> {
 
   ColumnFilters<String> get colors => $composableBuilder(
     column: $table.colors,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8102,6 +8209,16 @@ class $$DecksTableOrderingComposer
     column: $table.colors,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DecksTableAnnotationComposer
@@ -8135,6 +8252,12 @@ class $$DecksTableAnnotationComposer
 
   GeneratedColumn<String> get colors =>
       $composableBuilder(column: $table.colors, builder: (column) => column);
+
+  GeneratedColumn<String> get tags =>
+      $composableBuilder(column: $table.tags, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
   Expression<T> deckCardsRefs<T extends Object>(
     Expression<T> Function($$DeckCardsTableAnnotationComposer a) f,
@@ -8197,6 +8320,8 @@ class $$DecksTableTableManager
                 Value<String?> commanderSecondaryScryfallId =
                     const Value.absent(),
                 Value<String> colors = const Value.absent(),
+                Value<String> tags = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DecksCompanion(
                 id: id,
@@ -8205,6 +8330,8 @@ class $$DecksTableTableManager
                 commanderScryfallId: commanderScryfallId,
                 commanderSecondaryScryfallId: commanderSecondaryScryfallId,
                 colors: colors,
+                tags: tags,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -8216,6 +8343,8 @@ class $$DecksTableTableManager
                 Value<String?> commanderSecondaryScryfallId =
                     const Value.absent(),
                 Value<String> colors = const Value.absent(),
+                Value<String> tags = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DecksCompanion.insert(
                 id: id,
@@ -8224,6 +8353,8 @@ class $$DecksTableTableManager
                 commanderScryfallId: commanderScryfallId,
                 commanderSecondaryScryfallId: commanderSecondaryScryfallId,
                 colors: colors,
+                tags: tags,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

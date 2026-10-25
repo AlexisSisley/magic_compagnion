@@ -124,5 +124,31 @@ void main() {
       expect(deck.wishlist, isEmpty);
       expect(deck.format, 'Standard');
     });
+
+    test("Deck() n'a ni tags ni date de modification", () {
+      final deck = Deck(id: 'd', name: 'n');
+      expect(deck.tags, isEmpty);
+      expect(deck.updatedAt, isNull);
+    });
+
+    test("tags et updatedAt font l'aller-retour JSON en ISO 8601", () {
+      final deck = Deck(
+        id: 'd',
+        name: 'n',
+        tags: ['Casual', 'cEDH'],
+        updatedAt: DateTime.utc(2026, 10, 19, 8),
+      );
+      final json = deck.toJson();
+      expect(json['updatedAt'], '2026-10-19T08:00:00.000Z');
+      final back = Deck.fromJson(json);
+      expect(back.tags, ['Casual', 'cEDH']);
+      expect(back.updatedAt, DateTime.utc(2026, 10, 19, 8));
+    });
+
+    test('un JSON sans tags ni updatedAt se lit vide et nul', () {
+      final deck = Deck.fromJson({'id': 'd', 'name': 'n'});
+      expect(deck.tags, isEmpty);
+      expect(deck.updatedAt, isNull);
+    });
   });
 }
