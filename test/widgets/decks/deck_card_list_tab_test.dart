@@ -113,7 +113,11 @@ void main() {
     List<DeckCard> cardList,
     AppDatabase database, {
     List<ScryfallCard> fullCardData = const [],
-    DeckViewPrefs viewPrefs = const DeckViewPrefs(),
+    // Ces tests parlent surtout des sections par catégorie : on les pose
+    // explicitement, le défaut de l'app étant le regroupement par type.
+    DeckViewPrefs viewPrefs = const DeckViewPrefs(
+      grouping: DeckGrouping.category,
+    ),
     ValueChanged<DeckGrouping>? onGrouping,
     ValueChanged<DeckLayout>? onLayout,
     void Function(DeckCard, CardCategory)? onSetCategory,
@@ -403,6 +407,23 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('AUTRES'), findsOneWidget);
+    });
+
+    testWidgets('sans préférence, les sections sont celles des types', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [dc('bears', category: CardCategory.ramp)],
+          db,
+          viewPrefs: const DeckViewPrefs(),
+          fullCardData: [sc('bears', 'Creature — Bear', 2)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Créatures (1)'), findsOneWidget);
+      expect(find.text('RAMP'), findsNothing);
     });
 
     testWidgets('l\'interrupteur Type appelle onGrouping(type)', (

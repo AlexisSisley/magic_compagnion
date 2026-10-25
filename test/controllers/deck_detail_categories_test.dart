@@ -276,17 +276,21 @@ void main() {
   test('les préférences d\'affichage se chargent et se mémorisent', () async {
     final c = await open();
     expect(c.state.viewPrefs, const DeckViewPrefs());
-
-    await c.setGrouping(DeckGrouping.type);
-    await c.setLayout(DeckLayout.list);
     expect(c.state.viewPrefs.grouping, DeckGrouping.type);
+
+    await c.setGrouping(DeckGrouping.category);
+    await c.setLayout(DeckLayout.list);
+    expect(c.state.viewPrefs.grouping, DeckGrouping.category);
     expect(c.state.viewPrefs.layout, DeckLayout.list);
     c.dispose();
 
     final c2 = await open();
     expect(
       c2.state.viewPrefs,
-      const DeckViewPrefs(grouping: DeckGrouping.type, layout: DeckLayout.list),
+      const DeckViewPrefs(
+        grouping: DeckGrouping.category,
+        layout: DeckLayout.list,
+      ),
     );
     c2.dispose();
   });

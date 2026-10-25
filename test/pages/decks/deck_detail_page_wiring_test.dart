@@ -64,7 +64,10 @@ void main() {
           appDatabaseProvider.overrideWithValue(db),
           scryfallApiServiceProvider.overrideWithValue(_SilentApi()),
         ],
-        child: MaterialApp(theme: buildAppTheme(), home: DeckDetailPage(deck: deck)),
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: DeckDetailPage(deck: deck),
+        ),
       ),
     );
     // Laisse le contrôleur finir son chargement (base en mémoire).
@@ -78,19 +81,28 @@ void main() {
         'd1',
       )).firstWhere((c) => c.scryfallId == id && c.board == board);
 
-  testWidgets('l\'interrupteur Type de la page change et mémorise le '
+  testWidgets('sans préférence, la page groupe par type', (tester) async {
+    await openPage(tester);
+
+    // Sans donnée Scryfall, la carte tombe dans la section « Autres » du
+    // regroupement par type, pas dans la catégorie « AUTRES ».
+    expect(find.text('Autres (1)'), findsOneWidget);
+    expect(find.text('AUTRES'), findsNothing);
+  });
+
+  testWidgets('l\'interrupteur Catégorie de la page change et mémorise le '
       'regroupement', (tester) async {
     await openPage(tester);
     expect(find.text('Carte du main'), findsOneWidget);
 
-    await tester.tap(find.text('Type'));
+    await tester.tap(find.text('Catégorie'));
     await tester.pump(const Duration(milliseconds: 100));
 
-    // Le regroupement par type remplace les en-têtes de catégorie.
-    expect(find.text('AUTRES'), findsNothing);
-    expect(find.textContaining('(1)'), findsWidgets);
+    // Le regroupement par catégorie remplace les en-têtes de type.
+    expect(find.text('AUTRES'), findsOneWidget);
+    expect(find.text('Autres (1)'), findsNothing);
     final saved = await loadDeckViewPrefs(db, 'd1');
-    expect(saved.grouping, DeckGrouping.type);
+    expect(saved.grouping, DeckGrouping.category);
   });
 
   testWidgets('l\'icône liste de la page bascule en DeckCardTile', (
@@ -109,6 +121,12 @@ void main() {
   testWidgets('Catégorie… sur le main verrouille la carte du main en base', (
     tester,
   ) async {
+    // Regroupement par catégorie mémorisé : la section Pioche doit apparaître.
+    await saveDeckViewPrefs(
+      db,
+      'd1',
+      const DeckViewPrefs(grouping: DeckGrouping.category),
+    );
     await openPage(tester);
 
     await tester.longPress(find.byType(DeckCardGridTile));

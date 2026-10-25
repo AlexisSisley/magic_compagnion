@@ -6,7 +6,9 @@ import 'dart:convert';
 
 import '../data/database/app_database.dart';
 
-/// Regroupement des sections de la liste.
+/// Regroupement des sections de la liste. Par type par défaut : c'est la
+/// lecture la plus familière d'une liste de deck. Un deck qui a déjà mémorisé
+/// « Catégorie » la garde.
 enum DeckGrouping { category, type }
 
 /// Présentation des cartes : grille d'artworks (défaut) ou liste compacte.
@@ -17,7 +19,7 @@ class DeckViewPrefs {
   final DeckLayout layout;
 
   const DeckViewPrefs({
-    this.grouping = DeckGrouping.category,
+    this.grouping = DeckGrouping.type,
     this.layout = DeckLayout.grid,
   });
 
