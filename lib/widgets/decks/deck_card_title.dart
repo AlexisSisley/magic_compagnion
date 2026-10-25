@@ -6,7 +6,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../providers/card_display_provider.dart';
-import '../../utils/price_helper.dart';
 
 // ==========================================
 // 1. VUE LISTE CLASSIQUE (Ligne horizontale)
@@ -39,7 +38,6 @@ class DeckCardTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageUrl = scryfallCard?.smallImageUrl;
-    final price = scryfallCard != null ? PriceHelper.rawPrice(scryfallCard!.prices) : null;
     final displayName = display?.name ?? card.name;
     final isFallback = display?.isFallback ?? false;
 
@@ -119,17 +117,12 @@ class DeckCardTile extends StatelessWidget {
             if (isCommander) const Padding(padding: EdgeInsets.only(left: 4.0), child: Icon(Icons.shield, color: AppColors.primary, size: 16)),
           ],
         ),
-        // Coût de mana, Prix, Tags
+        // Coût de mana, Tags (le prix vit dans le bandeau et l'onglet Finance :
+        // une ligne de liste le répétait sur chaque carte)
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                ManaHelper.buildManaCostRow(scryfallCard?.manaCost),
-                const SizedBox(width: 8),
-                if (price != null) Text('$price €', style: TextStyle(color: AppColors.primaryShade700, fontSize: 12)),
-              ],
-            ),
+            ManaHelper.buildManaCostRow(scryfallCard?.manaCost),
             if (card.tags.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 2.0),
@@ -167,6 +160,10 @@ class DeckCardGridTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
+  /// Catégorie corrigée à la main : la vignette le dit (liseré or et cadenas)
+  /// pour qu'on sache qu'aucune déduction ne la réécrira.
+  final bool categoryLocked;
+
   /// Voir [DeckCardTile.display] : meme projection, meme regle de repli.
   final CardDisplay? display;
 
@@ -180,6 +177,7 @@ class DeckCardGridTile extends StatelessWidget {
     required this.onMinus,
     required this.onTap,
     required this.onLongPress,
+    this.categoryLocked = false,
     this.display,
   });
 
@@ -187,6 +185,7 @@ class DeckCardGridTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final imageUrl = scryfallCard?.imageUrl ?? scryfallCard?.smallImageUrl;
     final displayName = display?.name ?? card.name;
+    final isFallback = display?.isFallback ?? false;
 
     return GestureDetector(
       onTap: onTap,
@@ -196,8 +195,12 @@ class DeckCardGridTile extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
           side: BorderSide(
-            color: isCommander ? AppColors.primaryShade700 : (card.isFoil ? Colors.amber.withValues(alpha: 0.5) : AppColors.borderSubtle),
-            width: isCommander ? 2 : 1,
+            color: isCommander
+                ? AppColors.primaryShade700
+                : categoryLocked
+                    ? AppColors.primary
+                    : (card.isFoil ? Colors.amber.withValues(alpha: 0.5) : AppColors.borderSubtle),
+            width: (isCommander || categoryLocked) ? 2 : 1,
           ),
         ),
         color: AppColors.textOnPrimary.withValues(alpha: 0.6),
@@ -212,10 +215,7 @@ class DeckCardGridTile extends StatelessWidget {
                     alignment: Alignment.topCenter, 
                     errorBuilder: (ctx, e, s) => Container(color: AppColors.greyShade900, child: const Center(child: Icon(Icons.image_not_supported, color: AppColors.borderMedium))),
                   )
-                : Container(
-                    color: AppColors.greyShade900,
-                    child: Center(child: Text(displayName, textAlign: TextAlign.center, style: AppTextStyles.label(color: AppColors.textSecondary))),
-                  ),
+                : Container(color: AppColors.greyShade900),
             
             // Foil Effect
             if (card.isFoil)
@@ -270,20 +270,71 @@ class DeckCardGridTile extends StatelessWidget {
                 ),
               ),
 
-            // --- 4. Contrôles (Bas) ---
+            // --- 4. Contrôles (Bas) : nom, puis quantité ---
             Positioned(
               bottom: 0, left: 0, right: 0,
-              child: Container(
-                color: AppColors.textOnPrimary.withValues(alpha: 0.7),
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    InkWell(onTap: onMinus, child: const Icon(Icons.remove, color: AppColors.textSecondary, size: 20)),
-                    Text('${card.quantity}', style: AppTextStyles.text(color: card.isFoil ? AppColors.amber : AppColors.primaryShade700, fontSize: 18, fontWeight: FontWeight.bold)),
-                    InkWell(onTap: onPlus, child: const Icon(Icons.add, color: AppColors.textSecondary, size: 20)),
-                  ],
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Repli de langue : signalé, jamais caché. Sur sa propre
+                  // ligne, la vignette est trop étroite pour le partager avec
+                  // le nom.
+                  if (isFallback)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6.0, bottom: 2.0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: AppColors.amber.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: AppColors.amber),
+                          ),
+                          child: Text(
+                            '${display!.lang.toUpperCase()} · pas de VF',
+                            style: const TextStyle(color: AppColors.amber, fontSize: 8, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                    child: Text(
+                      displayName,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.label(color: AppColors.textPrimary),
+                    ),
+                  ),
+                  Container(
+                    color: AppColors.textOnPrimary.withValues(alpha: 0.7),
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        InkWell(onTap: onMinus, child: const Icon(Icons.remove, color: AppColors.textSecondary, size: 20)),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('${card.quantity}', style: AppTextStyles.text(color: card.isFoil ? AppColors.amber : AppColors.primaryShade700, fontSize: 18, fontWeight: FontWeight.bold)),
+                            if (categoryLocked)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 3),
+                                child: Semantics(
+                                  label: 'Catégorie corrigée à la main',
+                                  child: const Icon(Icons.lock, size: 11, color: AppColors.primary),
+                                ),
+                              ),
+                          ],
+                        ),
+                        InkWell(onTap: onPlus, child: const Icon(Icons.add, color: AppColors.textSecondary, size: 20)),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

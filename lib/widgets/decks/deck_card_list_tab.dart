@@ -8,13 +8,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/widgets/cards/versions_selector_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
+import '../../models/card_category.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../providers/card_display_provider.dart';
 import '../../providers/preferred_language_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../services/deck_service.dart'; // Pour DeckBoard enum
+import '../../services/deck_view_prefs.dart';
 import '../../router/card_detail_route.dart';
+import '../../utils/deck_metrics.dart';
 
 class DeckCardListTab extends ConsumerStatefulWidget {
   final List<DeckCard> cardList;
@@ -37,6 +40,15 @@ class DeckCardListTab extends ConsumerStatefulWidget {
   final Function(DeckCard, int)? onAddToCollection;
   final Function(DeckCard, int, String?)? onAddToWishlist;
 
+  /// Affichage mémorisé du deck (regroupement, grille ou liste) et les
+  /// callbacks qui le changent ou corrigent la catégorie d'une carte : la page
+  /// les câble au contrôleur, l'onglet ne garde aucun état d'affichage.
+  final DeckViewPrefs viewPrefs;
+  final ValueChanged<DeckGrouping> onGrouping;
+  final ValueChanged<DeckLayout> onLayout;
+  final void Function(DeckCard, CardCategory) onSetCategory;
+  final ValueChanged<DeckCard> onResetCategory;
+
   const DeckCardListTab({
     super.key,
     required this.cardList,
@@ -54,6 +66,11 @@ class DeckCardListTab extends ConsumerStatefulWidget {
     this.onSwitchVersion,
     this.onAddToCollection,
     this.onAddToWishlist,
+    required this.viewPrefs,
+    required this.onGrouping,
+    required this.onLayout,
+    required this.onSetCategory,
+    required this.onResetCategory,
   });
 
   @override
@@ -61,9 +78,6 @@ class DeckCardListTab extends ConsumerStatefulWidget {
 }
 
 class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
-  double _gridColumns = 1.0;
-  double _lastScale = 1.0;
-
   /// Projection d'affichage (langue preferee) par carte possedee, indexee
   /// par scryfallId. Resolue en une seule passe au chargement du deck --
   /// jamais une requete par ligne de liste, donc jamais de spinner par nom
@@ -127,11 +141,6 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
     setState(() => _displays = resolved);
   }
 
-  void _handleScaleUpdate(ScaleUpdateDetails details) {
-    if (details.scale > 1.3 && _lastScale <= 1.0) { setState(() { if (_gridColumns > 1) _gridColumns--; _lastScale = details.scale; }); } 
-    else if (details.scale < 0.7 && _lastScale >= 1.0) { setState(() { if (_gridColumns < 5) _gridColumns++; _lastScale = details.scale; }); }
-  }
-
   Future<void> _launchURL(String url) async {
     try { await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); } catch (e) { /* */ }
   }
@@ -166,8 +175,10 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
       );
     }
 
-    final groupedList = _buildGroupedList(widget.cardList);
-    final int currentCols = _gridColumns.round();
+    final byCategory = widget.viewPrefs.grouping == DeckGrouping.category;
+    final groupedList =
+        byCategory ? _buildCategoryList(widget.cardList) : _buildGroupedList(widget.cardList);
+    final isGrid = widget.viewPrefs.layout == DeckLayout.grid;
 
     return Column(
       children: [
@@ -175,10 +186,13 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
         Container(
           color: AppColors.overlayLight,
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-          child: Row(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: WrapAlignment.spaceBetween,
             children: [
               Text('${widget.cardList.fold(0, (s, c) => s + c.quantity)} cartes', style: AppTextStyles.label(color: AppColors.textMuted)),
-              const Spacer(),
               if (widget.currentBoard == DeckBoard.wishlist && widget.onExportToGlobalWishlist != null)
                 IconButton(
                   icon: const Icon(Icons.cloud_upload, size: 18, color: AppColors.accentGreen),
@@ -192,54 +206,121 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
                   tooltip: 'Export Cardmarket Mass Entry',
                   onPressed: _exportCardmarket,
                 ),
-              const SizedBox(width: 8),
-              const Icon(Icons.view_agenda, size: 16, color: AppColors.textMuted),
-              SizedBox(
-                width: 100, 
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6), trackHeight: 2),
-                  child: Slider(
-                    value: _gridColumns, min: 1, max: 5, divisions: 4, 
-                    activeColor: AppColors.primaryShade800, inactiveColor: AppColors.borderMedium,
-                    onChanged: (val) => setState(() => _gridColumns = val),
-                  ),
-                ),
-              ),
-              const Icon(Icons.grid_view, size: 16, color: AppColors.textMuted),
+              _buildGroupingToggle(),
+              _buildLayoutToggle(),
             ],
           ),
         ),
 
         Expanded(
-          child: GestureDetector(
-            onScaleUpdate: _handleScaleUpdate,
-            onScaleEnd: (_) => _lastScale = 1.0,
-            child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 90.0, top: 0.0, left: 4.0, right: 4.0),
-              itemCount: groupedList.length,
-              itemBuilder: (context, index) {
-                final group = groupedList[index];
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
-                      child: Text('${group.title} (${group.cards.fold(0, (s, c) => s + c.quantity)})', style: AppTextStyles.sectionTitle()),
-                    ),
-                    currentCols == 1 
-                        ? Column(children: group.cards.map((c) => _buildDraggableItem(c, isGrid: false)).toList())
-                        : GridView.builder(
-                            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: currentCols, childAspectRatio: 0.68, crossAxisSpacing: 6, mainAxisSpacing: 6),
-                            itemCount: group.cards.length,
-                            itemBuilder: (ctx, i) => _buildDraggableItem(group.cards[i], isGrid: true),
-                          ),
-                  ],
-                );
-              },
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Le padding horizontal du ListView (4 + 4) est déjà retiré de
+              // la largeur utile : les colonnes se calent sur ce que la grille
+              // reçoit vraiment.
+              final cols = deckCardGridColumns(constraints.maxWidth - 8);
+              return ListView.builder(
+                padding: const EdgeInsets.only(bottom: 90.0, top: 0.0, left: 4.0, right: 4.0),
+                itemCount: groupedList.length,
+                itemBuilder: (context, index) {
+                  final group = groupedList[index];
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionHeader(group, byCategory),
+                      isGrid
+                          ? GridView.builder(
+                              shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: cols, childAspectRatio: 0.8, crossAxisSpacing: 6, mainAxisSpacing: 6),
+                              itemCount: group.cards.length,
+                              itemBuilder: (ctx, i) => _buildDraggableItem(group.cards[i], isGrid: true),
+                            )
+                          : Column(children: group.cards.map((c) => _buildDraggableItem(c, isGrid: false)).toList()),
+                    ],
+                  );
+                },
+              );
+            },
           ),
         ),
+      ],
+    );
+  }
+
+  /// En mode catégorie, l'en-tête dit le rôle et le coût moyen de la section ;
+  /// en mode type, il garde son titre d'origine.
+  Widget _buildSectionHeader(_GroupedCardList group, bool byCategory) {
+    final count = group.cards.fold(0, (s, c) => s + c.quantity);
+    if (!byCategory) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+        child: Text('${group.title} ($count)', style: AppTextStyles.sectionTitle()),
+      );
+    }
+    final avg = averageManaValue(group.cards, widget.fullCardData);
+    final detail = avg > 0
+        ? '$count · CMC moyen ${avg.toStringAsFixed(1).replaceAll('.', ',')}'
+        : '$count';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+      child: Row(
+        children: [
+          Text(
+            group.title.toUpperCase(),
+            style: AppTextStyles.sectionTitle().copyWith(color: AppColors.primary, letterSpacing: 1.2),
+          ),
+          const SizedBox(width: 8),
+          Text(detail, style: AppTextStyles.label(color: AppColors.textMuted)),
+          const SizedBox(width: 8),
+          const Expanded(child: Divider(height: 1, color: AppColors.borderMedium)),
+        ],
+      ),
+    );
+  }
+
+  /// Interrupteur « Catégorie | Type ». Le thème de base a un `primary`
+  /// lilas : sans `foregroundColor` explicite, le libellé sélectionné sortirait
+  /// lilas sur le fond or.
+  Widget _buildGroupingToggle() {
+    return SegmentedButton<DeckGrouping>(
+      showSelectedIcon: false,
+      segments: const [
+        ButtonSegment(value: DeckGrouping.category, label: Text('Catégorie')),
+        ButtonSegment(value: DeckGrouping.type, label: Text('Type')),
+      ],
+      selected: {widget.viewPrefs.grouping},
+      onSelectionChanged: (s) => widget.onGrouping(s.first),
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
+        foregroundColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected) ? AppColors.textOnPrimary : AppColors.textSecondary),
+        backgroundColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected) ? AppColors.primary : AppColors.transparent),
+      ),
+    );
+  }
+
+  /// Interrupteur grille | liste, deux icônes de 48 px.
+  Widget _buildLayoutToggle() {
+    Widget button(DeckLayout layout, IconData icon, String tooltip) {
+      final selected = widget.viewPrefs.layout == layout;
+      return IconButton(
+        icon: Icon(icon, size: 20),
+        tooltip: tooltip,
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+        style: IconButton.styleFrom(
+          foregroundColor: selected ? AppColors.textOnPrimary : AppColors.textSecondary,
+          backgroundColor: selected ? AppColors.primary : AppColors.transparent,
+        ),
+        onPressed: () => widget.onLayout(layout),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        button(DeckLayout.grid, Icons.grid_view, 'Grille'),
+        button(DeckLayout.list, Icons.view_list, 'Liste'),
       ],
     );
   }
@@ -274,6 +355,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
       return DeckCardGridTile(
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
         display: display,
+        categoryLocked: card.categoryLocked,
         onPlus: () => widget.onUpdateQuantity(card, 1),
         onMinus: () => widget.onUpdateQuantity(card, -1),
         onTap: () { if (scryfallCard != null) pushCardDetail(context, cardName: scryfallCard.name); },
@@ -302,7 +384,8 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
           // StatefulBuilder permet de mettre à jour l'affichage de la quantité DANS la modale
           child: StatefulBuilder(
             builder: (BuildContext context, StateSetter setModalState) {
-              return Column(
+              return SingleChildScrollView(
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 8),
@@ -410,6 +493,19 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
                     onTap: () { Navigator.pop(context); _showTagEditor(card); },
                   ),
 
+                  // 3b. CATÉGORIE
+                  ListTile(
+                    leading: const Icon(Icons.category, color: AppColors.primary),
+                    title: const Text('Catégorie…', style: TextStyle(color: AppColors.textPrimary)),
+                    onTap: () { Navigator.pop(context); _showCategoryPicker(card); },
+                  ),
+                  if (card.categoryLocked)
+                    ListTile(
+                      leading: const Icon(Icons.auto_fix_high, color: AppColors.textMuted),
+                      title: const Text('Déduire automatiquement', style: TextStyle(color: AppColors.textPrimary)),
+                      onTap: () { Navigator.pop(context); widget.onResetCategory(card); },
+                    ),
+
                   // 4. DÉPLACEMENT
                   if (widget.currentBoard != DeckBoard.main)
                     ListTile(leading: const Icon(Icons.arrow_upward, color: AppColors.textMuted), title: const Text('Vers Mainboard', style: TextStyle(color: AppColors.textPrimary)), onTap: () { widget.onMoveCard?.call(card, DeckBoard.main); Navigator.pop(context); }),
@@ -450,11 +546,38 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
                       onTap: () { Navigator.pop(context); widget.onSetCommander!(card); },
                     ),
                 ],
-              );
+              ));
             }
           ),
         );        
       }
+    );
+  }
+
+  /// Les dix catégories, dans l'ordre d'affichage ; celle de la carte est
+  /// cochée.
+  void _showCategoryPicker(DeckCard card) {
+    final current = card.category ?? CardCategory.other;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.scaffoldBackground,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final c in CardCategory.values)
+              ListTile(
+                title: Text(cardCategoryLabel(c), style: const TextStyle(color: AppColors.textPrimary)),
+                trailing: c == current ? const Icon(Icons.check, color: AppColors.primary) : null,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  widget.onSetCategory(card, c);
+                },
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -529,6 +652,23 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
     List<_GroupedCardList> groupedList = [];
     groupedMap.forEach((title, cards) { if (cards.isNotEmpty) { cards.sort((a, b) => a.name.compareTo(b.name)); groupedList.add(_GroupedCardList(title: title, cards: cards)); } });
     return groupedList;
+  }
+
+  /// Une section par catégorie non vide, dans l'ordre de l'enum. Une carte sans
+  /// catégorie (locale, données absentes) tombe dans « Autres ».
+  List<_GroupedCardList> _buildCategoryList(List<DeckCard> cardList) {
+    final byCategory = <CardCategory, List<DeckCard>>{};
+    for (final c in cardList) {
+      byCategory.putIfAbsent(c.category ?? CardCategory.other, () => []).add(c);
+    }
+    return [
+      for (final cat in CardCategory.values)
+        if (byCategory[cat] != null)
+          _GroupedCardList(
+            title: cardCategoryLabel(cat),
+            cards: byCategory[cat]!..sort((a, b) => a.name.compareTo(b.name)),
+          ),
+    ];
   }
 
   String _getPrimaryType(String typeLine) {

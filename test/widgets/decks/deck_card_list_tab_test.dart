@@ -25,10 +25,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:magic_companion/data/database/app_database.dart';
+import 'package:magic_companion/models/card_category.dart';
 import 'package:magic_companion/models/deck_model.dart';
+import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/deck_service.dart';
+import 'package:magic_companion/services/deck_view_prefs.dart';
 import 'package:magic_companion/widgets/decks/deck_card_list_tab.dart';
+import 'package:magic_companion/widgets/decks/deck_card_title.dart';
 
 /// AppDatabase de test capable de retarder, sur commande, le PROCHAIN appel
 /// a `getCardPrint` pour un `scryfallId` donne -- un seul cran : les appels
@@ -105,17 +109,31 @@ void main() {
 
   tearDown(() async => db.close());
 
-  Widget buildTabWithDb(List<DeckCard> cardList, AppDatabase database) {
+  Widget buildTabWithDb(
+    List<DeckCard> cardList,
+    AppDatabase database, {
+    List<ScryfallCard> fullCardData = const [],
+    DeckViewPrefs viewPrefs = const DeckViewPrefs(),
+    ValueChanged<DeckGrouping>? onGrouping,
+    ValueChanged<DeckLayout>? onLayout,
+    void Function(DeckCard, CardCategory)? onSetCategory,
+    ValueChanged<DeckCard>? onResetCategory,
+  }) {
     return ProviderScope(
       overrides: [appDatabaseProvider.overrideWithValue(database)],
       child: MaterialApp(
         home: Scaffold(
           body: DeckCardListTab(
             cardList: cardList,
-            fullCardData: const [],
+            fullCardData: fullCardData,
             collection: const [],
             currentBoard: DeckBoard.main,
             onUpdateQuantity: (_, _) {},
+            viewPrefs: viewPrefs,
+            onGrouping: onGrouping ?? (_) {},
+            onLayout: onLayout ?? (_) {},
+            onSetCategory: onSetCategory ?? (_, _) {},
+            onResetCategory: onResetCategory ?? (_) {},
           ),
         ),
       ),
@@ -293,6 +311,268 @@ void main() {
       expect(find.text('CardB-projected'), findsOneWidget);
       expect(find.text('CardB-original'), findsNothing);
       expect(tester.takeException(), isNull);
+    });
+  });
+  group('liste par catégories', () {
+    ScryfallCard sc(String id, String type, double cmc) =>
+        ScryfallCard.fromJson({
+          'id': id,
+          'oracle_id': 'o-$id',
+          'name': id,
+          'type_line': type,
+          'cmc': cmc,
+          'legalities': <String, dynamic>{},
+          'prices': <String, dynamic>{},
+          'purchase_uris': <String, dynamic>{},
+          'color_identity': <String>[],
+          'set_name': 'Test',
+          'set': 'tst',
+          'collector_number': '1',
+          'rarity': 'common',
+        });
+
+    DeckCard dc(
+      String id, {
+      CardCategory? category,
+      bool locked = false,
+      int quantity = 1,
+    }) => DeckCard(
+      scryfallId: id,
+      name: id,
+      quantity: quantity,
+      category: category,
+      categoryLocked: locked,
+    );
+
+    testWidgets('grille par défaut, sections dans l\'ordre de l\'enum', (
+      tester,
+    ) async {
+      // Volontairement fournies dans le désordre : l'ordre affiché est celui
+      // de la taxonomie, pas celui de la liste reçue.
+      final cards = [
+        dc('bears', category: CardCategory.creatures),
+        dc('swords', category: CardCategory.removal),
+        dc('signet', category: CardCategory.ramp),
+      ];
+      await tester.pumpWidget(buildTabWithDb(cards, db));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DeckCardTile), findsNothing);
+      expect(find.byType(DeckCardGridTile), findsNWidgets(3));
+      final ramp = tester.getTopLeft(find.text('RAMP')).dy;
+      final removal = tester.getTopLeft(find.text('REMOVAL')).dy;
+      final creatures = tester.getTopLeft(find.text('CRÉATURES')).dy;
+      expect(ramp, lessThan(removal));
+      expect(removal, lessThan(creatures));
+      expect(find.byType(Slider), findsNothing);
+    });
+
+    testWidgets('l\'en-tête porte la quantité et le CMC moyen à virgule', (
+      tester,
+    ) async {
+      final cards = [
+        dc('a', category: CardCategory.ramp),
+        dc('b', category: CardCategory.ramp),
+      ];
+      await tester.pumpWidget(
+        buildTabWithDb(
+          cards,
+          db,
+          fullCardData: [sc('a', 'Artifact', 1), sc('b', 'Artifact', 2)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 · CMC moyen 1,5'), findsOneWidget);
+    });
+
+    testWidgets('sans CMC connu, l\'en-tête ne garde que la quantité', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb([dc('a', category: CardCategory.lands)], db),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('TERRAINS'), findsOneWidget);
+      expect(find.textContaining('CMC moyen'), findsNothing);
+    });
+
+    testWidgets('une carte sans catégorie tombe dans Autres', (tester) async {
+      await tester.pumpWidget(buildTabWithDb([dc('mystere')], db));
+      await tester.pumpAndSettle();
+
+      expect(find.text('AUTRES'), findsOneWidget);
+    });
+
+    testWidgets('l\'interrupteur Type appelle onGrouping(type)', (
+      tester,
+    ) async {
+      DeckGrouping? got;
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [dc('a', category: CardCategory.ramp)],
+          db,
+          onGrouping: (g) => got = g,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Type'));
+      await tester.pump();
+
+      expect(got, DeckGrouping.type);
+    });
+
+    testWidgets('en mode type, les en-têtes d\'origine reviennent', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [dc('bears', category: CardCategory.ramp), dc('bolt')],
+          db,
+          viewPrefs: const DeckViewPrefs(grouping: DeckGrouping.type),
+          fullCardData: [
+            sc('bears', 'Creature — Bear', 2),
+            sc('bolt', 'Instant', 1),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Créatures (1)'), findsOneWidget);
+      expect(find.text('Sorts (1)'), findsOneWidget);
+      expect(find.text('RAMP'), findsNothing);
+    });
+
+    testWidgets('l\'icône liste appelle onLayout(list)', (tester) async {
+      DeckLayout? got;
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [dc('a', category: CardCategory.ramp)],
+          db,
+          onLayout: (l) => got = l,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.view_list));
+      await tester.pump();
+
+      expect(got, DeckLayout.list);
+    });
+
+    testWidgets('en mode liste, des DeckCardTile et plus de grille', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [dc('a', category: CardCategory.ramp)],
+          db,
+          viewPrefs: const DeckViewPrefs(layout: DeckLayout.list),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DeckCardTile), findsOneWidget);
+      expect(find.byType(DeckCardGridTile), findsNothing);
+    });
+
+    testWidgets('les interrupteurs ont des cibles de 48 px de haut', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb([dc('a', category: CardCategory.ramp)], db),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSize(find.byType(SegmentedButton<DeckGrouping>)).height,
+        greaterThanOrEqualTo(48),
+      );
+      for (final icon in [Icons.grid_view, Icons.view_list]) {
+        expect(
+          tester.getSize(
+            find.ancestor(
+              of: find.byIcon(icon),
+              matching: find.byType(IconButton),
+            ),
+          ),
+          const Size(48, 48),
+        );
+      }
+    });
+
+    testWidgets('une carte verrouillée porte le cadenas, pas les autres', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb([
+          dc('verrou', category: CardCategory.wincon, locked: true),
+          dc('libre', category: CardCategory.ramp),
+        ], db),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.lock), findsOneWidget);
+      // Le libellé vit sur le nœud Semantics du cadenas, pas sur la tuile :
+      // un lecteur d'écran l'annonce même fusionné au reste de la vignette.
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Semantics &&
+              w.properties.label == 'Catégorie corrigée à la main',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('options : Catégorie… puis Pioche appelle onSetCategory', (
+      tester,
+    ) async {
+      DeckCard? gotCard;
+      CardCategory? gotCategory;
+      final card = dc('harmonize', category: CardCategory.other);
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [card],
+          db,
+          onSetCategory: (c, cat) {
+            gotCard = c;
+            gotCategory = cat;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.byType(DeckCardGridTile));
+      await tester.pumpAndSettle();
+      expect(find.text('Déduire automatiquement'), findsNothing);
+      await tester.tap(find.text('Catégorie…'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pioche'));
+      await tester.pumpAndSettle();
+
+      expect(gotCard, same(card));
+      expect(gotCategory, CardCategory.draw);
+    });
+
+    testWidgets('options : Déduire automatiquement existe si verrouillée', (
+      tester,
+    ) async {
+      DeckCard? reset;
+      final card = dc('verrou', category: CardCategory.wincon, locked: true);
+      await tester.pumpWidget(
+        buildTabWithDb([card], db, onResetCategory: (c) => reset = c),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.byType(DeckCardGridTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Déduire automatiquement'));
+      await tester.pumpAndSettle();
+
+      expect(reset, same(card));
     });
   });
 }

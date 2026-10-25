@@ -8,7 +8,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/deck_model.dart';
+import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/providers/card_display_provider.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
 
 void main() {
@@ -144,6 +146,88 @@ void main() {
 
       expect(withBadgeHeight, baselineHeight);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('DeckCardTile — sans prix', () {
+    testWidgets('n\'affiche aucun montant même quand la carte a un prix', (
+      tester,
+    ) async {
+      final sc = ScryfallCard.fromJson({
+        'id': 'sld-141',
+        'oracle_id': 'o-1',
+        'name': 'Dreadbore',
+        'type_line': 'Sorcery',
+        'cmc': 2.0,
+        'legalities': <String, dynamic>{},
+        'prices': {'eur': '1.50', 'usd': '2.00'},
+        'purchase_uris': <String, dynamic>{},
+        'color_identity': ['B', 'R'],
+        'set_name': 'Test',
+        'set': 'tst',
+        'collector_number': '1',
+        'rarity': 'rare',
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DeckCardTile(
+              card: card(),
+              scryfallCard: sc,
+              isInCollection: false,
+              onMore: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.textContaining('€'), findsNothing);
+      expect(find.textContaining('1.50'), findsNothing);
+    });
+  });
+
+  group('DeckCardGridTile — catégorie corrigée', () {
+    Widget buildGrid({required bool locked}) => MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 130,
+          height: 160,
+          child: DeckCardGridTile(
+            card: card(),
+            scryfallCard: null,
+            isInCollection: false,
+            categoryLocked: locked,
+            onPlus: () {},
+            onMinus: () {},
+            onTap: () {},
+            onLongPress: () {},
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('verrouillée : cadenas de 11 px et liseré or de 2 px', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildGrid(locked: true));
+
+      final lock = tester.widget<Icon>(find.byIcon(Icons.lock));
+      expect(lock.size, 11);
+      final shape =
+          tester.widget<Card>(find.byType(Card)).shape as RoundedRectangleBorder;
+      expect(shape.side.width, 2);
+      expect(shape.side.color, AppColors.primary);
+    });
+
+    testWidgets('non verrouillée : ni cadenas ni liseré épais', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildGrid(locked: false));
+
+      expect(find.byIcon(Icons.lock), findsNothing);
+      final shape =
+          tester.widget<Card>(find.byType(Card)).shape as RoundedRectangleBorder;
+      expect(shape.side.width, 1);
     });
   });
 }

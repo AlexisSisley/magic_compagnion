@@ -7,6 +7,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
+import '../../utils/deck_metrics.dart';
 import '../../utils/price_helper.dart';
 
 class DeckStatsTab extends StatefulWidget {
@@ -70,8 +71,6 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
     // --- NOUVEAU CALCUL ---
     _colorByTypeData = _calculateColorByType();
 
-    double totalCmc = 0;
-    int totalNonLandCards = 0;
     double tempPrice = 0;
 
     for (final deckCard in widget.mainboard) {
@@ -82,14 +81,10 @@ class _DeckStatsTabState extends State<DeckStatsTab> {
       if (unitPrice > 0) {
         tempPrice += unitPrice * deckCard.quantity;
       }
-      if (!scryfallCard.typeLine.toLowerCase().contains('land')) {
-         totalCmc += (scryfallCard.cmc ?? 0) * deckCard.quantity;
-         totalNonLandCards += deckCard.quantity;
-      }
     }
 
     _totalPrice = tempPrice;
-    _averageCmc = totalNonLandCards > 0 ? totalCmc / totalNonLandCards : 0.0;
+    _averageCmc = averageManaValue(widget.mainboard, widget.cardData);
   }
 
   // --- NOUVEAU CALCUL : COULEUR PAR TYPE ---
