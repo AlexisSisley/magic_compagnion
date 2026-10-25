@@ -40,6 +40,11 @@ class ScryfallCard {
   final String? smallImageUrl;
   final String? artCropUrl;
   final String rulesText;
+
+  /// Texte oracle anglais, jamais le texte imprimé : `rulesText` préfère
+  /// `printed_text` et peut donc être en français, ce qui fausserait la
+  /// déduction de catégorie. Vide si la carte n'en a pas.
+  final String oracleText;
   final String typeLine;
   final Map<String, String> legalities;
   final Map<String, dynamic> prices;
@@ -79,6 +84,7 @@ class ScryfallCard {
     this.smallImageUrl,
     this.artCropUrl,
     required this.rulesText,
+    this.oracleText = '',
     required this.typeLine,
     required this.legalities,
     required this.prices,
@@ -163,6 +169,16 @@ class ScryfallCard {
       }
     }
 
+    // Carte split / double face : le texte est porté par les faces, pas par la
+    // racine. On les joint pour que la déduction voie toute la carte.
+    String oracleText = json['oracle_text'] as String? ?? '';
+    if (json['oracle_text'] == null && json['card_faces'] is List) {
+      oracleText = (json['card_faces'] as List)
+          .map((f) => (f as Map)['oracle_text'])
+          .whereType<String>()
+          .join('\n');
+    }
+
     return ScryfallCard(
       id: json['id'],
       oracleId: json['oracle_id'] ?? '',
@@ -174,6 +190,7 @@ class ScryfallCard {
       smallImageUrl: smallImageUrl,
       artCropUrl: artCropUrl,
       rulesText: rulesText,
+      oracleText: oracleText,
       typeLine: json['type_line'] ?? 'Type inconnu',
       legalities: Map<String, String>.from(json['legalities'] ?? {}),
       prices: Map<String, dynamic>.from(json['prices'] ?? {}),
