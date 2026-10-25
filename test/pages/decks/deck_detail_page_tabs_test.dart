@@ -1,0 +1,234 @@
+// Structure de la page réelle : quatre onglets, et le sélecteur de board qui
+// reçoit le dépôt d'une carte glissée depuis la liste. Le dépôt passe par de
+// vrais gestes sur la page montée, jusqu'à la base et au contrôleur.
+
+import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:magic_companion/controllers/deck_detail_controller.dart';
+import 'package:magic_companion/data/database/app_database.dart';
+import 'package:magic_companion/models/deck_model.dart';
+import 'package:magic_companion/pages/decks/deck_detail_page.dart';
+import 'package:magic_companion/providers/service_providers.dart';
+import 'package:magic_companion/services/deck_service.dart';
+import 'package:magic_companion/services/scryfall_api_service.dart';
+import 'package:magic_companion/theme/app_colors.dart';
+import 'package:magic_companion/theme/app_theme.dart';
+import 'package:magic_companion/widgets/decks/deck_card_title.dart';
+
+class _SilentApi extends ScryfallApiService {
+  @override
+  Future<Map<String, dynamic>> fetchCollection(
+    List<Map<String, dynamic>> identifiers,
+  ) async => {'data': <dynamic>[]};
+}
+
+void main() {
+  late AppDatabase db;
+  late Deck deck;
+
+  setUp(() async {
+    db = AppDatabase(NativeDatabase.memory());
+    await db.insertDeck(
+      DecksCompanion.insert(id: 'd1', name: 'Deck', colors: const Value('[]')),
+    );
+    await db.upsertDeckCard(
+      deckId: 'd1',
+      board: 'main',
+      scryfallId: 'main-card',
+      cardName: 'Carte du main',
+      quantityToAdd: 1,
+    );
+    await db.upsertDeckCard(
+      deckId: 'd1',
+      board: 'side',
+      scryfallId: 'side-card',
+      cardName: 'Carte du side',
+      quantityToAdd: 1,
+    );
+  });
+
+  tearDown(() => db.close());
+
+  Future<void> openPage(WidgetTester tester) async {
+    deck = (await DeckService(
+      database: db,
+    ).loadDecks()).firstWhere((d) => d.id == 'd1');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          scryfallApiServiceProvider.overrideWithValue(_SilentApi()),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: DeckDetailPage(deck: deck),
+        ),
+      ),
+    );
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+  }
+
+  Color? pillColor(WidgetTester tester, String label) => tester
+      .widget<Material>(
+        find
+            .ancestor(of: find.text(label), matching: find.byType(Material))
+            .first,
+      )
+      .color;
+
+  /// Appui long sur [source], glissement en incréments jusqu'à la puce
+  /// [label], relâchement, puis attente de l'écriture en base.
+  Future<void> dragTo(WidgetTester tester, Finder source, String label) async {
+    final start = tester.getCenter(source);
+    final end = tester.getCenter(find.text(label));
+    final gesture = await tester.startGesture(start);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    const steps = 12;
+    for (var i = 1; i <= steps; i++) {
+      await gesture.moveTo(Offset.lerp(start, end, i / steps)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('quatre onglets exactement : Liste, Stats, Suggestions, Infos', (
+    tester,
+  ) async {
+    await openPage(tester);
+
+    final tabs = tester
+        .widgetList<Tab>(
+          find.descendant(of: find.byType(TabBar), matching: find.byType(Tab)),
+        )
+        .map((t) => t.text)
+        .toList();
+    expect(tabs, ['Liste', 'Stats', 'Suggestions', 'Infos']);
+
+    final bar = tester.widget<TabBar>(find.byType(TabBar));
+    expect(bar.isScrollable, isFalse);
+    // Le primary du thème est lilas : l'or de l'onglet actif est explicite.
+    expect(bar.labelColor, AppColors.primary);
+  });
+
+  testWidgets('Liste montre le sélecteur, le main par défaut', (tester) async {
+    await openPage(tester);
+
+    expect(find.text('Main 1'), findsOneWidget);
+    expect(find.text('Side 1'), findsOneWidget);
+    expect(find.text('Considering 0'), findsOneWidget);
+    expect(find.text('Wishlist 0'), findsOneWidget);
+    expect(pillColor(tester, 'Main 1'), AppColors.primary);
+    expect(find.text('Carte du main'), findsOneWidget);
+    expect(find.text('Carte du side'), findsNothing);
+  });
+
+  testWidgets('un tap sur Side affiche le side', (tester) async {
+    await openPage(tester);
+
+    await tester.tap(find.text('Side 1'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Carte du side'), findsOneWidget);
+    expect(find.text('Carte du main'), findsNothing);
+    expect(pillColor(tester, 'Side 1'), AppColors.primary);
+  });
+
+  testWidgets('une carte du main déposée sur Side y part, et Side est '
+      'sélectionné', (tester) async {
+    await openPage(tester);
+
+    await dragTo(tester, find.byType(DeckCardGridTile), 'Side 1');
+    expect(tester.takeException(), isNull);
+
+    // Relue dans le contrôleur : la carte a quitté le main pour le side.
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(DeckDetailPage)),
+    );
+    final current = container
+        .read(deckDetailControllerProvider(deck))
+        .currentDeck;
+    expect(current.mainboard.map((c) => c.scryfallId), isEmpty);
+    expect(
+      current.sideboard.map((c) => c.scryfallId),
+      containsAll(['main-card', 'side-card']),
+    );
+    // Et en base.
+    final rows = await db.getDeckCardsByDeckId('d1');
+    expect(rows.where((r) => r.scryfallId == 'main-card').map((r) => r.board), [
+      'side',
+    ]);
+
+    // Le sélecteur a basculé sur Side, qui affiche les deux cartes.
+    expect(pillColor(tester, 'Side 2'), AppColors.primary);
+    expect(find.text('Carte du main'), findsOneWidget);
+    expect(find.text('Carte du side'), findsOneWidget);
+  });
+
+  testWidgets('en liste compacte aussi, le dépôt sur Side déplace la carte '
+      'sans ouvrir son menu', (tester) async {
+    await openPage(tester);
+    await tester.tap(find.byIcon(Icons.view_list));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await dragTo(tester, find.byType(DeckCardTile), 'Side 1');
+
+    expect(tester.takeException(), isNull);
+    final rows = await db.getDeckCardsByDeckId('d1');
+    expect(rows.where((r) => r.scryfallId == 'main-card').map((r) => r.board), [
+      'side',
+    ]);
+    expect(find.text('Catégorie…'), findsNothing);
+    expect(pillColor(tester, 'Side 2'), AppColors.primary);
+  });
+
+  testWidgets('un appui long relâché sans bouger ouvre toujours le menu', (
+    tester,
+  ) async {
+    await openPage(tester);
+
+    await tester.longPress(find.byType(DeckCardGridTile));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Catégorie…'), findsOneWidget);
+    // Rien n'a bougé.
+    final rows = await db.getDeckCardsByDeckId('d1');
+    expect(rows.where((r) => r.scryfallId == 'main-card').map((r) => r.board), [
+      'main',
+    ]);
+  });
+
+  testWidgets('déposée sur son propre board, la carte reste et aucun menu '
+      'ne s\'ouvre', (tester) async {
+    await openPage(tester);
+
+    await dragTo(tester, find.byType(DeckCardGridTile), 'Main 1');
+
+    expect(find.text('Catégorie…'), findsNothing);
+    final rows = await db.getDeckCardsByDeckId('d1');
+    expect(rows.where((r) => r.scryfallId == 'main-card').map((r) => r.board), [
+      'main',
+    ]);
+    expect(pillColor(tester, 'Main 1'), AppColors.primary);
+  });
+
+  testWidgets('Infos réunit Tokens et Légalité', (tester) async {
+    await openPage(tester);
+
+    await tester.tap(find.text('Infos'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Tokens (0)'), findsOneWidget);
+    expect(find.text('Légalité'), findsOneWidget);
+  });
+}

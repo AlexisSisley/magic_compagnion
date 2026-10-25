@@ -11,13 +11,15 @@ import '../../models/legality_report.dart';
 class DeckLegalityTab extends StatelessWidget {
   final LegalityReport report;
 
-  const DeckLegalityTab({super.key, required this.report});
+  /// Sans défilement propre, pour vivre dans le défilement de l'onglet Infos.
+  final bool embedded;
+
+  const DeckLegalityTab({super.key, required this.report, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
+    // Le même contenu, enveloppé ou non dans son propre défilement.
+    final content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Resume
@@ -50,8 +52,11 @@ class DeckLegalityTab extends StatelessWidget {
           // Liste des formats
           ...report.results.map((result) => _buildFormatCard(result)),
         ],
-      ),
     );
+    if (embedded) {
+      return Padding(padding: const EdgeInsets.all(16), child: content);
+    }
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: content);
   }
 
   Widget _buildSummary() {

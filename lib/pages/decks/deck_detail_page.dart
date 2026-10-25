@@ -24,8 +24,8 @@ import '../../widgets/decks/deck_commander_header.dart';
 import '../../utils/deck_metrics.dart';
 // IMPORT DU NOUVEAU WIDGET
 import '../../widgets/decks/deck_visual_share_list.dart';
-import '../../widgets/decks/deck_tokens_tab.dart';
-import '../../widgets/decks/deck_legality_tab.dart';
+import '../../widgets/decks/deck_board_selector.dart';
+import '../../widgets/decks/deck_info_tab.dart';
 
 class DeckDetailPage extends ConsumerStatefulWidget {
   final Deck deck;
@@ -39,10 +39,14 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
   late TabController _tabController;
   final GlobalKey _shareKey = GlobalKey();
 
+  /// Board affiché dans l'onglet Liste. Il bascule sur le board visé après un
+  /// dépôt, pour que l'utilisateur voie la carte arriver.
+  DeckBoard _selectedBoard = DeckBoard.main;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 8, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -377,36 +381,6 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
       appBar: AppBar(
         toolbarHeight: 56,
         backgroundColor: AppColors.textOnPrimary,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(58),
-          child: Container(
-            color: AppColors.textOnPrimary,
-            child: TabBar(
-              controller: _tabController,
-              isScrollable: true,
-              indicator: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: AppColors.warning, width: 1)),
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: AppColors.transparent,
-              labelColor: AppColors.textPrimary,
-              labelStyle: AppTextStyles.bold(),
-              unselectedLabelColor: AppColors.textMuted,
-              unselectedLabelStyle: AppTextStyles.text(),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-              tabs: [
-                _buildDragTargetTab(DeckBoard.main, 'Main (${deckState.mainCount})'),
-                _buildDragTargetTab(DeckBoard.side, 'Side (${deckState.sideCount})'),
-                _buildDragTargetTab(DeckBoard.considering, 'Considering (${deckState.consCount})'),
-                _buildDragTargetTab(DeckBoard.wishlist, 'Wishlist (${deckState.wishCount})'),
-                Tab(text: 'Tokens (${deckState.tokens.length})'),
-                const Tab(text: 'Stats'),
-                const Tab(text: 'Suggestions'),
-                const Tab(icon: Icon(Icons.gavel, size: 18), text: 'Legalite'),
-              ],
-            ),
-          ),
-        ),
         actions: [
           IconButton(icon: const Icon(Icons.add_circle, color: AppColors.primary), onPressed: _openCardPicker),
           PopupMenuButton<String>(
@@ -447,90 +421,17 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
                   powerLevel: deckState.powerLevel,
                   totalPrice: deckState.totalDeckPrice,
                 ),
+                // Sous le bandeau, comme sur la maquette : le nom du deck
+                // passe avant les vues.
+                _buildTabBar(),
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      DeckCardListTab(
-                        cardList: deck.mainboard,
-                        fullCardData: deckState.fullCardData,
-                        collection: deckState.myCollection,
-                        commanderId: deck.commanderScryfallId,
-                        partnerId: deck.commanderSecondaryScryfallId,
-                        currentBoard: DeckBoard.main,
-                        onUpdateQuantity: (c, q) => _handleUpdateQuantity(c, q, DeckBoard.main),
-                        onMoveCard: (c, target) => _handleMoveCard(c, target, DeckBoard.main),
-                        onUpdateTags: (c, tags) => _ctrl.updateTags(c, tags, DeckBoard.main),
-                        onSetCommander: _handleSetCommander,
-                        onToggleFoil: (c) => _ctrl.toggleFoil(c, DeckBoard.main),
-                        onSwitchVersion: (c, newV) => _ctrl.switchVersion(c, newV, DeckBoard.main),
-                        onAddToCollection: (c, qty) => _handleAddToCollection(c, qty),
-                        onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
-                        viewPrefs: deckState.viewPrefs,
-                        onGrouping: _ctrl.setGrouping,
-                        onLayout: _ctrl.setLayout,
-                        onSetCategory: (c, cat) => _ctrl.setCategory(c, DeckBoard.main, cat),
-                        onResetCategory: (c) => _ctrl.resetCategory(c, DeckBoard.main),
-                      ),
-                      DeckCardListTab(
-                        cardList: deck.sideboard,
-                        fullCardData: deckState.fullCardData,
-                        collection: deckState.myCollection,
-                        currentBoard: DeckBoard.side,
-                        onUpdateQuantity: (c, q) => _handleUpdateQuantity(c, q, DeckBoard.side),
-                        onMoveCard: (c, target) => _handleMoveCard(c, target, DeckBoard.side),
-                        onUpdateTags: (c, tags) => _ctrl.updateTags(c, tags, DeckBoard.side),
-                        onToggleFoil: (c) => _ctrl.toggleFoil(c, DeckBoard.side),
-                        onSwitchVersion: (c, newV) => _ctrl.switchVersion(c, newV, DeckBoard.side),
-                        onAddToCollection: (c, qty) => _handleAddToCollection(c, qty),
-                        onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
-                        viewPrefs: deckState.viewPrefs,
-                        onGrouping: _ctrl.setGrouping,
-                        onLayout: _ctrl.setLayout,
-                        onSetCategory: (c, cat) => _ctrl.setCategory(c, DeckBoard.side, cat),
-                        onResetCategory: (c) => _ctrl.resetCategory(c, DeckBoard.side),
-                      ),
-                      DeckCardListTab(
-                        cardList: deck.considering,
-                        fullCardData: deckState.fullCardData,
-                        collection: deckState.myCollection,
-                        currentBoard: DeckBoard.considering,
-                        onUpdateQuantity: (c, q) => _handleUpdateQuantity(c, q, DeckBoard.considering),
-                        onMoveCard: (c, target) => _handleMoveCard(c, target, DeckBoard.considering),
-                        onUpdateTags: (c, tags) => _ctrl.updateTags(c, tags, DeckBoard.considering),
-                        onToggleFoil: (c) => _ctrl.toggleFoil(c, DeckBoard.considering),
-                        onSwitchVersion: (c, newV) => _ctrl.switchVersion(c, newV, DeckBoard.considering),
-                        onAddToCollection: (c, qty) => _handleAddToCollection(c, qty),
-                        onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
-                        viewPrefs: deckState.viewPrefs,
-                        onGrouping: _ctrl.setGrouping,
-                        onLayout: _ctrl.setLayout,
-                        onSetCategory: (c, cat) => _ctrl.setCategory(c, DeckBoard.considering, cat),
-                        onResetCategory: (c) => _ctrl.resetCategory(c, DeckBoard.considering),
-                      ),
-                      DeckCardListTab(
-                        cardList: deck.wishlist,
-                        fullCardData: deckState.fullCardData,
-                        collection: deckState.myCollection,
-                        currentBoard: DeckBoard.wishlist,
-                        onUpdateQuantity: (c, q) => _handleUpdateQuantity(c, q, DeckBoard.wishlist),
-                        onMoveCard: (c, target) => _handleMoveCard(c, target, DeckBoard.wishlist),
-                        onUpdateTags: (c, tags) => _ctrl.updateTags(c, tags, DeckBoard.wishlist),
-                        onExportToGlobalWishlist: _handleExportDeckWishlistToGlobal,
-                        onToggleFoil: (c) => _ctrl.toggleFoil(c, DeckBoard.wishlist),
-                        onSwitchVersion: (c, newV) => _ctrl.switchVersion(c, newV, DeckBoard.wishlist),
-                        onAddToCollection: (c, qty) => _handleAddToCollection(c, qty),
-                        onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
-                        viewPrefs: deckState.viewPrefs,
-                        onGrouping: _ctrl.setGrouping,
-                        onLayout: _ctrl.setLayout,
-                        onSetCategory: (c, cat) => _ctrl.setCategory(c, DeckBoard.wishlist, cat),
-                        onResetCategory: (c) => _ctrl.resetCategory(c, DeckBoard.wishlist),
-                      ),
-                      DeckTokensTab(tokens: deckState.tokens),
+                      _buildListTab(deckState),
                       DeckStatsTab(mainboard: deck.mainboard, cardData: deckState.fullCardData),
                       DeckSuggestionsTab(deck: deck),
-                      DeckLegalityTab(report: _ctrl.generateLegalityReport()),
+                      DeckInfoTab(tokens: deckState.tokens, report: _ctrl.generateLegalityReport()),
                     ],
                   ),
                 ),
@@ -539,36 +440,95 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
     );
   }
 
-  Widget _buildDragTargetTab(DeckBoard board, String label) {
-    return DragTarget<Map<String, dynamic>>(
-      onWillAcceptWithDetails: (details) {
-        return details.data['sourceBoard'] != board;
-      },
-      onAcceptWithDetails: (details) {
-        final DeckCard card = details.data['card'];
-        final DeckBoard source = details.data['sourceBoard'];
-        _handleMoveCard(card, board, source);
-        const boardToIndex = {
-          DeckBoard.main: 0,
-          DeckBoard.side: 1,
-          DeckBoard.considering: 2,
-          DeckBoard.wishlist: 3,
-        };
-        _tabController.animateTo(boardToIndex[board] ?? 0);
-      },
-      builder: (context, candidateData, rejectedData) {
-        final bool isHovered = candidateData.isNotEmpty;
-        return Tab(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: isHovered ? 4 : 0),
-            decoration: isHovered
-                ? BoxDecoration(color: AppColors.primaryShade900.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(8))
-                : null,
-            child: Text(label),
+  /// Quatre onglets de largeur égale. Le primary du thème est lilas : l'or de
+  /// l'onglet actif et de son soulignement est posé explicitement.
+  Widget _buildTabBar() {
+    return Container(
+      color: AppColors.textOnPrimary,
+      child: TabBar(
+        controller: _tabController,
+        isScrollable: false,
+        indicator: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.primary, width: 2)),
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: AppColors.transparent,
+        labelColor: AppColors.primary,
+        labelStyle: AppTextStyles.bold(),
+        unselectedLabelColor: AppColors.textMuted,
+        unselectedLabelStyle: AppTextStyles.text(),
+        // Marges réduites : « Suggestions » doit tenir en entier sur un
+        // téléphone de 360 px, où chaque onglet ne reçoit qu'un quart.
+        labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+        tabs: const [
+          Tab(text: 'Liste'),
+          Tab(text: 'Stats'),
+          Tab(text: 'Suggestions'),
+          Tab(text: 'Infos'),
+        ],
+      ),
+    );
+  }
+
+  /// Onglet Liste : le sélecteur de board, puis la liste du board choisi.
+  /// Une seule liste, câblée sur `_selectedBoard` : chaque callback vise le
+  /// board affiché.
+  Widget _buildListTab(DeckDetailState deckState) {
+    final deck = deckState.currentDeck;
+    final board = _selectedBoard;
+    final cards = switch (board) {
+      DeckBoard.main => deck.mainboard,
+      DeckBoard.side => deck.sideboard,
+      DeckBoard.considering => deck.considering,
+      DeckBoard.wishlist => deck.wishlist,
+    };
+    final isMain = board == DeckBoard.main;
+    return Column(
+      children: [
+        DeckBoardSelector(
+          selected: board,
+          counts: {
+            DeckBoard.main: deckState.mainCount,
+            DeckBoard.side: deckState.sideCount,
+            DeckBoard.considering: deckState.consCount,
+            DeckBoard.wishlist: deckState.wishCount,
+          },
+          onSelect: (b) => setState(() => _selectedBoard = b),
+          onDrop: (card, from, to) {
+            _handleMoveCard(card, to, from);
+            setState(() => _selectedBoard = to);
+          },
+        ),
+        Expanded(
+          child: DeckCardListTab(
+            // Une clé par board : changer de board repart d'un défilement en
+            // haut de liste, comme le faisait un onglet distinct.
+            key: ValueKey(board),
+            cardList: cards,
+            fullCardData: deckState.fullCardData,
+            collection: deckState.myCollection,
+            // Commandant et « Définir comme commandant » n'existent que sur le main.
+            commanderId: isMain ? deck.commanderScryfallId : null,
+            partnerId: isMain ? deck.commanderSecondaryScryfallId : null,
+            currentBoard: board,
+            onUpdateQuantity: (c, q) => _handleUpdateQuantity(c, q, board),
+            onMoveCard: (c, target) => _handleMoveCard(c, target, board),
+            onUpdateTags: (c, tags) => _ctrl.updateTags(c, tags, board),
+            onSetCommander: isMain ? _handleSetCommander : null,
+            onExportToGlobalWishlist:
+                board == DeckBoard.wishlist ? _handleExportDeckWishlistToGlobal : null,
+            onToggleFoil: (c) => _ctrl.toggleFoil(c, board),
+            onSwitchVersion: (c, newV) => _ctrl.switchVersion(c, newV, board),
+            onAddToCollection: (c, qty) => _handleAddToCollection(c, qty),
+            onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
+            viewPrefs: deckState.viewPrefs,
+            onGrouping: _ctrl.setGrouping,
+            onLayout: _ctrl.setLayout,
+            onSetCategory: (c, cat) => _ctrl.setCategory(c, board, cat),
+            onResetCategory: (c) => _ctrl.resetCategory(c, board),
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 }

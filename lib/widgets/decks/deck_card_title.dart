@@ -24,6 +24,11 @@ class DeckCardTile extends StatelessWidget {
   /// possede) immediatement, sans spinner ni etat de chargement.
   final CardDisplay? display;
 
+  /// Faux quand la tuile vit dans un `LongPressDraggable` : un appui long
+  /// propre à la tuile gagnerait l'arène des gestes et le glisser ne
+  /// démarrerait jamais. Le draggable ouvre alors le menu lui-même.
+  final bool longPressOpensMenu;
+
   const DeckCardTile({
     super.key,
     required this.card,
@@ -33,6 +38,7 @@ class DeckCardTile extends StatelessWidget {
     this.onTap,
     required this.onMore, // Requis maintenant
     this.display,
+    this.longPressOpensMenu = true,
   });
 
   @override
@@ -47,7 +53,7 @@ class DeckCardTile extends StatelessWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 0.0),
         onTap: onTap,
-        onLongPress: onMore, // Long press ouvre aussi le menu par confort
+        onLongPress: longPressOpensMenu ? onMore : null, // Long press ouvre aussi le menu par confort
         // Miniature à gauche
         leading: Stack(
           children: [
@@ -158,7 +164,10 @@ class DeckCardGridTile extends StatelessWidget {
   final VoidCallback onPlus;
   final VoidCallback onMinus;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
+
+  /// Nul quand la vignette vit dans un `LongPressDraggable` : voir
+  /// [DeckCardTile.longPressOpensMenu].
+  final VoidCallback? onLongPress;
 
   /// Catégorie corrigée à la main : la vignette le dit (liseré or et cadenas)
   /// pour qu'on sache qu'aucune déduction ne la réécrira.
@@ -176,7 +185,7 @@ class DeckCardGridTile extends StatelessWidget {
     required this.onPlus,
     required this.onMinus,
     required this.onTap,
-    required this.onLongPress,
+    this.onLongPress,
     this.categoryLocked = false,
     this.display,
   });

@@ -3,6 +3,7 @@
 import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/services.dart'; // Pour Clipboard
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/widgets/cards/versions_selector_sheet.dart';
@@ -325,16 +326,34 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
     );
   }
 
+  /// Distance parcourue par le glisser en cours. Un appui long relâché sans
+  /// bouger reste un appui long : il ouvre le menu de la carte.
+  double _dragTravel = 0;
+
   Widget _buildDraggableItem(DeckCard card, {required bool isGrid}) {
-    // On wrap la tuile dans un LongPressDraggable pour permettre le drag vers les onglets
+    // La tuile n'a pas d'appui long à elle : le LongPressDraggable porte les
+    // deux gestes. Sinon la tuile gagnait l'arène, son menu s'ouvrait et la
+    // carte ne pouvait jamais être déposée sur un autre board.
     return LongPressDraggable<Map<String, dynamic>>(
       data: {'card': card, 'sourceBoard': widget.currentBoard},
+      onDragStarted: () => _dragTravel = 0,
+      onDragUpdate: (details) => _dragTravel += details.delta.distance,
+      onDragEnd: (details) {
+        if (!details.wasAccepted && _dragTravel < kTouchSlop && mounted) {
+          final scryfallCard = widget.fullCardData.where((sc) => sc.id == card.scryfallId).firstOrNull;
+          final isCommander = widget.commanderId == card.scryfallId || widget.partnerId == card.scryfallId;
+          _showCardOptions(card, scryfallCard, isCommander);
+        }
+      },
       feedback: Material(
         color: AppColors.transparent,
         child: Opacity(
           opacity: 0.8,
+          // La vignette remplit sa cellule : dans l'overlay, sans cellule, elle
+          // a besoin d'une hauteur, au même ratio que la grille (0,8).
           child: SizedBox(
             width: isGrid ? 100 : 300,
+            height: isGrid ? 125 : null,
             child: _buildItem(card, isGrid: isGrid), // Visuel pendant le drag
           ),
         ),
@@ -359,7 +378,6 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
         onPlus: () => widget.onUpdateQuantity(card, 1),
         onMinus: () => widget.onUpdateQuantity(card, -1),
         onTap: () { if (scryfallCard != null) pushCardDetail(context, cardName: scryfallCard.name); },
-        onLongPress: () => _showCardOptions(card, scryfallCard, isCommander),
       );
     } else {
       return DeckCardTile(
@@ -367,6 +385,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
         display: display,
         onTap: () { if (scryfallCard != null) pushCardDetail(context, cardName: scryfallCard.name); },
         onMore: () => _showCardOptions(card, scryfallCard, isCommander), // <--- Ouvre la modale
+        longPressOpensMenu: false,
       );
     }
   }
