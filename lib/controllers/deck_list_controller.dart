@@ -305,6 +305,13 @@ class DeckListController extends StateNotifier<DeckListState> {
     await loadDecks();
   }
 
+  /// Pose les tags d'un deck. `loadDecks` derriere : il recharge la liste et
+  /// elague les tags selectionnes qu'aucun deck ne porte plus.
+  Future<void> updateDeckTags(String deckId, List<String> tags) async {
+    await _deckService.updateDeckTags(deckId, tags);
+    await loadDecks();
+  }
+
   Future<void> createNewDeck(String name) async {
     if (name.isEmpty) return;
     await _deckService.createNewDeck(name);

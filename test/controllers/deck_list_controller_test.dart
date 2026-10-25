@@ -834,6 +834,23 @@ Random text here
       expect(c.availableTags, ['Alpha', 'Beta', 'Zeta']);
     });
 
+    test('updateDeckTags persiste, recharge et alimente availableTags',
+        () async {
+      final c = await build([('A', 'Standard', [])]);
+      expect(c.availableTags, isEmpty);
+      await c.updateDeckTags(c.state.decks.single.id, ['cEDH']);
+      expect(c.availableTags, ['cEDH']);
+      expect(c.state.decks.single.tags, ['cEDH']);
+    });
+
+    test('updateDeckTags elague un tag selectionne que plus aucun deck ne porte',
+        () async {
+      final c = await build([('A', 'Standard', ['X'])]);
+      c.updateTags(['X']);
+      await c.updateDeckTags(c.state.decks.single.id, []);
+      expect(c.state.selectedTags, isEmpty);
+    });
+
     test('availableFormats : sans doublon de casse, premiere graphie, trie',
         () async {
       final c = await build([

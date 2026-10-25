@@ -14,6 +14,7 @@ import '../../widgets/decks/deck_filter_sheet.dart';
 import '../../widgets/decks/deck_import_modal.dart';
 import '../../widgets/decks/deck_library_grid.dart';
 import '../../widgets/decks/deck_list_card.dart';
+import '../../widgets/decks/deck_tags_sheet.dart';
 
 class DeckListPage extends ConsumerStatefulWidget {
   const DeckListPage({super.key});
@@ -71,6 +72,16 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
       tags: _controller.availableTags,
       maxPrice: maxPrice,
     );
+  }
+
+  Future<void> _editTags(Deck deck) async {
+    final tags = await showDeckTagsSheet(
+      context,
+      deckName: deck.name,
+      current: deck.tags,
+      known: _controller.availableTags,
+    );
+    if (tags != null) await _controller.updateDeckTags(deck.id, tags);
   }
 
   Future<void> _deleteDeck(String deckId) async {
@@ -294,6 +305,7 @@ class _DeckListPageState extends ConsumerState<DeckListPage> {
         await context.push(AppRoutes.deckDetail, extra: deck);
         _controller.loadDecks();
       },
+      onLongPress: () => _editTags(deck),
       confirmDismiss: (d) => showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
