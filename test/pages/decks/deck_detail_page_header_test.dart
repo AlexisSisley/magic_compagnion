@@ -161,4 +161,32 @@ void main() {
     expect(find.textContaining('Power'), findsNothing);
     expect(find.text('Aucun commandant défini'), findsOneWidget);
   });
+
+  testWidgets('le power level est recalculé quand le contenu du deck change', (
+    tester,
+  ) async {
+    await DeckService(database: db).setCommander('d1', 'cmdr');
+    final deck = await load();
+    await tester.pumpWidget(app(deck));
+    await settle(tester);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(DeckDetailPage)),
+    );
+    final before = container
+        .read(deckDetailControllerProvider(deck))
+        .powerLevel;
+    expect(before, isNotNull);
+    final card = deck.mainboard.first;
+    await container
+        .read(deckDetailControllerProvider(deck).notifier)
+        .updateTags(card, ['x'], DeckBoard.main);
+
+    // Sans EDHREC le score peut rester égal : c'est le recalcul (nouvelle
+    // instance) qui prouve que la pilule ne reste pas figée.
+    expect(
+      container.read(deckDetailControllerProvider(deck)).powerLevel,
+      isNot(same(before)),
+    );
+  });
 }

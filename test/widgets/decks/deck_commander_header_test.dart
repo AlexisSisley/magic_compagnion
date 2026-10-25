@@ -204,4 +204,44 @@ void main() {
     final price = tester.getTopLeft(find.text('289 €'));
     expect(price.dx, greaterThan(power.dx));
   });
+
+  testWidgets('le nom et la rangée portent une ombre pour rester lisibles', (
+    tester,
+  ) async {
+    await pump(tester, header(deck(commander: 'a')));
+    for (final t in [
+      'Atraxa',
+      '107 cartes',
+      'CMC moyen 3,2',
+      'Power 7',
+      '289 €',
+    ]) {
+      expect(
+        tester.widget<Text>(find.text(t)).style!.shadows,
+        isNotEmpty,
+        reason: t,
+      );
+    }
+  });
+
+  testWidgets('le nom est un en-tête qui nomme la route', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pump(tester, header(deck(commander: 'a')));
+    final node = tester.getSemantics(find.text('Atraxa'));
+    expect(node.flagsCollection.isHeader, isTrue);
+    expect(node.flagsCollection.namesRoute, isTrue);
+    handle.dispose();
+  });
+
+  testWidgets('chaque séparateur voyage avec son élément', (tester) async {
+    await pump(tester, header(deck(commander: 'a')));
+    for (final t in ['CMC moyen 3,2', 'Power 7']) {
+      final row = find.ancestor(of: find.text(t), matching: find.byType(Row));
+      expect(
+        find.descendant(of: row.first, matching: find.text('·')),
+        findsOneWidget,
+        reason: t,
+      );
+    }
+  });
 }

@@ -313,6 +313,9 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     }
 
     state = state.copyWith(totalDeckPrice: total);
+    // Le niveau dépend du contenu du deck comme le prix : même moment de recalcul,
+    // pour que la pilule ne reste pas périmée après un ajout ou un déplacement.
+    _computePowerLevel();
   }
 
   /// Extrait les tokens uniques requis par le deck depuis allParts.
@@ -465,6 +468,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
       newTags: tags,
     );
     state = state.copyWith(currentDeck: updatedDeck);
+    _computePowerLevel();
   }
 
   // --- CATÉGORIES ---

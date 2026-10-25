@@ -118,11 +118,19 @@ class DeckCommanderHeader extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      deck.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.pageTitle(fontSize: 26),
+                    // L'AppBar n'a plus de titre : le nom porte le rôle d'en-tête
+                    // et nomme la route pour les lecteurs d'écran.
+                    Semantics(
+                      header: true,
+                      namesRoute: true,
+                      child: Text(
+                        deck.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.pageTitle(
+                          fontSize: 26,
+                        ).copyWith(shadows: DeckListCard.textShadows),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     _statsRow(),
@@ -140,7 +148,7 @@ class DeckCommanderHeader extends StatelessWidget {
     final muted = AppTextStyles.text(
       color: AppColors.textSecondary,
       fontSize: 13,
-    );
+    ).copyWith(shadows: DeckListCard.textShadows);
     final cmc = averageManaValue.toStringAsFixed(1).replaceAll('.', ',');
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,23 +166,33 @@ class DeckCommanderHeader extends StatelessWidget {
                 '$cardCount ${cardCount > 1 ? 'cartes' : 'carte'}',
                 style: muted,
               ),
-              Text('·', style: muted),
-              Text('CMC moyen $cmc', style: muted),
-              if (powerLevel != null) ...[
-                Text('·', style: muted),
-                _powerPill(powerLevel!),
-              ],
+              // Chaque séparateur voyage avec l'élément qu'il précède : un
+              // retour à la ligne ne peut pas l'abandonner en bout de ligne.
+              _withDot(Text('CMC moyen $cmc', style: muted), muted),
+              if (powerLevel != null) _withDot(_powerPill(powerLevel!), muted),
             ],
           ),
         ),
         const SizedBox(width: 8),
         Text(
           DeckListCard.formatPrice(totalPrice),
-          style: AppTextStyles.text(color: AppColors.textMuted, fontSize: 13),
+          style: AppTextStyles.text(
+            color: AppColors.textMuted,
+            fontSize: 13,
+          ).copyWith(shadows: DeckListCard.textShadows),
         ),
       ],
     );
   }
+
+  Widget _withDot(Widget child, TextStyle style) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text('·', style: style),
+      const SizedBox(width: 8),
+      child,
+    ],
+  );
 
   /// Pilule à bordure or. Les couleurs sont explicites : le primaire du thème
   /// est lilas, pas or.
@@ -186,7 +204,10 @@ class DeckCommanderHeader extends StatelessWidget {
     ),
     child: Text(
       'Power ${level.score}',
-      style: AppTextStyles.bold(color: AppColors.primary, fontSize: 12),
+      style: AppTextStyles.bold(
+        color: AppColors.primary,
+        fontSize: 12,
+      ).copyWith(shadows: DeckListCard.textShadows),
     ),
   );
 }

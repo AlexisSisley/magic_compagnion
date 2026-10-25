@@ -43,7 +43,7 @@ class DeckListCard extends StatelessWidget {
 
   /// Ombre douce : filet de sécurité quand l'art est très clair malgré le
   /// dégradé.
-  static final List<Shadow> _textShadows = [
+  static final List<Shadow> textShadows = [
     Shadow(
       color: AppColors.textOnPrimary.withValues(alpha: 0.7),
       blurRadius: 4,
@@ -178,7 +178,7 @@ class DeckListCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTextStyles.sectionTitle().copyWith(
-                              shadows: _textShadows,
+                              shadows: textShadows,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -193,14 +193,14 @@ class DeckListCard extends StatelessWidget {
                                   style: AppTextStyles.text(
                                     color: AppColors.textSecondary,
                                     fontSize: 12,
-                                  ).copyWith(shadows: _textShadows),
+                                  ).copyWith(shadows: textShadows),
                                 ),
                                 TextSpan(
                                   text: formatPrice(totalPrice),
                                   style: AppTextStyles.bold(
                                     color: AppColors.primary,
                                     fontSize: 12,
-                                  ).copyWith(shadows: _textShadows),
+                                  ).copyWith(shadows: textShadows),
                                 ),
                               ],
                             ),
