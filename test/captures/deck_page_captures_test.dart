@@ -3,8 +3,11 @@
 // Captures visuelles de la page d'un deck (chantier D, spec §6.2) : la VRAIE
 // `DeckDetailPage`, montee sur une base en memoire avec `buildAppTheme()`.
 // On regarde le bandeau dans ses trois etats (un commandant, un partenaire,
-// aucun), la grille d'artworks groupee par categorie (le defaut) avec une
-// carte verrouillee, puis la meme liste en mode compact, a 840x700 et 390x844.
+// aucun), la grille d'artworks groupee par categorie (memorisee pour ce deck,
+// le defaut etant le type) avec une carte verrouillee, puis la liste en mode
+// compact (groupee par type), a 840x700 et 390x844. Enfin, au telephone,
+// l'onglet Liste juste apres un petit defilement : le bandeau est sorti et
+// les puces, avec les interrupteurs au bout, restent au-dessus des cartes.
 //
 // Sans reseau, les arts (commandant et vignettes) affichent leurs replis : les
 // donnees de carte (type, texte oracle, cout, prix) viennent d'un faux
@@ -31,6 +34,7 @@ import 'package:magic_companion/data/database/app_database.dart';
 import 'package:magic_companion/pages/decks/deck_detail_page.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/deck_service.dart';
+import 'package:magic_companion/services/deck_view_prefs.dart';
 import 'package:magic_companion/services/scryfall_api_service.dart';
 import 'package:magic_companion/theme/app_theme.dart';
 import 'package:magic_companion/widgets/decks/deck_commander_header.dart';
@@ -382,7 +386,11 @@ void main() {
 
   late AppDatabase db;
 
-  Future<void> seed({String? commander, String? partner}) async {
+  Future<void> seed({
+    String? commander,
+    String? partner,
+    DeckGrouping? grouping,
+  }) async {
     db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
     await db.insertDeck(
@@ -433,6 +441,9 @@ void main() {
     final service = DeckService(database: db);
     if (commander != null) await service.setCommander('d1', commander);
     if (partner != null) await service.setCommander('d1', partner, slot: 2);
+    if (grouping != null) {
+      await saveDeckViewPrefs(db, 'd1', DeckViewPrefs(grouping: grouping));
+    }
   }
 
   Future<void> mount(WidgetTester tester, Size size) async {
@@ -486,8 +497,11 @@ void main() {
             tester.getSize(find.byType(DeckCommanderHeader)).height,
             DeckCommanderHeader.height,
           );
+          // Le bandeau vit maintenant dans le viewport du NestedScrollView,
+          // qui a sa propre frontiere de peinture (fond transparent) : on
+          // capture la page entiere, comme le faisaient ces PNG avant.
           await expectLater(
-            find.byType(DeckCommanderHeader),
+            find.byType(DeckDetailPage),
             matchesGoldenFile(
               'goldens/deck_page_bandeau_${state.key}_${size.key}.png',
             ),
@@ -501,7 +515,7 @@ void main() {
     for (final size in sizes.entries) {
       testWidgets('grille par categorie defilee a ${size.key}', (tester) async {
         await _runGuarded(() async {
-          await seed(commander: 'cmdr');
+          await seed(commander: 'cmdr', grouping: DeckGrouping.category);
           await mount(tester, size.value);
           // Le haut de page est deja montre par les captures du bandeau :
           // on descend pour voir plusieurs categories et la carte verrouillee.
@@ -536,5 +550,28 @@ void main() {
         );
       });
     }
+
+    testWidgets('bandeau sorti apres un defilement a 390', (tester) async {
+      await _runGuarded(() async {
+        await seed(commander: 'cmdr');
+        await mount(tester, sizes['390']!);
+        // Juste assez pour sortir le bandeau (180 px) : la liste, elle,
+        // repart presque de son debut.
+        await tester.drag(
+          find.textContaining('Créatures (').first,
+          const Offset(0, -200),
+          warnIfMissed: false,
+        );
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+      });
+      expect(tester.takeException(), isNull);
+      expect(find.byType(DeckCommanderHeader).hitTestable(), findsNothing);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/deck_page_liste_bandeau_sorti_390.png'),
+      );
+    });
   });
 }
