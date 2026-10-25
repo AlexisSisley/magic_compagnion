@@ -117,6 +117,7 @@ void main() {
     // explicitement, le défaut de l'app étant le regroupement par type.
     DeckViewPrefs viewPrefs = const DeckViewPrefs(grouping: DeckGrouping.tag),
     List<CardTagDef> tagCatalog = kDefaultCardTags,
+    List<String> deckTags = const [],
     DeckBoard currentBoard = DeckBoard.main,
     VoidCallback? onExportToGlobalWishlist,
     void Function(DeckCard, List<String>)? onSetTags,
@@ -135,6 +136,7 @@ void main() {
             onExportToGlobalWishlist: onExportToGlobalWishlist,
             viewPrefs: viewPrefs,
             tagCatalog: tagCatalog,
+            deckTags: deckTags,
             onSetTags: onSetTags ?? (_, _) {},
             onResetTags: onResetTags ?? (_) {},
           ),
@@ -633,9 +635,8 @@ void main() {
       expect(find.byIcon(Icons.lock), findsNothing);
     });
 
-    testWidgets('options : une seule entrée Tags…, qui appelle onSetTags', (
-      tester,
-    ) async {
+    testWidgets('options : une seule entrée Tags…, qui ouvre la feuille et '
+        'appelle onSetTags', (tester) async {
       DeckCard? gotCard;
       List<String>? gotTags;
       final card = dc('harmonize', tags: ['Pioche']);
@@ -643,6 +644,7 @@ void main() {
         buildTabWithDb(
           [card],
           db,
+          deckTags: ['Hate'],
           onSetTags: (c, tags) {
             gotCard = c;
             gotTags = tags;
@@ -658,37 +660,73 @@ void main() {
       expect(find.text('Déduire automatiquement'), findsNothing);
       await tester.tap(find.text('Tags…'));
       await tester.pumpAndSettle();
+      // La feuille propose les tags du deck transmis par la page.
+      expect(find.text('Tags de ce deck'), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'Perso');
-      await tester.tap(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.byIcon(Icons.add),
-        ),
-      );
+      await tester.tap(find.text('Ajouter'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('OK'));
+      await tester.tap(find.text('Enregistrer'));
       await tester.pumpAndSettle();
 
       expect(gotCard, same(card));
       expect(gotTags, ['Pioche', 'Perso']);
     });
 
-    testWidgets('options : Déduire automatiquement existe si tags édités', (
-      tester,
-    ) async {
+    testWidgets('feuille : Suggestion auto pour une carte connue de Scryfall '
+        'appelle onResetTags', (tester) async {
       DeckCard? reset;
-      final card = dc('edite', tags: ['Win-con'], edited: true);
+      final card = dc('rampant', tags: ['Ramp'], edited: true);
       await tester.pumpWidget(
-        buildTabWithDb([card], db, onResetTags: (c) => reset = c),
+        buildTabWithDb(
+          [card],
+          db,
+          fullCardData: [sc('rampant', 'Sorcery', 2)],
+          onResetTags: (c) => reset = c,
+        ),
       );
       await tester.pumpAndSettle();
 
       await tester.longPress(find.byType(DeckCardGridTile));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Déduire automatiquement'));
+      await tester.tap(find.text('Tags…'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Suggestion auto'));
       await tester.pumpAndSettle();
 
       expect(reset, same(card));
+    });
+
+    testWidgets('feuille : Suggestion auto absente pour une carte inconnue de '
+        'Scryfall', (tester) async {
+      await tester.pumpWidget(
+        buildTabWithDb([dc('inconnue', tags: ['Pioche'])], db),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.byType(DeckCardGridTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tags…'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Suggestion auto'), findsNothing);
+    });
+
+    testWidgets('feuille : Suggestion auto absente pour une carte LOCAL:', (tester) async {
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [dc('LOCAL:abc', tags: ['Pioche'])],
+          db,
+          fullCardData: [sc('LOCAL:abc', 'Sorcery', 2)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.byType(DeckCardGridTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tags…'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Suggestion auto'), findsNothing);
     });
   });
 }

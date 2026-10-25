@@ -22,6 +22,7 @@ import '../../widgets/decks/deck_card_list_tab.dart';
 import '../../widgets/decks/deck_financial_sheet.dart';
 import '../../widgets/decks/deck_card_picker.dart';
 import '../../widgets/decks/deck_commander_header.dart';
+import '../../utils/card_tag_edit.dart';
 import '../../utils/deck_metrics.dart';
 // IMPORT DU NOUVEAU WIDGET
 import '../../widgets/decks/deck_visual_share_list.dart';
@@ -549,6 +550,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
             onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
             viewPrefs: deckState.viewPrefs,
             tagCatalog: tagCatalog,
+            deckTags: deckOnlyTags(deck, tagCatalog),
             onSetTags: (c, tags) => _ctrl.setCardTags(c, board, tags),
             onResetTags: (c) => _ctrl.resetCardTags(c, board),
           ),

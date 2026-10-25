@@ -123,14 +123,9 @@ void main() {
     await tester.tap(find.text('Tags…'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), tag);
-    await tester.tap(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.byIcon(Icons.add),
-      ),
-    );
+    await tester.tap(find.text('Ajouter'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
+    await tester.tap(find.text('Enregistrer'));
     await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
   }
@@ -172,9 +167,30 @@ void main() {
     expect((await row('main-card', 'main')).tagsEdited, isFalse);
   });
 
-  testWidgets('Déduire automatiquement rend la carte du main à la suggestion', (
+  testWidgets('la feuille Tags… propose les tags des autres boards du deck', (
     tester,
   ) async {
+    await db.setDeckCardTags(
+      deckId: 'd1',
+      board: 'side',
+      scryfallId: 'side-card',
+      tags: ['Hate'],
+      tagsEdited: true,
+    );
+    await openPage(tester);
+
+    await tester.longPress(find.byType(DeckCardGridTile));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tags…'));
+    await tester.pumpAndSettle();
+
+    // « Hate » vit sur le side : seule la page, qui voit tout le deck, le sait.
+    expect(find.text('Tags de ce deck'), findsOneWidget);
+    expect(find.widgetWithText(ActionChip, 'Hate'), findsOneWidget);
+  });
+
+  testWidgets('Suggestion auto de la feuille rend la carte du main à la '
+      'suggestion', (tester) async {
     await db.setDeckCardTags(
       deckId: 'd1',
       board: 'main',
@@ -183,16 +199,11 @@ void main() {
       tagsEdited: true,
     );
     await openPage(tester);
-
+    // Sans donnée Scryfall la carte n'est pas suggérable : le bouton manque.
     await tester.longPress(find.byType(DeckCardGridTile));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Déduire automatiquement'));
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.text('Tags…'));
     await tester.pumpAndSettle();
-
-    // Sans donnée Scryfall, la suggestion est vide.
-    final main = await row('main-card', 'main');
-    expect(main.tagsEdited, isFalse);
-    expect(AppDatabase.decodeTags(main.tags), isEmpty);
+    expect(find.text('Suggestion auto'), findsNothing);
   });
 }

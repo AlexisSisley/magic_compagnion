@@ -8,6 +8,7 @@ import 'package:flutter/services.dart'; // Pour Clipboard
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/widgets/cards/versions_selector_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:magic_companion/widgets/decks/card_tags_sheet.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
 import '../../models/card_tag.dart';
 import '../../models/deck_model.dart';
@@ -53,6 +54,10 @@ class DeckCardListTab extends ConsumerStatefulWidget {
   /// du regroupement par tag.
   final List<CardTagDef> tagCatalog;
 
+  /// Tags du deck absents du catalogue, proposés par la feuille d'édition
+  /// (la page connaît les quatre boards, pas l'onglet).
+  final List<String> deckTags;
+
   const DeckCardListTab({
     super.key,
     required this.cardList,
@@ -73,6 +78,7 @@ class DeckCardListTab extends ConsumerStatefulWidget {
     required this.onSetTags,
     required this.onResetTags,
     required this.tagCatalog,
+    required this.deckTags,
   });
 
   @override
@@ -473,14 +479,11 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
                   ListTile(
                     leading: const Icon(Icons.label, color: AppColors.accentGreen),
                     title: const Text('Tags…', style: TextStyle(color: AppColors.textPrimary)),
-                    onTap: () { Navigator.pop(context); _showTagEditor(card); },
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openTagsSheet(card, scryfallCard);
+                    },
                   ),
-                  if (card.tagsEdited)
-                    ListTile(
-                      leading: const Icon(Icons.auto_fix_high, color: AppColors.textMuted),
-                      title: const Text('Déduire automatiquement', style: TextStyle(color: AppColors.textPrimary)),
-                      onTap: () { Navigator.pop(context); widget.onResetTags(card); },
-                    ),
 
                   // 4. DÉPLACEMENT
                   if (widget.currentBoard != DeckBoard.main)
@@ -530,6 +533,17 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
     );
   }
 
+  void _openTagsSheet(DeckCard card, ScryfallCard? scryfallCard) {
+    showCardTagsSheet(
+      context,
+      card: card,
+      deckTags: widget.deckTags,
+      canSuggest: scryfallCard != null && !card.scryfallId.startsWith('LOCAL:'),
+      onSave: (tags) => widget.onSetTags(card, tags),
+      onReset: () => widget.onResetTags(card),
+    );
+  }
+
   void _openVersionSelector(DeckCard card, ScryfallCard currentScryfallCard) {
     showModalBottomSheet(
       context: context,
@@ -543,50 +557,6 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
           widget.onSwitchVersion?.call(card, newVersion);
         },
       ),
-    );
-  }
-
-  void _showTagEditor(DeckCard card) {
-    // Simple dialogue pour ajouter/retirer des tags
-    List<String> tags = List.from(card.tags);
-    TextEditingController ctrl = TextEditingController();
-    
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            backgroundColor: AppColors.scaffoldBackground,
-            title: const Text('Tags', style: TextStyle(color: AppColors.textPrimary)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Wrap(
-                  spacing: 4, 
-                  children: tags.map((t) => Chip(
-                    label: Text(t), 
-                    onDeleted: () => setState(() => tags.remove(t))
-                  )).toList()
-                ),
-                TextField(
-                  controller: ctrl,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: 'Nouveau tag...',
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.add),
-                      onPressed: () { if (ctrl.text.isNotEmpty) setState(() => tags.add(ctrl.text)); ctrl.clear(); }
-                    )
-                  ),
-                )
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () { widget.onSetTags(card, tags); Navigator.pop(ctx); }, child: const Text('OK'))
-            ],
-          );
-        }
-      )
     );
   }
 
