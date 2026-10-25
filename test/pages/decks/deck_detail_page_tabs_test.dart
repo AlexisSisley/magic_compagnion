@@ -5,6 +5,7 @@
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/controllers/deck_detail_controller.dart';
@@ -230,5 +231,77 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Tokens (0)'), findsOneWidget);
     expect(find.text('Légalité'), findsOneWidget);
+  });
+
+  testWidgets('la vignette expose l\'appui long aux lecteurs d\'écran, qui '
+      'ouvre le menu', (tester) async {
+    final handle = tester.ensureSemantics();
+    await openPage(tester);
+
+    final node = tester.getSemantics(find.byType(DeckCardGridTile));
+    expect(
+      node.getSemanticsData().hasAction(SemanticsAction.longPress),
+      isTrue,
+    );
+    node.owner!.performAction(node.id, SemanticsAction.longPress);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Catégorie…'), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('un doigt qui tremble sans s\'éloigner ouvre quand même le '
+      'menu', (tester) async {
+    await openPage(tester);
+
+    // Allers-retours de 12 px : la distance cumulée dépasse largement le
+    // seuil, le déplacement net reste nul.
+    final start = tester.getCenter(find.byType(DeckCardGridTile));
+    final gesture = await tester.startGesture(start);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    for (var i = 0; i < 6; i++) {
+      await gesture.moveTo(start + const Offset(12, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveTo(start);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Catégorie…'), findsOneWidget);
+  });
+
+  testWidgets('à 360 px, les quatre puces restent à l\'écran et un dépôt sur '
+      'Wishlist marche', (tester) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await openPage(tester);
+
+    const screen = Rect.fromLTWH(0, 0, 360, 740);
+    for (final label in ['Main 1', 'Side 1', 'Considering 0', 'Wishlist 0']) {
+      final pill = find.ancestor(
+        of: find.text(label),
+        matching: find.byType(InkWell),
+      );
+      final rect = tester.getRect(pill.first);
+      expect(
+        screen.contains(rect.topLeft) && screen.contains(rect.bottomRight),
+        isTrue,
+        reason: '$label hors écran : $rect',
+      );
+      expect(rect.height, greaterThanOrEqualTo(48), reason: label);
+      expect(find.text(label).hitTestable(), findsOneWidget, reason: label);
+    }
+
+    await dragTo(tester, find.byType(DeckCardGridTile), 'Wishlist 0');
+
+    expect(tester.takeException(), isNull);
+    final rows = await db.getDeckCardsByDeckId('d1');
+    expect(rows.where((r) => r.scryfallId == 'main-card').map((r) => r.board), [
+      'wishlist',
+    ]);
+    expect(pillColor(tester, 'Wishlist 1'), AppColors.primary);
   });
 }

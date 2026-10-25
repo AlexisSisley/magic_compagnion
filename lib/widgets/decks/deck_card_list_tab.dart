@@ -326,9 +326,11 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
     );
   }
 
-  /// Distance parcourue par le glisser en cours. Un appui long relâché sans
-  /// bouger reste un appui long : il ouvre le menu de la carte.
-  double _dragTravel = 0;
+  /// Déplacement net du glisser en cours, du départ au relâchement. Un appui
+  /// long relâché sans bouger reste un appui long : il ouvre le menu de la
+  /// carte. Net et non cumulé : le tremblement d'un doigt qui tient appuyé
+  /// s'annule au lieu de s'additionner.
+  Offset _dragNet = Offset.zero;
 
   Widget _buildDraggableItem(DeckCard card, {required bool isGrid}) {
     // La tuile n'a pas d'appui long à elle : le LongPressDraggable porte les
@@ -336,13 +338,11 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
     // carte ne pouvait jamais être déposée sur un autre board.
     return LongPressDraggable<Map<String, dynamic>>(
       data: {'card': card, 'sourceBoard': widget.currentBoard},
-      onDragStarted: () => _dragTravel = 0,
-      onDragUpdate: (details) => _dragTravel += details.delta.distance,
+      onDragStarted: () => _dragNet = Offset.zero,
+      onDragUpdate: (details) => _dragNet += details.delta,
       onDragEnd: (details) {
-        if (!details.wasAccepted && _dragTravel < kTouchSlop && mounted) {
-          final scryfallCard = widget.fullCardData.where((sc) => sc.id == card.scryfallId).firstOrNull;
-          final isCommander = widget.commanderId == card.scryfallId || widget.partnerId == card.scryfallId;
-          _showCardOptions(card, scryfallCard, isCommander);
+        if (!details.wasAccepted && _dragNet.distance < kTouchSlop && mounted) {
+          _openOptions(card);
         }
       },
       feedback: Material(
@@ -359,8 +359,21 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
         ),
       ),
       childWhenDragging: Opacity(opacity: 0.3, child: _buildItem(card, isGrid: isGrid)),
-      child: _buildItem(card, isGrid: isGrid),
+      // Le draggable n'expose aucune action d'accessibilité : sans celle-ci,
+      // un lecteur d'écran ne pourrait plus ouvrir le menu de la vignette, qui
+      // n'a pas de bouton « ⋮ ». Une action sémantique n'ajoute aucun
+      // reconnaisseur, donc ne rouvre pas le conflit d'arène.
+      child: Semantics(
+        onLongPress: () => _openOptions(card),
+        child: _buildItem(card, isGrid: isGrid),
+      ),
     );
+  }
+
+  void _openOptions(DeckCard card) {
+    final scryfallCard = widget.fullCardData.where((sc) => sc.id == card.scryfallId).firstOrNull;
+    final isCommander = widget.commanderId == card.scryfallId || widget.partnerId == card.scryfallId;
+    _showCardOptions(card, scryfallCard, isCommander);
   }
 
   Widget _buildItem(DeckCard card, {required bool isGrid}) {

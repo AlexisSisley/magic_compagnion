@@ -40,26 +40,24 @@ class DeckBoardSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Défilement horizontal : quatre puces ne tiennent pas toujours sur un
-    // téléphone étroit, et une puce tronquée ne serait plus une cible lisible.
-    // Calées à gauche, comme sur la maquette, quelle que soit la largeur.
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
+    // Les puces passent à la ligne quand elles ne tiennent pas : pendant un
+    // glisser, chaque board doit rester à l'écran pour recevoir la carte,
+    // sans défilement horizontal qui en cacherait une.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
             for (final board in DeckBoard.values)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: _BoardPill(
-                  board: board,
-                  count: counts[board] ?? 0,
-                  active: board == selected,
-                  onSelect: onSelect,
-                  onDrop: onDrop,
-                ),
+              _BoardPill(
+                board: board,
+                count: counts[board] ?? 0,
+                active: board == selected,
+                onSelect: onSelect,
+                onDrop: onDrop,
               ),
           ],
         ),
