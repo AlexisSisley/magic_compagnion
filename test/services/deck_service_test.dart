@@ -8,7 +8,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:magic_companion/data/database/app_database.dart';
 import 'package:magic_companion/services/deck_service.dart';
+import 'package:magic_companion/models/card_category.dart';
 import 'package:magic_companion/models/deck_model.dart';
+import 'package:magic_companion/services/backup_service.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 
 void main() {
@@ -609,5 +611,206 @@ void main() {
       await expectAvance('clearDeck', () => svc.clearDeck('d1'));
       await expectAvance('updateDeckTags', () => svc.updateDeckTags('d1', ['x']));
     });
+  });
+
+  // ---------------------------------------------------------------
+  // Categorie stockee sur la carte : meme contrat sur Drift et sur le repli
+  // SharedPreferences.
+  // ---------------------------------------------------------------
+  for (final backend in ['Drift', 'SharedPreferences']) {
+    group('categorie stockee ($backend)', () {
+      AppDatabase? db;
+      late DeckService svc;
+      late String deckId;
+
+      setUp(() async {
+        SharedPreferences.setMockInitialValues({});
+        db = backend == 'Drift' ? AppDatabase(NativeDatabase.memory()) : null;
+        svc = DeckService(database: db);
+        deckId = await svc.createNewDeck('Test');
+      });
+
+      tearDown(() async => db?.close());
+
+      Future<Deck> relire() async =>
+          (await svc.loadDecks()).firstWhere((d) => d.id == deckId);
+
+      DeckCard verrouillee() => DeckCard(
+            scryfallId: 'c1',
+            name: 'Swords',
+            quantity: 1,
+            category: CardCategory.removal,
+            categoryLocked: true,
+          );
+
+      void expectRemovalVerrouillee(DeckCard c) {
+        expect(c.category, CardCategory.removal);
+        expect(c.categoryLocked, isTrue);
+      }
+
+      ScryfallCard version(String id) => ScryfallCard(
+            id: id, oracleId: '', name: 'Swords', imageUrl: '', rulesText: '',
+            typeLine: '', legalities: {}, prices: {}, lang: 'en',
+            colorIdentity: [], setName: '', setCode: '', collectorNumber: '',
+            rarity: '', purchaseUris: {},
+          );
+
+      test('updateDeck conserve categorie et verrou', () async {
+        final deck = await relire();
+        deck.mainboard.add(verrouillee());
+        await svc.updateDeck(deck);
+        expectRemovalVerrouillee((await relire()).mainboard.single);
+      });
+
+      test('moveCard main vers side conserve categorie et verrou', () async {
+        final deck = await relire();
+        deck.mainboard.add(verrouillee());
+        await svc.updateDeck(deck);
+        await svc.moveCard(
+          deckId: deckId,
+          card: (await relire()).mainboard.single,
+          fromBoard: DeckBoard.main,
+          toBoard: DeckBoard.side,
+        );
+        expectRemovalVerrouillee((await relire()).sideboard.single);
+      });
+
+      test('moveCard fusionne : la ligne cible garde sa categorie et son verrou',
+          () async {
+        final deck = await relire();
+        deck.mainboard.add(verrouillee());
+        deck.sideboard.add(DeckCard(
+            scryfallId: 'c1', name: 'Swords', quantity: 1,
+            category: CardCategory.protection, categoryLocked: true));
+        await svc.updateDeck(deck);
+        await svc.moveCard(
+          deckId: deckId,
+          card: (await relire()).mainboard.single,
+          fromBoard: DeckBoard.main,
+          toBoard: DeckBoard.side,
+        );
+        final c = (await relire()).sideboard.single;
+        expect(c.quantity, 2);
+        expect(c.category, CardCategory.protection);
+        expect(c.categoryLocked, isTrue);
+      });
+
+      test('moveCard fusionne : une cible sans categorie ne prend pas celle de la carte',
+          () async {
+        final deck = await relire();
+        deck.mainboard.add(verrouillee());
+        deck.sideboard.add(DeckCard(scryfallId: 'c1', name: 'Swords', quantity: 1));
+        await svc.updateDeck(deck);
+        await svc.moveCard(
+          deckId: deckId,
+          card: (await relire()).mainboard.single,
+          fromBoard: DeckBoard.main,
+          toBoard: DeckBoard.side,
+        );
+        final c = (await relire()).sideboard.single;
+        expect(c.category, isNull);
+        expect(c.categoryLocked, isFalse);
+      });
+
+      test('changeCardVersion vers une impression absente recopie categorie et verrou',
+          () async {
+        final deck = await relire();
+        deck.mainboard.add(verrouillee());
+        await svc.updateDeck(deck);
+        await svc.changeCardVersion(
+          deckId: deckId,
+          oldCard: (await relire()).mainboard.single,
+          newVersion: version('c2'),
+          board: DeckBoard.main,
+        );
+        final c = (await relire()).mainboard.single;
+        expect(c.scryfallId, 'c2');
+        expectRemovalVerrouillee(c);
+      });
+
+      test('changeCardVersion vers une impression deja presente garde celle de la cible',
+          () async {
+        final deck = await relire();
+        deck.mainboard.add(verrouillee());
+        deck.mainboard.add(DeckCard(
+            scryfallId: 'c2', name: 'Swords', quantity: 1,
+            category: CardCategory.wipe, categoryLocked: true));
+        await svc.updateDeck(deck);
+        await svc.changeCardVersion(
+          deckId: deckId,
+          oldCard: (await relire()).mainboard.firstWhere((c) => c.scryfallId == 'c1'),
+          newVersion: version('c2'),
+          board: DeckBoard.main,
+        );
+        final c = (await relire()).mainboard.single;
+        expect(c.quantity, 2);
+        expect(c.category, CardCategory.wipe);
+        expect(c.categoryLocked, isTrue);
+      });
+
+      test('upsertCardInDeck(quantityToAdd: 1) conserve categorie et verrou',
+          () async {
+        final deck = await relire();
+        deck.mainboard.add(verrouillee());
+        await svc.updateDeck(deck);
+        await svc.upsertCardInDeck(
+            deckId: deckId, scryfallId: 'c1', cardName: 'Swords', quantityToAdd: 1);
+        final c = (await relire()).mainboard.single;
+        expect(c.quantity, 2);
+        expectRemovalVerrouillee(c);
+      });
+
+      test('upsertCardInDeck ecrit la categorie fournie a l insertion', () async {
+        await svc.upsertCardInDeck(
+            deckId: deckId, scryfallId: 'c1', cardName: 'Swords',
+            quantityToAdd: 1, category: CardCategory.tutor, categoryLocked: true);
+        final c = (await relire()).mainboard.single;
+        expect(c.category, CardCategory.tutor);
+        expect(c.categoryLocked, isTrue);
+      });
+
+      test('setCardCategory ecrit, puis efface avec null', () async {
+        final deck = await relire();
+        deck.mainboard.add(DeckCard(scryfallId: 'c1', name: 'Swords', quantity: 1));
+        await svc.updateDeck(deck);
+
+        await svc.setCardCategory(
+            deckId, DeckBoard.main, 'c1', CardCategory.draw, locked: true);
+        var c = (await relire()).mainboard.single;
+        expect(c.category, CardCategory.draw);
+        expect(c.categoryLocked, isTrue);
+
+        await svc.setCardCategory(deckId, DeckBoard.main, 'c1', null, locked: false);
+        c = (await relire()).mainboard.single;
+        expect(c.category, isNull);
+        expect(c.categoryLocked, isFalse);
+      });
+    });
+  }
+
+  test('sauvegarde : export puis import conservent categorie et verrou', () async {
+    SharedPreferences.setMockInitialValues({});
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final svc = DeckService(database: db);
+    final id = await svc.createNewDeck('Test');
+    final deck = (await svc.loadDecks()).single;
+    deck.mainboard.add(DeckCard(
+        scryfallId: 'c1', name: 'Swords', quantity: 1,
+        category: CardCategory.removal, categoryLocked: true));
+    deck.mainboard.add(DeckCard(scryfallId: 'c2', name: 'Island', quantity: 1));
+    await svc.updateDeck(deck);
+
+    final backup = BackupService(database: db);
+    final exporte = await backup.generateBackupJson();
+    await backup.restoreFromJson(exporte);
+
+    final relu = (await svc.loadDecks()).firstWhere((d) => d.id == id);
+    final c1 = relu.mainboard.firstWhere((c) => c.scryfallId == 'c1');
+    expect(c1.category, CardCategory.removal);
+    expect(c1.categoryLocked, isTrue);
+    final c2 = relu.mainboard.firstWhere((c) => c.scryfallId == 'c2');
+    expect(c2.category, isNull);
+    expect(c2.categoryLocked, isFalse);
   });
 }

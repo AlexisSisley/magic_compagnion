@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:magic_companion/models/card_category.dart';
 import 'package:magic_companion/models/deck_model.dart';
 
 void main() {
@@ -149,6 +150,54 @@ void main() {
       final deck = Deck.fromJson({'id': 'd', 'name': 'n'});
       expect(deck.tags, isEmpty);
       expect(deck.updatedAt, isNull);
+    });
+  });
+
+  group('DeckCard categorie', () {
+    test('defauts : aucune categorie, non verrouillee', () {
+      final c = DeckCard(scryfallId: 'a', name: 'n', quantity: 1);
+      expect(c.category, isNull);
+      expect(c.categoryLocked, isFalse);
+    });
+
+    test('aller-retour JSON', () {
+      final c = DeckCard(
+          scryfallId: 'a',
+          name: 'n',
+          quantity: 1,
+          category: CardCategory.wincon,
+          categoryLocked: true);
+      final json = c.toJson();
+      expect(json['category'], 'wincon');
+      expect(json['categoryLocked'], true);
+      final relu = DeckCard.fromJson(json);
+      expect(relu.category, CardCategory.wincon);
+      expect(relu.categoryLocked, isTrue);
+    });
+
+    test('un JSON ancien sans les cles se lit null / false', () {
+      final c = DeckCard.fromJson({'scryfallId': 'a', 'name': 'n', 'quantity': 1});
+      expect(c.category, isNull);
+      expect(c.categoryLocked, isFalse);
+    });
+
+    test('un nom de categorie inconnu se lit null', () {
+      final c = DeckCard.fromJson({
+        'scryfallId': 'a',
+        'name': 'n',
+        'quantity': 1,
+        'category': 'inconnue',
+      });
+      expect(c.category, isNull);
+      expect(cardCategoryFromName('inconnue'), isNull);
+      expect(cardCategoryFromName(null), isNull);
+    });
+
+    test('libelles francais et ordre d affichage', () {
+      expect(CardCategory.values.map(cardCategoryLabel).toList(), [
+        'Ramp', 'Pioche', 'Removal', 'Wipe', 'Protection', 'Tuteur',
+        'Terrains', 'Créatures', 'Win-con', 'Autres',
+      ]);
     });
   });
 }

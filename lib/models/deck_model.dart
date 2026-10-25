@@ -1,5 +1,7 @@
 // Fichier : lib/models/deck_model.dart
 
+import 'card_category.dart';
+
 class DeckCard {
   final String scryfallId;
   final String name;
@@ -8,6 +10,14 @@ class DeckCard {
   bool isFoil;
   List<String> tags; // <--- NOUVEAU : Liste des tags (ex: "Ramp", "Commander", "Trade")
 
+  /// Rôle de la carte dans le deck ; nul tant que rien n'est stocké (la
+  /// déduction automatique prend alors le relais).
+  CardCategory? category;
+
+  /// Vrai quand la catégorie a été corrigée à la main : aucune déduction ne
+  /// doit alors la réécrire.
+  bool categoryLocked;
+
   DeckCard({
     required this.scryfallId,
     required this.name,
@@ -15,6 +25,8 @@ class DeckCard {
     this.proxyQuantity = 0,
     this.isFoil = false,
     this.tags = const [], // Défaut vide
+    this.category,
+    this.categoryLocked = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -24,6 +36,8 @@ class DeckCard {
         'proxyQuantity': proxyQuantity,
         'isFoil': isFoil,
         'tags': tags, // <--- Sauvegarde
+        'category': category?.name,
+        'categoryLocked': categoryLocked,
       };
 
   factory DeckCard.fromJson(Map<String, dynamic> json) => DeckCard(
@@ -33,6 +47,8 @@ class DeckCard {
         proxyQuantity: json['proxyQuantity'] ?? 0,
         isFoil: json['isFoil'] ?? false,
         tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [], // <--- Chargement sécurisé
+        category: cardCategoryFromName(json['category'] as String?),
+        categoryLocked: json['categoryLocked'] ?? false,
       );
 }
 

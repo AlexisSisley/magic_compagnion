@@ -69,6 +69,9 @@ class DeckCards extends Table {
   IntColumn get proxyQuantity => integer().withDefault(const Constant(0))();
   BoolColumn get isFoil => boolean().withDefault(const Constant(false))();
   TextColumn get tags => text().withDefault(const Constant('[]'))(); // JSON array
+  // Nom d'une CardCategory ; nul = pas de categorie stockee.
+  TextColumn get category => text().nullable()();
+  BoolColumn get categoryLocked => boolean().withDefault(const Constant(false))();
 }
 
 /// Table des wishlists
@@ -299,7 +302,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -331,6 +334,10 @@ class AppDatabase extends _$AppDatabase {
         if (from < 5) {
           await m.addColumn(decks, decks.tags);
           await m.addColumn(decks, decks.updatedAt);
+        }
+        if (from < 6) {
+          await m.addColumn(deckCards, deckCards.category);
+          await m.addColumn(deckCards, deckCards.categoryLocked);
         }
       },
     );
@@ -515,6 +522,26 @@ class AppDatabase extends _$AppDatabase {
     await (delete(decks)..where((d) => d.id.equals(deckId))).go();
   }
 
+  /// Ecrit la categorie d'une carte, `null` compris (upsertDeckCard ne sait pas
+  /// effacer : un parametre absent laisse la valeur en place).
+  Future<void> setDeckCardCategory({
+    required String deckId,
+    required String board,
+    required String scryfallId,
+    required String? category,
+    required bool categoryLocked,
+  }) async {
+    await (update(deckCards)
+          ..where((c) =>
+              c.deckId.equals(deckId) &
+              c.board.equals(board) &
+              c.scryfallId.equals(scryfallId)))
+        .write(DeckCardsCompanion(
+      category: Value(category),
+      categoryLocked: Value(categoryLocked),
+    ));
+  }
+
   Future<void> upsertDeckCard({
     required String deckId,
     required String board,
@@ -526,6 +553,8 @@ class AppDatabase extends _$AppDatabase {
     bool? isFoil,
     int? proxyQuantity,
     bool mergeVariants = false,
+    String? category,
+    bool? categoryLocked,
   }) async {
     final existing = await (select(deckCards)
           ..where((c) =>
@@ -561,6 +590,10 @@ class AppDatabase extends _$AppDatabase {
             tags: newTags != null ? Value(json.encode(newTags)) : const Value.absent(),
             isFoil: finalFoil != null ? Value(finalFoil) : const Value.absent(),
             proxyQuantity: finalProxy != null ? Value(finalProxy) : const Value.absent(),
+            // En fusion, la ligne cible garde sa categorie : elle a pu etre
+            // corrigee a la main, celle de la carte qui arrive ne la remplace pas.
+            category: (!mergeVariants && category != null) ? Value(category) : const Value.absent(),
+            categoryLocked: (!mergeVariants && categoryLocked != null) ? Value(categoryLocked) : const Value.absent(),
           ),
         );
       }
@@ -582,6 +615,8 @@ class AppDatabase extends _$AppDatabase {
           isFoil: Value(isFoil ?? false),
           proxyQuantity: Value(proxyQuantity ?? 0),
           tags: Value(json.encode(newTags ?? [])),
+          category: Value(category),
+          categoryLocked: Value(categoryLocked ?? false),
         ));
       }
     }

@@ -6,6 +6,7 @@ import 'dart:developer';
 import 'package:drift/drift.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database/app_database.dart';
+import '../../models/card_category.dart';
 
 class MigrationService {
   final AppDatabase _db;
@@ -142,6 +143,8 @@ class MigrationService {
         newTags: (map['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
         isFoil: map['isFoil'] as bool? ?? false,
         proxyQuantity: map['proxyQuantity'] as int?,
+        category: cardCategoryFromName(map['category'] as String?)?.name,
+        categoryLocked: map['categoryLocked'] as bool? ?? false,
       );
     }
   }

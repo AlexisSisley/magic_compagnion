@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/database/app_database.dart';
+import '../models/card_category.dart';
 import '../models/deck_model.dart';
 import '../utils/card_list_upsert_mixin.dart';
 
@@ -69,6 +70,8 @@ class DeckService with CardListUpsertMixin {
         proxyQuantity: c.proxyQuantity,
         isFoil: c.isFoil,
         tags: AppDatabase.decodeTags(c.tags),
+        category: cardCategoryFromName(c.category),
+        categoryLocked: c.categoryLocked,
       );
       switch (c.board) {
         case 'main': mainboard.add(deckCard);
@@ -187,6 +190,8 @@ class DeckService with CardListUpsertMixin {
             newTags: card.tags,
             isFoil: card.isFoil,
             proxyQuantity: card.proxyQuantity,
+            category: card.category?.name,
+            categoryLocked: card.categoryLocked,
           );
         }
       }
@@ -213,6 +218,8 @@ class DeckService with CardListUpsertMixin {
     bool? isFoil,
     int? proxyQuantity,
     bool mergeVariants = false,
+    CardCategory? category,
+    bool? categoryLocked,
   }) async {
     if (_db != null) {
       await _db.upsertDeckCard(
@@ -226,6 +233,8 @@ class DeckService with CardListUpsertMixin {
         isFoil: isFoil,
         proxyQuantity: proxyQuantity,
         mergeVariants: mergeVariants,
+        category: category?.name,
+        categoryLocked: categoryLocked,
       );
       await _touch(deckId);
       final rawDeck = (await _db.getAllDecksRaw()).where((d) => d.id == deckId).first;
@@ -256,6 +265,8 @@ class DeckService with CardListUpsertMixin {
       newTags: newTags,
       proxyQuantity: proxyQuantity,
       mergeVariants: mergeVariants,
+      category: category,
+      categoryLocked: categoryLocked,
     );
     await updateDeck(deck);
     return deck;
@@ -276,6 +287,7 @@ class DeckService with CardListUpsertMixin {
       quantityToAdd: oldCard.quantity, board: board,
       newTags: oldCard.tags, isFoil: oldCard.isFoil,
       proxyQuantity: oldCard.proxyQuantity, mergeVariants: true,
+      category: oldCard.category, categoryLocked: oldCard.categoryLocked,
     );
   }
 
@@ -294,8 +306,47 @@ class DeckService with CardListUpsertMixin {
       quantityToAdd: card.quantity, board: toBoard, newTags: card.tags,
       isFoil: card.isFoil, proxyQuantity: card.proxyQuantity,
       mergeVariants: true,
+      category: card.category, categoryLocked: card.categoryLocked,
     );
     return updatedDeck;
+  }
+
+  /// Fixe la catégorie d'une carte. [locked] à vrai pour une correction à la
+  /// main, que plus aucune déduction ne réécrit ; [category] nul remet la carte
+  /// sous la déduction automatique.
+  Future<void> setCardCategory(
+    String deckId,
+    DeckBoard board,
+    String scryfallId,
+    CardCategory? category, {
+    required bool locked,
+  }) async {
+    if (_db != null) {
+      await _db.setDeckCardCategory(
+        deckId: deckId,
+        board: _boardToString(board),
+        scryfallId: scryfallId,
+        category: category?.name,
+        categoryLocked: locked,
+      );
+      await _touch(deckId);
+      return;
+    }
+    final decks = await loadDecks();
+    final idx = decks.indexWhere((d) => d.id == deckId);
+    if (idx == -1) throw StateError('Deck $deckId not found');
+    final List<DeckCard> list;
+    switch (board) {
+      case DeckBoard.side: list = decks[idx].sideboard;
+      case DeckBoard.considering: list = decks[idx].considering;
+      case DeckBoard.wishlist: list = decks[idx].wishlist;
+      case DeckBoard.main: list = decks[idx].mainboard;
+    }
+    for (final c in list.where((c) => c.scryfallId == scryfallId)) {
+      c.category = category;
+      c.categoryLocked = locked;
+    }
+    await updateDeck(decks[idx]);
   }
 
   Future<Deck> setCommander(String deckId, String scryfallId, {int slot = 1}) async {

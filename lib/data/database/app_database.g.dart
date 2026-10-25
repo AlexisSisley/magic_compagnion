@@ -1089,6 +1089,32 @@ class $DeckCardsTable extends DeckCards
     requiredDuringInsert: false,
     defaultValue: const Constant('[]'),
   );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _categoryLockedMeta = const VerificationMeta(
+    'categoryLocked',
+  );
+  @override
+  late final GeneratedColumn<bool> categoryLocked = GeneratedColumn<bool>(
+    'category_locked',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("category_locked" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1100,6 +1126,8 @@ class $DeckCardsTable extends DeckCards
     proxyQuantity,
     isFoil,
     tags,
+    category,
+    categoryLocked,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1175,6 +1203,21 @@ class $DeckCardsTable extends DeckCards
         tags.isAcceptableOrUnknown(data['tags']!, _tagsMeta),
       );
     }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    }
+    if (data.containsKey('category_locked')) {
+      context.handle(
+        _categoryLockedMeta,
+        categoryLocked.isAcceptableOrUnknown(
+          data['category_locked']!,
+          _categoryLockedMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1220,6 +1263,14 @@ class $DeckCardsTable extends DeckCards
         DriftSqlType.string,
         data['${effectivePrefix}tags'],
       )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      ),
+      categoryLocked: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}category_locked'],
+      )!,
     );
   }
 
@@ -1239,6 +1290,8 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
   final int proxyQuantity;
   final bool isFoil;
   final String tags;
+  final String? category;
+  final bool categoryLocked;
   const DbDeckCard({
     required this.id,
     required this.deckId,
@@ -1249,6 +1302,8 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
     required this.proxyQuantity,
     required this.isFoil,
     required this.tags,
+    this.category,
+    required this.categoryLocked,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1262,6 +1317,10 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
     map['proxy_quantity'] = Variable<int>(proxyQuantity);
     map['is_foil'] = Variable<bool>(isFoil);
     map['tags'] = Variable<String>(tags);
+    if (!nullToAbsent || category != null) {
+      map['category'] = Variable<String>(category);
+    }
+    map['category_locked'] = Variable<bool>(categoryLocked);
     return map;
   }
 
@@ -1276,6 +1335,10 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
       proxyQuantity: Value(proxyQuantity),
       isFoil: Value(isFoil),
       tags: Value(tags),
+      category: category == null && nullToAbsent
+          ? const Value.absent()
+          : Value(category),
+      categoryLocked: Value(categoryLocked),
     );
   }
 
@@ -1294,6 +1357,8 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
       proxyQuantity: serializer.fromJson<int>(json['proxyQuantity']),
       isFoil: serializer.fromJson<bool>(json['isFoil']),
       tags: serializer.fromJson<String>(json['tags']),
+      category: serializer.fromJson<String?>(json['category']),
+      categoryLocked: serializer.fromJson<bool>(json['categoryLocked']),
     );
   }
   @override
@@ -1309,6 +1374,8 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
       'proxyQuantity': serializer.toJson<int>(proxyQuantity),
       'isFoil': serializer.toJson<bool>(isFoil),
       'tags': serializer.toJson<String>(tags),
+      'category': serializer.toJson<String?>(category),
+      'categoryLocked': serializer.toJson<bool>(categoryLocked),
     };
   }
 
@@ -1322,6 +1389,8 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
     int? proxyQuantity,
     bool? isFoil,
     String? tags,
+    Value<String?> category = const Value.absent(),
+    bool? categoryLocked,
   }) => DbDeckCard(
     id: id ?? this.id,
     deckId: deckId ?? this.deckId,
@@ -1332,6 +1401,8 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
     proxyQuantity: proxyQuantity ?? this.proxyQuantity,
     isFoil: isFoil ?? this.isFoil,
     tags: tags ?? this.tags,
+    category: category.present ? category.value : this.category,
+    categoryLocked: categoryLocked ?? this.categoryLocked,
   );
   DbDeckCard copyWithCompanion(DeckCardsCompanion data) {
     return DbDeckCard(
@@ -1348,6 +1419,10 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
           : this.proxyQuantity,
       isFoil: data.isFoil.present ? data.isFoil.value : this.isFoil,
       tags: data.tags.present ? data.tags.value : this.tags,
+      category: data.category.present ? data.category.value : this.category,
+      categoryLocked: data.categoryLocked.present
+          ? data.categoryLocked.value
+          : this.categoryLocked,
     );
   }
 
@@ -1362,7 +1437,9 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
           ..write('quantity: $quantity, ')
           ..write('proxyQuantity: $proxyQuantity, ')
           ..write('isFoil: $isFoil, ')
-          ..write('tags: $tags')
+          ..write('tags: $tags, ')
+          ..write('category: $category, ')
+          ..write('categoryLocked: $categoryLocked')
           ..write(')'))
         .toString();
   }
@@ -1378,6 +1455,8 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
     proxyQuantity,
     isFoil,
     tags,
+    category,
+    categoryLocked,
   );
   @override
   bool operator ==(Object other) =>
@@ -1391,7 +1470,9 @@ class DbDeckCard extends DataClass implements Insertable<DbDeckCard> {
           other.quantity == this.quantity &&
           other.proxyQuantity == this.proxyQuantity &&
           other.isFoil == this.isFoil &&
-          other.tags == this.tags);
+          other.tags == this.tags &&
+          other.category == this.category &&
+          other.categoryLocked == this.categoryLocked);
 }
 
 class DeckCardsCompanion extends UpdateCompanion<DbDeckCard> {
@@ -1404,6 +1485,8 @@ class DeckCardsCompanion extends UpdateCompanion<DbDeckCard> {
   final Value<int> proxyQuantity;
   final Value<bool> isFoil;
   final Value<String> tags;
+  final Value<String?> category;
+  final Value<bool> categoryLocked;
   const DeckCardsCompanion({
     this.id = const Value.absent(),
     this.deckId = const Value.absent(),
@@ -1414,6 +1497,8 @@ class DeckCardsCompanion extends UpdateCompanion<DbDeckCard> {
     this.proxyQuantity = const Value.absent(),
     this.isFoil = const Value.absent(),
     this.tags = const Value.absent(),
+    this.category = const Value.absent(),
+    this.categoryLocked = const Value.absent(),
   });
   DeckCardsCompanion.insert({
     this.id = const Value.absent(),
@@ -1425,6 +1510,8 @@ class DeckCardsCompanion extends UpdateCompanion<DbDeckCard> {
     this.proxyQuantity = const Value.absent(),
     this.isFoil = const Value.absent(),
     this.tags = const Value.absent(),
+    this.category = const Value.absent(),
+    this.categoryLocked = const Value.absent(),
   }) : deckId = Value(deckId),
        board = Value(board),
        scryfallId = Value(scryfallId),
@@ -1439,6 +1526,8 @@ class DeckCardsCompanion extends UpdateCompanion<DbDeckCard> {
     Expression<int>? proxyQuantity,
     Expression<bool>? isFoil,
     Expression<String>? tags,
+    Expression<String>? category,
+    Expression<bool>? categoryLocked,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1450,6 +1539,8 @@ class DeckCardsCompanion extends UpdateCompanion<DbDeckCard> {
       if (proxyQuantity != null) 'proxy_quantity': proxyQuantity,
       if (isFoil != null) 'is_foil': isFoil,
       if (tags != null) 'tags': tags,
+      if (category != null) 'category': category,
+      if (categoryLocked != null) 'category_locked': categoryLocked,
     });
   }
 
@@ -1463,6 +1554,8 @@ class DeckCardsCompanion extends UpdateCompanion<DbDeckCard> {
     Value<int>? proxyQuantity,
     Value<bool>? isFoil,
     Value<String>? tags,
+    Value<String?>? category,
+    Value<bool>? categoryLocked,
   }) {
     return DeckCardsCompanion(
       id: id ?? this.id,
@@ -1474,6 +1567,8 @@ class DeckCardsCompanion extends UpdateCompanion<DbDeckCard> {
       proxyQuantity: proxyQuantity ?? this.proxyQuantity,
       isFoil: isFoil ?? this.isFoil,
       tags: tags ?? this.tags,
+      category: category ?? this.category,
+      categoryLocked: categoryLocked ?? this.categoryLocked,
     );
   }
 
@@ -1507,6 +1602,12 @@ class DeckCardsCompanion extends UpdateCompanion<DbDeckCard> {
     if (tags.present) {
       map['tags'] = Variable<String>(tags.value);
     }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (categoryLocked.present) {
+      map['category_locked'] = Variable<bool>(categoryLocked.value);
+    }
     return map;
   }
 
@@ -1521,7 +1622,9 @@ class DeckCardsCompanion extends UpdateCompanion<DbDeckCard> {
           ..write('quantity: $quantity, ')
           ..write('proxyQuantity: $proxyQuantity, ')
           ..write('isFoil: $isFoil, ')
-          ..write('tags: $tags')
+          ..write('tags: $tags, ')
+          ..write('category: $category, ')
+          ..write('categoryLocked: $categoryLocked')
           ..write(')'))
         .toString();
   }
@@ -8414,6 +8517,8 @@ typedef $$DeckCardsTableCreateCompanionBuilder =
       Value<int> proxyQuantity,
       Value<bool> isFoil,
       Value<String> tags,
+      Value<String?> category,
+      Value<bool> categoryLocked,
     });
 typedef $$DeckCardsTableUpdateCompanionBuilder =
     DeckCardsCompanion Function({
@@ -8426,6 +8531,8 @@ typedef $$DeckCardsTableUpdateCompanionBuilder =
       Value<int> proxyQuantity,
       Value<bool> isFoil,
       Value<String> tags,
+      Value<String?> category,
+      Value<bool> categoryLocked,
     });
 
 final class $$DeckCardsTableReferences
@@ -8497,6 +8604,16 @@ class $$DeckCardsTableFilterComposer
 
   ColumnFilters<String> get tags => $composableBuilder(
     column: $table.tags,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get categoryLocked => $composableBuilder(
+    column: $table.categoryLocked,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8573,6 +8690,16 @@ class $$DeckCardsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get categoryLocked => $composableBuilder(
+    column: $table.categoryLocked,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$DecksTableOrderingComposer get deckId {
     final $$DecksTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -8633,6 +8760,14 @@ class $$DeckCardsTableAnnotationComposer
 
   GeneratedColumn<String> get tags =>
       $composableBuilder(column: $table.tags, builder: (column) => column);
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<bool> get categoryLocked => $composableBuilder(
+    column: $table.categoryLocked,
+    builder: (column) => column,
+  );
 
   $$DecksTableAnnotationComposer get deckId {
     final $$DecksTableAnnotationComposer composer = $composerBuilder(
@@ -8695,6 +8830,8 @@ class $$DeckCardsTableTableManager
                 Value<int> proxyQuantity = const Value.absent(),
                 Value<bool> isFoil = const Value.absent(),
                 Value<String> tags = const Value.absent(),
+                Value<String?> category = const Value.absent(),
+                Value<bool> categoryLocked = const Value.absent(),
               }) => DeckCardsCompanion(
                 id: id,
                 deckId: deckId,
@@ -8705,6 +8842,8 @@ class $$DeckCardsTableTableManager
                 proxyQuantity: proxyQuantity,
                 isFoil: isFoil,
                 tags: tags,
+                category: category,
+                categoryLocked: categoryLocked,
               ),
           createCompanionCallback:
               ({
@@ -8717,6 +8856,8 @@ class $$DeckCardsTableTableManager
                 Value<int> proxyQuantity = const Value.absent(),
                 Value<bool> isFoil = const Value.absent(),
                 Value<String> tags = const Value.absent(),
+                Value<String?> category = const Value.absent(),
+                Value<bool> categoryLocked = const Value.absent(),
               }) => DeckCardsCompanion.insert(
                 id: id,
                 deckId: deckId,
@@ -8727,6 +8868,8 @@ class $$DeckCardsTableTableManager
                 proxyQuantity: proxyQuantity,
                 isFoil: isFoil,
                 tags: tags,
+                category: category,
+                categoryLocked: categoryLocked,
               ),
           withReferenceMapper: (p0) => p0
               .map(

@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../data/database/app_database.dart';
+import '../models/card_category.dart';
 
 class BackupService {
   static const List<String> _dataKeys = [
@@ -76,6 +77,8 @@ class BackupService {
             'proxyQuantity': card.proxyQuantity,
             'isFoil': card.isFoil,
             'tags': json.decode(card.tags),
+            'category': card.category,
+            'categoryLocked': card.categoryLocked,
           });
         }
         decksList.add({
@@ -262,6 +265,10 @@ class BackupService {
               newTags: (cardMap['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
               isFoil: cardMap['isFoil'] as bool? ?? false,
               proxyQuantity: cardMap['proxyQuantity'] as int?,
+              // Une sauvegarde ancienne n'a ni categorie ni verrou ; un nom
+              // inconnu devient nul plutot que d'etre stocke tel quel.
+              category: cardCategoryFromName(cardMap['category'] as String?)?.name,
+              categoryLocked: cardMap['categoryLocked'] as bool? ?? false,
             );
           }
         }
