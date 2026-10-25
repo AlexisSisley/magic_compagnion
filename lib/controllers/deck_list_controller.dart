@@ -627,10 +627,6 @@ class DeckListController extends StateNotifier<DeckListState> {
     }
     return null;
   }
-
-  String getSortLabel(DeckSort sort) => deckSortLabel(sort);
-
-  double getDeckPrice(String deckId) => state.deckPrices[deckId] ?? 0.0;
 }
 
 // --- PROVIDER ---
