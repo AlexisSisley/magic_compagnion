@@ -401,7 +401,7 @@ void main() {
       ),
     );
     for (final f in _fixtures.where((f) => !f.$1.startsWith('cmdr'))) {
-      // Une carte corrigee a la main : une creature rangee en « Pioche ».
+      // Une carte corrigee a la main : une creature taguee « Pioche ».
       final locked = f.$1 == 'witness';
       await db.upsertDeckCard(
         deckId: 'd1',
@@ -409,8 +409,8 @@ void main() {
         scryfallId: f.$1,
         cardName: f.$2,
         quantityToAdd: f.$8,
-        category: locked ? 'draw' : null,
-        categoryLocked: locked ? true : null,
+        newTags: locked ? const ['Pioche'] : null,
+        tagsEdited: locked ? true : null,
       );
     }
     await db.upsertDeckCard(
@@ -515,7 +515,7 @@ void main() {
     for (final size in sizes.entries) {
       testWidgets('grille par categorie defilee a ${size.key}', (tester) async {
         await _runGuarded(() async {
-          await seed(commander: 'cmdr', grouping: DeckGrouping.category);
+          await seed(commander: 'cmdr', grouping: DeckGrouping.tag);
           await mount(tester, size.value);
           // Le haut de page est deja montre par les captures du bandeau :
           // on descend pour voir plusieurs categories et la carte verrouillee.

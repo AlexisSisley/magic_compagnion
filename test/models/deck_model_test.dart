@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:magic_companion/models/card_category.dart';
 import 'package:magic_companion/models/deck_model.dart';
 
 void main() {
@@ -153,11 +152,18 @@ void main() {
     });
   });
 
-  group('DeckCard categorie', () {
-    test('defauts : aucune categorie, non verrouillee', () {
+  group('DeckCard tags', () {
+    test('defauts : aucun tag, non edites, pas de principal', () {
       final c = DeckCard(scryfallId: 'a', name: 'n', quantity: 1);
-      expect(c.category, isNull);
-      expect(c.categoryLocked, isFalse);
+      expect(c.tags, isEmpty);
+      expect(c.tagsEdited, isFalse);
+      expect(c.primaryTag, isNull);
+    });
+
+    test('le tag principal est le premier', () {
+      final c = DeckCard(
+          scryfallId: 'a', name: 'n', quantity: 1, tags: ['Blink', 'Ramp']);
+      expect(c.primaryTag, 'Blink');
     });
 
     test('aller-retour JSON', () {
@@ -165,39 +171,47 @@ void main() {
           scryfallId: 'a',
           name: 'n',
           quantity: 1,
-          category: CardCategory.wincon,
-          categoryLocked: true);
+          tags: ['Win-con', 'Perso'],
+          tagsEdited: true);
       final json = c.toJson();
-      expect(json['category'], 'wincon');
-      expect(json['categoryLocked'], true);
+      expect(json['tags'], ['Win-con', 'Perso']);
+      expect(json['tagsEdited'], true);
+      expect(json.containsKey('category'), isFalse);
       final relu = DeckCard.fromJson(json);
-      expect(relu.category, CardCategory.wincon);
-      expect(relu.categoryLocked, isTrue);
+      expect(relu.tags, ['Win-con', 'Perso']);
+      expect(relu.tagsEdited, isTrue);
     });
 
-    test('un JSON ancien sans les cles se lit null / false', () {
+    test('un JSON ancien sans les cles se lit [] / false', () {
       final c = DeckCard.fromJson({'scryfallId': 'a', 'name': 'n', 'quantity': 1});
-      expect(c.category, isNull);
-      expect(c.categoryLocked, isFalse);
+      expect(c.tags, isEmpty);
+      expect(c.tagsEdited, isFalse);
     });
 
-    test('un nom de categorie inconnu se lit null', () {
+    test('un JSON d avant la 1.13 convertit categorie et verrou', () {
       final c = DeckCard.fromJson({
         'scryfallId': 'a',
         'name': 'n',
         'quantity': 1,
-        'category': 'inconnue',
+        'tags': ['Commander'],
+        'category': 'draw',
+        'categoryLocked': true,
       });
-      expect(c.category, isNull);
-      expect(cardCategoryFromName('inconnue'), isNull);
-      expect(cardCategoryFromName(null), isNull);
+      expect(c.tags, ['Pioche', 'Commander']);
+      expect(c.tagsEdited, isTrue);
     });
 
-    test('libelles francais et ordre d affichage', () {
-      expect(CardCategory.values.map(cardCategoryLabel).toList(), [
-        'Ramp', 'Pioche', 'Removal', 'Wipe', 'Protection', 'Tuteur',
-        'Terrains', 'Créatures', 'Win-con', 'Autres',
-      ]);
+    test('une categorie sans role ou inconnue ne donne aucun tag', () {
+      for (final cat in ['lands', 'creatures', 'other', 'inconnue']) {
+        final c = DeckCard.fromJson({
+          'scryfallId': 'a',
+          'name': 'n',
+          'quantity': 1,
+          'category': cat,
+        });
+        expect(c.tags, isEmpty, reason: cat);
+        expect(c.tagsEdited, isFalse);
+      }
     });
   });
 }

@@ -21,6 +21,8 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import '../../models/card_tag.dart';
+
 part 'app_database.g.dart';
 
 // ============================================================
@@ -69,9 +71,9 @@ class DeckCards extends Table {
   IntColumn get proxyQuantity => integer().withDefault(const Constant(0))();
   BoolColumn get isFoil => boolean().withDefault(const Constant(false))();
   TextColumn get tags => text().withDefault(const Constant('[]'))(); // JSON array
-  // Nom d'une CardCategory ; nul = pas de categorie stockee.
-  TextColumn get category => text().nullable()();
-  BoolColumn get categoryLocked => boolean().withDefault(const Constant(false))();
+  // Vrai des que l'utilisateur a touche aux tags de la carte (meme pour les
+  // vider) : aucune suggestion ne les reecrit alors.
+  BoolColumn get tagsEdited => boolean().withDefault(const Constant(false))();
 }
 
 /// Table des wishlists
@@ -302,7 +304,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration {
@@ -336,11 +338,43 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(decks, decks.updatedAt);
         }
         if (from < 6) {
-          await m.addColumn(deckCards, deckCards.category);
-          await m.addColumn(deckCards, deckCards.categoryLocked);
+          // Colonnes de la v6, retirees par la marche suivante : elles ne sont
+          // plus dans la table Drift, d'ou le SQL brut.
+          await customStatement(
+              'ALTER TABLE deck_cards ADD COLUMN category TEXT NULL');
+          await customStatement(
+              'ALTER TABLE deck_cards ADD COLUMN category_locked INTEGER NOT NULL '
+              'DEFAULT 0 CHECK (category_locked IN (0, 1))');
+        }
+        if (from < 7) {
+          await m.addColumn(deckCards, deckCards.tagsEdited);
+          await _migrateCategoriesToTags();
+          // Reconstruit la table sur le schema courant : category et
+          // category_locked disparaissent, les autres colonnes sont recopiees.
+          await m.alterTable(TableMigration(deckCards));
         }
       },
     );
+  }
+
+  /// Marche v6 -> v7 : l'ancienne categorie devient le tag principal (voir
+  /// [legacyCategoryTags]) et son verrou devient `tags_edited`.
+  Future<void> _migrateCategoriesToTags() async {
+    final rows = await customSelect(
+      'SELECT id, tags, category, category_locked FROM deck_cards',
+    ).get();
+    for (final r in rows) {
+      final locked = r.read<int>('category_locked') != 0;
+      final tags = legacyCategoryTags(
+        r.read<String?>('category'),
+        locked,
+        decodeTags(r.read<String>('tags')),
+      );
+      await customStatement(
+        'UPDATE deck_cards SET tags = ?, tags_edited = ? WHERE id = ?',
+        [json.encode(tags), locked ? 1 : 0, r.read<int>('id')],
+      );
+    }
   }
 
   /// Cree l'index utilise par [findTranslation]. Appele depuis `onCreate`
@@ -522,14 +556,14 @@ class AppDatabase extends _$AppDatabase {
     await (delete(decks)..where((d) => d.id.equals(deckId))).go();
   }
 
-  /// Ecrit la categorie d'une carte, `null` compris (upsertDeckCard ne sait pas
-  /// effacer : un parametre absent laisse la valeur en place).
-  Future<void> setDeckCardCategory({
+  /// Ecrit les tags d'une carte et leur drapeau, liste vide comprise
+  /// (upsertDeckCard ne sait pas distinguer « pas de changement »).
+  Future<void> setDeckCardTags({
     required String deckId,
     required String board,
     required String scryfallId,
-    required String? category,
-    required bool categoryLocked,
+    required List<String> tags,
+    required bool tagsEdited,
   }) async {
     await (update(deckCards)
           ..where((c) =>
@@ -537,18 +571,17 @@ class AppDatabase extends _$AppDatabase {
               c.board.equals(board) &
               c.scryfallId.equals(scryfallId)))
         .write(DeckCardsCompanion(
-      category: Value(category),
-      categoryLocked: Value(categoryLocked),
+      tags: Value(json.encode(tags)),
+      tagsEdited: Value(tagsEdited),
     ));
   }
 
-  /// Pose en un lot les catégories déduites. Seule une carte encore sans
-  /// catégorie et non verrouillée est écrite : la condition est dans la
-  /// requête, si bien qu'une correction à la main faite pendant le calcul
-  /// n'est jamais écrasée.
-  Future<void> applyDeducedDeckCardCategories(
+  /// Pose en un lot les tags suggeres. Seule une carte aux tags vides et jamais
+  /// editee est ecrite : la condition est dans la requete, si bien qu'une
+  /// correction a la main faite pendant le calcul n'est jamais ecrasee.
+  Future<void> applySuggestedDeckCardTags(
     String deckId,
-    List<({String board, String scryfallId, String category})> entries,
+    List<({String board, String scryfallId, List<String> tags})> entries,
   ) async {
     if (entries.isEmpty) return;
     await transaction(() async {
@@ -558,9 +591,9 @@ class AppDatabase extends _$AppDatabase {
                   c.deckId.equals(deckId) &
                   c.board.equals(e.board) &
                   c.scryfallId.equals(e.scryfallId) &
-                  c.category.isNull() &
-                  c.categoryLocked.equals(false)))
-            .write(DeckCardsCompanion(category: Value(e.category)));
+                  c.tags.equals('[]') &
+                  c.tagsEdited.equals(false)))
+            .write(DeckCardsCompanion(tags: Value(json.encode(e.tags))));
       }
     });
   }
@@ -576,8 +609,7 @@ class AppDatabase extends _$AppDatabase {
     bool? isFoil,
     int? proxyQuantity,
     bool mergeVariants = false,
-    String? category,
-    bool? categoryLocked,
+    bool? tagsEdited,
   }) async {
     final existing = await (select(deckCards)
           ..where((c) =>
@@ -610,13 +642,13 @@ class AppDatabase extends _$AppDatabase {
         await (update(deckCards)..where((c) => c.id.equals(existing.id))).write(
           DeckCardsCompanion(
             quantity: Value(newQuantity),
-            tags: newTags != null ? Value(json.encode(newTags)) : const Value.absent(),
+            // En fusion, la ligne cible garde ses tags et son drapeau : ils ont
+            // pu etre corriges a la main, ceux de la carte qui arrive ne les
+            // remplacent pas.
+            tags: (!mergeVariants && newTags != null) ? Value(json.encode(newTags)) : const Value.absent(),
+            tagsEdited: (!mergeVariants && tagsEdited != null) ? Value(tagsEdited) : const Value.absent(),
             isFoil: finalFoil != null ? Value(finalFoil) : const Value.absent(),
             proxyQuantity: finalProxy != null ? Value(finalProxy) : const Value.absent(),
-            // En fusion, la ligne cible garde sa categorie : elle a pu etre
-            // corrigee a la main, celle de la carte qui arrive ne la remplace pas.
-            category: (!mergeVariants && category != null) ? Value(category) : const Value.absent(),
-            categoryLocked: (!mergeVariants && categoryLocked != null) ? Value(categoryLocked) : const Value.absent(),
           ),
         );
       }
@@ -638,8 +670,7 @@ class AppDatabase extends _$AppDatabase {
           isFoil: Value(isFoil ?? false),
           proxyQuantity: Value(proxyQuantity ?? 0),
           tags: Value(json.encode(newTags ?? [])),
-          category: Value(category),
-          categoryLocked: Value(categoryLocked ?? false),
+          tagsEdited: Value(tagsEdited ?? false),
         ));
       }
     }

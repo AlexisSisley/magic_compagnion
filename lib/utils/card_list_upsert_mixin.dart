@@ -1,7 +1,6 @@
 // Fichier : lib/utils/card_list_upsert_mixin.dart
 // Mixin commun pour la logique upsert de cartes dans une liste (Sprint 7 - US-7.6)
 
-import '../models/card_category.dart';
 import '../models/deck_model.dart';
 
 /// Mixin qui factorise la logique upsert partagée entre
@@ -20,9 +19,10 @@ mixin CardListUpsertMixin {
   /// [proxyQuantity] : nombre de proxys. Si null, ne modifie pas l'existant.
   /// [mergeVariants] : la carte qui arrive fusionne avec l'existante (proxys
   /// additionnes, plafonnes a la quantite finale ; foil = l'un OU l'autre) au
-  /// lieu de la remplacer. Elle ne touche alors pas a la categorie de la carte
-  /// existante (corrigee a la main, peut-etre) ; a l'insertion, elle apporte la sienne.
-  /// [category] / [categoryLocked] : si fournis, ecrits (hors fusion).
+  /// lieu de la remplacer. Elle ne touche alors ni aux tags ni a [tagsEdited] de
+  /// la carte existante (corriges a la main, peut-etre) ; a l'insertion, elle
+  /// apporte les siens.
+  /// [tagsEdited] : si fourni, ecrit (hors fusion).
   bool upsertCardInList(
     List<DeckCard> cards, {
     required String scryfallId,
@@ -34,8 +34,7 @@ mixin CardListUpsertMixin {
     List<String>? newTags,
     int? proxyQuantity,
     bool mergeVariants = false,
-    CardCategory? category,
-    bool? categoryLocked,
+    bool? tagsEdited,
   }) {
     final index = cards.indexWhere((c) =>
         c.scryfallId == scryfallId &&
@@ -51,10 +50,9 @@ mixin CardListUpsertMixin {
         newQuantity = absoluteQuantity;
       }
 
-      if (newTags != null) existingCard.tags = newTags;
       if (!mergeVariants) {
-        if (category != null) existingCard.category = category;
-        if (categoryLocked != null) existingCard.categoryLocked = categoryLocked;
+        if (newTags != null) existingCard.tags = newTags;
+        if (tagsEdited != null) existingCard.tagsEdited = tagsEdited;
       }
       if (isFoil != null) {
         existingCard.isFoil =
@@ -88,8 +86,7 @@ mixin CardListUpsertMixin {
           proxyQuantity: proxyQuantity ?? 0,
           isFoil: isFoil ?? false,
           tags: newTags ?? [],
-          category: category,
-          categoryLocked: categoryLocked ?? false,
+          tagsEdited: tagsEdited ?? false,
         ));
       }
     }

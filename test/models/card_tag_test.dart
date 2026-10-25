@@ -37,4 +37,35 @@ void main() {
     expect(t.copyWith(name: 'Y').key, 'ramp');
     expect(t.copyWith(color: 5).color, 5);
   });
+
+  group('legacyCategoryTags', () {
+    test('chaque catégorie de rôle donne le libellé par défaut en tête', () {
+      const expected = {
+        'ramp': 'Ramp',
+        'draw': 'Pioche',
+        'removal': 'Removal',
+        'wipe': 'Wipe',
+        'protection': 'Protection',
+        'tutor': 'Tuteur',
+        'wincon': 'Win-con',
+      };
+      expected.forEach((cat, label) {
+        expect(legacyCategoryTags(cat, false, ['X']), [label, 'X'], reason: cat);
+      });
+    });
+
+    test('lands, creatures, other, inconnue ou nulle : tags inchangés', () {
+      for (final cat in ['lands', 'creatures', 'other', 'inconnue', null]) {
+        expect(legacyCategoryTags(cat, true, ['X']), ['X'], reason: '$cat');
+      }
+    });
+
+    test('un tag déjà porté à la casse près n\'est pas doublé', () {
+      expect(legacyCategoryTags('draw', false, ['Y', 'pioche']), ['Y', 'pioche']);
+    });
+
+    test('le verrou ne change pas les tags', () {
+      expect(legacyCategoryTags('wipe', true, []), ['Wipe']);
+    });
+  });
 }

@@ -6,7 +6,7 @@ import 'dart:developer';
 import 'package:drift/drift.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database/app_database.dart';
-import '../../models/card_category.dart';
+import '../../models/card_tag.dart';
 
 class MigrationService {
   final AppDatabase _db;
@@ -134,17 +134,21 @@ class MigrationService {
   Future<void> _migrateDeckCards(String deckId, String board, List<dynamic> cards) async {
     for (final cardJson in cards) {
       final map = cardJson as Map<String, dynamic>;
+      final locked = map['categoryLocked'] as bool? ?? false;
       await _db.upsertDeckCard(
         deckId: deckId,
         board: board,
         scryfallId: map['scryfallId'] as String,
         cardName: map['name'] as String,
         absoluteQuantity: map['quantity'] as int,
-        newTags: (map['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
+        newTags: legacyCategoryTags(
+          map['category'] as String?,
+          locked,
+          (map['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
+        ),
         isFoil: map['isFoil'] as bool? ?? false,
         proxyQuantity: map['proxyQuantity'] as int?,
-        category: cardCategoryFromName(map['category'] as String?)?.name,
-        categoryLocked: map['categoryLocked'] as bool? ?? false,
+        tagsEdited: map['tagsEdited'] as bool? ?? locked,
       );
     }
   }

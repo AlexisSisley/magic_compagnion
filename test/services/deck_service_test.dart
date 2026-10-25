@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:magic_companion/data/database/app_database.dart';
 import 'package:magic_companion/services/deck_service.dart';
-import 'package:magic_companion/models/card_category.dart';
 import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/services/backup_service.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
@@ -602,11 +601,11 @@ void main() {
   });
 
   // ---------------------------------------------------------------
-  // Categorie stockee sur la carte : meme contrat sur Drift et sur le repli
-  // SharedPreferences.
+  // Tags stockes sur la carte et leur drapeau : meme contrat sur Drift et sur
+  // le repli SharedPreferences.
   // ---------------------------------------------------------------
   for (final backend in ['Drift', 'SharedPreferences']) {
-    group('categorie stockee ($backend)', () {
+    group('tags stockes ($backend)', () {
       AppDatabase? db;
       late DeckService svc;
       late String deckId;
@@ -623,17 +622,17 @@ void main() {
       Future<Deck> relire() async =>
           (await svc.loadDecks()).firstWhere((d) => d.id == deckId);
 
-      DeckCard verrouillee() => DeckCard(
+      DeckCard editee() => DeckCard(
             scryfallId: 'c1',
             name: 'Swords',
             quantity: 1,
-            category: CardCategory.removal,
-            categoryLocked: true,
+            tags: ['Removal', 'Perso'],
+            tagsEdited: true,
           );
 
-      void expectRemovalVerrouillee(DeckCard c) {
-        expect(c.category, CardCategory.removal);
-        expect(c.categoryLocked, isTrue);
+      void expectRemovalEditee(DeckCard c) {
+        expect(c.tags, ['Removal', 'Perso']);
+        expect(c.tagsEdited, isTrue);
       }
 
       ScryfallCard version(String id) => ScryfallCard(
@@ -643,16 +642,16 @@ void main() {
             rarity: '', purchaseUris: {},
           );
 
-      test('updateDeck conserve categorie et verrou', () async {
+      test('updateDeck conserve tags et drapeau', () async {
         final deck = await relire();
-        deck.mainboard.add(verrouillee());
+        deck.mainboard.add(editee());
         await svc.updateDeck(deck);
-        expectRemovalVerrouillee((await relire()).mainboard.single);
+        expectRemovalEditee((await relire()).mainboard.single);
       });
 
-      test('moveCard main vers side conserve categorie et verrou', () async {
+      test('moveCard main vers side conserve tags et drapeau', () async {
         final deck = await relire();
-        deck.mainboard.add(verrouillee());
+        deck.mainboard.add(editee());
         await svc.updateDeck(deck);
         await svc.moveCard(
           deckId: deckId,
@@ -660,16 +659,16 @@ void main() {
           fromBoard: DeckBoard.main,
           toBoard: DeckBoard.side,
         );
-        expectRemovalVerrouillee((await relire()).sideboard.single);
+        expectRemovalEditee((await relire()).sideboard.single);
       });
 
-      test('moveCard fusionne : la ligne cible garde sa categorie et son verrou',
+      test('moveCard fusionne : la ligne cible garde ses tags et son drapeau',
           () async {
         final deck = await relire();
-        deck.mainboard.add(verrouillee());
+        deck.mainboard.add(editee());
         deck.sideboard.add(DeckCard(
             scryfallId: 'c1', name: 'Swords', quantity: 1,
-            category: CardCategory.protection, categoryLocked: true));
+            tags: ['Protection'], tagsEdited: true));
         await svc.updateDeck(deck);
         await svc.moveCard(
           deckId: deckId,
@@ -679,14 +678,14 @@ void main() {
         );
         final c = (await relire()).sideboard.single;
         expect(c.quantity, 2);
-        expect(c.category, CardCategory.protection);
-        expect(c.categoryLocked, isTrue);
+        expect(c.tags, ['Protection']);
+        expect(c.tagsEdited, isTrue);
       });
 
-      test('moveCard fusionne : une cible sans categorie ne prend pas celle de la carte',
+      test('moveCard fusionne : une cible sans tag ne prend pas ceux de la carte',
           () async {
         final deck = await relire();
-        deck.mainboard.add(verrouillee());
+        deck.mainboard.add(editee());
         deck.sideboard.add(DeckCard(scryfallId: 'c1', name: 'Swords', quantity: 1));
         await svc.updateDeck(deck);
         await svc.moveCard(
@@ -696,14 +695,14 @@ void main() {
           toBoard: DeckBoard.side,
         );
         final c = (await relire()).sideboard.single;
-        expect(c.category, isNull);
-        expect(c.categoryLocked, isFalse);
+        expect(c.tags, isEmpty);
+        expect(c.tagsEdited, isFalse);
       });
 
-      test('changeCardVersion vers une impression absente recopie categorie et verrou',
+      test('changeCardVersion vers une impression absente recopie tags et drapeau',
           () async {
         final deck = await relire();
-        deck.mainboard.add(verrouillee());
+        deck.mainboard.add(editee());
         await svc.updateDeck(deck);
         await svc.changeCardVersion(
           deckId: deckId,
@@ -713,16 +712,16 @@ void main() {
         );
         final c = (await relire()).mainboard.single;
         expect(c.scryfallId, 'c2');
-        expectRemovalVerrouillee(c);
+        expectRemovalEditee(c);
       });
 
       test('changeCardVersion vers une impression deja presente garde celle de la cible',
           () async {
         final deck = await relire();
-        deck.mainboard.add(verrouillee());
+        deck.mainboard.add(editee());
         deck.mainboard.add(DeckCard(
             scryfallId: 'c2', name: 'Swords', quantity: 1,
-            category: CardCategory.wipe, categoryLocked: true));
+            tags: ['Wipe'], tagsEdited: true));
         await svc.updateDeck(deck);
         await svc.changeCardVersion(
           deckId: deckId,
@@ -732,51 +731,74 @@ void main() {
         );
         final c = (await relire()).mainboard.single;
         expect(c.quantity, 2);
-        expect(c.category, CardCategory.wipe);
-        expect(c.categoryLocked, isTrue);
+        expect(c.tags, ['Wipe']);
+        expect(c.tagsEdited, isTrue);
       });
 
-      test('upsertCardInDeck(quantityToAdd: 1) conserve categorie et verrou',
+      test('upsertCardInDeck(quantityToAdd: 1) conserve tags et drapeau',
           () async {
         final deck = await relire();
-        deck.mainboard.add(verrouillee());
+        deck.mainboard.add(editee());
         await svc.updateDeck(deck);
         await svc.upsertCardInDeck(
             deckId: deckId, scryfallId: 'c1', cardName: 'Swords', quantityToAdd: 1);
         final c = (await relire()).mainboard.single;
         expect(c.quantity, 2);
-        expectRemovalVerrouillee(c);
+        expectRemovalEditee(c);
       });
 
-      test('upsertCardInDeck ecrit la categorie fournie a l insertion', () async {
+      test('upsertCardInDeck ecrit tags et drapeau fournis a l insertion', () async {
         await svc.upsertCardInDeck(
             deckId: deckId, scryfallId: 'c1', cardName: 'Swords',
-            quantityToAdd: 1, category: CardCategory.tutor, categoryLocked: true);
+            quantityToAdd: 1, newTags: ['Tuteur'], tagsEdited: true);
         final c = (await relire()).mainboard.single;
-        expect(c.category, CardCategory.tutor);
-        expect(c.categoryLocked, isTrue);
+        expect(c.tags, ['Tuteur']);
+        expect(c.tagsEdited, isTrue);
       });
 
-      test('setCardCategory ecrit, puis efface avec null', () async {
+      test('setCardTags ecrit dans l ordre, puis vide', () async {
         final deck = await relire();
         deck.mainboard.add(DeckCard(scryfallId: 'c1', name: 'Swords', quantity: 1));
         await svc.updateDeck(deck);
 
-        await svc.setCardCategory(
-            deckId, DeckBoard.main, 'c1', CardCategory.draw, locked: true);
+        await svc.setCardTags(
+            deckId, DeckBoard.main, 'c1', ['Pioche', 'Ramp'], edited: true);
         var c = (await relire()).mainboard.single;
-        expect(c.category, CardCategory.draw);
-        expect(c.categoryLocked, isTrue);
+        expect(c.tags, ['Pioche', 'Ramp']);
+        expect(c.tagsEdited, isTrue);
 
-        await svc.setCardCategory(deckId, DeckBoard.main, 'c1', null, locked: false);
+        await svc.setCardTags(deckId, DeckBoard.main, 'c1', [], edited: false);
         c = (await relire()).mainboard.single;
-        expect(c.category, isNull);
-        expect(c.categoryLocked, isFalse);
+        expect(c.tags, isEmpty);
+        expect(c.tagsEdited, isFalse);
+      });
+
+      test('applySuggestedTags n ecrit que sur une carte vide et non editee',
+          () async {
+        final deck = await relire();
+        deck.mainboard.add(DeckCard(scryfallId: 'vide', name: 'A', quantity: 1));
+        deck.mainboard.add(DeckCard(
+            scryfallId: 'videe', name: 'B', quantity: 1, tagsEdited: true));
+        deck.mainboard.add(
+            DeckCard(scryfallId: 'taguee', name: 'C', quantity: 1, tags: ['X']));
+        await svc.updateDeck(deck);
+
+        await svc.applySuggestedTags(deckId, [
+          for (final id in ['vide', 'videe', 'taguee'])
+            (board: DeckBoard.main, scryfallId: id, tags: ['Ramp']),
+        ]);
+
+        final main = (await relire()).mainboard;
+        DeckCard of(String id) => main.firstWhere((c) => c.scryfallId == id);
+        expect(of('vide').tags, ['Ramp']);
+        expect(of('vide').tagsEdited, isFalse);
+        expect(of('videe').tags, isEmpty);
+        expect(of('taguee').tags, ['X']);
       });
     });
   }
 
-  test('sauvegarde : export puis import conservent categorie et verrou', () async {
+  test('sauvegarde : export puis import conservent tags et drapeau', () async {
     SharedPreferences.setMockInitialValues({});
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
@@ -785,7 +807,7 @@ void main() {
     final deck = (await svc.loadDecks()).single;
     deck.mainboard.add(DeckCard(
         scryfallId: 'c1', name: 'Swords', quantity: 1,
-        category: CardCategory.removal, categoryLocked: true));
+        tags: ['Removal'], tagsEdited: true));
     deck.mainboard.add(DeckCard(scryfallId: 'c2', name: 'Island', quantity: 1));
     await svc.updateDeck(deck);
 
@@ -795,10 +817,10 @@ void main() {
 
     final relu = (await svc.loadDecks()).firstWhere((d) => d.id == id);
     final c1 = relu.mainboard.firstWhere((c) => c.scryfallId == 'c1');
-    expect(c1.category, CardCategory.removal);
-    expect(c1.categoryLocked, isTrue);
+    expect(c1.tags, ['Removal']);
+    expect(c1.tagsEdited, isTrue);
     final c2 = relu.mainboard.firstWhere((c) => c.scryfallId == 'c2');
-    expect(c2.category, isNull);
-    expect(c2.categoryLocked, isFalse);
+    expect(c2.tags, isEmpty);
+    expect(c2.tagsEdited, isFalse);
   });
 }

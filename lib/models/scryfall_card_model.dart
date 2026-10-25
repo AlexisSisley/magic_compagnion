@@ -43,7 +43,7 @@ class ScryfallCard {
 
   /// Texte oracle anglais, jamais le texte imprimé : `rulesText` préfère
   /// `printed_text` et peut donc être en français, ce qui fausserait la
-  /// déduction de catégorie. Vide si la carte n'en a pas.
+  /// suggestion de tags. Vide si la carte n'en a pas.
   final String oracleText;
   final String typeLine;
   final Map<String, String> legalities;

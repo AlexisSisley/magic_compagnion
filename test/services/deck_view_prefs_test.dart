@@ -33,12 +33,23 @@ void main() {
     expect(await loadDeckViewPrefs(db, 'd2'), const DeckViewPrefs());
   });
 
-  test('une préférence Catégorie déjà enregistrée est respectée', () async {
+  test('stored category grouping reads as tag', () async {
     await db.setSetting(
       'deck_view:d1',
-      '{"grouping":"category","layout":"grid"}',
+      '{"grouping":"category","layout":"list"}',
     );
-    expect((await loadDeckViewPrefs(db, 'd1')).grouping, DeckGrouping.category);
+    final p = await loadDeckViewPrefs(db, 'd1');
+    expect(p.grouping, DeckGrouping.tag);
+    expect(p.layout, DeckLayout.list);
+  });
+
+  test('une préférence Tags enregistrée est relue', () async {
+    await saveDeckViewPrefs(
+      db,
+      'd1',
+      const DeckViewPrefs(grouping: DeckGrouping.tag),
+    );
+    expect((await loadDeckViewPrefs(db, 'd1')).grouping, DeckGrouping.tag);
   });
 
   test('une valeur illisible rend les défauts', () async {

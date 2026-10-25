@@ -9,8 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/data/database/app_database.dart';
-import 'package:magic_companion/models/card_category.dart';
-import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/pages/decks/deck_detail_page.dart';
 import 'package:magic_companion/providers/service_providers.dart';
 import 'package:magic_companion/services/deck_service.dart';
@@ -20,7 +18,7 @@ import 'package:magic_companion/theme/app_theme.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
 
 /// Scryfall muet : aucune carte n'est résolue, la page s'ouvre sur ce que la
-/// base contient (catégories comprises).
+/// base contient (tags compris).
 class _SilentApi extends ScryfallApiService {
   @override
   Future<Map<String, dynamic>> fetchCollection(
@@ -85,24 +83,24 @@ void main() {
     await openPage(tester);
 
     // Sans donnée Scryfall, la carte tombe dans la section « Autres » du
-    // regroupement par type, pas dans la catégorie « AUTRES ».
+    // regroupement par type, pas dans « SANS TAG ».
     expect(find.text('Autres (1)'), findsOneWidget);
-    expect(find.text('AUTRES'), findsNothing);
+    expect(find.text('SANS TAG'), findsNothing);
   });
 
-  testWidgets('l\'interrupteur Catégorie de la page change et mémorise le '
+  testWidgets('l\'interrupteur Tags de la page change et mémorise le '
       'regroupement', (tester) async {
     await openPage(tester);
     expect(find.text('Carte du main'), findsOneWidget);
 
-    await tester.tap(find.text('Catégorie'));
+    await tester.tap(find.text('Tags'));
     await tester.pump(const Duration(milliseconds: 100));
 
-    // Le regroupement par catégorie remplace les en-têtes de type.
-    expect(find.text('AUTRES'), findsOneWidget);
+    // Le regroupement par tag remplace les en-têtes de type.
+    expect(find.text('SANS TAG'), findsOneWidget);
     expect(find.text('Autres (1)'), findsNothing);
     final saved = await loadDeckViewPrefs(db, 'd1');
-    expect(saved.grouping, DeckGrouping.category);
+    expect(saved.grouping, DeckGrouping.tag);
   });
 
   testWidgets('l\'icône liste de la page bascule en DeckCardTile', (
@@ -118,33 +116,47 @@ void main() {
     expect((await loadDeckViewPrefs(db, 'd1')).layout, DeckLayout.list);
   });
 
-  testWidgets('Catégorie… sur le main verrouille la carte du main en base', (
+  /// Ouvre « Tags… » sur la vignette affichée, ajoute [tag] et valide.
+  Future<void> addTagThroughMenu(WidgetTester tester, String tag) async {
+    await tester.longPress(find.byType(DeckCardGridTile));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tags…'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), tag);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byIcon(Icons.add),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('Tags… sur le main marque la carte du main en base', (
     tester,
   ) async {
-    // Regroupement par catégorie mémorisé : la section Pioche doit apparaître.
+    // Regroupement par tag mémorisé : la section Pioche doit apparaître.
     await saveDeckViewPrefs(
       db,
       'd1',
-      const DeckViewPrefs(grouping: DeckGrouping.category),
+      const DeckViewPrefs(grouping: DeckGrouping.tag),
     );
     await openPage(tester);
 
-    await tester.longPress(find.byType(DeckCardGridTile));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Catégorie…'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Pioche'));
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.pumpAndSettle();
+    // Saisi en minuscules : l'orthographe du catalogue l'emporte.
+    await addTagThroughMenu(tester, 'pioche');
 
     final main = await row('main-card', 'main');
-    expect(main.category, 'draw');
-    expect(main.categoryLocked, isTrue);
+    expect(AppDatabase.decodeTags(main.tags), ['Pioche']);
+    expect(main.tagsEdited, isTrue);
     // L'autre board n'a pas bougé.
-    expect((await row('side-card', 'side')).categoryLocked, isFalse);
-    // Et la page l'affiche : section Pioche, cadenas sur la vignette.
+    expect((await row('side-card', 'side')).tagsEdited, isFalse);
+    // Et la page l'affiche : section Pioche, sans cadenas.
     expect(find.text('PIOCHE'), findsOneWidget);
-    expect(find.byIcon(Icons.lock), findsOneWidget);
+    expect(find.byIcon(Icons.lock), findsNothing);
   });
 
   testWidgets('sur le side, la correction vise le board side', (tester) async {
@@ -152,32 +164,25 @@ void main() {
     await tester.tap(find.textContaining('Side'));
     await tester.pumpAndSettle();
 
-    await tester.longPress(find.byType(DeckCardGridTile));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Catégorie…'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Wipe'));
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.pumpAndSettle();
+    await addTagThroughMenu(tester, 'Wipe');
 
     final side = await row('side-card', 'side');
-    expect(side.category, CardCategory.wipe.name);
-    expect(side.categoryLocked, isTrue);
-    expect((await row('main-card', 'main')).categoryLocked, isFalse);
+    expect(AppDatabase.decodeTags(side.tags), ['Wipe']);
+    expect(side.tagsEdited, isTrue);
+    expect((await row('main-card', 'main')).tagsEdited, isFalse);
   });
 
-  testWidgets('Déduire automatiquement rend la carte du main à la déduction', (
+  testWidgets('Déduire automatiquement rend la carte du main à la suggestion', (
     tester,
   ) async {
-    await db.setDeckCardCategory(
+    await db.setDeckCardTags(
       deckId: 'd1',
       board: 'main',
       scryfallId: 'main-card',
-      category: 'wincon',
-      categoryLocked: true,
+      tags: ['Win-con'],
+      tagsEdited: true,
     );
     await openPage(tester);
-    expect(find.byIcon(Icons.lock), findsOneWidget);
 
     await tester.longPress(find.byType(DeckCardGridTile));
     await tester.pumpAndSettle();
@@ -185,7 +190,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
-    expect((await row('main-card', 'main')).categoryLocked, isFalse);
-    expect(find.byIcon(Icons.lock), findsNothing);
+    // Sans donnée Scryfall, la suggestion est vide.
+    final main = await row('main-card', 'main');
+    expect(main.tagsEdited, isFalse);
+    expect(AppDatabase.decodeTags(main.tags), isEmpty);
   });
 }

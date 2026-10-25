@@ -25,7 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:magic_companion/data/database/app_database.dart';
-import 'package:magic_companion/models/card_category.dart';
+import 'package:magic_companion/models/card_tag.dart';
 import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/providers/service_providers.dart';
@@ -113,15 +113,14 @@ void main() {
     List<DeckCard> cardList,
     AppDatabase database, {
     List<ScryfallCard> fullCardData = const [],
-    // Ces tests parlent surtout des sections par catégorie : on les pose
+    // Ces tests parlent surtout des sections par tag : on les pose
     // explicitement, le défaut de l'app étant le regroupement par type.
-    DeckViewPrefs viewPrefs = const DeckViewPrefs(
-      grouping: DeckGrouping.category,
-    ),
+    DeckViewPrefs viewPrefs = const DeckViewPrefs(grouping: DeckGrouping.tag),
+    List<CardTagDef> tagCatalog = kDefaultCardTags,
     DeckBoard currentBoard = DeckBoard.main,
     VoidCallback? onExportToGlobalWishlist,
-    void Function(DeckCard, CardCategory)? onSetCategory,
-    ValueChanged<DeckCard>? onResetCategory,
+    void Function(DeckCard, List<String>)? onSetTags,
+    ValueChanged<DeckCard>? onResetTags,
   }) {
     return ProviderScope(
       overrides: [appDatabaseProvider.overrideWithValue(database)],
@@ -135,8 +134,9 @@ void main() {
             onUpdateQuantity: (_, _) {},
             onExportToGlobalWishlist: onExportToGlobalWishlist,
             viewPrefs: viewPrefs,
-            onSetCategory: onSetCategory ?? (_, _) {},
-            onResetCategory: onResetCategory ?? (_) {},
+            tagCatalog: tagCatalog,
+            onSetTags: onSetTags ?? (_, _) {},
+            onResetTags: onResetTags ?? (_) {},
           ),
         ),
       ),
@@ -316,7 +316,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
-  group('liste par catégories', () {
+  group('liste par tags', () {
     ScryfallCard sc(String id, String type, double cmc) =>
         ScryfallCard.fromJson({
           'id': id,
@@ -336,46 +336,95 @@ void main() {
 
     DeckCard dc(
       String id, {
-      CardCategory? category,
-      bool locked = false,
+      List<String> tags = const [],
+      bool edited = false,
       int quantity = 1,
     }) => DeckCard(
       scryfallId: id,
       name: id,
       quantity: quantity,
-      category: category,
-      categoryLocked: locked,
+      tags: tags,
+      tagsEdited: edited,
     );
 
-    testWidgets('grille par défaut, sections dans l\'ordre de l\'enum', (
+    testWidgets('tag grouping orders catalogue, deck tags, then Sans tag', (
       tester,
     ) async {
       // Volontairement fournies dans le désordre : l'ordre affiché est celui
-      // de la taxonomie, pas celui de la liste reçue.
+      // du catalogue, puis l'alphabet pour les tags de deck.
       final cards = [
-        dc('bears', category: CardCategory.creatures),
-        dc('swords', category: CardCategory.removal),
-        dc('signet', category: CardCategory.ramp),
+        dc('sans'),
+        dc('zebre', tags: ['Zèbre']),
+        dc('pioche', tags: ['Pioche', 'Ramp']),
+        dc('alpha', tags: ['Alpha']),
+        dc('ramp', tags: ['Ramp']),
       ];
+      // Assez haut pour que toutes les sections soient construites.
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       await tester.pumpWidget(buildTabWithDb(cards, db));
       await tester.pumpAndSettle();
 
       expect(find.byType(DeckCardTile), findsNothing);
-      expect(find.byType(DeckCardGridTile), findsNWidgets(3));
-      final ramp = tester.getTopLeft(find.text('RAMP')).dy;
-      final removal = tester.getTopLeft(find.text('REMOVAL')).dy;
-      final creatures = tester.getTopLeft(find.text('CRÉATURES')).dy;
-      expect(ramp, lessThan(removal));
-      expect(removal, lessThan(creatures));
+      expect(find.byType(DeckCardGridTile), findsNWidgets(5));
+      final ys = [
+        'RAMP',
+        'PIOCHE',
+        'ALPHA',
+        'ZÈBRE',
+        'SANS TAG',
+      ].map((t) => tester.getTopLeft(find.text(t)).dy).toList();
+      expect(ys, orderedEquals([...ys]..sort()));
+      expect(ys.toSet(), hasLength(5));
       expect(find.byType(Slider), findsNothing);
+    });
+
+    testWidgets('seul le tag principal fait la section, à la casse près du '
+        'catalogue', (tester) async {
+      await tester.pumpWidget(
+        buildTabWithDb([
+          dc('a', tags: ['ramp', 'Pioche']),
+          dc('b', tags: ['Ramp']),
+        ], db),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('RAMP'), findsOneWidget);
+      expect(find.text('PIOCHE'), findsNothing);
+      expect(find.text('2'), findsOneWidget);
+    });
+
+    testWidgets('un catalogue réordonné donne l\'ordre des sections', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [
+            dc('a', tags: ['Ramp']),
+            dc('b', tags: ['Wipe']),
+          ],
+          db,
+          tagCatalog: const [
+            CardTagDef(key: 'wipe', name: 'Wipe', color: 0xFFAB47BC),
+            CardTagDef(key: 'ramp', name: 'Ramp', color: 0xFF4CAF50),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getTopLeft(find.text('WIPE')).dy,
+        lessThan(tester.getTopLeft(find.text('RAMP')).dy),
+      );
     });
 
     testWidgets('l\'en-tête porte la quantité et le CMC moyen à virgule', (
       tester,
     ) async {
       final cards = [
-        dc('a', category: CardCategory.ramp),
-        dc('b', category: CardCategory.ramp),
+        dc('a', tags: ['Ramp']),
+        dc('b', tags: ['Ramp']),
       ];
       await tester.pumpWidget(
         buildTabWithDb(
@@ -393,19 +442,21 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        buildTabWithDb([dc('a', category: CardCategory.lands)], db),
+        buildTabWithDb([
+          dc('a', tags: ['Ramp']),
+        ], db),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('TERRAINS'), findsOneWidget);
+      expect(find.text('RAMP'), findsOneWidget);
       expect(find.textContaining('CMC moyen'), findsNothing);
     });
 
-    testWidgets('une carte sans catégorie tombe dans Autres', (tester) async {
+    testWidgets('une carte sans tag tombe dans Sans tag', (tester) async {
       await tester.pumpWidget(buildTabWithDb([dc('mystere')], db));
       await tester.pumpAndSettle();
 
-      expect(find.text('AUTRES'), findsOneWidget);
+      expect(find.text('SANS TAG'), findsOneWidget);
     });
 
     for (final grouping in DeckGrouping.values) {
@@ -417,7 +468,7 @@ void main() {
           scryfallId: id,
           name: name,
           quantity: 1,
-          category: CardCategory.creatures,
+          tags: const ['Ramp'],
         );
         await tester.pumpWidget(
           buildTabWithDb(
@@ -458,7 +509,9 @@ void main() {
     ) async {
       await tester.pumpWidget(
         buildTabWithDb(
-          [dc('bears', category: CardCategory.ramp)],
+          [
+            dc('bears', tags: ['Ramp']),
+          ],
           db,
           viewPrefs: const DeckViewPrefs(),
           fullCardData: [sc('bears', 'Creature — Bear', 2)],
@@ -475,7 +528,10 @@ void main() {
     ) async {
       await tester.pumpWidget(
         buildTabWithDb(
-          [dc('bears', category: CardCategory.ramp), dc('bolt')],
+          [
+            dc('bears', tags: ['Ramp']),
+            dc('bolt'),
+          ],
           db,
           viewPrefs: const DeckViewPrefs(grouping: DeckGrouping.type),
           fullCardData: [
@@ -496,7 +552,9 @@ void main() {
     ) async {
       await tester.pumpWidget(
         buildTabWithDb(
-          [dc('a', category: CardCategory.ramp)],
+          [
+            dc('a', tags: ['Ramp']),
+          ],
           db,
           viewPrefs: const DeckViewPrefs(layout: DeckLayout.list),
         ),
@@ -510,7 +568,9 @@ void main() {
     testWidgets('sur le main, ni compte de cartes ni interrupteurs : la '
         'liste commence tout de suite', (tester) async {
       await tester.pumpWidget(
-        buildTabWithDb([dc('a', category: CardCategory.ramp)], db),
+        buildTabWithDb([
+          dc('a', tags: ['Ramp']),
+        ], db),
       );
       await tester.pumpAndSettle();
 
@@ -526,7 +586,9 @@ void main() {
       var exported = 0;
       await tester.pumpWidget(
         buildTabWithDb(
-          [dc('a', category: CardCategory.ramp)],
+          [
+            dc('a', tags: ['Ramp']),
+          ],
           db,
           currentBoard: DeckBoard.wishlist,
           onExportToGlobalWishlist: () => exported++,
@@ -545,7 +607,9 @@ void main() {
     ) async {
       await tester.pumpWidget(
         buildTabWithDb(
-          [dc('a', category: CardCategory.ramp)],
+          [
+            dc('a', tags: ['Ramp']),
+          ],
           db,
           currentBoard: DeckBoard.considering,
         ),
@@ -556,43 +620,32 @@ void main() {
       expect(find.byTooltip('Créer une Wishlist Globale (App)'), findsNothing);
     });
 
-    testWidgets('une carte verrouillée porte le cadenas, pas les autres', (
+    testWidgets('des tags corrigés à la main ne mettent pas de cadenas', (
       tester,
     ) async {
       await tester.pumpWidget(
         buildTabWithDb([
-          dc('verrou', category: CardCategory.wincon, locked: true),
-          dc('libre', category: CardCategory.ramp),
+          dc('edite', tags: ['Win-con'], edited: true),
         ], db),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.lock), findsOneWidget);
-      // Le libellé vit sur le nœud Semantics du cadenas, pas sur la tuile :
-      // un lecteur d'écran l'annonce même fusionné au reste de la vignette.
-      expect(
-        find.byWidgetPredicate(
-          (w) =>
-              w is Semantics &&
-              w.properties.label == 'Catégorie corrigée à la main',
-        ),
-        findsOneWidget,
-      );
+      expect(find.byIcon(Icons.lock), findsNothing);
     });
 
-    testWidgets('options : Catégorie… puis Pioche appelle onSetCategory', (
+    testWidgets('options : une seule entrée Tags…, qui appelle onSetTags', (
       tester,
     ) async {
       DeckCard? gotCard;
-      CardCategory? gotCategory;
-      final card = dc('harmonize', category: CardCategory.other);
+      List<String>? gotTags;
+      final card = dc('harmonize', tags: ['Pioche']);
       await tester.pumpWidget(
         buildTabWithDb(
           [card],
           db,
-          onSetCategory: (c, cat) {
+          onSetTags: (c, tags) {
             gotCard = c;
-            gotCategory = cat;
+            gotTags = tags;
           },
         ),
       );
@@ -600,23 +653,33 @@ void main() {
 
       await tester.longPress(find.byType(DeckCardGridTile));
       await tester.pumpAndSettle();
+      expect(find.text('Catégorie…'), findsNothing);
+      expect(find.text('Gérer les Tags'), findsNothing);
       expect(find.text('Déduire automatiquement'), findsNothing);
-      await tester.tap(find.text('Catégorie…'));
+      await tester.tap(find.text('Tags…'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Pioche'));
+      await tester.enterText(find.byType(TextField), 'Perso');
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byIcon(Icons.add),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
 
       expect(gotCard, same(card));
-      expect(gotCategory, CardCategory.draw);
+      expect(gotTags, ['Pioche', 'Perso']);
     });
 
-    testWidgets('options : Déduire automatiquement existe si verrouillée', (
+    testWidgets('options : Déduire automatiquement existe si tags édités', (
       tester,
     ) async {
       DeckCard? reset;
-      final card = dc('verrou', category: CardCategory.wincon, locked: true);
+      final card = dc('edite', tags: ['Win-con'], edited: true);
       await tester.pumpWidget(
-        buildTabWithDb([card], db, onResetCategory: (c) => reset = c),
+        buildTabWithDb([card], db, onResetTags: (c) => reset = c),
       );
       await tester.pumpAndSettle();
 

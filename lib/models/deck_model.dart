@@ -1,6 +1,6 @@
 // Fichier : lib/models/deck_model.dart
 
-import 'card_category.dart';
+import 'card_tag.dart';
 
 class DeckCard {
   final String scryfallId;
@@ -10,13 +10,9 @@ class DeckCard {
   bool isFoil;
   List<String> tags; // <--- NOUVEAU : Liste des tags (ex: "Ramp", "Commander", "Trade")
 
-  /// Rôle de la carte dans le deck ; nul tant que rien n'est stocké (la
-  /// déduction automatique prend alors le relais).
-  CardCategory? category;
-
-  /// Vrai quand la catégorie a été corrigée à la main : aucune déduction ne
-  /// doit alors la réécrire.
-  bool categoryLocked;
+  /// Vrai dès que l'utilisateur a touché aux tags de la carte, même pour les
+  /// vider : aucune suggestion ne doit alors les réécrire.
+  bool tagsEdited;
 
   DeckCard({
     required this.scryfallId,
@@ -25,9 +21,11 @@ class DeckCard {
     this.proxyQuantity = 0,
     this.isFoil = false,
     this.tags = const [], // Défaut vide
-    this.category,
-    this.categoryLocked = false,
+    this.tagsEdited = false,
   });
+
+  /// Tag principal, celui qui fait la section : le premier ; nul sans tag.
+  String? get primaryTag => tags.isEmpty ? null : tags.first;
 
   Map<String, dynamic> toJson() => {
         'scryfallId': scryfallId,
@@ -36,20 +34,27 @@ class DeckCard {
         'proxyQuantity': proxyQuantity,
         'isFoil': isFoil,
         'tags': tags, // <--- Sauvegarde
-        'category': category?.name,
-        'categoryLocked': categoryLocked,
+        'tagsEdited': tagsEdited,
       };
 
-  factory DeckCard.fromJson(Map<String, dynamic> json) => DeckCard(
-        scryfallId: json['scryfallId'],
-        name: json['name'],
-        quantity: json['quantity'],
-        proxyQuantity: json['proxyQuantity'] ?? 0,
-        isFoil: json['isFoil'] ?? false,
-        tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [], // <--- Chargement sécurisé
-        category: cardCategoryFromName(json['category'] as String?),
-        categoryLocked: json['categoryLocked'] ?? false,
-      );
+  /// Un JSON d'avant la 1.13 porte `category` / `categoryLocked` : ils
+  /// deviennent tags et `tagsEdited` par la même règle que la migration v7.
+  factory DeckCard.fromJson(Map<String, dynamic> json) {
+    final locked = json['categoryLocked'] as bool? ?? false;
+    return DeckCard(
+      scryfallId: json['scryfallId'],
+      name: json['name'],
+      quantity: json['quantity'],
+      proxyQuantity: json['proxyQuantity'] ?? 0,
+      isFoil: json['isFoil'] ?? false,
+      tags: legacyCategoryTags(
+        json['category'] as String?,
+        locked,
+        (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      ),
+      tagsEdited: json['tagsEdited'] as bool? ?? locked,
+    );
+  }
 }
 
 // La classe Deck reste inchangée, elle utilise DeckCard qui est maintenant mis à jour.

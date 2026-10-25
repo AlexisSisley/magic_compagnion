@@ -7,9 +7,10 @@ import 'dart:convert';
 import '../data/database/app_database.dart';
 
 /// Regroupement des sections de la liste. Par type par défaut : c'est la
-/// lecture la plus familière d'une liste de deck. Un deck qui a déjà mémorisé
-/// « Catégorie » la garde.
-enum DeckGrouping { category, type }
+/// lecture la plus familière d'une liste de deck. Par tag, une section par tag
+/// principal. Un deck qui avait mémorisé « Catégorie » (`category`) se rouvre
+/// par tag.
+enum DeckGrouping { tag, type }
 
 /// Présentation des cartes : grille d'artworks (défaut) ou liste compacte.
 enum DeckLayout { grid, list }
@@ -66,11 +67,9 @@ Future<DeckViewPrefs> loadDeckViewPrefs(AppDatabase db, String deckId) async {
     final decoded = json.decode(raw);
     if (decoded is! Map) return defaults;
     return DeckViewPrefs(
-      grouping: _byName(
-        DeckGrouping.values,
-        decoded['grouping'],
-        defaults.grouping,
-      ),
+      grouping: decoded['grouping'] == 'category'
+          ? DeckGrouping.tag
+          : _byName(DeckGrouping.values, decoded['grouping'], defaults.grouping),
       layout: _byName(DeckLayout.values, decoded['layout'], defaults.layout),
     );
   } on FormatException {

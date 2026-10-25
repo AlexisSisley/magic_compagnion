@@ -1,4 +1,5 @@
-// Montee de schema v5 -> v6 sur une vraie base v5 : categorie des cartes de deck.
+// Montee de schema depuis une vraie base v5 : les cartes de deck traversent la
+// v6 (categorie) jusqu'a la v7 (tagsEdited) sans rien perdre.
 // Meme technique que la migration v4 -> v5 (DDL fige + PRAGMA user_version).
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,7 +20,7 @@ CREATE TABLE "deck_cards" ("id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "dec
 
 void main() {
   test(
-    'les cartes v5 migrent sans categorie ni verrou, le reste intact',
+    'les cartes v5 migrent sans tag ajoute ni drapeau, le reste intact',
     () async {
       final db = AppDatabase(
         NativeDatabase.memory(
@@ -45,8 +46,7 @@ INSERT INTO deck_cards (deck_id, board, scryfall_id, name) VALUES ('d1', 'side',
       final cards = await db.getDeckCardsByDeckId('d1');
       expect(cards, hasLength(2));
       for (final c in cards) {
-        expect(c.category, isNull);
-        expect(c.categoryLocked, isFalse);
+        expect(c.tagsEdited, isFalse);
       }
       final ramp = cards.firstWhere((c) => c.scryfallId == 's1');
       expect(ramp.tags, '["Ramp"]');
@@ -59,22 +59,22 @@ INSERT INTO deck_cards (deck_id, board, scryfall_id, name) VALUES ('d1', 'side',
       expect(island.isFoil, isFalse);
 
       // Un SELECT * lit une colonne absente comme nulle : seule une ecriture
-      // prouve que les deux colonnes existent bien apres la montee de version.
-      await db.setDeckCardCategory(
+      // prouve que la colonne existe bien apres la montee de version.
+      await db.setDeckCardTags(
         deckId: 'd1',
         board: 'main',
         scryfallId: 's1',
-        category: 'removal',
-        categoryLocked: true,
+        tags: ['Removal'],
+        tagsEdited: true,
       );
       final relu = (await db.getDeckCardsByDeckId(
         'd1',
       )).firstWhere((c) => c.scryfallId == 's1');
-      expect(relu.category, 'removal');
-      expect(relu.categoryLocked, isTrue);
+      expect(AppDatabase.decodeTags(relu.tags), ['Removal']);
+      expect(relu.tagsEdited, isTrue);
 
       final version = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(version.read<int>('user_version'), 6);
+      expect(version.read<int>('user_version'), 7);
     },
   );
 }

@@ -72,3 +72,30 @@ String? normalizeTagName(String raw) {
 
 /// Égalité de deux noms de tag, insensible à la casse.
 bool sameTag(String a, String b) => a.toLowerCase() == b.toLowerCase();
+
+/// Catégories du chantier D qui deviennent un tag par défaut. `lands`,
+/// `creatures` et `other` ne disaient pas de rôle : elles ne donnent rien.
+const Set<String> _legacyCategoryKeys = {
+  'ramp',
+  'draw',
+  'removal',
+  'wipe',
+  'protection',
+  'tutor',
+  'wincon',
+};
+
+/// Tags d'une carte d'avant la 1.13, depuis son ancienne catégorie : le libellé
+/// par défaut du rôle passe en tête (tag principal), sauf si la carte le porte
+/// déjà à la casse près. [locked] ne change pas les tags : il devient
+/// `tagsEdited`, que l'appelant pose lui-même.
+List<String> legacyCategoryTags(
+  String? category,
+  bool locked,
+  List<String> tags,
+) {
+  if (category == null || !_legacyCategoryKeys.contains(category)) return tags;
+  final label = kDefaultCardTags.firstWhere((t) => t.key == category).name;
+  if (tags.any((t) => sameTag(t, label))) return tags;
+  return [label, ...tags];
+}

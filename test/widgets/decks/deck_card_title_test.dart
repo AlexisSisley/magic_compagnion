@@ -10,7 +10,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
 import 'package:magic_companion/providers/card_display_provider.dart';
-import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
 
 void main() {
@@ -186,8 +185,9 @@ void main() {
     });
   });
 
-  group('DeckCardGridTile — catégorie corrigée', () {
-    Widget buildGrid({required bool locked}) => MaterialApp(
+  testWidgets('DeckCardGridTile : ni cadenas ni liseré épais hors commandant',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: SizedBox(
           width: 130,
@@ -196,37 +196,17 @@ void main() {
             card: card(),
             scryfallCard: null,
             isInCollection: false,
-            categoryLocked: locked,
             onPlus: () {},
             onMinus: () {},
             onTap: () {},
           ),
         ),
       ),
-    );
+    ));
 
-    testWidgets('verrouillée : cadenas de 11 px et liseré or de 2 px', (
-      tester,
-    ) async {
-      await tester.pumpWidget(buildGrid(locked: true));
-
-      final lock = tester.widget<Icon>(find.byIcon(Icons.lock));
-      expect(lock.size, 11);
-      final shape =
-          tester.widget<Card>(find.byType(Card)).shape as RoundedRectangleBorder;
-      expect(shape.side.width, 2);
-      expect(shape.side.color, AppColors.primary);
-    });
-
-    testWidgets('non verrouillée : ni cadenas ni liseré épais', (
-      tester,
-    ) async {
-      await tester.pumpWidget(buildGrid(locked: false));
-
-      expect(find.byIcon(Icons.lock), findsNothing);
-      final shape =
-          tester.widget<Card>(find.byType(Card)).shape as RoundedRectangleBorder;
-      expect(shape.side.width, 1);
-    });
+    expect(find.byIcon(Icons.lock), findsNothing);
+    final shape =
+        tester.widget<Card>(find.byType(Card)).shape as RoundedRectangleBorder;
+    expect(shape.side.width, 1);
   });
 }

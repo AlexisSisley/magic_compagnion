@@ -25,12 +25,13 @@ Map<String, dynamic> _json(
   String typeLine,
   num cmc, {
   Map<String, dynamic> prices = const {},
+  String oracle = '',
 }) => {
   'id': id,
   'name': name,
   'type_line': typeLine,
   'cmc': cmc,
-  'oracle_text': '',
+  'oracle_text': oracle,
   'prices': prices,
   'color_identity': ['W'],
 };
@@ -45,7 +46,7 @@ class _Api extends ScryfallApiService {
     'data': [
       _json('cmdr', 'Le Chef', 'Legendary Creature — Human', 4),
       _json('spell', 'Un sort', 'Sorcery', 3, prices: {'eur': '12.50'}),
-      _json('cheap', 'Un petit sort', 'Instant', 1),
+      _json('cheap', 'Un petit sort', 'Instant', 1, oracle: 'Draw a card.'),
       _json('partner', 'Le Second', 'Legendary Creature — Human', 6),
     ],
   };
@@ -294,11 +295,11 @@ void main() {
     expect(find.text('0 carte'), findsOneWidget);
   });
 
-  testWidgets('switchVersion déduit la catégorie de la nouvelle ligne', (
+  testWidgets('switchVersion suggère les tags de la nouvelle ligne', (
     tester,
   ) async {
     // La carte d'origine n'est pas résolue par Scryfall : elle reste sans
-    // catégorie, donc rien à recopier sur la nouvelle impression.
+    // tag, donc rien à recopier sur la nouvelle impression.
     await db.upsertDeckCard(
       deckId: 'd1',
       board: 'main',
@@ -323,6 +324,11 @@ void main() {
     await fin;
 
     final rows = await db.getDeckCardsByDeckId('d1');
-    expect(rows.firstWhere((r) => r.scryfallId == 'cheap').category, isNotNull);
+    expect(
+      AppDatabase.decodeTags(
+        rows.firstWhere((r) => r.scryfallId == 'cheap').tags,
+      ),
+      ['Pioche'],
+    );
   });
 }

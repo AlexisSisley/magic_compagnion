@@ -222,6 +222,71 @@ void main() {
       );
     });
 
+    test('restoring a pre-1.13 backup converts category to tags', () async {
+      const catalogue = '[{"key":null,"name":"Garde","color":1}]';
+      await db.setSetting('card_tags:universal', catalogue);
+      final svc = BackupService(database: db);
+
+      await svc.restoreFromJson(json.encode({
+        'user_decks': [
+          {
+            'id': 'old',
+            'name': 'Ancien',
+            'mainboard': [
+              {
+                'scryfallId': 'w',
+                'name': 'Wrath',
+                'quantity': 1,
+                'tags': [],
+                'category': 'wipe',
+                'categoryLocked': true,
+              },
+              {
+                'scryfallId': 'b',
+                'name': 'Bears',
+                'quantity': 1,
+                'tags': ['Perso'],
+                'category': 'creatures',
+                'categoryLocked': false,
+              },
+            ],
+            'sideboard': [],
+          },
+        ],
+      }));
+
+      final cards = await db.getDeckCardsByDeckId('old');
+      final wrath = cards.firstWhere((c) => c.scryfallId == 'w');
+      expect(AppDatabase.decodeTags(wrath.tags), ['Wipe']);
+      expect(wrath.tagsEdited, isTrue);
+      final bears = cards.firstWhere((c) => c.scryfallId == 'b');
+      expect(AppDatabase.decodeTags(bears.tags), ['Perso']);
+      expect(bears.tagsEdited, isFalse);
+      expect(await db.getSetting('card_tags:universal'), catalogue);
+    });
+
+    test('export puis import conservent tags et tagsEdited', () async {
+      await db.insertDeck(DecksCompanion.insert(id: 'd1', name: 'Test'));
+      await db.upsertDeckCard(
+          deckId: 'd1', board: 'main', scryfallId: 'c1', cardName: 'Swords',
+          absoluteQuantity: 1, newTags: ['Removal', 'Perso'], tagsEdited: true);
+      await db.upsertDeckCard(
+          deckId: 'd1', board: 'main', scryfallId: 'c2', cardName: 'Island',
+          absoluteQuantity: 1);
+      final svc = BackupService(database: db);
+
+      final sauvegarde = await svc.generateBackupJson();
+      await svc.restoreFromJson(sauvegarde);
+
+      final cards = await db.getDeckCardsByDeckId('d1');
+      final c1 = cards.firstWhere((c) => c.scryfallId == 'c1');
+      expect(AppDatabase.decodeTags(c1.tags), ['Removal', 'Perso']);
+      expect(c1.tagsEdited, isTrue);
+      final c2 = cards.firstWhere((c) => c.scryfallId == 'c2');
+      expect(AppDatabase.decodeTags(c2.tags), isEmpty);
+      expect(c2.tagsEdited, isFalse);
+    });
+
     test('une sauvegarde ancienne sans ces cles importe avec [] et null', () async {
       final svc = BackupService(database: db);
       await svc.restoreFromJson(json.encode({

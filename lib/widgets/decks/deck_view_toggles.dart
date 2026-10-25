@@ -1,6 +1,6 @@
 // Fichier : lib/widgets/decks/deck_view_toggles.dart
 // Interrupteurs d'affichage de la liste d'un deck : regroupement
-// « Catégorie | Type » et bascule grille/liste. Posés dans la rangée des puces
+// « Tags | Type » et bascule grille/liste. Posés dans la rangée des puces
 // de board pour ne pas consommer une ligne de plus au-dessus des cartes.
 
 import 'package:flutter/material.dart';
@@ -31,14 +31,14 @@ class DeckViewToggles extends StatelessWidget {
     );
   }
 
-  /// Interrupteur « Catégorie | Type ». Le thème de base a un `primary`
+  /// Interrupteur « Tags | Type ». Le thème de base a un `primary`
   /// lilas : sans `foregroundColor` explicite, le libellé sélectionné sortirait
   /// lilas sur le fond or.
   Widget _buildGroupingToggle() {
     return SegmentedButton<DeckGrouping>(
       showSelectedIcon: false,
       segments: const [
-        ButtonSegment(value: DeckGrouping.category, label: Text('Catégorie')),
+        ButtonSegment(value: DeckGrouping.tag, label: Text('Tags')),
         ButtonSegment(value: DeckGrouping.type, label: Text('Type')),
       ],
       selected: {prefs.grouping},

@@ -1,5 +1,5 @@
 // Interrupteurs d'affichage de la liste d'un deck, posés dans la rangée des
-// puces de board : regroupement « Catégorie | Type » et bascule grille/liste
+// puces de board : regroupement « Tags | Type » et bascule grille/liste
 // en un seul bouton.
 
 import 'package:flutter/material.dart';
@@ -29,23 +29,23 @@ Widget _app({
 }
 
 void main() {
-  testWidgets('l\'interrupteur Catégorie appelle onGrouping(category)', (
+  testWidgets('l\'interrupteur Tags appelle onGrouping(tag)', (
     tester,
   ) async {
     DeckGrouping? got;
     await tester.pumpWidget(_app(onGrouping: (g) => got = g));
 
-    await tester.tap(find.text('Catégorie'));
+    await tester.tap(find.text('Tags'));
     await tester.pump();
 
-    expect(got, DeckGrouping.category);
+    expect(got, DeckGrouping.tag);
   });
 
   testWidgets('l\'interrupteur Type appelle onGrouping(type)', (tester) async {
     DeckGrouping? got;
     await tester.pumpWidget(
       _app(
-        prefs: const DeckViewPrefs(grouping: DeckGrouping.category),
+        prefs: const DeckViewPrefs(grouping: DeckGrouping.tag),
         onGrouping: (g) => got = g,
       ),
     );

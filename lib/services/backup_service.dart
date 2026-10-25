@@ -9,7 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../data/database/app_database.dart';
-import '../models/card_category.dart';
+import '../models/card_tag.dart';
 import 'card_tag_catalog.dart';
 import 'deck_view_prefs.dart';
 
@@ -82,8 +82,7 @@ class BackupService {
             'proxyQuantity': card.proxyQuantity,
             'isFoil': card.isFoil,
             'tags': json.decode(card.tags),
-            'category': card.category,
-            'categoryLocked': card.categoryLocked,
+            'tagsEdited': card.tagsEdited,
           });
         }
         decksList.add({
@@ -275,19 +274,24 @@ class BackupService {
           final cards = map[boardEntry.key] as List? ?? [];
           for (final cardJson in cards) {
             final cardMap = cardJson as Map<String, dynamic>;
+            // Une sauvegarde d'avant la 1.13 porte category / categoryLocked :
+            // meme conversion que la migration v7. Le catalogue n'y est pour
+            // rien : les libelles sont ceux des tags par defaut.
+            final locked = cardMap['categoryLocked'] as bool? ?? false;
             await _db.upsertDeckCard(
               deckId: deckId,
               board: boardEntry.value,
               scryfallId: cardMap['scryfallId'] as String,
               cardName: cardMap['name'] as String,
               absoluteQuantity: cardMap['quantity'] as int,
-              newTags: (cardMap['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
+              newTags: legacyCategoryTags(
+                cardMap['category'] as String?,
+                locked,
+                (cardMap['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
+              ),
               isFoil: cardMap['isFoil'] as bool? ?? false,
               proxyQuantity: cardMap['proxyQuantity'] as int?,
-              // Une sauvegarde ancienne n'a ni categorie ni verrou ; un nom
-              // inconnu devient nul plutot que d'etre stocke tel quel.
-              category: cardCategoryFromName(cardMap['category'] as String?)?.name,
-              categoryLocked: cardMap['categoryLocked'] as bool? ?? false,
+              tagsEdited: cardMap['tagsEdited'] as bool? ?? locked,
             );
           }
         }

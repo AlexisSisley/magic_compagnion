@@ -165,10 +165,6 @@ class DeckCardGridTile extends StatelessWidget {
   final VoidCallback onMinus;
   final VoidCallback onTap;
 
-  /// Catégorie corrigée à la main : la vignette le dit (liseré or et cadenas)
-  /// pour qu'on sache qu'aucune déduction ne la réécrira.
-  final bool categoryLocked;
-
   /// Voir [DeckCardTile.display] : meme projection, meme regle de repli.
   final CardDisplay? display;
 
@@ -181,7 +177,6 @@ class DeckCardGridTile extends StatelessWidget {
     required this.onPlus,
     required this.onMinus,
     required this.onTap,
-    this.categoryLocked = false,
     this.display,
   });
 
@@ -200,10 +195,8 @@ class DeckCardGridTile extends StatelessWidget {
           side: BorderSide(
             color: isCommander
                 ? AppColors.primaryShade700
-                : categoryLocked
-                    ? AppColors.primary
-                    : (card.isFoil ? Colors.amber.withValues(alpha: 0.5) : AppColors.borderSubtle),
-            width: (isCommander || categoryLocked) ? 2 : 1,
+                : (card.isFoil ? Colors.amber.withValues(alpha: 0.5) : AppColors.borderSubtle),
+            width: isCommander ? 2 : 1,
           ),
         ),
         color: AppColors.textOnPrimary.withValues(alpha: 0.6),
@@ -319,20 +312,7 @@ class DeckCardGridTile extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         InkWell(onTap: onMinus, child: const Icon(Icons.remove, color: AppColors.textSecondary, size: 20)),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('${card.quantity}', style: AppTextStyles.text(color: card.isFoil ? AppColors.amber : AppColors.primaryShade700, fontSize: 18, fontWeight: FontWeight.bold)),
-                            if (categoryLocked)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 3),
-                                child: Semantics(
-                                  label: 'Catégorie corrigée à la main',
-                                  child: const Icon(Icons.lock, size: 11, color: AppColors.primary),
-                                ),
-                              ),
-                          ],
-                        ),
+                        Text('${card.quantity}', style: AppTextStyles.text(color: card.isFoil ? AppColors.amber : AppColors.primaryShade700, fontSize: 18, fontWeight: FontWeight.bold)),
                         InkWell(onTap: onPlus, child: const Icon(Icons.add, color: AppColors.textSecondary, size: 20)),
                       ],
                     ),

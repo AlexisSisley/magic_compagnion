@@ -6,14 +6,15 @@ import 'dart:developer';
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../data/database/app_database.dart';
-import '../models/card_category.dart';
+import '../models/card_tag.dart';
 import '../models/deck_model.dart';
 import '../models/edhrec_models.dart';
 import '../models/scryfall_card_model.dart';
 import '../providers/service_providers.dart';
 import '../utils/price_helper.dart';
 import '../models/legality_report.dart';
-import '../services/card_category_service.dart';
+import '../services/card_tag_catalog.dart';
+import '../services/card_tag_suggester.dart';
 import '../services/collection_service.dart';
 import '../services/deck_format_service.dart';
 import '../services/deck_power_level_service.dart';
@@ -160,8 +161,8 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     ]);
     if (!mounted) return;
     // Le texte des cartes n'est connu qu'ici : c'est donc à l'ouverture, et
-    // non à l'ajout, que les cartes sans catégorie reçoivent la leur.
-    await _categorizeUncategorized();
+    // non à l'ajout, que les cartes sans tag reçoivent leurs suggestions.
+    await _suggestTagsForUntagged();
     if (!mounted) return;
     _calculateDeckValue();
     await _computeTokens();
@@ -177,37 +178,73 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     state = state.copyWith(viewPrefs: prefs);
   }
 
-  /// Déduit la catégorie des cartes qui n'en ont pas, en un seul lot persisté.
-  /// Une carte verrouillée ou sans données Scryfall (carte `LOCAL:`, échec
-  /// réseau) est laissée telle quelle.
-  Future<void> _categorizeUncategorized() async {
+  /// Catalogue des tags universels, lu en base à chaque suggestion : un tag
+  /// renommé ou supprimé dans l'écran des tags compte dès l'ouverture suivante.
+  /// Sans base (tests, repli), les défauts.
+  Future<List<CardTagDef>> _loadTagCatalog() async {
+    final db = _database;
+    if (db == null) return List.of(kDefaultCardTags);
+    return CardTagCatalog(db).load();
+  }
+
+  /// Tags suggérés pour une carte, traduits en noms du catalogue courant. Une
+  /// clé absente du catalogue (tag supprimé) est sautée. Liste vide pour une
+  /// carte `LOCAL:` ou sans données Scryfall.
+  List<String> _suggestedTags(
+    DeckCard card,
+    Map<String, ScryfallCard> byId,
+    List<CardTagDef> catalog,
+  ) {
+    if (card.scryfallId.startsWith('LOCAL:')) return const [];
+    final sc = byId[card.scryfallId];
+    if (sc == null) return const [];
+    final names = <String>[];
+    for (final key in suggestTagKeys(
+      typeLine: sc.typeLine,
+      oracleText: sc.oracleText,
+    )) {
+      final def = catalog.where((t) => t.key == key).firstOrNull;
+      if (def != null) names.add(def.name);
+    }
+    return names;
+  }
+
+  /// Suggère des tags aux cartes qui n'en ont pas et n'ont jamais été
+  /// éditées, en un seul lot persisté. Une carte sans données Scryfall
+  /// (carte `LOCAL:`, échec réseau) ou sans suggestion est laissée telle quelle.
+  Future<void> _suggestTagsForUntagged() async {
     final deck = state.currentDeck;
     final byId = {for (final c in state.fullCardData) c.id: c};
+    final candidates = [
+      for (final (board, cards) in [
+        (DeckBoard.main, deck.mainboard),
+        (DeckBoard.side, deck.sideboard),
+        (DeckBoard.considering, deck.considering),
+        (DeckBoard.wishlist, deck.wishlist),
+      ])
+        for (final card in cards)
+          if (card.tags.isEmpty &&
+              !card.tagsEdited &&
+              byId.containsKey(card.scryfallId) &&
+              !card.scryfallId.startsWith('LOCAL:'))
+            (board, card),
+    ];
+    if (candidates.isEmpty) return;
+    final catalog = await _loadTagCatalog();
+    if (!mounted) return;
     final entries =
-        <({DeckBoard board, String scryfallId, CardCategory category})>[];
-    final deduced = <DeckCard, CardCategory>{};
-    for (final (board, cards) in [
-      (DeckBoard.main, deck.mainboard),
-      (DeckBoard.side, deck.sideboard),
-      (DeckBoard.considering, deck.considering),
-      (DeckBoard.wishlist, deck.wishlist),
-    ]) {
-      for (final card in cards) {
-        if (card.category != null || card.categoryLocked) continue;
-        if (card.scryfallId.startsWith('LOCAL:')) continue;
-        final sc = byId[card.scryfallId];
-        if (sc == null) continue;
-        final category =
-            classifyCard(typeLine: sc.typeLine, oracleText: sc.oracleText);
-        entries.add(
-            (board: board, scryfallId: card.scryfallId, category: category));
-        deduced[card] = category;
-      }
+        <({DeckBoard board, String scryfallId, List<String> tags})>[];
+    final suggested = <DeckCard, List<String>>{};
+    for (final (board, card) in candidates) {
+      final tags = _suggestedTags(card, byId, catalog);
+      if (tags.isEmpty) continue;
+      entries.add((board: board, scryfallId: card.scryfallId, tags: tags));
+      suggested[card] = tags;
     }
     if (entries.isEmpty) return;
-    await _deckService.applyDeducedCategories(deck.id, entries);
+    await _deckService.applySuggestedTags(deck.id, entries);
     if (!mounted) return;
-    deduced.forEach((card, category) => card.category = category);
+    suggested.forEach((card, tags) => card.tags = tags);
     // Le deck affiché a pu être remplacé pendant l'écriture : on notifie celui
     // de l'état courant, sans le remettre sur l'instantané du départ.
     state = state.copyWith(currentDeck: state.currentDeck);
@@ -272,7 +309,7 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
 
     // Écriture limitée aux couleurs : réécrire tout le deck depuis `deck`,
     // capturé avant les appels réseau, écraserait les cartes écrites entre-temps
-    // (catégories déduites, ajouts).
+    // (tags suggérés, ajouts).
     if (deck.colors.join() != sortedColors.join()) {
       deck.colors = sortedColors;
       await _deckService.updateDeckColors(deck.id, sortedColors);
@@ -446,10 +483,10 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     state = state.copyWith(currentDeck: updatedDeck);
     await _loadFullCardData();
     if (!mounted) return;
-    // La nouvelle impression a pu créer une ligne sans catégorie (l'ancienne
-    // n'en avait pas non plus) : on la déduit tout de suite plutôt qu'à la
+    // La nouvelle impression a pu créer une ligne sans tag (l'ancienne n'en
+    // avait pas non plus) : on la suggère tout de suite plutôt qu'à la
     // prochaine ouverture.
-    await _categorizeUncategorized();
+    await _suggestTagsForUntagged();
     if (!mounted) return;
     _calculateDeckValue();
   }
@@ -490,48 +527,43 @@ class DeckDetailController extends StateNotifier<DeckDetailState> {
     );
   }
 
-  Future<void> updateTags(DeckCard card, List<String> tags, DeckBoard board) async {
-    final updatedDeck = await _deckService.upsertCardInDeck(
-      deckId: state.currentDeck.id,
-      scryfallId: card.scryfallId,
-      cardName: card.name,
-      board: board,
-      newTags: tags,
-    );
-    state = state.copyWith(currentDeck: updatedDeck);
-    _computePowerLevel();
-  }
+  // --- TAGS ---
 
-  // --- CATÉGORIES ---
-
-  /// Catégorie sous laquelle la carte s'affiche : sans catégorie (carte
-  /// locale, données absentes), elle tombe dans « Autres ».
-  CardCategory displayCategory(DeckCard card) =>
-      card.category ?? CardCategory.other;
-
-  /// Correction à la main : la catégorie est verrouillée, plus aucune
-  /// déduction ne la réécrit.
-  Future<void> setCategory(
-      DeckCard card, DeckBoard board, CardCategory category) async {
-    await _deckService.setCardCategory(
-        state.currentDeck.id, board, card.scryfallId, category,
-        locked: true);
+  /// Correction à la main : les tags sont normalisés (noms invalides retirés,
+  /// orthographe du catalogue pour un tag universel), dédoublonnés à la casse
+  /// près dans l'ordre reçu, et marqués édités : plus aucune suggestion ne les
+  /// réécrit, même vides.
+  Future<void> setCardTags(
+      DeckCard card, DeckBoard board, List<String> tags) async {
+    final catalog = await _loadTagCatalog();
+    final clean = <String>[];
+    for (final raw in tags) {
+      final name = normalizeTagName(raw);
+      if (name == null) continue;
+      final known = catalog.where((t) => sameTag(t.name, name)).firstOrNull;
+      final spelled = known?.name ?? name;
+      if (!clean.any((t) => sameTag(t, spelled))) clean.add(spelled);
+    }
+    await _deckService.setCardTags(
+        state.currentDeck.id, board, card.scryfallId, clean,
+        edited: true);
     await _reloadDeck();
   }
 
-  /// Rend la carte à la déduction automatique : déverrouille et re-déduit
-  /// depuis le texte de la carte, ou remet à vide s'il n'est pas connu.
-  Future<void> resetCategory(DeckCard card, DeckBoard board) async {
-    final sc =
-        state.fullCardData.where((s) => s.id == card.scryfallId).firstOrNull;
-    final category = (sc == null || card.scryfallId.startsWith('LOCAL:'))
-        ? null
-        : classifyCard(typeLine: sc.typeLine, oracleText: sc.oracleText);
-    await _deckService.setCardCategory(
-        state.currentDeck.id, board, card.scryfallId, category,
-        locked: false);
+  /// Rend la carte à la suggestion automatique : nouvelle suggestion depuis
+  /// le texte de la carte, ou aucun tag s'il n'est pas connu.
+  Future<void> resetCardTags(DeckCard card, DeckBoard board) async {
+    final byId = {for (final c in state.fullCardData) c.id: c};
+    final tags = _suggestedTags(card, byId, await _loadTagCatalog());
+    await _deckService.setCardTags(
+        state.currentDeck.id, board, card.scryfallId, tags,
+        edited: false);
     await _reloadDeck();
   }
+
+  /// Recharge le deck depuis la base, après un changement de tags fait
+  /// ailleurs (renommage ou suppression dans l'écran des tags).
+  Future<void> refreshAfterTagChanges() => _reloadDeck();
 
   // --- PRÉFÉRENCES D'AFFICHAGE ---
 

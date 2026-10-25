@@ -58,7 +58,7 @@ INSERT INTO deck_cards (deck_id, board, scryfall_id, name) VALUES ('d1', 'main',
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
     // Drift deroule toutes les marches jusqu'au schema courant, pas seulement
-    // la v5 : une base v4 ouverte aujourd'hui sort en v6.
-    expect(version.read<int>('user_version'), 6);
+    // la v5 : une base v4 ouverte aujourd'hui sort en v7.
+    expect(version.read<int>('user_version'), 7);
   });
 }

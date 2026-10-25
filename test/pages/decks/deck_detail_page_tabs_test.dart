@@ -231,7 +231,7 @@ void main() {
       await tester.longPress(find.byType(DeckCardGridTile).hitTestable().first);
       await tester.pumpAndSettle();
 
-      expect(find.text('Catégorie…'), findsOneWidget);
+      expect(find.text('Tags…'), findsOneWidget);
     });
 
     testWidgets('changer de board repart du haut de la liste', (tester) async {
@@ -344,7 +344,7 @@ void main() {
     expect(rows.where((r) => r.scryfallId == 'main-card').map((r) => r.board), [
       'side',
     ]);
-    expect(find.text('Catégorie…'), findsNothing);
+    expect(find.text('Tags…'), findsNothing);
     expect(pillColor(tester, 'Side 2'), AppColors.primary);
   });
 
@@ -356,7 +356,7 @@ void main() {
     await tester.longPress(find.byType(DeckCardGridTile));
     await tester.pumpAndSettle();
 
-    expect(find.text('Catégorie…'), findsOneWidget);
+    expect(find.text('Tags…'), findsOneWidget);
     // Rien n'a bougé.
     final rows = await db.getDeckCardsByDeckId('d1');
     expect(rows.where((r) => r.scryfallId == 'main-card').map((r) => r.board), [
@@ -370,7 +370,7 @@ void main() {
 
     await dragTo(tester, find.byType(DeckCardGridTile), 'Main 1');
 
-    expect(find.text('Catégorie…'), findsNothing);
+    expect(find.text('Tags…'), findsNothing);
     final rows = await db.getDeckCardsByDeckId('d1');
     expect(rows.where((r) => r.scryfallId == 'main-card').map((r) => r.board), [
       'main',
@@ -402,7 +402,7 @@ void main() {
     node.owner!.performAction(node.id, SemanticsAction.longPress);
     await tester.pumpAndSettle();
 
-    expect(find.text('Catégorie…'), findsOneWidget);
+    expect(find.text('Tags…'), findsOneWidget);
     handle.dispose();
   });
 
@@ -425,7 +425,7 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(find.text('Catégorie…'), findsOneWidget);
+    expect(find.text('Tags…'), findsOneWidget);
   });
 
   testWidgets('à 360 px, les quatre puces restent à l\'écran et un dépôt sur '

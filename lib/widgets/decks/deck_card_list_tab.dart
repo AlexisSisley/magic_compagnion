@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:magic_companion/widgets/cards/versions_selector_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:magic_companion/widgets/decks/deck_card_title.dart';
-import '../../models/card_category.dart';
+import '../../models/card_tag.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../providers/card_display_provider.dart';
@@ -33,7 +33,6 @@ class DeckCardListTab extends ConsumerStatefulWidget {
   final Function(DeckCard, int) onUpdateQuantity;
   final Function(DeckCard)? onSetCommander;
   final Function(DeckCard, DeckBoard)? onMoveCard; // Nouveau callback
-  final Function(DeckCard, List<String>)? onUpdateTags; // Nouveau callback
   final VoidCallback? onExportToGlobalWishlist;
 
   final Function(DeckCard)? onToggleFoil;
@@ -42,13 +41,17 @@ class DeckCardListTab extends ConsumerStatefulWidget {
   final Function(DeckCard, int, String?)? onAddToWishlist;
 
   /// Affichage mémorisé du deck (regroupement, grille ou liste) et les
-  /// callbacks qui corrigent la catégorie d'une carte : la page les câble au
+  /// callbacks qui corrigent les tags d'une carte : la page les câble au
   /// contrôleur, l'onglet ne garde aucun état d'affichage. Les interrupteurs
   /// qui changent l'affichage vivent dans la rangée des puces de board
   /// (DeckViewToggles), pas ici.
   final DeckViewPrefs viewPrefs;
-  final void Function(DeckCard, CardCategory) onSetCategory;
-  final ValueChanged<DeckCard> onResetCategory;
+  final void Function(DeckCard, List<String>) onSetTags;
+  final ValueChanged<DeckCard> onResetTags;
+
+  /// Catalogue des tags universels, dans son ordre : il ordonne les sections
+  /// du regroupement par tag.
+  final List<CardTagDef> tagCatalog;
 
   const DeckCardListTab({
     super.key,
@@ -61,15 +64,15 @@ class DeckCardListTab extends ConsumerStatefulWidget {
     required this.onUpdateQuantity,
     this.onSetCommander,
     this.onMoveCard,
-    this.onUpdateTags,
     this.onExportToGlobalWishlist,
     this.onToggleFoil,
     this.onSwitchVersion,
     this.onAddToCollection,
     this.onAddToWishlist,
     required this.viewPrefs,
-    required this.onSetCategory,
-    required this.onResetCategory,
+    required this.onSetTags,
+    required this.onResetTags,
+    required this.tagCatalog,
   });
 
   @override
@@ -174,9 +177,10 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
       );
     }
 
-    final byCategory = widget.viewPrefs.grouping == DeckGrouping.category;
-    final groupedList =
-        byCategory ? _buildCategoryList(widget.cardList) : _buildGroupedList(widget.cardList);
+    final byTag = widget.viewPrefs.grouping == DeckGrouping.tag;
+    final groupedList = byTag
+        ? _buildTagList(widget.cardList, widget.tagCatalog)
+        : _buildGroupedList(widget.cardList);
     final isGrid = widget.viewPrefs.layout == DeckLayout.grid;
 
     final shopping = widget.currentBoard == DeckBoard.wishlist ||
@@ -223,7 +227,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSectionHeader(group, byCategory),
+                      _buildSectionHeader(group, byTag),
                       isGrid
                           ? GridView.builder(
                               shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
@@ -243,11 +247,11 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
     );
   }
 
-  /// En mode catégorie, l'en-tête dit le rôle et le coût moyen de la section ;
-  /// en mode type, il garde son titre d'origine.
-  Widget _buildSectionHeader(_GroupedCardList group, bool byCategory) {
+  /// En mode tag, l'en-tête dit le tag principal et le coût moyen de la
+  /// section ; en mode type, il garde son titre d'origine.
+  Widget _buildSectionHeader(_GroupedCardList group, bool byTag) {
     final count = group.cards.fold(0, (s, c) => s + c.quantity);
-    if (!byCategory) {
+    if (!byTag) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
         child: Text('${group.title} ($count)', style: AppTextStyles.sectionTitle()),
@@ -335,7 +339,6 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
       return DeckCardGridTile(
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
         display: display,
-        categoryLocked: card.categoryLocked,
         onPlus: () => widget.onUpdateQuantity(card, 1),
         onMinus: () => widget.onUpdateQuantity(card, -1),
         onTap: () { if (scryfallCard != null) pushCardDetail(context, cardName: scryfallCard.name); },
@@ -466,24 +469,17 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
                       },
                     ),
 
-                  // 3. GESTION TAGS
+                  // 3. TAGS
                   ListTile(
                     leading: const Icon(Icons.label, color: AppColors.accentGreen),
-                    title: const Text('Gérer les Tags', style: TextStyle(color: AppColors.textPrimary)),
+                    title: const Text('Tags…', style: TextStyle(color: AppColors.textPrimary)),
                     onTap: () { Navigator.pop(context); _showTagEditor(card); },
                   ),
-
-                  // 3b. CATÉGORIE
-                  ListTile(
-                    leading: const Icon(Icons.category, color: AppColors.primary),
-                    title: const Text('Catégorie…', style: TextStyle(color: AppColors.textPrimary)),
-                    onTap: () { Navigator.pop(context); _showCategoryPicker(card); },
-                  ),
-                  if (card.categoryLocked)
+                  if (card.tagsEdited)
                     ListTile(
                       leading: const Icon(Icons.auto_fix_high, color: AppColors.textMuted),
                       title: const Text('Déduire automatiquement', style: TextStyle(color: AppColors.textPrimary)),
-                      onTap: () { Navigator.pop(context); widget.onResetCategory(card); },
+                      onTap: () { Navigator.pop(context); widget.onResetTags(card); },
                     ),
 
                   // 4. DÉPLACEMENT
@@ -531,33 +527,6 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
           ),
         );        
       }
-    );
-  }
-
-  /// Les dix catégories, dans l'ordre d'affichage ; celle de la carte est
-  /// cochée.
-  void _showCategoryPicker(DeckCard card) {
-    final current = card.category ?? CardCategory.other;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.scaffoldBackground,
-      isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            for (final c in CardCategory.values)
-              ListTile(
-                title: Text(cardCategoryLabel(c), style: const TextStyle(color: AppColors.textPrimary)),
-                trailing: c == current ? const Icon(Icons.check, color: AppColors.primary) : null,
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  widget.onSetCategory(card, c);
-                },
-              ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -613,7 +582,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
               ],
             ),
             actions: [
-              TextButton(onPressed: () { widget.onUpdateTags?.call(card, tags); Navigator.pop(ctx); }, child: const Text('OK'))
+              TextButton(onPressed: () { widget.onSetTags(card, tags); Navigator.pop(ctx); }, child: const Text('OK'))
             ],
           );
         }
@@ -621,7 +590,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
     );
   }
 
-  /// Dans chaque section, par type comme par catégorie, les cartes suivent la
+  /// Dans chaque section, par type comme par tag, les cartes suivent la
   /// courbe de mana : mana value croissante, puis nom (voir sortByManaValue).
   List<_GroupedCardList> _buildGroupedList(List<DeckCard> cardList) {
     Map<String, List<DeckCard>> groupedMap = { 'Créatures': [], 'Planeswalkers': [], 'Sorts': [], 'Artefacts': [], 'Enchantements': [], 'Terrains': [], 'Autres': [] };
@@ -636,20 +605,37 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
     return groupedList;
   }
 
-  /// Une section par catégorie non vide, dans l'ordre de l'enum. Une carte sans
-  /// catégorie (locale, données absentes) tombe dans « Autres ».
-  List<_GroupedCardList> _buildCategoryList(List<DeckCard> cardList) {
-    final byCategory = <CardCategory, List<DeckCard>>{};
+  /// Une section par tag principal : d'abord les tags du catalogue, dans son
+  /// ordre et son orthographe, puis les tags propres au deck par ordre
+  /// alphabétique, et « Sans tag » en dernier. L'égalité des tags est
+  /// insensible à la casse.
+  List<_GroupedCardList> _buildTagList(
+      List<DeckCard> cardList, List<CardTagDef> catalog) {
+    final byKey = <String, List<DeckCard>>{};
+    final titles = <String, String>{};
+    final untagged = <DeckCard>[];
     for (final c in cardList) {
-      byCategory.putIfAbsent(c.category ?? CardCategory.other, () => []).add(c);
+      final tag = c.primaryTag;
+      if (tag == null) {
+        untagged.add(c);
+        continue;
+      }
+      final key = tag.toLowerCase();
+      titles.putIfAbsent(key, () => tag);
+      byKey.putIfAbsent(key, () => []).add(c);
     }
+    _GroupedCardList section(String title, List<DeckCard> cards) =>
+        _GroupedCardList(
+            title: title, cards: sortByManaValue(cards, widget.fullCardData));
+    final catalogKeys = catalog.map((t) => t.name.toLowerCase()).toSet();
+    final deckKeys = byKey.keys.where((k) => !catalogKeys.contains(k)).toList()
+      ..sort();
     return [
-      for (final cat in CardCategory.values)
-        if (byCategory[cat] != null)
-          _GroupedCardList(
-            title: cardCategoryLabel(cat),
-            cards: sortByManaValue(byCategory[cat]!, widget.fullCardData),
-          ),
+      for (final def in catalog)
+        if (byKey[def.name.toLowerCase()] case final cards?)
+          section(def.name, cards),
+      for (final key in deckKeys) section(titles[key]!, byKey[key]!),
+      if (untagged.isNotEmpty) section('Sans tag', untagged),
     ];
   }
 

@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../models/deck_model.dart';
 import '../../services/deck_service.dart';
+import '../../controllers/card_tag_catalog_controller.dart';
 import '../../controllers/deck_detail_controller.dart';
 
 import '../../widgets/decks/deck_stats_tab.dart';
@@ -501,6 +502,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
       DeckBoard.wishlist => deck.wishlist,
     };
     final isMain = board == DeckBoard.main;
+    final tagCatalog = ref.watch(cardTagCatalogProvider);
     return Column(
       children: [
         DeckBoardSelector(
@@ -538,7 +540,6 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
             currentBoard: board,
             onUpdateQuantity: (c, q) => _handleUpdateQuantity(c, q, board),
             onMoveCard: (c, target) => _handleMoveCard(c, target, board),
-            onUpdateTags: (c, tags) => _ctrl.updateTags(c, tags, board),
             onSetCommander: isMain ? _handleSetCommander : null,
             onExportToGlobalWishlist:
                 board == DeckBoard.wishlist ? _handleExportDeckWishlistToGlobal : null,
@@ -547,8 +548,9 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> with TickerProv
             onAddToCollection: (c, qty) => _handleAddToCollection(c, qty),
             onAddToWishlist: (c, qty, wId) => _handleAddToWishlist(c, qty, wId),
             viewPrefs: deckState.viewPrefs,
-            onSetCategory: (c, cat) => _ctrl.setCategory(c, board, cat),
-            onResetCategory: (c) => _ctrl.resetCategory(c, board),
+            tagCatalog: tagCatalog,
+            onSetTags: (c, tags) => _ctrl.setCardTags(c, board, tags),
+            onResetTags: (c) => _ctrl.resetCardTags(c, board),
           ),
         ),
       ],
