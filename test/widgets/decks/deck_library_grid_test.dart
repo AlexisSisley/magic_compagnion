@@ -26,11 +26,7 @@ class _StatefulTileState extends State<_StatefulTile> {
 void main() {
   Deck deck(String id) => Deck(id: id, name: id, format: 'Commander');
 
-  Widget host(
-    Widget grid, {
-    double width = 840,
-    double height = 2000,
-  }) =>
+  Widget host(Widget grid, {double width = 840, double height = 2000}) =>
       MaterialApp(
         theme: buildAppTheme(),
         home: Scaffold(
@@ -47,18 +43,17 @@ void main() {
 
   DeckLibraryGrid grid(
     List<Deck> decks, {
-    int activeFilters = 0,
+    bool libraryEmpty = false,
     VoidCallback? onClear,
     Widget Function(Deck)? tile,
-  }) =>
-      DeckLibraryGrid(
-        decks: decks,
-        prices: const {},
-        activeFilters: activeFilters,
-        onClearFilters: onClear ?? () {},
-        tileBuilder: tile ??
-            (d) => Container(key: ValueKey('tile-${d.id}'), color: Colors.red),
-      );
+  }) => DeckLibraryGrid(
+    decks: decks,
+    libraryEmpty: libraryEmpty,
+    onClearAll: onClear ?? () {},
+    tileBuilder:
+        tile ??
+        (d) => Container(key: ValueKey('tile-${d.id}'), color: Colors.red),
+  );
 
   group('deckLibraryColumns', () {
     test('seuils 600 et 1000', () {
@@ -93,16 +88,18 @@ void main() {
     }
 
     for (final (width, expected) in [(390.0, 1), (840.0, 2), (1200.0, 3)]) {
-      testWidgets('${width.toInt()} de large : $expected tuile(s) par rangée',
-          (tester) async {
+      testWidgets('${width.toInt()} de large : $expected tuile(s) par rangée', (
+        tester,
+      ) async {
         wideScreen(tester);
         await tester.pumpWidget(host(grid(decks), width: width));
         expect(perRow(tester), expected);
       });
     }
 
-    testWidgets('la tuile est un 16:9 pur dans les marges de 20',
-        (tester) async {
+    testWidgets('la tuile est un 16:9 pur dans les marges de 20', (
+      tester,
+    ) async {
       wideScreen(tester);
       await tester.pumpWidget(host(grid(decks), width: 840));
       final size = tester.getSize(find.byKey(const ValueKey('tile-d0')));
@@ -112,53 +109,64 @@ void main() {
       expect(tester.getTopLeft(find.byKey(const ValueKey('tile-d0'))).dx, 20);
     });
 
-    testWidgets('la largeur disponible décide, pas celle de l\'écran',
-        (tester) async {
+    testWidgets('la largeur disponible décide, pas celle de l\'écran', (
+      tester,
+    ) async {
       // Écran à 1400 (3 colonnes si l'on mesurait l'écran), grille à 700.
       wideScreen(tester);
       await tester.pumpWidget(host(grid(decks), width: 700));
       expect(perRow(tester), 2);
     });
 
-    testWidgets('supprimer un deck ne laisse pas l\'état d\'une case voisine',
-        (tester) async {
+    testWidgets('supprimer un deck ne laisse pas l\'état d\'une case voisine', (
+      tester,
+    ) async {
       Widget tile(Deck d) => _StatefulTile(d.id);
       final three = [deck('a'), deck('b'), deck('c')];
       await tester.pumpWidget(host(grid(three, tile: tile), width: 390));
       expect(find.text('b/b'), findsOneWidget);
 
       await tester.pumpWidget(
-          host(grid([three[1], three[2]], tile: tile), width: 390));
+        host(grid([three[1], three[2]], tile: tile), width: 390),
+      );
       // Sans clé par deck, la case 0 garderait l'état « a » : « a/b ».
       expect(find.text('b/b'), findsOneWidget);
       expect(find.text('c/c'), findsOneWidget);
       expect(find.text('a/b'), findsNothing);
     });
 
-    testWidgets('sans deck ni filtre : message simple, pas de bouton',
-        (tester) async {
-      await tester.pumpWidget(host(grid(const [])));
-      expect(find.text('Aucun deck pour l\'instant'), findsOneWidget);
-      expect(find.text('Effacer les filtres'), findsNothing);
+    testWidgets('bibliothèque vide : message simple, pas de bouton', (
+      tester,
+    ) async {
+      await tester.pumpWidget(host(grid(const [], libraryEmpty: true)));
+      expect(find.text("Aucun deck pour l'instant"), findsOneWidget);
+      expect(find.text('Tout effacer'), findsNothing);
     });
 
-    testWidgets('filtres actifs et aucun deck : le bouton efface les filtres',
-        (tester) async {
-      var cleared = 0;
-      await tester.pumpWidget(host(grid(
-        const [],
-        activeFilters: 2,
-        onClear: () => cleared++,
-      )));
-      expect(find.text('Aucun deck ne correspond aux filtres'), findsOneWidget);
-      expect(find.text('Aucun deck pour l\'instant'), findsNothing);
+    testWidgets(
+      'liste vide sur une bibliothèque non vide (recherche seule comprise) : '
+      'le bouton efface tout',
+      (tester) async {
+        var cleared = 0;
+        await tester.pumpWidget(host(grid(const [], onClear: () => cleared++)));
+        expect(find.text('Aucun deck ne correspond'), findsOneWidget);
+        expect(find.text("Aucun deck pour l'instant"), findsNothing);
 
-      final button = find.text('Effacer les filtres');
-      expect(tester.getSize(find.ancestor(
-              of: button, matching: find.byType(OutlinedButton))).height,
-          greaterThanOrEqualTo(48));
-      await tester.tap(button);
-      expect(cleared, 1);
-    });
+        final button = find.text('Tout effacer');
+        expect(
+          tester
+              .getSize(
+                find.ancestor(
+                  of: button,
+                  matching: find.byType(OutlinedButton),
+                ),
+              )
+              .height,
+          greaterThanOrEqualTo(48),
+        );
+        await tester.tap(button);
+        expect(cleared, 1);
+      },
+    );
   });
 }

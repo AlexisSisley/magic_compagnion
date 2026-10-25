@@ -805,6 +805,27 @@ Random text here
       expect(names(c), unorderedEquals(['Alpha', 'Beta']));
     });
 
+    test('clearSearchAndFilters vide recherche et filtres; garde le tri',
+        () async {
+      final c = await build([
+        ('Alpha', 'Commander', ['X']),
+        ('Beta', 'Standard', []),
+      ]);
+      c.updateSearchQuery('zzz');
+      c.updateSort(DeckSort.priceDesc);
+      c.updateFormat('Commander');
+      c.updateTags(['X']);
+      expect(names(c), isEmpty);
+
+      c.clearSearchAndFilters();
+
+      expect(c.state.searchQuery, '');
+      expect(c.state.selectedFormat, isNull);
+      expect(c.state.selectedTags, isEmpty);
+      expect(c.state.selectedSort, DeckSort.priceDesc);
+      expect(names(c), unorderedEquals(['Alpha', 'Beta']));
+    });
+
     test('availableTags : union triee sans doublon', () async {
       final c = await build([
         ('A', 'Standard', ['Zeta', 'Beta']),

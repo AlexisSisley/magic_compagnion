@@ -23,20 +23,19 @@ int deckLibraryColumns(double availableWidth) {
 /// soit la largeur de la grille.
 class DeckLibraryGrid extends StatelessWidget {
   final List<Deck> decks;
-  final Map<String, double> prices;
 
-  /// Nombre de filtres actifs (pas la recherche) : il choisit entre
-  /// « aucun deck ne correspond » et « aucun deck du tout ».
-  final int activeFilters;
-  final VoidCallback onClearFilters;
+  /// Vrai quand la bibliothèque elle-même est vide (et non seulement la liste
+  /// filtrée) : il choisit entre « aucun deck du tout » et « aucun ne
+  /// correspond », ce dernier portant le bouton qui efface recherche et filtres.
+  final bool libraryEmpty;
+  final VoidCallback onClearAll;
   final Widget Function(Deck) tileBuilder;
 
   const DeckLibraryGrid({
     super.key,
     required this.decks,
-    required this.prices,
-    required this.activeFilters,
-    required this.onClearFilters,
+    required this.libraryEmpty,
+    required this.onClearAll,
     required this.tileBuilder,
   });
 
@@ -85,7 +84,7 @@ class DeckLibraryGrid extends StatelessWidget {
   }
 
   Widget _buildEmpty() {
-    final filtered = activeFilters > 0;
+    final filtered = !libraryEmpty;
     return SliverFillRemaining(
       hasScrollBody: false,
       child: Padding(
@@ -95,19 +94,21 @@ class DeckLibraryGrid extends StatelessWidget {
           children: [
             Text(
               filtered
-                  ? 'Aucun deck ne correspond aux filtres'
+                  ? 'Aucun deck ne correspond'
                   : 'Aucun deck pour l\'instant',
               textAlign: TextAlign.center,
               style: AppTextStyles.text(
-                  color: AppColors.textSecondary, fontSize: 16),
+                color: AppColors.textSecondary,
+                fontSize: 16,
+              ),
             ),
             if (filtered) ...[
               const SizedBox(height: 16),
               ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 48),
                 child: OutlinedButton(
-                  onPressed: onClearFilters,
-                  child: const Text('Effacer les filtres'),
+                  onPressed: onClearAll,
+                  child: const Text('Tout effacer'),
                 ),
               ),
             ],

@@ -263,6 +263,20 @@ class DeckListController extends StateNotifier<DeckListState> {
     _applyFilters();
   }
 
+  /// Retire la recherche ET les filtres (le tri reste) : c'est le « tout
+  /// effacer » de l'etat vide, ou la recherche seule pourrait garder la liste
+  /// vide sous un bouton qui semblerait ne rien faire.
+  void clearSearchAndFilters() {
+    state = state.copyWith(
+      searchQuery: '',
+      clearFormat: true,
+      clearIdentity: true,
+      clearPriceRange: true,
+      selectedTags: const [],
+    );
+    _applyFilters();
+  }
+
   /// Union triee des tags de tous les decks : les « dossiers » proposes.
   List<String> get availableTags =>
       ({for (final d in state.decks) ...d.tags}.toList()..sort());
