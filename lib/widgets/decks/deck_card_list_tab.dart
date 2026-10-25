@@ -271,6 +271,18 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
       child: Row(
         children: [
+          Container(
+            key: const ValueKey('tag-header-dot'),
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: group.title == 'Sans tag'
+                  ? AppColors.textMuted
+                  : cardTagColor(group.title, widget.tagCatalog),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
           Text(
             group.title.toUpperCase(),
             style: AppTextStyles.sectionTitle().copyWith(color: AppColors.primary, letterSpacing: 1.2),
@@ -345,6 +357,7 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
       return DeckCardGridTile(
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
         display: display,
+        tagCatalog: widget.tagCatalog,
         onPlus: () => widget.onUpdateQuantity(card, 1),
         onMinus: () => widget.onUpdateQuantity(card, -1),
         onTap: () { if (scryfallCard != null) pushCardDetail(context, cardName: scryfallCard.name); },
@@ -353,6 +366,8 @@ class _DeckCardListTabState extends ConsumerState<DeckCardListTab> {
       return DeckCardTile(
         card: card, scryfallCard: scryfallCard, isCommander: isCommander, isInCollection: isInCollection,
         display: display,
+        tagCatalog: widget.tagCatalog,
+        showPrimaryTag: widget.viewPrefs.grouping != DeckGrouping.tag,
         onTap: () { if (scryfallCard != null) pushCardDetail(context, cardName: scryfallCard.name); },
         onMore: () => _showCardOptions(card, scryfallCard, isCommander), // <--- Ouvre la modale
         longPressOpensMenu: false,

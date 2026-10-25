@@ -25,6 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:magic_companion/data/database/app_database.dart';
+import 'package:magic_companion/theme/app_colors.dart';
 import 'package:magic_companion/models/card_tag.dart';
 import 'package:magic_companion/models/deck_model.dart';
 import 'package:magic_companion/models/scryfall_card_model.dart';
@@ -727,6 +728,121 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Suggestion auto'), findsNothing);
+    });
+
+    testWidgets('grid tile shows secondary tag dots with semantics', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb([
+          dc('a', tags: ['Ramp', 'Blink', 'Pioche']),
+        ], db),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is Semantics && w.properties.label == 'Tags : Blink, Pioche',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('tag-dot-Blink')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tag-dot-Pioche')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tag-dot-Ramp')), findsNothing);
+      final dot = tester.widget<Container>(
+        find.byKey(const ValueKey('tag-dot-Blink')),
+      );
+      expect(
+        (dot.decoration as BoxDecoration).color,
+        const Color(0xFF26C6DA),
+      );
+      expect(tester.getSize(find.byKey(const ValueKey('tag-dot-Blink'))),
+          const Size(8, 8));
+    });
+
+    testWidgets('grid tile caps dots at three and counts the rest', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb([
+          dc('a', tags: ['Ramp', 'Blink', 'Pioche', 'Wipe', 'Tuteur']),
+        ], db),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('tag-dot-Blink')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tag-dot-Pioche')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tag-dot-Wipe')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tag-dot-Tuteur')), findsNothing);
+      expect(find.text('+1'), findsOneWidget);
+    });
+
+    testWidgets('tag grouping list shows only secondary tags as chips', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [
+            dc('a', tags: ['Ramp', 'Blink']),
+          ],
+          db,
+          viewPrefs: const DeckViewPrefs(
+            grouping: DeckGrouping.tag,
+            layout: DeckLayout.list,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Blink'), findsOneWidget);
+      expect(find.text('Ramp'), findsNothing);
+    });
+
+    testWidgets('type grouping list shows all tags', (tester) async {
+      await tester.pumpWidget(
+        buildTabWithDb(
+          [
+            dc('bears', tags: ['Ramp', 'Blink']),
+          ],
+          db,
+          viewPrefs: const DeckViewPrefs(
+            grouping: DeckGrouping.type,
+            layout: DeckLayout.list,
+          ),
+          fullCardData: [sc('bears', 'Creature — Bear', 2)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ramp'), findsOneWidget);
+      expect(find.text('Blink'), findsOneWidget);
+    });
+
+    testWidgets('tag header dot uses catalogue colour', (tester) async {
+      await tester.pumpWidget(
+        buildTabWithDb([
+          dc('a', tags: ['ramp']),
+          dc('b', tags: ['Maison']),
+          dc('c'),
+        ], db),
+      );
+      await tester.pumpAndSettle();
+
+      final dots = tester
+          .widgetList<Container>(find.byKey(const ValueKey('tag-header-dot')))
+          .toList();
+      final colors = dots.map((d) => (d.decoration as BoxDecoration).color);
+      // Ramp (catalogue), Maison (tag de deck), Sans tag : les deux derniers
+      // sont neutres.
+      expect(colors, [
+        const Color(0xFF4CAF50),
+        AppColors.textMuted,
+        AppColors.textMuted,
+      ]);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('tag-header-dot')).first),
+        const Size(10, 10),
+      );
     });
   });
 }

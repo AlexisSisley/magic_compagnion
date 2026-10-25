@@ -3,9 +3,19 @@ import 'package:magic_companion/theme/app_text_styles.dart';
 import 'package:magic_companion/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../models/card_tag.dart';
 import '../../models/deck_model.dart';
 import '../../models/scryfall_card_model.dart';
 import '../../providers/card_display_provider.dart';
+
+/// Couleur d'un tag d'après le catalogue (égalité insensible à la casse) ;
+/// neutre pour un tag propre au deck.
+Color cardTagColor(String name, List<CardTagDef> catalog) {
+  for (final def in catalog) {
+    if (sameTag(def.name, name)) return Color(def.color);
+  }
+  return AppColors.textMuted;
+}
 
 // ==========================================
 // 1. VUE LISTE CLASSIQUE (Ligne horizontale)
@@ -29,6 +39,13 @@ class DeckCardTile extends StatelessWidget {
   /// démarrerait jamais. Le draggable ouvre alors le menu lui-même.
   final bool longPressOpensMenu;
 
+  /// Catalogue des tags, pour colorer les puces.
+  final List<CardTagDef> tagCatalog;
+
+  /// Faux quand le tag principal est déjà l'en-tête de la section : les puces
+  /// ne montrent alors que les tags secondaires.
+  final bool showPrimaryTag;
+
   const DeckCardTile({
     super.key,
     required this.card,
@@ -39,6 +56,8 @@ class DeckCardTile extends StatelessWidget {
     required this.onMore, // Requis maintenant
     this.display,
     this.longPressOpensMenu = true,
+    this.tagCatalog = const [],
+    this.showPrimaryTag = true,
   });
 
   @override
@@ -46,6 +65,7 @@ class DeckCardTile extends StatelessWidget {
     final imageUrl = scryfallCard?.smallImageUrl;
     final displayName = display?.name ?? card.name;
     final isFallback = display?.isFallback ?? false;
+    final chipTags = showPrimaryTag ? card.tags : card.tags.skip(1).toList();
 
     return Card(
       color: AppColors.textOnPrimary.withValues(alpha: 0.4),
@@ -129,16 +149,19 @@ class DeckCardTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ManaHelper.buildManaCostRow(scryfallCard?.manaCost),
-            if (card.tags.isNotEmpty)
+            if (chipTags.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 2.0),
                 child: Wrap(
                   spacing: 4,
-                  children: card.tags.take(3).map((t) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(color: AppColors.accent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)),
-                    child: Text(t, style: const TextStyle(fontSize: 8, color: AppColors.accent)),
-                  )).toList(),
+                  children: chipTags.take(3).map((t) {
+                    final color = cardTagColor(t, tagCatalog);
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(color: color.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)),
+                      child: Text(t, style: TextStyle(fontSize: 8, color: color)),
+                    );
+                  }).toList(),
                 ),
               )
           ],
@@ -168,6 +191,9 @@ class DeckCardGridTile extends StatelessWidget {
   /// Voir [DeckCardTile.display] : meme projection, meme regle de repli.
   final CardDisplay? display;
 
+  /// Catalogue des tags, pour colorer les points des tags secondaires.
+  final List<CardTagDef> tagCatalog;
+
   const DeckCardGridTile({
     super.key,
     required this.card,
@@ -178,10 +204,46 @@ class DeckCardGridTile extends StatelessWidget {
     required this.onMinus,
     required this.onTap,
     this.display,
+    this.tagCatalog = const [],
   });
+
+  /// Trois points de 8 px au plus, puis « +n » s'il en reste.
+  Widget _buildTagDots(List<String> tags) {
+    final shown = tags.take(3).toList();
+    final extra = tags.length - shown.length;
+    return Semantics(
+      label: 'Tags : ${tags.join(', ')}',
+      excludeSemantics: true,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+        decoration: BoxDecoration(color: AppColors.overlayDark, borderRadius: BorderRadius.circular(8)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final t in shown)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1),
+                child: Container(
+                  key: ValueKey('tag-dot-$t'),
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: cardTagColor(t, tagCatalog), shape: BoxShape.circle),
+                ),
+              ),
+            if (extra > 0)
+              Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: Text('+$extra', style: AppTextStyles.label(color: AppColors.textPrimary).copyWith(fontSize: 9)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final secondaryTags = card.tags.skip(1).toList();
     final imageUrl = scryfallCard?.imageUrl ?? scryfallCard?.smallImageUrl;
     final displayName = display?.name ?? card.name;
     final isFallback = display?.isFallback ?? false;
@@ -255,14 +317,22 @@ class DeckCardGridTile extends StatelessWidget {
                 ),
               ),
 
-            // --- 3. Indicateur Collection ---
-            if (isInCollection)
+            // --- 3. Coin haut-gauche : collection, puis points des tags secondaires ---
+            if (isInCollection || secondaryTags.isNotEmpty)
               Positioned(
                 top: 4, left: 4,
-                child: Container(
-                  decoration: const BoxDecoration(color: AppColors.overlayDark, shape: BoxShape.circle),
-                  padding: const EdgeInsets.all(2),
-                  child: const Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isInCollection)
+                      Container(
+                        decoration: const BoxDecoration(color: AppColors.overlayDark, shape: BoxShape.circle),
+                        padding: const EdgeInsets.all(2),
+                        child: const Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                      ),
+                    if (isInCollection && secondaryTags.isNotEmpty) const SizedBox(width: 4),
+                    if (secondaryTags.isNotEmpty) _buildTagDots(secondaryTags),
+                  ],
                 ),
               ),
 
